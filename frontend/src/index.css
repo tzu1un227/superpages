@@ -1,0 +1,101 @@
+:root {
+  --primary-yellow: #FFD700;
+  --primary-black: #1A1A1A;
+  --secondary-black: #2A2A2A;
+  --text-white: #FFFFFF;
+  --text-gray: #B0B0B0;
+  --error-red: #FF4D4D;
+  --success-green: #4CAF50;
+  --transition: all 0.3s ease;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+body {
+  background-color: var(--primary-black);
+  color: var(--text-white);
+}
+
+.bg-yellow {
+  background-color: var(--primary-yellow);
+  color: var(--primary-black);
+}
+
+.text-yellow {
+  color: var(--primary-yellow);
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: var(--transition);
+}
+
+button.primary {
+  background-color: var(--primary-yellow);
+  color: var(--primary-black);
+}
+
+button.primary:hover {
+  filter: brightness(1.1);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
+}
+
+input,
+select,
+textarea {
+  background-color: var(--secondary-black);
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 10px 15px;
+  color: white;
+  outline: none;
+  transition: var(--transition);
+}
+
+input:focus {
+  border-color: var(--primary-yellow);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+th {
+  text-align: left;
+  padding: 15px;
+  background-color: #111;
+  color: var(--primary-yellow);
+  border-bottom: 2px solid var(--primary-yellow);
+}
+
+td {
+  padding: 15px;
+  border-bottom: 1px solid #333;
+}
+
+tr:hover td {
+  background-color: rgba(255, 215, 0, 0.05);
+}
+
+.card {
+  background-color: var(--secondary-black);
+  border-radius: 12px;
+  padding: 25px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.nav-link:hover {
+  background-color: rgba(255, 215, 0, 0.1);
+  color: var(--primary-yellow) !important;
+}
