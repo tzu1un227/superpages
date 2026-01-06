@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import api from '../api';
 import { Send, User, Search, Tag } from 'lucide-react';
 

@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import api from '../api';
 import { BarChart3, Users, MessageSquare, TrendingUp } from 'lucide-react';
 
