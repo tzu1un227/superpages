@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import api from '../api';
 import { useNavigate } from 'react-router-dom';
 import { Lock, User } from 'lucide-react';
 
@@ -12,7 +13,7 @@ const Login = ({ setAuth }) => {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post('http://localhost:5000/api/login', { username, password });
+      const res = await api.post('/api/login', { username, password });
       if (res.data.status === 'success') {
         localStorage.setItem('user', JSON.stringify(res.data.user));
         setAuth(true);
@@ -32,10 +33,10 @@ const Login = ({ setAuth }) => {
             <label style={{ display: 'block', marginBottom: '8px', color: '#B0B0B0' }}>Username</label>
             <div style={{ position: 'relative' }}>
               <User size={18} style={{ position: 'absolute', left: '12px', top: '12px', color: '#FFD700' }} />
-              <input 
-                type="text" 
-                value={username} 
-                onChange={(e) => setUsername(e.target.value)} 
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 style={{ width: '100%', paddingLeft: '40px' }}
                 placeholder="預設: admin"
               />
@@ -45,10 +46,10 @@ const Login = ({ setAuth }) => {
             <label style={{ display: 'block', marginBottom: '8px', color: '#B0B0B0' }}>Password</label>
             <div style={{ position: 'relative' }}>
               <Lock size={18} style={{ position: 'absolute', left: '12px', top: '12px', color: '#FFD700' }} />
-              <input 
-                type="password" 
-                value={password} 
-                onChange={(e) => setPassword(e.target.value)} 
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 style={{ width: '100%', paddingLeft: '40px' }}
                 placeholder="預設: admin"
               />

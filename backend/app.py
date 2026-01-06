@@ -16,6 +16,8 @@ def json_response(data):
         mimetype='application/json'
     )
 
+import socketio
+
 # Database configuration
 DB_CONFIG = {
     "host": "140.138.176.197",
@@ -24,6 +26,9 @@ DB_CONFIG = {
     "user": "postgres",
     "password": "0000"
 }
+
+WS_URL = "https://irl-svr.ee.yzu.edu.tw:5013"
+BOT_NAME = "websoc"
 
 def get_db_connection():
     conn = psycopg2.connect(**DB_CONFIG)
@@ -187,6 +192,101 @@ def delete_schedule(id):
         conn.close()
         return jsonify({"status": "success"})
     except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# Statistics and Super8 Features
+@app.route('/api/statistics', methods=['GET'])
+def get_statistics():
+    try:
+        start_time = request.args.get('start_time', (datetime.now().replace(hour=0, minute=0, second=0)).isoformat())
+        end_time = request.args.get('end_time', datetime.now().isoformat())
+        group_unit = request.args.get('group_unit', 'day')
+
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        results = {}
+        for category in ['follow', 'user', 'message']:
+            cur.execute(
+                "SELECT * FROM get_events_count_by_category_and_tag(%s, %s, %s, %s)",
+                (start_time, end_time, category, group_unit)
+            )
+            results[category] = cur.fetchall()
+            
+        cur.close()
+        conn.close()
+        return json_response(results)
+    except Exception as e:
+        print(f"Error in get_statistics: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/history/<user_id>', methods=['GET'])
+def get_user_history(user_id):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            'SELECT * FROM "history:5013" WHERE user_id = %s AND category = \'Message\' ORDER BY timestamp ASC',
+            (user_id,)
+        )
+        history = cur.fetchall()
+        cur.close()
+        conn.close()
+        return json_response(history)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/users', methods=['GET'])
+def get_users_list():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        # Fetch unique user IDs with their latest activity or tags if available
+        # Based on requirement to show user list in Message Center
+        cur.execute("""
+            SELECT DISTINCT h.user_id, 
+                   (SELECT content FROM "history:5013" WHERE user_id = h.user_id ORDER BY timestamp DESC LIMIT 1) as last_message,
+                   (SELECT timestamp FROM "history:5013" WHERE user_id = h.user_id ORDER BY timestamp DESC LIMIT 1) as last_time,
+                   (SELECT string_agg(value, '|') FROM "Private_var:5013" WHERE user_id = h.user_id AND name = 'tag') as tags
+            FROM "history:5013" h
+            ORDER BY last_time DESC NULLS LAST
+        """)
+        users = cur.fetchall()
+        cur.close()
+        conn.close()
+        return json_response(users)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/trigger', methods=['POST'])
+def trigger_socket_event():
+    data = request.json
+    # Expected data: { "user": "target_id", "message": "content", "type": "Sensor" }
+    # Plus potential "api_index"
+    try:
+        sio = socketio.Client()
+        namespace = f"/{BOT_NAME}"
+        
+        # Ensure api_index is explicitly included as 0 if not provided
+        if 'api_index' not in data:
+            data['api_index'] = 0
+        
+        print(f"Emitting {BOT_NAME}_message to {namespace}: {data}")
+            
+        @sio.on('connect', namespace=namespace)
+        def on_connect():
+            print(f"Connected to {namespace}")
+
+        sio.connect(WS_URL, namespaces=[namespace], wait_timeout=3)
+        sio.emit(f'{BOT_NAME}_message', data, namespace=namespace)
+        time_to_wait = 0.5 # Small delay to ensure message is sent
+        import time
+        time.sleep(time_to_wait)
+        sio.disconnect()
+        
+        return jsonify({"status": "success"})
+    except Exception as e:
+        print(f"Socket.IO Trigger Error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == '__main__':
