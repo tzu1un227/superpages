@@ -20,7 +20,11 @@ const Login = ({ setAuth }) => {
         navigate('/projects');
       }
     } catch (err) {
-      setError('帳號或密碼錯誤');
+      if (!err.response) {
+        setError('無法連線到後端伺服器，請檢查網路或 Docker 狀態');
+      } else {
+        setError('帳號或密碼錯誤');
+      }
     }
   };
 
