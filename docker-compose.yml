@@ -15,6 +15,4 @@ services:
       - "9016:9016"
     depends_on:
       - backend
-    environment:
-      - VITE_API_URL=http://localhost:9017
     restart: always

@@ -2,11 +2,19 @@ import axios from 'axios';
 
 const getBaseURL = () => {
     if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
-    // Fallback to dynamic detection for Docker deployments across computers
     if (typeof window !== 'undefined') {
-        return `${window.location.protocol}//${window.location.hostname}:9017`;
+        const { protocol, hostname, port } = window.location;
+        // Case 1: Host Nginx 5016 -> Docker 9016, Host Nginx 5017 -> Docker 9017
+        if (port === '5016') {
+            return `${protocol}//${hostname}:5017`;
+        }
+        // Case 2: Direct Docker access
+        if (port === '9016') {
+            return `${protocol}//${hostname}:9017`;
+        }
     }
-    return 'http://localhost:9017';
+    // Default: use the same origin with /api prefix (works if Nginx proxies /api)
+    return '';
 };
 
 const api = axios.create({
