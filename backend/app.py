@@ -426,7 +426,7 @@ def get_tickets():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute('SELECT id, name, "order", user_id FROM ticket_table ORDER BY id')
+        cur.execute('SELECT id, name, "order", user_id FROM ticket_table ORDER BY id::integer')
         tickets = cur.fetchall()
         cur.close()
         conn.close()
