@@ -30,12 +30,18 @@ const PrizeStatus = () => {
         let message = '';
         if (['啟動遊戲', '抽大獎', '關閉遊戲'].includes(actionType)) {
             message = actionType;
-        } else if (actionType === '捐出獎品' || actionType === '新增獎品') {
+        } else if (actionType === '捐出獎品') {
             if (!content.trim()) {
-                alert('請輸入內容');
+                alert('請輸入獎品 ID');
                 return;
             }
-            message = `${actionType}|${content}`;
+            message = `捐出|${content}`;
+        } else if (actionType === '新增獎品') {
+            if (!content.trim()) {
+                alert('請輸入獎品 ID');
+                return;
+            }
+            message = `新增獎品|${content}`;
         }
 
         try {
