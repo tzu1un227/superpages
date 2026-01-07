@@ -6,7 +6,8 @@ import Statistics from './pages/Statistics';
 import MessageCenter from './pages/MessageCenter';
 import Broadcast from './pages/Broadcast';
 import ScheduledEvents from './pages/ScheduledEvents';
-import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send } from 'lucide-react';
+import PrizeStatus from './pages/PrizeStatus';
+import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send, Gift } from 'lucide-react';
 
 function App() {
   const [auth, setAuth] = useState(!!localStorage.getItem('user'));
@@ -52,6 +53,11 @@ function App() {
                   <Clock size={20} className="text-yellow" /> 定時觸發
                 </Link>
               </li>
+              <li style={{ marginBottom: '15px' }}>
+                <Link to="/prizes" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px' }} className="nav-link">
+                  <Gift size={20} className="text-yellow" /> 獎品查詢
+                </Link>
+              </li>
             </ul>
             <div style={{ marginTop: 'auto', borderTop: '1px solid #333', paddingTop: '20px' }}>
               <button onClick={logout} style={{ background: 'transparent', color: '#B0B0B0', display: 'flex', alignItems: 'center', gap: '12px', width: '100%', padding: '12px' }}>
@@ -68,6 +74,7 @@ function App() {
             <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
             <Route path="/broadcast" element={<ProtectedRoute><Broadcast /></ProtectedRoute>} />
             <Route path="/scheduled-events" element={<ProtectedRoute><ScheduledEvents /></ProtectedRoute>} />
+            <Route path="/prizes" element={<ProtectedRoute><PrizeStatus /></ProtectedRoute>} />
             <Route path="/" element={<Navigate to={auth ? "/statistics" : "/login"} />} />
           </Routes>
         </main>

@@ -13,6 +13,10 @@
     - 資料庫新增 `scheduled_events` 資料表（支援 `interval_hours` 與 `last_executed_at`）。
     - 後端實作背景執行緒，根據設定之「隔多久觸發一次 (小時)」自動計算並執行。
     - 前端新增「定時觸發」頁面，支援設定間隔時間與查看最後執行紀錄。
+- **獎品查詢頁面**:
+    - 後端新增 `/api/tickets` 接口，從 `ticket_table` 取得獎品中獎狀況。
+    - 前端新增 `PrizeStatus.jsx` 頁面，顯示獎品與中獎者 ID。
+    - 提供遊戲控制按鈕（啟動、抽大獎、關閉、捐出、新增），並整合 Socket.io 觸發指令。
 
 ### Documentation
 - 重整文件架構。

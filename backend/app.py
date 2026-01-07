@@ -420,5 +420,20 @@ def delete_scheduled_event(id):
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# Ticket Table Status
+@app.route('/api/tickets', methods=['GET'])
+def get_tickets():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute('SELECT id, name, "order", user_id FROM ticket_table ORDER BY id')
+        tickets = cur.fetchall()
+        cur.close()
+        conn.close()
+        return json_response(tickets)
+    except Exception as e:
+        print(f"Error in get_tickets: {e}")
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

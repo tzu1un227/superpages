@@ -72,6 +72,13 @@ Superpages 是一個整合 LINE 官方帳號管理的後台系統，提供數據
     - **標籤受眾**: 針對特定標籤（如：VIP、新客戶）的群體發送。
     - **指定 ID 列表**: 直接輸入 User ID 名單進行發送。
 - 透過轉發指令至 Socket.IO 伺服器來驅動手機端的發送行為。
++
++#### 6. 獎品查詢 (`PrizeStatus.jsx`)
++- **獎品清單**: 顯示 `ticket_table` 中的獎品名稱與中獎者 ID。
++- **遊戲控制與獎品管理**: 
++    - 提供「啟動遊戲」、「抽大獎」、「關閉遊戲」之指令按鈕。
++    - 提供「捐出獎品」、「新增獎品」之輸入與發送功能。
++    - 所有按鈕均發送對應訊息至 `yzuadmin`。
 
 ---
 
@@ -85,7 +92,8 @@ Superpages 是一個整合 LINE 官方帳號管理的後台系統，提供數據
     - `/api/statistics`: 呼叫 DB Function 獲取彙整後的統計數據。
     - `/api/history/<user_id>`: 查詢與特定用戶的歷史訊息。
     - `/api/users`: 取得互動用戶列表及其最新狀態。
-    - `/api/trigger`: 核心觸發介面，透過 Socket.IO 將管理端的指令發送至外部處理伺服器（如手機端或機器人）。
++    - `/api/tickets`: 查詢 `ticket_table`。
+     - `/api/trigger`: 核心觸發介面，透過 Socket.IO 將管理端的指令發送至外部處理伺服器（如手機端或機器人）。
 - **資料庫整合**: 使用 `psycopg2` 直接操作 PostgreSQL，並利用 `RealDictCursor` 簡化 JSON 回傳處理。
 
 ---
@@ -97,6 +105,7 @@ Superpages 是一個整合 LINE 官方帳號管理的後台系統，提供數據
 - `project_schedules`: 儲存專案下的各個推播階段設定 (Interval, Content)。
 - `history:5013`: 儲存訊息與事件記錄。
 - `Private_var:5013`: 儲存用戶的標籤 (Tag) 等私有變量資訊。
++- `ticket_table`: 儲存獎品資訊與中獎狀況。
 
 ---
 
