@@ -6,7 +6,8 @@ const PrizeStatus = () => {
     const [tickets, setTickets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [inputValue, setInputValue] = useState('');
+    const [idInput, setIdInput] = useState('');
+    const [nameInput, setNameInput] = useState('');
 
     const fetchTickets = async () => {
         setLoading(true);
@@ -38,7 +39,7 @@ const PrizeStatus = () => {
             message = `捐出|${content}`;
         } else if (actionType === '新增獎品') {
             if (!content.trim()) {
-                alert('請輸入獎品 ID');
+                alert('請輸入獎品名稱');
                 return;
             }
             message = `新增獎品|${content}`;
@@ -52,8 +53,10 @@ const PrizeStatus = () => {
                 type: 'Message'
             });
             alert(`已發送指令: ${message}`);
-            if (actionType === '捐出獎品' || actionType === '新增獎品') {
-                setInputValue('');
+            if (actionType === '捐出獎品') {
+                setIdInput('');
+            } else if (actionType === '新增獎品') {
+                setNameInput('');
             }
         } catch (err) {
             console.error('Error triggering action:', err);
@@ -76,7 +79,7 @@ const PrizeStatus = () => {
 
             <div className="card" style={{ marginBottom: '30px' }}>
                 <h3 style={{ fontSize: '20px', marginBottom: '20px' }}>遊戲控制</h3>
-                <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', marginBottom: '30px', borderBottom: '1px solid #333', pb: '30px' }}>
                     <button
                         onClick={() => handleAction('啟動遊戲')}
                         className="primary"
@@ -100,31 +103,48 @@ const PrizeStatus = () => {
                     </button>
                 </div>
 
-                <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minWidth: '200px' }}>
-                        <label style={{ color: '#B0B0B0', fontSize: '13px' }}>輸入獎品 ID</label>
-                        <input
-                            type="text"
-                            value={inputValue}
-                            onChange={(e) => setInputValue(e.target.value)}
-                            placeholder="例如: 1"
-                            style={{ width: '100%' }}
-                        />
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px' }}>
+                    {/* Donate Prize Group */}
+                    <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', backgroundColor: '#181818', padding: '15px', borderRadius: '8px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+                            <label style={{ color: '#B0B0B0', fontSize: '13px' }}>捐出獎品 (輸入 ID)</label>
+                            <input
+                                type="text"
+                                value={idInput}
+                                onChange={(e) => setIdInput(e.target.value)}
+                                placeholder="例如: 1"
+                                style={{ width: '100%' }}
+                            />
+                        </div>
+                        <button
+                            onClick={() => handleAction('捐出獎品', idInput)}
+                            className="primary"
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                        >
+                            <Gift size={18} /> 捐出獎品
+                        </button>
                     </div>
-                    <button
-                        onClick={() => handleAction('捐出獎品', inputValue)}
-                        className="primary"
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-                    >
-                        <Gift size={18} /> 捐出獎品
-                    </button>
-                    <button
-                        onClick={() => handleAction('新增獎品', inputValue)}
-                        className="primary"
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#8B5CF6', color: 'white', border: 'none' }}
-                    >
-                        <PlusCircle size={18} /> 新增獎品
-                    </button>
+
+                    {/* Add Prize Group */}
+                    <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', backgroundColor: '#181818', padding: '15px', borderRadius: '8px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+                            <label style={{ color: '#B0B0B0', fontSize: '13px' }}>新增獎品 (輸入名稱)</label>
+                            <input
+                                type="text"
+                                value={nameInput}
+                                onChange={(e) => setNameInput(e.target.value)}
+                                placeholder="例如: 驚喜禮包"
+                                style={{ width: '100%' }}
+                            />
+                        </div>
+                        <button
+                            onClick={() => handleAction('新增獎品', nameInput)}
+                            className="primary"
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#8B5CF6', color: 'white', border: 'none' }}
+                        >
+                            <PlusCircle size={18} /> 新增獎品
+                        </button>
+                    </div>
                 </div>
             </div>
 
