@@ -1,6 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import api from '../api';
-import { BarChart3, Users, MessageSquare, TrendingUp } from 'lucide-react';
+import { BarChart3, Users, MessageSquare, TrendingUp, CheckCircle2, Circle } from 'lucide-react';
+import {
+    LineChart,
+    Line,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    Legend,
+    ResponsiveContainer
+} from 'recharts';
 
 function Statistics() {
     const [data, setData] = useState({ follow: [], user: [], message: [] });
@@ -9,12 +19,9 @@ function Statistics() {
     const [endTime, setEndTime] = useState(new Date().toISOString().split('T')[0]);
     const [groupUnit, setGroupUnit] = useState('day');
     const [activeCategory, setActiveCategory] = useState('message');
+    const [selectedTags, setSelectedTags] = useState([]);
 
-    useEffect(() => {
-        fetchStats();
-    }, [startTime, endTime, groupUnit]);
-
-    const fetchStats = async () => {
+    const fetchStats = useCallback(async () => {
         setLoading(true);
         try {
             const resp = await api.get('/api/statistics', {
@@ -25,25 +32,77 @@ function Statistics() {
                 }
             });
             setData(resp.data);
+
+            // Auto-select all tags initially when data is fetched
+            const currentData = resp.data[activeCategory] || [];
+            const tags = [...new Set(currentData.map(item => item.tag))];
+            setSelectedTags(tags);
         } catch (err) {
             console.error('Error fetching stats:', err);
         } finally {
             setLoading(false);
+        }
+    }, [startTime, endTime, groupUnit, activeCategory]);
+
+    useEffect(() => {
+        fetchStats();
+    }, [fetchStats]);
+
+    // Available tags for the active category
+    const availableTags = useMemo(() => {
+        const currentData = data[activeCategory] || [];
+        return [...new Set(currentData.map(item => item.tag))];
+    }, [data, activeCategory]);
+
+    // Data formatted for Recharts
+    const chartData = useMemo(() => {
+        const currentData = data[activeCategory] || [];
+        const groupMap = {};
+
+        currentData.forEach(item => {
+            if (!groupMap[item.group_key]) {
+                groupMap[item.group_key] = { name: item.group_key };
+            }
+            if (selectedTags.includes(item.tag)) {
+                groupMap[item.group_key][item.tag] = item.tag_count;
+            }
+        });
+
+        return Object.values(groupMap).sort((a, b) => a.name.localeCompare(b.name));
+    }, [data, activeCategory, selectedTags]);
+
+    const handleTagToggle = (tag) => {
+        setSelectedTags(prev =>
+            prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+        );
+    };
+
+    const handleSelectAll = () => {
+        if (selectedTags.length === availableTags.length) {
+            setSelectedTags([]);
+        } else {
+            setSelectedTags(availableTags);
         }
     };
 
     const getSum = (arr) => arr.reduce((acc, curr) => acc + (curr.tag_count || 0), 0);
 
     const categoryMap = {
-        'message': { label: '總訊息量', key: 'message' },
-        'follow': { label: '總客戶數', key: 'follow' },
-        'user': { label: '有效好友數', key: 'user' }
+        'message': { label: '總訊息量', key: 'message', color: '#2196F3' },
+        'follow': { label: '總客戶數', key: 'follow', color: '#FFD700' },
+        'user': { label: '有效好友數', key: 'user', color: '#4CAF50' }
     };
 
-    const StatCard = ({ title, value, icon: Icon, color }) => (
+    // Color palette for multiple lines
+    const colors = [
+        '#2196F3', '#4CAF50', '#FFD700', '#F44336', '#9C27B0',
+        '#00BCD4', '#FF9800', '#795548', '#607D8B', '#E91E63'
+    ];
+
+    const StatCard = ({ title, value, icon: Component, color }) => (
         <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
             <div style={{ backgroundColor: `${color}22`, padding: '15px', borderRadius: '12px' }}>
-                <Icon size={32} style={{ color: color }} />
+                <Component size={32} style={{ color: color }} />
             </div>
             <div>
                 <p style={{ color: '#B0B0B0', fontSize: '14px', marginBottom: '5px' }}>{title}</p>
@@ -104,8 +163,8 @@ function Statistics() {
                 <StatCard title="總訊息量" value={getSum(data.message)} icon={MessageSquare} color="#2196F3" />
             </div>
 
-            <div className="card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <div className="card" style={{ marginBottom: '40px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
                     <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
                         <BarChart3 size={20} className="text-yellow" /> 趨勢分析
                     </h3>
@@ -114,7 +173,12 @@ function Statistics() {
                         <select
                             className="input"
                             value={activeCategory}
-                            onChange={(e) => setActiveCategory(e.target.value)}
+                            onChange={(e) => {
+                                setActiveCategory(e.target.value);
+                                // Refresh selected tags for the new category
+                                const tags = [...new Set(data[e.target.value]?.map(item => item.tag) || [])];
+                                setSelectedTags(tags);
+                            }}
                             style={{ padding: '5px 10px', width: '150px', background: '#222', border: '1px solid #333', color: '#fff' }}
                         >
                             {Object.entries(categoryMap).map(([key, info]) => (
@@ -124,22 +188,92 @@ function Statistics() {
                     </div>
                 </div>
 
+                <div style={{ marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '10px', padding: '15px', background: '#1a1a1a', borderRadius: '8px' }}>
+                    <div
+                        onClick={handleSelectAll}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer',
+                            padding: '6px 12px', borderRadius: '20px',
+                            background: selectedTags.length === availableTags.length ? '#333' : 'transparent',
+                            border: '1px solid #444', transition: 'all 0.2s'
+                        }}
+                    >
+                        {selectedTags.length === availableTags.length ? <CheckCircle2 size={16} className="text-yellow" /> : <Circle size={16} />}
+                        <span style={{ fontSize: '13px' }}>全選</span>
+                    </div>
+                    {availableTags.map((tag, idx) => (
+                        <div
+                            key={tag}
+                            onClick={() => handleTagToggle(tag)}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer',
+                                padding: '6px 12px', borderRadius: '20px',
+                                background: selectedTags.includes(tag) ? `${colors[idx % colors.length]}22` : 'transparent',
+                                border: `1px solid ${selectedTags.includes(tag) ? colors[idx % colors.length] : '#444'}`,
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            {selectedTags.includes(tag) ? <CheckCircle2 size={16} style={{ color: colors[idx % colors.length] }} /> : <Circle size={16} />}
+                            <span style={{ fontSize: '13px' }}>{tag}</span>
+                        </div>
+                    ))}
+                </div>
+
                 {loading ? (
-                    <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>載入中...</div>
+                    <div style={{ height: '400px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#666' }}>載入中...</div>
+                ) : chartData.length > 0 ? (
+                    <div style={{ height: '400px', width: '100%' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                                <XAxis dataKey="name" stroke="#888" fontSize={12} />
+                                <YAxis stroke="#888" fontSize={12} />
+                                <Tooltip
+                                    contentStyle={{ background: '#222', border: '1px solid #444', color: '#fff' }}
+                                    itemStyle={{ fontSize: '12px' }}
+                                />
+                                <Legend />
+                                {availableTags.map((tag, idx) => (
+                                    selectedTags.includes(tag) && (
+                                        <Line
+                                            key={tag}
+                                            type="monotone"
+                                            dataKey={tag}
+                                            stroke={colors[idx % colors.length]}
+                                            activeDot={{ r: 8 }}
+                                            strokeWidth={2}
+                                        />
+                                    )
+                                ))}
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
                 ) : (
-                    <div style={{ padding: '20px', overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr style={{ borderBottom: '1px solid #333', textAlign: 'left' }}>
-                                    <th style={{ padding: '12px' }}>時間範圍</th>
-                                    <th style={{ padding: '12px' }}>標籤</th>
-                                    <th style={{ padding: '12px' }}>指標分類</th>
-                                    <th style={{ padding: '12px' }}>數值</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {data[activeCategory]?.length > 0 ? (
-                                    data[activeCategory].map((item, idx) => (
+                    <div style={{ height: '400px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#666' }}>
+                        此範圍內或勾選標籤下無數據
+                    </div>
+                )}
+            </div>
+
+            <div className="card">
+                <div style={{ marginBottom: '20px' }}>
+                    <h3 style={{ margin: 0 }}>數據詳情</h3>
+                </div>
+                <div style={{ padding: '0px', overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                            <tr style={{ borderBottom: '1px solid #333', textAlign: 'left' }}>
+                                <th style={{ padding: '12px' }}>時間範圍</th>
+                                <th style={{ padding: '12px' }}>標籤</th>
+                                <th style={{ padding: '12px' }}>指標分類</th>
+                                <th style={{ padding: '12px' }}>數值</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {data[activeCategory]?.length > 0 ? (
+                                data[activeCategory]
+                                    .filter(item => selectedTags.includes(item.tag))
+                                    .map((item, idx) => (
                                         <tr key={`${activeCategory}-${idx}`} style={{ borderBottom: '1px solid #222' }}>
                                             <td style={{ padding: '12px' }}>{item.group_key}</td>
                                             <td style={{ padding: '12px' }}>{item.tag}</td>
@@ -147,17 +281,16 @@ function Statistics() {
                                             <td style={{ padding: '12px' }}>{item.tag_count}</td>
                                         </tr>
                                     ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan="4" style={{ padding: '40px', textAlign: 'center', color: '#666' }}>
-                                            此範圍內無數據
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
+                            ) : (
+                                <tr>
+                                    <td colSpan="4" style={{ padding: '40px', textAlign: 'center', color: '#666' }}>
+                                        此範圍內無數據
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );
