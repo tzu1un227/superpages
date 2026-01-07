@@ -46,8 +46,9 @@ def init_db():
                 target_user_id VARCHAR(255),
                 message_content TEXT,
                 message_type VARCHAR(50) DEFAULT 'Sensor',
-                scheduled_time TIMESTAMP,
-                is_executed BOOLEAN DEFAULT FALSE,
+                interval_hours FLOAT,
+                last_executed_at TIMESTAMP,
+                is_enabled BOOLEAN DEFAULT TRUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -65,10 +66,12 @@ def scheduled_event_processor():
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=RealDictCursor)
             now = datetime.now()
-            # Fetch events that are due and not yet executed
+            # Fetch enabled events that are due for next execution
+            # Due if never executed OR (last_executed + interval <= now)
             cur.execute("""
                 SELECT * FROM scheduled_events 
-                WHERE scheduled_time <= %s AND is_executed = FALSE
+                WHERE is_enabled = TRUE 
+                AND (last_executed_at IS NULL OR (last_executed_at + (interval_hours || ' hours')::interval <= %s))
             """, (now,))
             events = cur.fetchall()
             
@@ -83,14 +86,14 @@ def scheduled_event_processor():
                         "type": event['message_type'],
                         "api_index": 0
                     }
-                    print(f"Scheduled Trigger: Emitting to {namespace}: {data}")
+                    print(f"Recurring Trigger: Emitting to {namespace}: {data}")
                     sio.connect(WS_URL, namespaces=[namespace], wait_timeout=3)
                     sio.emit(f'{BOT_NAME}_message', data, namespace=namespace)
                     time.sleep(0.5)
                     sio.disconnect()
                     
-                    # Mark as executed
-                    cur.execute("UPDATE scheduled_events SET is_executed = TRUE WHERE event_id = %s", (event['event_id'],))
+                    # Update last execution time
+                    cur.execute("UPDATE scheduled_events SET last_executed_at = %s WHERE event_id = %s", (now, event['event_id']))
                     conn.commit()
                 except Exception as trigger_err:
                     print(f"Error processing scheduled event {event['event_id']}: {trigger_err}")
@@ -379,7 +382,7 @@ def get_scheduled_events():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT * FROM scheduled_events ORDER BY scheduled_time DESC")
+        cur.execute("SELECT * FROM scheduled_events ORDER BY created_at DESC")
         events = cur.fetchall()
         cur.close()
         conn.close()
@@ -394,8 +397,8 @@ def create_scheduled_event():
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO scheduled_events (target_user_id, message_content, message_type, scheduled_time) VALUES (%s, %s, %s, %s)",
-            (data['target_user_id'], data['message_content'], data.get('message_type', 'Sensor'), data['scheduled_time'])
+            "INSERT INTO scheduled_events (target_user_id, message_content, message_type, interval_hours) VALUES (%s, %s, %s, %s)",
+            (data['target_user_id'], data['message_content'], data.get('message_type', 'Sensor'), data['interval_hours'])
         )
         conn.commit()
         cur.close()

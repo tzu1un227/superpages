@@ -7,7 +7,7 @@ function ScheduledEvents() {
     const [targetUserId, setTargetUserId] = useState('');
     const [messageContent, setMessageContent] = useState('');
     const [messageType, setMessageType] = useState('Sensor');
-    const [scheduledTime, setScheduledTime] = useState('');
+    const [intervalHours, setIntervalHours] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -26,7 +26,7 @@ function ScheduledEvents() {
 
     const handleCreateEvent = async (e) => {
         e.preventDefault();
-        if (!targetUserId || !messageContent || !scheduledTime) {
+        if (!targetUserId || !messageContent || !intervalHours) {
             alert('請填寫完整資訊');
             return;
         }
@@ -37,11 +37,11 @@ function ScheduledEvents() {
                 target_user_id: targetUserId,
                 message_content: messageContent,
                 message_type: messageType,
-                scheduled_time: scheduledTime
+                interval_hours: parseFloat(intervalHours)
             });
             setTargetUserId('');
             setMessageContent('');
-            setScheduledTime('');
+            setIntervalHours('');
             fetchEvents();
         } catch (err) {
             alert('建立失敗: ' + err.message);
@@ -64,7 +64,7 @@ function ScheduledEvents() {
         <div>
             <div style={{ marginBottom: '40px' }}>
                 <h1 style={{ fontSize: '32px', marginBottom: '10px' }}>定時觸發事件管理</h1>
-                <p style={{ color: '#B0B0B0' }}>設定在特定時間自動發送訊息指令</p>
+                <p style={{ color: '#B0B0B0' }}>設定每隔一段時間自動發送訊息指令</p>
             </div>
 
             {error && (
@@ -109,11 +109,13 @@ function ScheduledEvents() {
                         />
                     </div>
                     <div>
-                        <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>預定時間</label>
+                        <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>觸發間隔 (小時)</label>
                         <input
-                            type="datetime-local"
-                            value={scheduledTime}
-                            onChange={e => setScheduledTime(e.target.value)}
+                            type="number"
+                            step="0.1"
+                            value={intervalHours}
+                            onChange={e => setIntervalHours(e.target.value)}
+                            placeholder="如: 1"
                             style={{ width: '100%' }}
                         />
                     </div>
@@ -135,7 +137,8 @@ function ScheduledEvents() {
                                 <th>目標用戶</th>
                                 <th>訊息內容</th>
                                 <th>類型</th>
-                                <th>預定執行時間</th>
+                                <th>間隔 (時)</th>
+                                <th>最後執行時間</th>
                                 <th>狀態</th>
                                 <th>操作</th>
                             </tr>
@@ -147,12 +150,13 @@ function ScheduledEvents() {
                                     <td>{ev.target_user_id}</td>
                                     <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.message_content}</td>
                                     <td>{ev.message_type}</td>
-                                    <td style={{ color: '#B0B0B0' }}>{new Date(ev.scheduled_time).toLocaleString()}</td>
+                                    <td>{ev.interval_hours}</td>
+                                    <td style={{ color: '#B0B0B0' }}>{ev.last_executed_at ? new Date(ev.last_executed_at).toLocaleString() : '尚未執行'}</td>
                                     <td>
-                                        {ev.is_executed ? (
-                                            <span style={{ color: '#4CAF50' }}>● 已執行</span>
+                                        {ev.is_enabled ? (
+                                            <span style={{ color: '#4CAF50' }}>● 啟用中</span>
                                         ) : (
-                                            <span style={{ color: '#FFD700' }}>○ 等待中</span>
+                                            <span style={{ color: '#666' }}>○ 已停用</span>
                                         )}
                                     </td>
                                     <td>
@@ -165,7 +169,7 @@ function ScheduledEvents() {
                                 </tr>
                             )) : (
                                 <tr>
-                                    <td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>目前無任何定時事件。</td>
+                                    <td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>目前無任何定時事件。</td>
                                 </tr>
                             )}
                         </tbody>
