@@ -43,7 +43,7 @@ const PrizeStatus = () => {
                 user: 'yzuadmin',
                 message: message,
                 api_index: 0,
-                type: 'message'
+                type: 'Message'
             });
             alert(`已發送指令: ${message}`);
             if (actionType === '捐出獎品' || actionType === '新增獎品') {
