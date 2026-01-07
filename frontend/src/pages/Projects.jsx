@@ -5,6 +5,7 @@ import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard } from 'l
 const ProjectsManagement = () => {
     const [projects, setProjects] = useState([]);
     const [schedules, setSchedules] = useState([]);
+    const [projectUsers, setProjectUsers] = useState([]);
     const [selectedProjectId, setSelectedProjectId] = useState('');
     const [editingProjectId, setEditingProjectId] = useState(null);
     const [editProjectFormData, setEditProjectFormData] = useState({});
@@ -25,6 +26,9 @@ const ProjectsManagement = () => {
 
     useEffect(() => {
         fetchSchedules();
+        if (activeTab === 'users' && selectedProjectId) {
+            fetchProjectUsers(selectedProjectId);
+        }
     }, [selectedProjectId, activeTab]);
 
     const fetchProjects = async () => {
@@ -46,6 +50,38 @@ const ProjectsManagement = () => {
             setSchedules(res.data);
         } catch (err) {
             setError('無法取得排程資料');
+        }
+    };
+
+    const fetchProjectUsers = async (projectId) => {
+        try {
+            const res = await api.get(`/api/projects/${projectId}/users`);
+            setProjectUsers(res.data);
+        } catch (err) {
+            setError('無法取得專案用戶列表');
+        }
+    };
+
+    const handleAddUserToProject = async () => {
+        if (!selectedProjectId) {
+            alert('請先選擇一個專案');
+            return;
+        }
+        const userId = window.prompt('請輸入要加入的 User ID:');
+        if (!userId) return;
+
+        try {
+            await api.post('/api/trigger', {
+                user: userId,
+                message: `iup|${selectedProjectId}`,
+                type: 'Sensor',
+                api_index: 0
+            });
+            alert(`已送出加入專案指令 (User: ${userId}, Project: ${selectedProjectId})`);
+            // Refresh users after a short delay
+            setTimeout(() => fetchProjectUsers(selectedProjectId), 1000);
+        } catch (err) {
+            alert('指令發送失敗: ' + err.message);
         }
     };
 
@@ -165,6 +201,18 @@ const ProjectsManagement = () => {
                 >
                     <Clock size={18} /> 排程設定
                 </button>
+                <button
+                    onClick={() => setActiveTab('users')}
+                    style={{
+                        padding: '12px 25px',
+                        backgroundColor: activeTab === 'users' ? 'var(--secondary-black)' : 'transparent',
+                        color: activeTab === 'users' ? 'var(--primary-yellow)' : '#B0B0B0',
+                        borderBottom: activeTab === 'users' ? '2px solid var(--primary-yellow)' : 'none',
+                        display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '8px 8px 0 0'
+                    }}
+                >
+                    <Users size={18} /> 參與用戶
+                </button>
             </div>
 
             {activeTab === 'projects' ? (
@@ -259,8 +307,9 @@ const ProjectsManagement = () => {
                         </table>
                     </div>
                 </div>
-            ) : (
+            ) : activeTab === 'schedules' ? (
                 <div className="card">
+                    {/* ... Schedules content remains same, just adjusted the nesting ... */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                             <h3 style={{ fontSize: '20px' }}>排程清單</h3>
@@ -367,6 +416,58 @@ const ProjectsManagement = () => {
                                 )) : (
                                     <tr>
                                         <td colSpan="6" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>無排程資料，請切換專案或建立新排程。</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            ) : (
+                <div className="card">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                            <h3 style={{ fontSize: '20px' }}>參與用戶列表</h3>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#111', padding: '5px 15px', borderRadius: '8px' }}>
+                                <Filter size={16} className="text-yellow" />
+                                <span style={{ fontSize: '14px' }}>選擇專案:</span>
+                                <select
+                                    value={selectedProjectId}
+                                    onChange={e => setSelectedProjectId(e.target.value)}
+                                    style={{ background: 'transparent', border: 'none', padding: '5px' }}
+                                >
+                                    <option value="">請選擇專案...</option>
+                                    {projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                        <button className="primary" onClick={handleAddUserToProject} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
+                            <Plus size={18} /> 手動加入用戶
+                        </button>
+                    </div>
+
+                    <div style={{ overflowX: 'auto' }}>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>User ID</th>
+                                    <th>所屬專案</th>
+                                    <th>加入狀態</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {projectUsers.length > 0 ? projectUsers.map((u, i) => (
+                                    <tr key={i}>
+                                        <td style={{ fontWeight: '600' }}>{u.user_id}</td>
+                                        <td>
+                                            {projects.find(p => p.project_id == selectedProjectId)?.project_name || `ID: ${selectedProjectId}`}
+                                        </td>
+                                        <td><span style={{ color: '#4CAF50' }}>● 已在排程中</span></td>
+                                    </tr>
+                                )) : (
+                                    <tr>
+                                        <td colSpan="3" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                                            {selectedProjectId ? '此專案目前無參與用戶。' : '請先選擇一個專案以查看參與用戶。'}
+                                        </td>
                                     </tr>
                                 )}
                             </tbody>

@@ -2,8 +2,10 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from decimal import Decimal
+import threading
+import time
 
 app = Flask(__name__)
 CORS(app)
@@ -33,6 +35,75 @@ BOT_NAME = "websoc"
 def get_db_connection():
     conn = psycopg2.connect(**DB_CONFIG)
     return conn
+
+def init_db():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS scheduled_events (
+                event_id SERIAL PRIMARY KEY,
+                target_user_id VARCHAR(255),
+                message_content TEXT,
+                message_type VARCHAR(50) DEFAULT 'Sensor',
+                scheduled_time TIMESTAMP,
+                is_executed BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error initializing database: {e}")
+
+init_db()
+
+def scheduled_event_processor():
+    while True:
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            now = datetime.now()
+            # Fetch events that are due and not yet executed
+            cur.execute("""
+                SELECT * FROM scheduled_events 
+                WHERE scheduled_time <= %s AND is_executed = FALSE
+            """, (now,))
+            events = cur.fetchall()
+            
+            for event in events:
+                try:
+                    # Reuse trigger logic
+                    sio = socketio.Client()
+                    namespace = f"/{BOT_NAME}"
+                    data = {
+                        "user": event['target_user_id'],
+                        "message": event['message_content'],
+                        "type": event['message_type'],
+                        "api_index": 0
+                    }
+                    print(f"Scheduled Trigger: Emitting to {namespace}: {data}")
+                    sio.connect(WS_URL, namespaces=[namespace], wait_timeout=3)
+                    sio.emit(f'{BOT_NAME}_message', data, namespace=namespace)
+                    time.sleep(0.5)
+                    sio.disconnect()
+                    
+                    # Mark as executed
+                    cur.execute("UPDATE scheduled_events SET is_executed = TRUE WHERE event_id = %s", (event['event_id'],))
+                    conn.commit()
+                except Exception as trigger_err:
+                    print(f"Error processing scheduled event {event['event_id']}: {trigger_err}")
+            
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print(f"Error in scheduled_event_processor: {e}")
+        
+        time.sleep(10) # Check every 10 seconds
+
+# Start background thread
+threading.Thread(target=scheduled_event_processor, daemon=True).start()
 
 @app.route('/api/login', methods=['POST'])
 def login():
@@ -116,6 +187,19 @@ def delete_project(id):
         cur.close()
         conn.close()
         return jsonify({"status": "success"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/projects/<int:id>/users', methods=['GET'])
+def get_project_users(id):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT DISTINCT user_id FROM cron_table WHERE project_id = %s", (id,))
+        users = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify(users)
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -287,6 +371,50 @@ def trigger_socket_event():
         return jsonify({"status": "success"})
     except Exception as e:
         print(f"Socket.IO Trigger Error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# Scheduled Events CRUD
+@app.route('/api/scheduled-events', methods=['GET'])
+def get_scheduled_events():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM scheduled_events ORDER BY scheduled_time DESC")
+        events = cur.fetchall()
+        cur.close()
+        conn.close()
+        return json_response(events)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/scheduled-events', methods=['POST'])
+def create_scheduled_event():
+    data = request.json
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO scheduled_events (target_user_id, message_content, message_type, scheduled_time) VALUES (%s, %s, %s, %s)",
+            (data['target_user_id'], data['message_content'], data.get('message_type', 'Sensor'), data['scheduled_time'])
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/scheduled-events/<int:id>', methods=['DELETE'])
+def delete_scheduled_event(id):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM scheduled_events WHERE event_id = %s", (id,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"status": "success"})
+    except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == '__main__':

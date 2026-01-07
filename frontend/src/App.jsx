@@ -5,6 +5,7 @@ import Projects from './pages/Projects';
 import Statistics from './pages/Statistics';
 import MessageCenter from './pages/MessageCenter';
 import Broadcast from './pages/Broadcast';
+import ScheduledEvents from './pages/ScheduledEvents';
 import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send } from 'lucide-react';
 
 function App() {
@@ -46,6 +47,11 @@ function App() {
                   <Send size={20} className="text-yellow" /> 群發訊息
                 </Link>
               </li>
+              <li style={{ marginBottom: '15px' }}>
+                <Link to="/scheduled-events" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px' }} className="nav-link">
+                  <Clock size={20} className="text-yellow" /> 定時觸發
+                </Link>
+              </li>
             </ul>
             <div style={{ marginTop: 'auto', borderTop: '1px solid #333', paddingTop: '20px' }}>
               <button onClick={logout} style={{ background: 'transparent', color: '#B0B0B0', display: 'flex', alignItems: 'center', gap: '12px', width: '100%', padding: '12px' }}>
@@ -61,6 +67,7 @@ function App() {
             <Route path="/messages" element={<ProtectedRoute><MessageCenter /></ProtectedRoute>} />
             <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
             <Route path="/broadcast" element={<ProtectedRoute><Broadcast /></ProtectedRoute>} />
+            <Route path="/scheduled-events" element={<ProtectedRoute><ScheduledEvents /></ProtectedRoute>} />
             <Route path="/" element={<Navigate to={auth ? "/statistics" : "/login"} />} />
           </Routes>
         </main>
