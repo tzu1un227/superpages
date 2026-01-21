@@ -20,3 +20,16 @@
 
 ### Documentation
 - 重整文件架構。
+
+## [2026-01-21]
+
+### Added
+- **Google 登入與權限管理**:
+    - 後端整合 `Google Sign-In` 與 `JWT` 驗證。
+    - 後端導入 `SQLAlchemy` 並建立 `User`, `Page`, `OAConfig` 模型 (使用 SQLite `meta_data.db` 儲存)。
+    - 新增 `/api/admin` 相關接口，用於管理用戶權限與 OA 設定。
+- **前端新功能**:
+    - 新增 `Login.jsx`: 支援 Google 登入。
+    - 新增 `AdminPage.jsx`: 提供管理員專用的後台介面，可設定用戶權限與連結 OA。
+    - 新增 `AuthContext`: 全局登入狀態與權限控管。
+    - 路由保護: 導入 `ProtectedRoute` 與 `AdminRoute` 確保頁面存取安全。

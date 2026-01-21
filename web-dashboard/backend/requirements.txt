@@ -1,0 +1,10 @@
+Flask
+psycopg2-binary
+Flask-Cors
+Flask-SQLAlchemy
+google-auth
+PyJWT
+pytest
+pytest-flask
+python-dotenv
+requests

@@ -12,16 +12,20 @@ Superpages 是一個整合 LINE 官方帳號管理的後台系統，提供數據
 
 ### 前端 (Frontend)
 - **核心框架**: React (Vite 建立)
-- **UI 組件庫**: Vanilla CSS, Lucide React (圖示)
+- **UI 組件庫**: Vanilla CSS, Lucide React (圖示), Material UI (MUI - 用於 Admin/Login)
 - **數據可視化**: Recharts (圖表繪製)
 - **API 請求**: Axios
 - **路由管理**: React Router DOM
+- **身分驗證**: Google OAuth 2.0 (@react-oauth/google)
 
 ### 後端 (Backend)
 - **核心框架**: Flask (Python)
-- **資料庫**: PostgreSQL
+- **資料庫**: 
+    - PostgreSQL (業務數據)
+    - SQLite (系統權限與使用者資料 - `meta_data.db`)
+    - ORM: SQLAlchemy (用於 SQLite)
 - **即時通訊**: Socket.IO (透過 python-socketio 行為觸發)
-- **資料庫驅動**: Psycopg2
+- **資料庫驅動**: Psycopg2 (用於 PostgreSQL)
 
 ### 部署 (Deployment)
 - **容器化**: Docker, Docker Compose
@@ -34,11 +38,21 @@ Superpages 是一個整合 LINE 官方帳號管理的後台系統，提供數據
 
 ### 核心頁面功能詳述
 
-#### 1. 登入頁面 (`Login.jsx`)
-- 提供基礎的身分驗證介面。
-- 登入成功後將用戶資訊儲存於 `localStorage` 並提供全局授權狀態。
+#### 1. 登入與權限 (`Login.jsx` & `AuthContext`)
+- **Google 登入**: 整合 Google Sign-In，驗證成功後交換 JWT Token。
+- **權限控管**: 
+    - 系統將用戶分為 `admin` (管理員) 與 `user` (一般用戶)。
+    - `AuthContext` 負責全域狀態管理，並根據角色動態顯示側邊欄選單。
 
-#### 2. 綜合數據 (`Statistics.jsx`)
+#### 2. 管理員後台 (`AdminPage.jsx`)
+- **用戶管理**: 
+    - 檢視所有系統用戶。
+    - 設定用戶角色 (Admin/User)。
+    - 分配用戶可存取的官方帳號 (OA Configs)。
+- **OA 設定管理**: 
+    - 新增或修改 Official Account 的連線資訊 (DB URL) 與對應頁面。
+
+#### 3. 綜合數據 (`Statistics.jsx`)
 - **看板摘要**: 顯示「總客戶數 (follow)」、「有效好友數 (user)」及「總訊息量 (message)」的總量統計。
 - **趨勢分析圖**: 使用 Line Chart 視覺化顯示各項指標隨時間變化的趨勢。
 - **動態過濾**:
@@ -87,25 +101,37 @@ Superpages 是一個整合 LINE 官方帳號管理的後台系統，提供數據
 後端主要負責 API 提供與資料庫互動，其核心邏輯位於 `app.py`：
 
 - **API 路由**: 
+    - `/api/auth/google-login`: Google Token 驗證與 JWT 發放。
+    - `/api/admin`: 管理員專用接口 (Users, OA Configs CRUD)。
+    - `/api/my_oas`: 取得當前用戶被授權存取的 OA 列表。
     - `/api/projects`: 專案之 CRUD。
     - `/api/schedules`: 排程之 CRUD。
     - `/api/statistics`: 呼叫 DB Function 獲取彙整後的統計數據。
     - `/api/history/<user_id>`: 查詢與特定用戶的歷史訊息。
     - `/api/users`: 取得互動用戶列表及其最新狀態。
-+    - `/api/tickets`: 查詢 `ticket_table`。
-     - `/api/trigger`: 核心觸發介面，透過 Socket.IO 將管理端的指令發送至外部處理伺服器（如手機端或機器人）。
-- **資料庫整合**: 使用 `psycopg2` 直接操作 PostgreSQL，並利用 `RealDictCursor` 簡化 JSON 回傳處理。
+    - `/api/tickets`: 查詢 `ticket_table`。
+    - `/api/trigger`: 核心觸發介面，透過 Socket.IO 將管理端的指令發送至外部處理伺服器（如手機端或機器人）。
+- **資料庫整合**: 
+    - 使用 `psycopg2` 操作 PostgreSQL (業務數據)。
+    - 使用 `SQLAlchemy` 操作 SQLite (使用者與權限數據)。
 
 ---
 
 ## 5. 資料庫設計 (Database Design)
 
 主要涉及的資料表：
+
+**PostgreSQL (業務數據)**:
 - `projects`: 儲存推播專案資訊 (ID, Name, Date Range, Status)。
 - `project_schedules`: 儲存專案下的各個推播階段設定 (Interval, Content)。
 - `history:5013`: 儲存訊息與事件記錄。
 - `Private_var:5013`: 儲存用戶的標籤 (Tag) 等私有變量資訊。
-+- `ticket_table`: 儲存獎品資訊與中獎狀況。
+- `ticket_table`: 儲存獎品資訊與中獎狀況。
+
+**SQLite (Meta Data)**:
+- `users`: 系統使用者 (Email, Role, Allowed OAs)。
+- `pages`: 系統頁面定義。
+- `oa_configs`: 官方帳號設定 (OA Name, DB URL)。
 
 ---
 

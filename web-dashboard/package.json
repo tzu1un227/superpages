@@ -1,0 +1,19 @@
+{
+  "name": "web-dashboard-workspace",
+  "version": "1.0.0",
+  "description": "Workspace for the web-dashboard project, enabling centralized script execution.",
+  "main": "index.js",
+  "scripts": {
+    "install:backend": "pip install -r backend/requirements.txt",
+    "install:frontend": "npm install --prefix frontend",
+    "install:all": "npm run install:backend && npm run install:frontend",
+    "test:backend": "cd backend && python -m pytest",
+    "test:frontend": "npm test --prefix frontend -- --watchAll=false",
+    "test": "echo 'Running all tests...' && npm run test:backend && npm run test:frontend"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@react-oauth/google": "^0.12.2"
+  }
+}

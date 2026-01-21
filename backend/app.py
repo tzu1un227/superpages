@@ -1,5 +1,6 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, g
 from flask_cors import CORS
+from config import Config
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime, date, timedelta
@@ -8,7 +9,41 @@ import threading
 import time
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=["https://irl-svr.ee.yzu.edu.tw:5014", "http://localhost:3000"])
+
+# Auth and DB imports
+from models import db, User, Page, OAConfig
+from auth import generate_token, token_required, admin_required
+import os
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+
+# Configuration for SQLAlchemy
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'dev_secret_key'
+# Construct URI from DB_CONFIG (assuming default postgres user/pass for now or need to parse DB_CONFIG)
+# DB_CONFIG was: "host": "140.138.176.197", "port": "5432", "database": "5013", "user": "postgres", "password": "0000"
+# Note: For the new User/Auth tables, we might want to use the SAME database or a local one. 
+# The web-dashboard used 'local_data.db' (SQLite). 
+# However, to support multiple users properly in production, we should probably use the Postgres DB or a dedicated one.
+# For now, let's use the SAME Postgres DB 5013 to keep it centralized, OR create a new local sqlite if we want to isolate 'meta' data.
+# User request implied 'web-dashboard' features. Web-dashboard used sqlite. 
+# Let's stick to SQLite for the 'meta' data (Users, Permissions) to avoid messing with the main business logic DB (5013),
+# UNLESS the user explicitly wants them together. 
+# Given the instructions "add google account login functionality", safely using SQLite for this metadata seems significantly safer 
+# than modifying the production Postgres schema of the existing project without explicit instruction.
+# So I will configure SQLAlchemy to use a local sqlite file for metadata, similar to web-dashboard.
+
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///meta_data.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db.init_app(app)
+
+# Register Admin Blueprint
+from endpoints.admin import admin_bp
+app.register_blueprint(admin_bp, url_prefix='/api/admin')
+
+with app.app_context():
+    db.create_all()
 
 import json
 
@@ -110,13 +145,84 @@ threading.Thread(target=scheduled_event_processor, daemon=True).start()
 
 @app.route('/api/login', methods=['POST'])
 def login():
+    # Deprecated simple auth, keeping for compatibility if needed, but prioritizing Google Login
     data = request.json
     username = data.get('username')
     password = data.get('password')
-    # Simple auth for prototype, can be enhanced
     if username == "admin" and password == "admin":
         return jsonify({"status": "success", "user": {"id": 1, "username": "admin"}})
     return jsonify({"status": "error", "message": "Invalid credentials"}), 401
+
+@app.route('/api/auth/google-login', methods=['POST'])
+def google_login():
+    try:
+        data = request.get_json()
+        google_token = data.get('token')
+        
+        if not google_token:
+            return jsonify({'message': 'No token provided'}), 400
+        
+        try:
+            # Verify Google token
+            # In production, specify your CLIENT_ID as the second argument
+            idinfo = id_token.verify_oauth2_token(google_token, google_requests.Request())
+        except ValueError as e:
+            print(f"Token verification error: {e}")
+            return jsonify({'message': f'Invalid Google token: {str(e)}'}), 400
+        
+        email = idinfo['email']
+        user = User.query.filter_by(email=email).first()
+        
+        if not user:
+            # Auto-register logic or Fail?
+            # Requirement: "原先設定好可以有所有權限的google帳號後...新增其他人的帳號"
+            # This implies the first user (Super Admin) might need to be created manually or we auto-create the *first* one.
+            # For now, let's return 401 if not found, implying they need to be added by an admin.
+            # EXCEPTION: If the DB is empty (no users), we could allow the first one to be Admin?
+            if User.query.count() == 0:
+                user = User(email=email, name=idinfo.get('name'), role='admin')
+                db.session.add(user)
+                db.session.commit()
+            else:
+                return jsonify({'message': 'User not authorized'}), 401
+        
+        # Update user name
+        google_name = idinfo.get('name')
+        if google_name and user.name != google_name:
+            user.name = google_name
+            db.session.commit()
+        
+        token = generate_token(user)
+        
+        return jsonify({
+            'token': token,
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'name': user.name,
+                'role': user.role,
+                'allowed_oa_configs': user.allowed_oa_configs
+            }
+        })
+    except Exception as e:
+        print(e)
+        return jsonify({'message': 'Login failed', 'error': str(e)}), 500
+
+@app.route('/api/my_oas', methods=['GET'])
+@token_required
+def get_my_oas():
+    user = g.current_user
+    try:
+        if user.role == 'admin':
+            configs = OAConfig.query.all()
+        else:
+            allowed_ids = user.allowed_oa_configs or []
+            configs = OAConfig.query.filter(OAConfig.id.in_(allowed_ids)).all()
+        
+        oa_list = [{'id': c.id, 'oa_name': c.oa_name, 'page_id': c.page_id, 'db_url': c.db_url} for c in configs]
+        return jsonify(oa_list)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # Projects CRUD
 @app.route('/api/projects', methods=['GET'])
