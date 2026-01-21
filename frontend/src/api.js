@@ -17,8 +17,10 @@ const getBaseURL = () => {
     return '';
 };
 
+export const API_BASE_URL = getBaseURL() ? `${getBaseURL()}/api` : '/api';
+
 const api = axios.create({
-    baseURL: getBaseURL(),
+    baseURL: API_BASE_URL,
 });
 
 export default api;
