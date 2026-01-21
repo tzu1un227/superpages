@@ -9,7 +9,7 @@ import threading
 import time
 
 app = Flask(__name__)
-CORS(app, origins=["https://irl-svr.ee.yzu.edu.tw:5014", "http://localhost:3000"])
+CORS(app, origins=["https://irl-svr.ee.yzu.edu.tw:5014", "http://localhost:3000", "http://localhost:9016"])
 
 # Auth and DB imports
 from models import db, User, Page, OAConfig
