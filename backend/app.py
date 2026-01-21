@@ -45,6 +45,28 @@ app.register_blueprint(admin_bp, url_prefix='/api/admin')
 with app.app_context():
     db.create_all()
 
+    # Seeding Data
+    def seed_data():
+        if Page.query.first() is None:
+            print("Seeding initial pages...")
+            default_pages = [
+                {'name': 'Statistics', 'description': '數據統計頁面'},
+                {'name': 'Projects', 'description': '專案與排程管理'},
+                {'name': 'ScheduledEvents', 'description': '定時事件與觸發'},
+                {'name': 'PrizeStatus', 'description': '獎品與抽獎狀態'},
+                {'name': 'MessageCenter', 'description': '訊息中心與客服'},
+                {'name': 'Broadcast', 'description': '推播與群發系統'}
+            ]
+            for p in default_pages:
+                page = Page(name=p['name'], description=p['description'])
+                db.session.add(page)
+            db.session.commit()
+            print("Pages seeded.")
+        
+        # Optional: Ensure at least one admin exists if desired, but Google Login handles creation.
+    
+    seed_data()
+
 import json
 
 def json_response(data):

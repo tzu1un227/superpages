@@ -220,7 +220,16 @@ function AdminPage() {
                 帳號管理
             </Typography>
             <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-                <Tabs value={tabValue} onChange={handleTabChange} aria-label="admin tabs">
+                <Tabs
+                    value={tabValue}
+                    onChange={handleTabChange}
+                    aria-label="admin tabs"
+                    sx={{
+                        '& .MuiTab-root': { color: '#B0B0B0' },
+                        '& .Mui-selected': { color: 'var(--primary-yellow) !important' },
+                        '& .MuiTabs-indicator': { backgroundColor: 'var(--primary-yellow)' }
+                    }}
+                >
                     <Tab label="用戶管理" />
                     <Tab label="官方帳號 (OA) 設定" />
                 </Tabs>
