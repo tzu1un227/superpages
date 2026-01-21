@@ -12,7 +12,7 @@ const PrizeStatus = () => {
     const fetchTickets = async () => {
         setLoading(true);
         try {
-            const response = await api.get('/api/tickets');
+            const response = await api.get('/tickets');
             setTickets(response.data);
             setError(null);
         } catch (err) {
@@ -46,7 +46,7 @@ const PrizeStatus = () => {
         }
 
         try {
-            await api.post('/api/trigger', {
+            await api.post('/trigger', {
                 user: 'yzuadmin',
                 message: message,
                 api_index: 0,

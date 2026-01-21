@@ -24,7 +24,7 @@ function Statistics() {
     const fetchStats = useCallback(async () => {
         setLoading(true);
         try {
-            const resp = await api.get('/api/statistics', {
+            const resp = await api.get('/statistics', {
                 params: {
                     start_time: startTime,
                     end_time: endTime,

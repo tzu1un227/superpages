@@ -33,7 +33,7 @@ const ProjectsManagement = () => {
 
     const fetchProjects = async () => {
         try {
-            const res = await api.get('/api/projects');
+            const res = await api.get('/projects');
             setProjects(res.data);
         } catch (err) {
             setError('無法取得專案列表');
@@ -44,8 +44,8 @@ const ProjectsManagement = () => {
         if (activeTab !== 'schedules') return;
         try {
             const url = selectedProjectId
-                ? `/api/schedules?project_id=${selectedProjectId}`
-                : `/api/schedules`;
+                ? `/schedules?project_id=${selectedProjectId}`
+                : `/schedules`;
             const res = await api.get(url);
             setSchedules(res.data);
         } catch (err) {
@@ -55,7 +55,7 @@ const ProjectsManagement = () => {
 
     const fetchProjectUsers = async (projectId) => {
         try {
-            const res = await api.get(`/api/projects/${projectId}/users`);
+            const res = await api.get(`/projects/${projectId}/users`);
             setProjectUsers(res.data);
         } catch (err) {
             setError('無法取得專案用戶列表');
@@ -71,7 +71,7 @@ const ProjectsManagement = () => {
         if (!userId) return;
 
         try {
-            await api.post('/api/trigger', {
+            await api.post('/trigger', {
                 user: userId,
                 message: `iup|${selectedProjectId}`,
                 type: 'Sensor',
@@ -93,7 +93,7 @@ const ProjectsManagement = () => {
 
     const handleUpdateProject = async () => {
         try {
-            await api.put(`/api/projects/${editingProjectId}`, editProjectFormData);
+            await api.put(`/projects/${editingProjectId}`, editProjectFormData);
             setEditingProjectId(null);
             fetchProjects();
             setError('');
@@ -104,14 +104,14 @@ const ProjectsManagement = () => {
 
     const handleDeleteProject = async (id) => {
         if (window.confirm('確定要刪除此專案嗎？相關排程也可能受到影響。')) {
-            await api.delete(`/api/projects/${id}`);
+            await api.delete(`/projects/${id}`);
             fetchProjects();
         }
     };
 
     const handleCreateProject = async () => {
         try {
-            await api.post('/api/projects', newProject);
+            await api.post('/projects', newProject);
             setShowAddProjectForm(false);
             setNewProject({ project_name: '', start_date: '', end_date: '', is_enabled: true });
             fetchProjects();
@@ -129,7 +129,7 @@ const ProjectsManagement = () => {
 
     const handleUpdateSchedule = async () => {
         try {
-            await api.put(`/api/schedules/${editingScheduleId}`, editScheduleFormData);
+            await api.put(`/schedules/${editingScheduleId}`, editScheduleFormData);
             setEditingScheduleId(null);
             fetchSchedules();
             setError('');
@@ -140,7 +140,7 @@ const ProjectsManagement = () => {
 
     const handleDeleteSchedule = async (id) => {
         if (window.confirm('確定要刪除此排程嗎？')) {
-            await api.delete(`/api/schedules/${id}`);
+            await api.delete(`/schedules/${id}`);
             fetchSchedules();
         }
     };
@@ -152,7 +152,7 @@ const ProjectsManagement = () => {
                 setError('請先選擇或輸入專案 ID');
                 return;
             }
-            await api.post('/api/schedules', scheduleToCreate);
+            await api.post('/schedules', scheduleToCreate);
             setShowAddScheduleForm(false);
             setNewSchedule({ project_id: '', step_id: '', interval_hours: '', message_content: '' });
             fetchSchedules();

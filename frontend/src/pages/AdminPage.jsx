@@ -233,37 +233,37 @@ function AdminPage() {
                 <Button variant="contained" onClick={() => { resetUserForm(); setOpenUserDialog(true); }} sx={{ mb: 2 }}>
                     新增用戶
                 </Button>
-                <TableContainer component={Paper}>
+                <TableContainer component={Paper} sx={{ backgroundColor: '#FFD700', color: '#1A1A1A' }}>
                     <Table>
                         <TableHead>
                             <TableRow>
-                                <TableCell>姓名</TableCell>
-                                <TableCell>Email</TableCell>
-                                <TableCell>可使用的 OA</TableCell>
-                                <TableCell>角色</TableCell>
-                                <TableCell>操作</TableCell>
+                                <TableCell sx={{ color: '#1A1A1A', fontWeight: 'bold', borderBottom: '2px solid #1A1A1A' }}>姓名</TableCell>
+                                <TableCell sx={{ color: '#1A1A1A', fontWeight: 'bold', borderBottom: '2px solid #1A1A1A' }}>Email</TableCell>
+                                <TableCell sx={{ color: '#1A1A1A', fontWeight: 'bold', borderBottom: '2px solid #1A1A1A' }}>可使用的 OA</TableCell>
+                                <TableCell sx={{ color: '#1A1A1A', fontWeight: 'bold', borderBottom: '2px solid #1A1A1A' }}>角色</TableCell>
+                                <TableCell sx={{ color: '#1A1A1A', fontWeight: 'bold', borderBottom: '2px solid #1A1A1A' }}>操作</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {users.map((user) => (
                                 <TableRow key={user.id}>
-                                    <TableCell>{user.name || '-'}</TableCell>
-                                    <TableCell>{user.email}</TableCell>
-                                    <TableCell>
+                                    <TableCell sx={{ color: '#1A1A1A', borderBottom: '1px solid #333' }}>{user.name || '-'}</TableCell>
+                                    <TableCell sx={{ color: '#1A1A1A', borderBottom: '1px solid #333' }}>{user.email}</TableCell>
+                                    <TableCell sx={{ color: '#1A1A1A', borderBottom: '1px solid #333' }}>
                                         {user.role === 'admin' ? '全部 (管理員)' :
                                             user.allowed_oa_configs && user.allowed_oa_configs.length > 0 ? (
                                                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                                     {user.allowed_oa_configs.map(oaId => {
                                                         const oa = oaConfigs.find(c => c.id === oaId);
-                                                        return <Chip key={oaId} label={oa ? oa.oa_name : oaId} size="small" />;
+                                                        return <Chip key={oaId} label={oa ? oa.oa_name : oaId} size="small" sx={{ backgroundColor: '#1A1A1A', color: '#FFD700' }} />;
                                                     })}
                                                 </Box>
                                             ) : '無'
                                         }
                                     </TableCell>
-                                    <TableCell>{user.role === 'admin' ? '管理員' : '一般用戶'}</TableCell>
-                                    <TableCell>
-                                        <IconButton onClick={() => openEditUser(user)} color="primary">
+                                    <TableCell sx={{ color: '#1A1A1A', borderBottom: '1px solid #333' }}>{user.role === 'admin' ? '管理員' : '一般用戶'}</TableCell>
+                                    <TableCell sx={{ color: '#1A1A1A', borderBottom: '1px solid #333' }}>
+                                        <IconButton onClick={() => openEditUser(user)} sx={{ color: '#1A1A1A' }}>
                                             <EditIcon />
                                         </IconButton>
                                         <IconButton onClick={() => handleDeleteUser(user.id)} color="error">
@@ -282,14 +282,14 @@ function AdminPage() {
                 <Button variant="contained" onClick={() => { resetOAForm(); setOpenOADialog(true); }} sx={{ mb: 2 }}>
                     新增 OA 設定
                 </Button>
-                <TableContainer component={Paper}>
+                <TableContainer component={Paper} sx={{ backgroundColor: '#FFD700', color: '#1A1A1A' }}>
                     <Table>
                         <TableHead>
                             <TableRow>
-                                <TableCell width="15%">OA 名稱</TableCell>
-                                <TableCell width="15%">頁面</TableCell>
-                                <TableCell width="55%">設定</TableCell>
-                                <TableCell width="15%">操作</TableCell>
+                                <TableCell width="15%" sx={{ color: '#1A1A1A', fontWeight: 'bold', borderBottom: '2px solid #1A1A1A' }}>OA 名稱</TableCell>
+                                <TableCell width="15%" sx={{ color: '#1A1A1A', fontWeight: 'bold', borderBottom: '2px solid #1A1A1A' }}>頁面</TableCell>
+                                <TableCell width="55%" sx={{ color: '#1A1A1A', fontWeight: 'bold', borderBottom: '2px solid #1A1A1A' }}>設定</TableCell>
+                                <TableCell width="15%" sx={{ color: '#1A1A1A', fontWeight: 'bold', borderBottom: '2px solid #1A1A1A' }}>操作</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -297,11 +297,11 @@ function AdminPage() {
                                 const page = pages.find(p => p.id === oa.page_id);
                                 return (
                                     <TableRow key={oa.id}>
-                                        <TableCell>{oa.oa_name}</TableCell>
-                                        <TableCell>{page ? page.name : oa.page_id}</TableCell>
-                                        <TableCell sx={{ wordBreak: 'break-all' }}>{oa.db_url}</TableCell>
-                                        <TableCell>
-                                            <IconButton onClick={() => openEditOA(oa)} color="primary">
+                                        <TableCell sx={{ color: '#1A1A1A', borderBottom: '1px solid #333' }}>{oa.oa_name}</TableCell>
+                                        <TableCell sx={{ color: '#1A1A1A', borderBottom: '1px solid #333' }}>{page ? page.name : oa.page_id}</TableCell>
+                                        <TableCell sx={{ wordBreak: 'break-all', color: '#1A1A1A', borderBottom: '1px solid #333' }}>{oa.db_url}</TableCell>
+                                        <TableCell sx={{ color: '#1A1A1A', borderBottom: '1px solid #333' }}>
+                                            <IconButton onClick={() => openEditOA(oa)} sx={{ color: '#1A1A1A' }}>
                                                 <EditIcon />
                                             </IconButton>
                                             <IconButton onClick={() => handleDeleteOA(oa.id)} color="error">
@@ -317,8 +317,17 @@ function AdminPage() {
             </TabPanel>
 
             {/* User Dialog */}
-            <Dialog open={openUserDialog} onClose={() => setOpenUserDialog(false)}>
-                <DialogTitle>{currentUser ? '編輯用戶' : '新增用戶'}</DialogTitle>
+            <Dialog
+                open={openUserDialog}
+                onClose={() => setOpenUserDialog(false)}
+                PaperProps={{
+                    sx: {
+                        backgroundColor: '#FFD700',
+                        color: '#1A1A1A'
+                    }
+                }}
+            >
+                <DialogTitle sx={{ color: '#1A1A1A' }}>{currentUser ? '編輯用戶' : '新增用戶'}</DialogTitle>
                 <DialogContent>
                     <TextField
                         autoFocus
@@ -327,6 +336,7 @@ function AdminPage() {
                         fullWidth
                         value={newUserName}
                         onChange={(e) => setNewUserName(e.target.value)}
+                        sx={{ input: { color: '#1A1A1A' }, label: { color: '#333' } }}
                     />
                     <TextField
                         margin="dense"
@@ -335,20 +345,23 @@ function AdminPage() {
                         fullWidth
                         value={newUserEmail}
                         onChange={(e) => setNewUserEmail(e.target.value)}
+                        sx={{ input: { color: '#1A1A1A' }, label: { color: '#333' } }}
                     />
                     <FormControlLabel
                         control={
                             <Checkbox
                                 checked={newUserRole === 'admin'}
                                 onChange={(e) => setNewUserRole(e.target.checked ? 'admin' : 'user')}
+                                sx={{ color: '#1A1A1A', '&.Mui-checked': { color: '#1A1A1A' } }}
                             />
                         }
                         label="是否為管理員?"
+                        sx={{ color: '#1A1A1A' }}
                     />
 
                     {newUserRole !== 'admin' && (
                         <FormControl fullWidth margin="dense">
-                            <InputLabel id="oa-select-label">可使用的 OA 設定</InputLabel>
+                            <InputLabel id="oa-select-label" sx={{ color: '#333' }}>可使用的 OA 設定</InputLabel>
                             <Select
                                 labelId="oa-select-label"
                                 multiple
@@ -359,10 +372,11 @@ function AdminPage() {
                                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                         {selected.map((value) => {
                                             const config = oaConfigs.find(oa => oa.id === value);
-                                            return <Chip key={value} label={config ? config.oa_name : value} />;
+                                            return <Chip key={value} label={config ? config.oa_name : value} sx={{ backgroundColor: '#1A1A1A', color: '#FFD700' }} />;
                                         })}
                                     </Box>
                                 )}
+                                sx={{ color: '#1A1A1A', '.MuiOutlinedInput-notchedOutline': { borderColor: '#333' } }}
                             >
                                 {oaConfigs.map((oa) => (
                                     <MenuItem key={oa.id} value={oa.id}>
@@ -374,14 +388,23 @@ function AdminPage() {
                     )}
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setOpenUserDialog(false)}>取消</Button>
-                    <Button onClick={handleAddUser}>{currentUser ? '更新' : '新增'}</Button>
+                    <Button onClick={() => setOpenUserDialog(false)} sx={{ color: '#1A1A1A' }}>取消</Button>
+                    <Button onClick={handleAddUser} sx={{ color: '#1A1A1A' }}>{currentUser ? '更新' : '新增'}</Button>
                 </DialogActions>
             </Dialog>
 
             {/* OA Dialog */}
-            <Dialog open={openOADialog} onClose={() => setOpenOADialog(false)}>
-                <DialogTitle>{currentOA ? '編輯' : '新增'} OA 設定</DialogTitle>
+            <Dialog
+                open={openOADialog}
+                onClose={() => setOpenOADialog(false)}
+                PaperProps={{
+                    sx: {
+                        backgroundColor: '#FFD700',
+                        color: '#1A1A1A'
+                    }
+                }}
+            >
+                <DialogTitle sx={{ color: '#1A1A1A' }}>{currentOA ? '編輯' : '新增'} OA 設定</DialogTitle>
                 <DialogContent>
                     <TextField
                         autoFocus
@@ -390,15 +413,17 @@ function AdminPage() {
                         fullWidth
                         value={oaName}
                         onChange={(e) => setOaName(e.target.value)}
+                        sx={{ input: { color: '#1A1A1A' }, label: { color: '#333' } }}
                     />
 
                     <FormControl fullWidth margin="dense">
-                        <InputLabel id="page-select-label">對應頁面</InputLabel>
+                        <InputLabel id="page-select-label" sx={{ color: '#333' }}>對應頁面</InputLabel>
                         <Select
                             labelId="page-select-label"
                             value={pageId}
                             label="對應頁面"
                             onChange={(e) => setPageId(e.target.value)}
+                            sx={{ color: '#1A1A1A', '.MuiOutlinedInput-notchedOutline': { borderColor: '#333' } }}
                         >
                             {pages.map((page) => (
                                 <MenuItem key={page.id} value={page.id}>
@@ -414,11 +439,12 @@ function AdminPage() {
                         fullWidth
                         value={dbUrl}
                         onChange={(e) => setDbUrl(e.target.value)}
+                        sx={{ input: { color: '#1A1A1A' }, label: { color: '#333' } }}
                     />
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setOpenOADialog(false)}>取消</Button>
-                    <Button onClick={handleSaveOA}>儲存</Button>
+                    <Button onClick={() => setOpenOADialog(false)} sx={{ color: '#1A1A1A' }}>取消</Button>
+                    <Button onClick={handleSaveOA} sx={{ color: '#1A1A1A' }}>儲存</Button>
                 </DialogActions>
             </Dialog>
         </Box>

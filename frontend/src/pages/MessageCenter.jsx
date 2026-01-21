@@ -22,7 +22,7 @@ function MessageCenter() {
 
     const fetchUsers = async () => {
         try {
-            const resp = await api.get('/api/users');
+            const resp = await api.get('/users');
             setUsers(resp.data);
             if (resp.data.length > 0 && !selectedUser) {
                 setSelectedUser(resp.data[0].user_id);
@@ -34,7 +34,7 @@ function MessageCenter() {
 
     const fetchHistory = async (userId) => {
         try {
-            const resp = await api.get(`/api/history/${userId}`);
+            const resp = await api.get(`/history/${userId}`);
             setMessages(resp.data);
         } catch (err) {
             console.error('Error fetching history:', err);
@@ -45,7 +45,7 @@ function MessageCenter() {
         if (!input.trim() || !selectedUser) return;
         try {
             setLoading(true);
-            await api.post('/api/trigger', {
+            await api.post('/trigger', {
                 user: selectedUser,
                 message: `MSG|${input}`,
                 type: 'Sensor',
@@ -64,7 +64,7 @@ function MessageCenter() {
     const handleAddTag = async () => {
         if (!tagInput.trim() || !selectedUser) return;
         try {
-            await api.post('/api/trigger', {
+            await api.post('/trigger', {
                 user: selectedUser,
                 message: `set_tag|${tagInput}`,
                 type: 'Sensor',
@@ -82,7 +82,7 @@ function MessageCenter() {
         if (!selectedUser) return;
         if (!window.confirm(`確定要刪除標籤 [${tagName}] 嗎？`)) return;
         try {
-            await api.post('/api/trigger', {
+            await api.post('/trigger', {
                 user: selectedUser,
                 message: `del_tag|${tagName}`,
                 type: 'Sensor',

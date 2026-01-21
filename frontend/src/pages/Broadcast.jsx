@@ -23,7 +23,7 @@ function Broadcast() {
 
         try {
             setLoading(true);
-            await api.post('/api/trigger', {
+            await api.post('/trigger', {
                 user: 'yzuadmin', // System/Admin ID for triggering broadcast
                 message: broadcastCmd,
                 type: 'Sensor',

@@ -17,7 +17,7 @@ function ScheduledEvents() {
 
     const fetchEvents = async () => {
         try {
-            const res = await api.get('/api/scheduled-events');
+            const res = await api.get('/scheduled-events');
             setEvents(res.data);
         } catch (err) {
             setError('無法取得定時事件列表');
@@ -33,7 +33,7 @@ function ScheduledEvents() {
 
         try {
             setLoading(true);
-            await api.post('/api/scheduled-events', {
+            await api.post('/scheduled-events', {
                 target_user_id: targetUserId,
                 message_content: messageContent,
                 message_type: messageType,
@@ -53,7 +53,7 @@ function ScheduledEvents() {
     const handleDeleteEvent = async (id) => {
         if (!window.confirm('確定要刪除此定時事件嗎？')) return;
         try {
-            await api.delete(`/api/scheduled-events/${id}`);
+            await api.delete(`/scheduled-events/${id}`);
             fetchEvents();
         } catch (err) {
             alert('刪除失敗');
