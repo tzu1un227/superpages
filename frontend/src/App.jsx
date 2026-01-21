@@ -12,7 +12,7 @@ import PrizeStatus from './pages/PrizeStatus';
 import AdminPage from './pages/AdminPage'; // Import Admin Page
 import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send, Gift, Shield } from 'lucide-react';
 
-const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"; // TODO: Replace with env variable
+const GOOGLE_CLIENT_ID = "909213734319-feblc4e1vhgu7e0r340e43h9aabc8iqf.apps.googleusercontent.com"; // From web-dashboard .env
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
