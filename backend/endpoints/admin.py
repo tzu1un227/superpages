@@ -119,7 +119,7 @@ def get_oa_configs():
     for config in configs:
         config_list.append({
             'id': config.id,
-            'page_id': config.page_id,
+            'page_ids': config.page_ids or [],
             'oa_name': config.oa_name,
             'db_url': config.db_url,
             'other_settings': config.other_settings
@@ -135,10 +135,10 @@ def create_oa_config():
     if not data.get('oa_name'):
         return jsonify({'message': 'OA Name is required'}), 400
         
-    # Valid page_id required
-    page_id = data.get('page_id')
-    if not page_id:
-        return jsonify({'message': 'Page ID is required'}), 400 
+    # Valid page_ids required
+    page_ids = data.get('page_ids')
+    if not page_ids or not isinstance(page_ids, list):
+        return jsonify({'message': 'Page IDs list is required'}), 400 
     
     # Default DB URL if not provided
     db_url = data.get('db_url')
@@ -147,7 +147,7 @@ def create_oa_config():
         db_url = "postgresql://postgres:0000@140.138.176.197:5432/5013"
 
     new_config = OAConfig(
-        page_id=page_id,
+        page_ids=page_ids,
         oa_name=data.get('oa_name'),
         db_url=db_url,
         other_settings=data.get('other_settings', {})
@@ -170,8 +170,8 @@ def update_oa_config(config_id):
         return jsonify({'message': 'OA Config not found'}), 404
         
     data = request.get_json()
-    if 'page_id' in data:
-        config.page_id = data['page_id']
+    if 'page_ids' in data:
+        config.page_ids = data['page_ids']
     if 'oa_name' in data:
         config.oa_name = data['oa_name']
     if 'db_url' in data:

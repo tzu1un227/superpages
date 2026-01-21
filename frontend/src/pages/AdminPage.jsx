@@ -70,7 +70,7 @@ function AdminPage() {
     const [openOADialog, setOpenOADialog] = useState(false);
     const [currentOA, setCurrentOA] = useState(null); // For edit
     const [oaName, setOaName] = useState('');
-    const [pageId, setPageId] = useState(''); // Selected page ID
+    const [pageIds, setPageIds] = useState([]); // Selected page IDs (Array)
     const [dbUrl, setDbUrl] = useState('');
 
     // axiosInstance removed in favor of shared api
@@ -165,7 +165,7 @@ function AdminPage() {
     const handleSaveOA = async () => {
         try {
             const payload = {
-                page_id: pageId,
+                page_ids: pageIds,
                 oa_name: oaName,
                 db_url: dbUrl // This is "Settings" or "Remote DB URL"
             };
@@ -185,14 +185,14 @@ function AdminPage() {
     const resetOAForm = () => {
         setCurrentOA(null);
         setOaName('');
-        setPageId('');
+        setPageIds([]);
         setDbUrl('');
     };
 
     const openEditOA = (oa) => {
         setCurrentOA(oa);
         setOaName(oa.oa_name);
-        setPageId(oa.page_id);
+        setPageIds(oa.page_ids || []);
         setDbUrl(oa.db_url);
         setOpenOADialog(true);
     };
@@ -231,7 +231,7 @@ function AdminPage() {
                     }}
                 >
                     <Tab label="用戶管理" />
-                    <Tab label="官方帳號 (OA) 設定" />
+                    <Tab label="權限設定" />
                 </Tabs>
             </Box>
 
@@ -246,7 +246,7 @@ function AdminPage() {
                             <TableRow>
                                 <TableCell sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', borderBottom: '2px solid var(--primary-yellow)' }}>姓名</TableCell>
                                 <TableCell sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', borderBottom: '2px solid var(--primary-yellow)' }}>Email</TableCell>
-                                <TableCell sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', borderBottom: '2px solid var(--primary-yellow)' }}>可使用的 OA</TableCell>
+                                <TableCell sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', borderBottom: '2px solid var(--primary-yellow)' }}>可使用的權限</TableCell>
                                 <TableCell sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', borderBottom: '2px solid var(--primary-yellow)' }}>角色</TableCell>
                                 <TableCell sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', borderBottom: '2px solid var(--primary-yellow)' }}>操作</TableCell>
                             </TableRow>
@@ -287,26 +287,31 @@ function AdminPage() {
             {/* OA Config Tab */}
             <TabPanel value={tabValue} index={1}>
                 <Button variant="contained" onClick={() => { resetOAForm(); setOpenOADialog(true); }} sx={{ mb: 2, backgroundColor: 'var(--primary-yellow)', color: '#2A2A2A', fontWeight: 'bold', '&:hover': { backgroundColor: '#e6c200' } }}>
-                    新增 OA 設定
+                    新增權限設定
                 </Button>
                 <TableContainer component={Paper} sx={{ backgroundColor: 'var(--secondary-black)', color: 'white' }}>
                     <Table>
                         <TableHead>
                             <TableRow>
-                                <TableCell width="15%" sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', borderBottom: '2px solid var(--primary-yellow)' }}>OA 名稱</TableCell>
-                                <TableCell width="15%" sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', borderBottom: '2px solid var(--primary-yellow)' }}>頁面</TableCell>
-                                <TableCell width="55%" sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', borderBottom: '2px solid var(--primary-yellow)' }}>設定</TableCell>
-                                <TableCell width="15%" sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', borderBottom: '2px solid var(--primary-yellow)' }}>操作</TableCell>
+                                <TableCell width="20%" sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', borderBottom: '2px solid var(--primary-yellow)' }}>權限名稱</TableCell>
+                                <TableCell width="60%" sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', borderBottom: '2px solid var(--primary-yellow)' }}>可存取頁面</TableCell>
+                                <TableCell width="20%" sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', borderBottom: '2px solid var(--primary-yellow)' }}>操作</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {oaConfigs.map((oa) => {
-                                const page = pages.find(p => p.id === oa.page_id);
+                                // For page_ids list
+                                const pageNames = (oa.page_ids || []).map(pid => {
+                                    const p = pages.find(pg => pg.id === pid);
+                                    return p ? (p.description || p.name) : pid;
+                                }).join(', ');
+
                                 return (
                                     <TableRow key={oa.id} hover sx={{ '&:hover': { backgroundColor: 'rgba(255, 215, 0, 0.05)' } }}>
                                         <TableCell sx={{ color: 'white', borderBottom: '1px solid #333' }}>{oa.oa_name}</TableCell>
-                                        <TableCell sx={{ color: 'white', borderBottom: '1px solid #333' }}>{page ? page.name : oa.page_id}</TableCell>
-                                        <TableCell sx={{ wordBreak: 'break-all', color: 'white', borderBottom: '1px solid #333' }}>{oa.db_url}</TableCell>
+                                        <TableCell sx={{ color: 'white', borderBottom: '1px solid #333' }}>
+                                            {pageNames}
+                                        </TableCell>
                                         <TableCell sx={{ color: 'white', borderBottom: '1px solid #333' }}>
                                             <IconButton onClick={() => openEditOA(oa)} sx={{ color: 'var(--primary-yellow)' }}>
                                                 <EditIcon />
@@ -377,13 +382,13 @@ function AdminPage() {
 
                     {newUserRole !== 'admin' && (
                         <FormControl fullWidth margin="dense">
-                            <InputLabel id="oa-select-label" sx={{ color: '#B0B0B0' }}>可使用的 OA 設定</InputLabel>
+                            <InputLabel id="oa-select-label" sx={{ color: '#B0B0B0' }}>可使用的權限</InputLabel>
                             <Select
                                 labelId="oa-select-label"
                                 multiple
                                 value={selectedOAs}
                                 onChange={(e) => setSelectedOAs(e.target.value)}
-                                input={<OutlinedInput label="可使用的 OA 設定" />}
+                                input={<OutlinedInput label="可使用的權限" />}
                                 renderValue={(selected) => (
                                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                         {selected.map((value) => {
@@ -426,12 +431,12 @@ function AdminPage() {
                     }
                 }}
             >
-                <DialogTitle sx={{ color: 'var(--primary-yellow)' }}>{currentOA ? '編輯' : '新增'} OA 設定</DialogTitle>
+                <DialogTitle sx={{ color: 'var(--primary-yellow)' }}>{currentOA ? '編輯' : '新增'} 權限設定</DialogTitle>
                 <DialogContent>
                     <TextField
                         autoFocus
                         margin="dense"
-                        label="OA 名稱"
+                        label="權限名稱"
                         fullWidth
                         value={oaName}
                         onChange={(e) => setOaName(e.target.value)}
@@ -443,12 +448,22 @@ function AdminPage() {
                     />
 
                     <FormControl fullWidth margin="dense">
-                        <InputLabel id="page-select-label" sx={{ color: '#B0B0B0' }}>對應頁面</InputLabel>
+                        <InputLabel id="page-select-label" sx={{ color: '#B0B0B0' }}>可存取頁面</InputLabel>
                         <Select
                             labelId="page-select-label"
-                            value={pageId}
-                            label="對應頁面"
-                            onChange={(e) => setPageId(e.target.value)}
+                            multiple
+                            value={pageIds}
+                            label="可存取頁面"
+                            onChange={(e) => setPageIds(e.target.value)}
+                            input={<OutlinedInput label="可存取頁面" />}
+                            renderValue={(selected) => (
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                    {selected.map((value) => {
+                                        const p = pages.find(pg => pg.id === value);
+                                        return <Chip key={value} label={p ? (p.description || p.name) : value} sx={{ backgroundColor: '#444', color: 'white' }} />;
+                                    })}
+                                </Box>
+                            )}
                             sx={{
                                 color: 'white',
                                 '.MuiOutlinedInput-notchedOutline': { borderColor: '#555' },
@@ -458,6 +473,7 @@ function AdminPage() {
                         >
                             {pages.map((page) => (
                                 <MenuItem key={page.id} value={page.id}>
+                                    <Checkbox checked={pageIds.indexOf(page.id) > -1} sx={{ color: '#B0B0B0', '&.Mui-checked': { color: 'var(--primary-yellow)' } }} />
                                     {page.description || page.name}
                                 </MenuItem>
                             ))}

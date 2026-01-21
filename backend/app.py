@@ -46,24 +46,30 @@ with app.app_context():
     db.create_all()
 
     # Seeding Data
+    # Seeding Data
     def seed_data():
-        if Page.query.first() is None:
-            print("Seeding initial pages...")
-            default_pages = [
-                {'name': 'Statistics', 'description': '數據統計頁面'},
-                {'name': 'Projects', 'description': '專案與排程管理'},
-                {'name': 'ScheduledEvents', 'description': '定時事件與觸發'},
-                {'name': 'PrizeStatus', 'description': '獎品與抽獎狀態'},
-                {'name': 'MessageCenter', 'description': '訊息中心與客服'},
-                {'name': 'Broadcast', 'description': '推播與群發系統'}
-            ]
-            for p in default_pages:
+        print("Seeding/Updating pages...")
+        default_pages = [
+            {'name': 'Statistics', 'description': '綜合數據'},
+            {'name': 'MessageCenter', 'description': '訊息中心'},
+            {'name': 'Projects', 'description': '專案與排程'},
+            {'name': 'Broadcast', 'description': '群發訊息'},
+            {'name': 'ScheduledEvents', 'description': '定時觸發'},
+            {'name': 'PrizeStatus', 'description': '獎品查詢'}
+        ]
+        
+        for p in default_pages:
+            page = Page.query.filter_by(name=p['name']).first()
+            if page:
+                if page.description != p['description']:
+                    page.description = p['description']
+                    print(f"Updated description for {p['name']}")
+            else:
                 page = Page(name=p['name'], description=p['description'])
                 db.session.add(page)
-            db.session.commit()
-            print("Pages seeded.")
+                print(f"Created page {p['name']}")
         
-        # Optional: Ensure at least one admin exists if desired, but Google Login handles creation.
+        db.session.commit()
     
     seed_data()
 
