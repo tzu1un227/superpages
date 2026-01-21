@@ -31,7 +31,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
-import { API_BASE_URL } from '../services/api';
+import { API_BASE_URL } from '../api';
 
 function TabPanel(props) {
     const { children, value, index, ...other } = props;
