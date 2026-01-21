@@ -458,24 +458,13 @@ function AdminPage() {
                         >
                             {pages.map((page) => (
                                 <MenuItem key={page.id} value={page.id}>
-                                    {page.name}
+                                    {page.description || page.name}
                                 </MenuItem>
                             ))}
                         </Select>
                     </FormControl>
 
-                    <TextField
-                        margin="dense"
-                        label="設定"
-                        fullWidth
-                        value={dbUrl}
-                        onChange={(e) => setDbUrl(e.target.value)}
-                        sx={{
-                            input: { color: 'white' },
-                            label: { color: '#B0B0B0' },
-                            '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#555' }, '&:hover fieldset': { borderColor: '#888' }, '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' } }
-                        }}
-                    />
+                    {/* DB URL Input Removed - Handled by Backend Default */}
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setOpenOADialog(false)} sx={{ color: '#B0B0B0' }}>取消</Button>

@@ -132,18 +132,24 @@ def get_oa_configs():
 def create_oa_config():
     data = request.get_json()
     # Basic validation
-    if not data.get('oa_name') or not data.get('db_url'):
-        return jsonify({'message': 'OA Name and DB URL are required'}), 400
+    if not data.get('oa_name'):
+        return jsonify({'message': 'OA Name is required'}), 400
         
     # Valid page_id required
     page_id = data.get('page_id')
     if not page_id:
         return jsonify({'message': 'Page ID is required'}), 400 
     
+    # Default DB URL if not provided
+    db_url = data.get('db_url')
+    if not db_url:
+        # Default to the centralized DB: 140.138.176.197:5432/5013
+        db_url = "postgresql://postgres:0000@140.138.176.197:5432/5013"
+
     new_config = OAConfig(
         page_id=page_id,
         oa_name=data.get('oa_name'),
-        db_url=data.get('db_url'),
+        db_url=db_url,
         other_settings=data.get('other_settings', {})
     )
     
