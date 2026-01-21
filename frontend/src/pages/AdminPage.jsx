@@ -230,40 +230,40 @@ function AdminPage() {
 
             {/* User Management Tab */}
             <TabPanel value={tabValue} index={0}>
-                <Button variant="contained" onClick={() => { resetUserForm(); setOpenUserDialog(true); }} sx={{ mb: 2 }}>
+                <Button variant="contained" onClick={() => { resetUserForm(); setOpenUserDialog(true); }} sx={{ mb: 2, backgroundColor: 'var(--primary-yellow)', color: 'black', '&:hover': { backgroundColor: '#e6c200' } }}>
                     新增用戶
                 </Button>
-                <TableContainer component={Paper} sx={{ backgroundColor: '#FFD700', color: '#1A1A1A' }}>
+                <TableContainer component={Paper} sx={{ backgroundColor: 'var(--secondary-black)', color: 'white' }}>
                     <Table>
                         <TableHead>
                             <TableRow>
-                                <TableCell sx={{ color: '#1A1A1A', fontWeight: 'bold', borderBottom: '2px solid #1A1A1A' }}>姓名</TableCell>
-                                <TableCell sx={{ color: '#1A1A1A', fontWeight: 'bold', borderBottom: '2px solid #1A1A1A' }}>Email</TableCell>
-                                <TableCell sx={{ color: '#1A1A1A', fontWeight: 'bold', borderBottom: '2px solid #1A1A1A' }}>可使用的 OA</TableCell>
-                                <TableCell sx={{ color: '#1A1A1A', fontWeight: 'bold', borderBottom: '2px solid #1A1A1A' }}>角色</TableCell>
-                                <TableCell sx={{ color: '#1A1A1A', fontWeight: 'bold', borderBottom: '2px solid #1A1A1A' }}>操作</TableCell>
+                                <TableCell sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', borderBottom: '2px solid var(--primary-yellow)' }}>姓名</TableCell>
+                                <TableCell sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', borderBottom: '2px solid var(--primary-yellow)' }}>Email</TableCell>
+                                <TableCell sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', borderBottom: '2px solid var(--primary-yellow)' }}>可使用的 OA</TableCell>
+                                <TableCell sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', borderBottom: '2px solid var(--primary-yellow)' }}>角色</TableCell>
+                                <TableCell sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', borderBottom: '2px solid var(--primary-yellow)' }}>操作</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {users.map((user) => (
-                                <TableRow key={user.id}>
-                                    <TableCell sx={{ color: '#1A1A1A', borderBottom: '1px solid #333' }}>{user.name || '-'}</TableCell>
-                                    <TableCell sx={{ color: '#1A1A1A', borderBottom: '1px solid #333' }}>{user.email}</TableCell>
-                                    <TableCell sx={{ color: '#1A1A1A', borderBottom: '1px solid #333' }}>
+                                <TableRow key={user.id} hover sx={{ '&:hover': { backgroundColor: 'rgba(255, 215, 0, 0.05)' } }}>
+                                    <TableCell sx={{ color: 'white', borderBottom: '1px solid #333' }}>{user.name || '-'}</TableCell>
+                                    <TableCell sx={{ color: 'white', borderBottom: '1px solid #333' }}>{user.email}</TableCell>
+                                    <TableCell sx={{ color: 'white', borderBottom: '1px solid #333' }}>
                                         {user.role === 'admin' ? '全部 (管理員)' :
                                             user.allowed_oa_configs && user.allowed_oa_configs.length > 0 ? (
                                                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                                     {user.allowed_oa_configs.map(oaId => {
                                                         const oa = oaConfigs.find(c => c.id === oaId);
-                                                        return <Chip key={oaId} label={oa ? oa.oa_name : oaId} size="small" sx={{ backgroundColor: '#1A1A1A', color: '#FFD700' }} />;
+                                                        return <Chip key={oaId} label={oa ? oa.oa_name : oaId} size="small" sx={{ backgroundColor: '#444', color: 'white' }} />;
                                                     })}
                                                 </Box>
                                             ) : '無'
                                         }
                                     </TableCell>
-                                    <TableCell sx={{ color: '#1A1A1A', borderBottom: '1px solid #333' }}>{user.role === 'admin' ? '管理員' : '一般用戶'}</TableCell>
-                                    <TableCell sx={{ color: '#1A1A1A', borderBottom: '1px solid #333' }}>
-                                        <IconButton onClick={() => openEditUser(user)} sx={{ color: '#1A1A1A' }}>
+                                    <TableCell sx={{ color: 'white', borderBottom: '1px solid #333' }}>{user.role === 'admin' ? '管理員' : '一般用戶'}</TableCell>
+                                    <TableCell sx={{ color: 'white', borderBottom: '1px solid #333' }}>
+                                        <IconButton onClick={() => openEditUser(user)} sx={{ color: 'var(--primary-yellow)' }}>
                                             <EditIcon />
                                         </IconButton>
                                         <IconButton onClick={() => handleDeleteUser(user.id)} color="error">
@@ -279,29 +279,29 @@ function AdminPage() {
 
             {/* OA Config Tab */}
             <TabPanel value={tabValue} index={1}>
-                <Button variant="contained" onClick={() => { resetOAForm(); setOpenOADialog(true); }} sx={{ mb: 2 }}>
+                <Button variant="contained" onClick={() => { resetOAForm(); setOpenOADialog(true); }} sx={{ mb: 2, backgroundColor: 'var(--primary-yellow)', color: 'black', '&:hover': { backgroundColor: '#e6c200' } }}>
                     新增 OA 設定
                 </Button>
-                <TableContainer component={Paper} sx={{ backgroundColor: '#FFD700', color: '#1A1A1A' }}>
+                <TableContainer component={Paper} sx={{ backgroundColor: 'var(--secondary-black)', color: 'white' }}>
                     <Table>
                         <TableHead>
                             <TableRow>
-                                <TableCell width="15%" sx={{ color: '#1A1A1A', fontWeight: 'bold', borderBottom: '2px solid #1A1A1A' }}>OA 名稱</TableCell>
-                                <TableCell width="15%" sx={{ color: '#1A1A1A', fontWeight: 'bold', borderBottom: '2px solid #1A1A1A' }}>頁面</TableCell>
-                                <TableCell width="55%" sx={{ color: '#1A1A1A', fontWeight: 'bold', borderBottom: '2px solid #1A1A1A' }}>設定</TableCell>
-                                <TableCell width="15%" sx={{ color: '#1A1A1A', fontWeight: 'bold', borderBottom: '2px solid #1A1A1A' }}>操作</TableCell>
+                                <TableCell width="15%" sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', borderBottom: '2px solid var(--primary-yellow)' }}>OA 名稱</TableCell>
+                                <TableCell width="15%" sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', borderBottom: '2px solid var(--primary-yellow)' }}>頁面</TableCell>
+                                <TableCell width="55%" sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', borderBottom: '2px solid var(--primary-yellow)' }}>設定</TableCell>
+                                <TableCell width="15%" sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', borderBottom: '2px solid var(--primary-yellow)' }}>操作</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {oaConfigs.map((oa) => {
                                 const page = pages.find(p => p.id === oa.page_id);
                                 return (
-                                    <TableRow key={oa.id}>
-                                        <TableCell sx={{ color: '#1A1A1A', borderBottom: '1px solid #333' }}>{oa.oa_name}</TableCell>
-                                        <TableCell sx={{ color: '#1A1A1A', borderBottom: '1px solid #333' }}>{page ? page.name : oa.page_id}</TableCell>
-                                        <TableCell sx={{ wordBreak: 'break-all', color: '#1A1A1A', borderBottom: '1px solid #333' }}>{oa.db_url}</TableCell>
-                                        <TableCell sx={{ color: '#1A1A1A', borderBottom: '1px solid #333' }}>
-                                            <IconButton onClick={() => openEditOA(oa)} sx={{ color: '#1A1A1A' }}>
+                                    <TableRow key={oa.id} hover sx={{ '&:hover': { backgroundColor: 'rgba(255, 215, 0, 0.05)' } }}>
+                                        <TableCell sx={{ color: 'white', borderBottom: '1px solid #333' }}>{oa.oa_name}</TableCell>
+                                        <TableCell sx={{ color: 'white', borderBottom: '1px solid #333' }}>{page ? page.name : oa.page_id}</TableCell>
+                                        <TableCell sx={{ wordBreak: 'break-all', color: 'white', borderBottom: '1px solid #333' }}>{oa.db_url}</TableCell>
+                                        <TableCell sx={{ color: 'white', borderBottom: '1px solid #333' }}>
+                                            <IconButton onClick={() => openEditOA(oa)} sx={{ color: 'var(--primary-yellow)' }}>
                                                 <EditIcon />
                                             </IconButton>
                                             <IconButton onClick={() => handleDeleteOA(oa.id)} color="error">
@@ -322,12 +322,13 @@ function AdminPage() {
                 onClose={() => setOpenUserDialog(false)}
                 PaperProps={{
                     sx: {
-                        backgroundColor: '#FFD700',
-                        color: '#1A1A1A'
+                        backgroundColor: 'var(--secondary-black)',
+                        color: 'white',
+                        border: '1px solid #333'
                     }
                 }}
             >
-                <DialogTitle sx={{ color: '#1A1A1A' }}>{currentUser ? '編輯用戶' : '新增用戶'}</DialogTitle>
+                <DialogTitle sx={{ color: 'var(--primary-yellow)' }}>{currentUser ? '編輯用戶' : '新增用戶'}</DialogTitle>
                 <DialogContent>
                     <TextField
                         autoFocus
@@ -336,7 +337,11 @@ function AdminPage() {
                         fullWidth
                         value={newUserName}
                         onChange={(e) => setNewUserName(e.target.value)}
-                        sx={{ input: { color: '#1A1A1A' }, label: { color: '#333' } }}
+                        sx={{
+                            input: { color: 'white' },
+                            label: { color: '#B0B0B0' },
+                            '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#555' }, '&:hover fieldset': { borderColor: '#888' }, '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' } }
+                        }}
                     />
                     <TextField
                         margin="dense"
@@ -345,23 +350,27 @@ function AdminPage() {
                         fullWidth
                         value={newUserEmail}
                         onChange={(e) => setNewUserEmail(e.target.value)}
-                        sx={{ input: { color: '#1A1A1A' }, label: { color: '#333' } }}
+                        sx={{
+                            input: { color: 'white' },
+                            label: { color: '#B0B0B0' },
+                            '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#555' }, '&:hover fieldset': { borderColor: '#888' }, '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' } }
+                        }}
                     />
                     <FormControlLabel
                         control={
                             <Checkbox
                                 checked={newUserRole === 'admin'}
                                 onChange={(e) => setNewUserRole(e.target.checked ? 'admin' : 'user')}
-                                sx={{ color: '#1A1A1A', '&.Mui-checked': { color: '#1A1A1A' } }}
+                                sx={{ color: '#B0B0B0', '&.Mui-checked': { color: 'var(--primary-yellow)' } }}
                             />
                         }
                         label="是否為管理員?"
-                        sx={{ color: '#1A1A1A' }}
+                        sx={{ color: 'white' }}
                     />
 
                     {newUserRole !== 'admin' && (
                         <FormControl fullWidth margin="dense">
-                            <InputLabel id="oa-select-label" sx={{ color: '#333' }}>可使用的 OA 設定</InputLabel>
+                            <InputLabel id="oa-select-label" sx={{ color: '#B0B0B0' }}>可使用的 OA 設定</InputLabel>
                             <Select
                                 labelId="oa-select-label"
                                 multiple
@@ -372,11 +381,16 @@ function AdminPage() {
                                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                         {selected.map((value) => {
                                             const config = oaConfigs.find(oa => oa.id === value);
-                                            return <Chip key={value} label={config ? config.oa_name : value} sx={{ backgroundColor: '#1A1A1A', color: '#FFD700' }} />;
+                                            return <Chip key={value} label={config ? config.oa_name : value} sx={{ backgroundColor: '#444', color: 'white' }} />;
                                         })}
                                     </Box>
                                 )}
-                                sx={{ color: '#1A1A1A', '.MuiOutlinedInput-notchedOutline': { borderColor: '#333' } }}
+                                sx={{
+                                    color: 'white',
+                                    '.MuiOutlinedInput-notchedOutline': { borderColor: '#555' },
+                                    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#888' },
+                                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: 'var(--primary-yellow)' }
+                                }}
                             >
                                 {oaConfigs.map((oa) => (
                                     <MenuItem key={oa.id} value={oa.id}>
@@ -388,8 +402,8 @@ function AdminPage() {
                     )}
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setOpenUserDialog(false)} sx={{ color: '#1A1A1A' }}>取消</Button>
-                    <Button onClick={handleAddUser} sx={{ color: '#1A1A1A' }}>{currentUser ? '更新' : '新增'}</Button>
+                    <Button onClick={() => setOpenUserDialog(false)} sx={{ color: '#B0B0B0' }}>取消</Button>
+                    <Button onClick={handleAddUser} sx={{ color: 'var(--primary-yellow)' }}>{currentUser ? '更新' : '新增'}</Button>
                 </DialogActions>
             </Dialog>
 
@@ -399,12 +413,13 @@ function AdminPage() {
                 onClose={() => setOpenOADialog(false)}
                 PaperProps={{
                     sx: {
-                        backgroundColor: '#FFD700',
-                        color: '#1A1A1A'
+                        backgroundColor: 'var(--secondary-black)',
+                        color: 'white',
+                        border: '1px solid #333'
                     }
                 }}
             >
-                <DialogTitle sx={{ color: '#1A1A1A' }}>{currentOA ? '編輯' : '新增'} OA 設定</DialogTitle>
+                <DialogTitle sx={{ color: 'var(--primary-yellow)' }}>{currentOA ? '編輯' : '新增'} OA 設定</DialogTitle>
                 <DialogContent>
                     <TextField
                         autoFocus
@@ -413,17 +428,26 @@ function AdminPage() {
                         fullWidth
                         value={oaName}
                         onChange={(e) => setOaName(e.target.value)}
-                        sx={{ input: { color: '#1A1A1A' }, label: { color: '#333' } }}
+                        sx={{
+                            input: { color: 'white' },
+                            label: { color: '#B0B0B0' },
+                            '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#555' }, '&:hover fieldset': { borderColor: '#888' }, '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' } }
+                        }}
                     />
 
                     <FormControl fullWidth margin="dense">
-                        <InputLabel id="page-select-label" sx={{ color: '#333' }}>對應頁面</InputLabel>
+                        <InputLabel id="page-select-label" sx={{ color: '#B0B0B0' }}>對應頁面</InputLabel>
                         <Select
                             labelId="page-select-label"
                             value={pageId}
                             label="對應頁面"
                             onChange={(e) => setPageId(e.target.value)}
-                            sx={{ color: '#1A1A1A', '.MuiOutlinedInput-notchedOutline': { borderColor: '#333' } }}
+                            sx={{
+                                color: 'white',
+                                '.MuiOutlinedInput-notchedOutline': { borderColor: '#555' },
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#888' },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: 'var(--primary-yellow)' }
+                            }}
                         >
                             {pages.map((page) => (
                                 <MenuItem key={page.id} value={page.id}>
@@ -439,12 +463,16 @@ function AdminPage() {
                         fullWidth
                         value={dbUrl}
                         onChange={(e) => setDbUrl(e.target.value)}
-                        sx={{ input: { color: '#1A1A1A' }, label: { color: '#333' } }}
+                        sx={{
+                            input: { color: 'white' },
+                            label: { color: '#B0B0B0' },
+                            '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#555' }, '&:hover fieldset': { borderColor: '#888' }, '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' } }
+                        }}
                     />
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setOpenOADialog(false)} sx={{ color: '#1A1A1A' }}>取消</Button>
-                    <Button onClick={handleSaveOA} sx={{ color: '#1A1A1A' }}>儲存</Button>
+                    <Button onClick={() => setOpenOADialog(false)} sx={{ color: '#B0B0B0' }}>取消</Button>
+                    <Button onClick={handleSaveOA} sx={{ color: 'var(--primary-yellow)' }}>儲存</Button>
                 </DialogActions>
             </Dialog>
         </Box>
