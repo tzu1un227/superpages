@@ -29,9 +29,7 @@ import {
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
-import axios from 'axios';
-import { useAuth } from '../contexts/AuthContext';
-import { API_BASE_URL } from '../api';
+import api from '../api';
 
 function TabPanel(props) {
     const { children, value, index, ...other } = props;
@@ -74,23 +72,22 @@ function AdminPage() {
     const [pageId, setPageId] = useState(''); // Selected page ID
     const [dbUrl, setDbUrl] = useState('');
 
-    const axiosInstance = axios.create({
-        baseURL: API_BASE_URL,
-        headers: { Authorization: `Bearer ${token}` }
-    });
+    // axiosInstance removed in favor of shared api
+
 
     const fetchData = async () => {
         // Fetch Users
         try {
-            const usersRes = await axiosInstance.get('admin/users');
+            const usersRes = await api.get('/admin/users', { headers: { Authorization: `Bearer ${token}` } });
             setUsers(usersRes.data);
         } catch (error) {
             console.error("Error fetching users", error);
+            alert("無法取得用戶列表: " + (error.response?.data?.message || error.message));
         }
 
         // Fetch OA Configs
         try {
-            const oaRes = await axiosInstance.get('admin/oa_configs');
+            const oaRes = await api.get('/admin/oa_configs', { headers: { Authorization: `Bearer ${token}` } });
             setOaConfigs(oaRes.data);
         } catch (error) {
             console.error("Error fetching OA configs", error);
@@ -98,7 +95,7 @@ function AdminPage() {
 
         // Fetch Pages
         try {
-            const pagesRes = await axiosInstance.get('admin/pages');
+            const pagesRes = await api.get('/admin/pages', { headers: { Authorization: `Bearer ${token}` } });
             setPages(pagesRes.data);
         } catch (error) {
             console.error("Error fetching pages", error);
@@ -122,9 +119,9 @@ function AdminPage() {
             };
 
             if (currentUser) {
-                await axiosInstance.put(`/admin/users/${currentUser.id}`, payload);
+                await api.put(`/admin/users/${currentUser.id}`, payload, { headers: { Authorization: `Bearer ${token}` } });
             } else {
-                await axiosInstance.post('/admin/users', payload);
+                await api.post('/admin/users', payload, { headers: { Authorization: `Bearer ${token}` } });
             }
 
             setOpenUserDialog(false);
@@ -155,7 +152,7 @@ function AdminPage() {
     const handleDeleteUser = async (id) => {
         if (window.confirm("確認刪除用戶?")) {
             try {
-                await axiosInstance.delete(`admin/users/${id}`);
+                await api.delete(`/admin/users/${id}`, { headers: { Authorization: `Bearer ${token}` } });
                 fetchData();
             } catch (error) {
                 console.error(error);
@@ -172,9 +169,9 @@ function AdminPage() {
                 db_url: dbUrl // This is "Settings" or "Remote DB URL"
             };
             if (currentOA) {
-                await axiosInstance.put(`admin/oa_configs/${currentOA.id}`, payload);
+                await api.put(`/admin/oa_configs/${currentOA.id}`, payload, { headers: { Authorization: `Bearer ${token}` } });
             } else {
-                await axiosInstance.post('admin/oa_configs', payload);
+                await api.post('/admin/oa_configs', payload, { headers: { Authorization: `Bearer ${token}` } });
             }
             setOpenOADialog(false);
             resetOAForm();
@@ -202,7 +199,7 @@ function AdminPage() {
     const handleDeleteOA = async (id) => {
         if (window.confirm("確認刪除 OA 設定?")) {
             try {
-                await axiosInstance.delete(`admin/oa_configs/${id}`);
+                await api.delete(`/admin/oa_configs/${id}`, { headers: { Authorization: `Bearer ${token}` } });
                 fetchData();
             } catch (error) {
                 console.error(error);
@@ -230,7 +227,7 @@ function AdminPage() {
 
             {/* User Management Tab */}
             <TabPanel value={tabValue} index={0}>
-                <Button variant="contained" onClick={() => { resetUserForm(); setOpenUserDialog(true); }} sx={{ mb: 2, backgroundColor: 'var(--primary-yellow)', color: 'black', '&:hover': { backgroundColor: '#e6c200' } }}>
+                <Button variant="contained" onClick={() => { resetUserForm(); setOpenUserDialog(true); }} sx={{ mb: 2, backgroundColor: 'var(--primary-yellow)', color: '#2A2A2A', fontWeight: 'bold', '&:hover': { backgroundColor: '#e6c200' } }}>
                     新增用戶
                 </Button>
                 <TableContainer component={Paper} sx={{ backgroundColor: 'var(--secondary-black)', color: 'white' }}>
@@ -279,7 +276,7 @@ function AdminPage() {
 
             {/* OA Config Tab */}
             <TabPanel value={tabValue} index={1}>
-                <Button variant="contained" onClick={() => { resetOAForm(); setOpenOADialog(true); }} sx={{ mb: 2, backgroundColor: 'var(--primary-yellow)', color: 'black', '&:hover': { backgroundColor: '#e6c200' } }}>
+                <Button variant="contained" onClick={() => { resetOAForm(); setOpenOADialog(true); }} sx={{ mb: 2, backgroundColor: 'var(--primary-yellow)', color: '#2A2A2A', fontWeight: 'bold', '&:hover': { backgroundColor: '#e6c200' } }}>
                     新增 OA 設定
                 </Button>
                 <TableContainer component={Paper} sx={{ backgroundColor: 'var(--secondary-black)', color: 'white' }}>
