@@ -18,22 +18,19 @@ import os
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
+# Database configuration
+DB_CONFIG = {
+    "host": "140.138.176.197",
+    "port": "5432",
+    "database": "5013",
+    "user": "postgres",
+    "password": "0000"
+}
+
 # Configuration for SQLAlchemy
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'dev_secret_key'
-# Construct URI from DB_CONFIG (assuming default postgres user/pass for now or need to parse DB_CONFIG)
-# DB_CONFIG was: "host": "140.138.176.197", "port": "5432", "database": "5013", "user": "postgres", "password": "0000"
-# Note: For the new User/Auth tables, we might want to use the SAME database or a local one. 
-# The web-dashboard used 'local_data.db' (SQLite). 
-# However, to support multiple users properly in production, we should probably use the Postgres DB or a dedicated one.
-# For now, let's use the SAME Postgres DB 5013 to keep it centralized, OR create a new local sqlite if we want to isolate 'meta' data.
-# User request implied 'web-dashboard' features. Web-dashboard used sqlite. 
-# Let's stick to SQLite for the 'meta' data (Users, Permissions) to avoid messing with the main business logic DB (5013),
-# UNLESS the user explicitly wants them together. 
-# Given the instructions "add google account login functionality", safely using SQLite for this metadata seems significantly safer 
-# than modifying the production Postgres schema of the existing project without explicit instruction.
-# So I will configure SQLAlchemy to use a local sqlite file for metadata, similar to web-dashboard.
-
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///meta_data.db'
+# Use Postgres for Metadata (Users, Permissions)
+app.config['SQLALCHEMY_DATABASE_URI'] = f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
@@ -83,14 +80,7 @@ def json_response(data):
 
 import socketio
 
-# Database configuration
-DB_CONFIG = {
-    "host": "140.138.176.197",
-    "port": "5432",
-    "database": "5013",
-    "user": "postgres",
-    "password": "0000"
-}
+
 
 WS_URL = "https://irl-svr.ee.yzu.edu.tw:5013"
 BOT_NAME = "websoc"
@@ -247,8 +237,24 @@ def get_my_oas():
             allowed_ids = user.allowed_oa_configs or []
             configs = OAConfig.query.filter(OAConfig.id.in_(allowed_ids)).all()
         
-        oa_list = [{'id': c.id, 'oa_name': c.oa_name, 'page_id': c.page_id, 'db_url': c.db_url} for c in configs]
-        return jsonify(oa_list)
+        oa_list = [{'id': c.id, 'oa_name': c.oa_name, 'page_ids': c.page_ids, 'db_url': c.db_url} for c in configs]
+        
+        # Collect all allowed page IDs
+        all_page_ids = set()
+        for c in configs:
+            if c.page_ids:
+                all_page_ids.update(c.page_ids)
+        
+        # Fetch page names
+        allowed_page_names = []
+        if all_page_ids:
+            pages = Page.query.filter(Page.id.in_(all_page_ids)).all()
+            allowed_page_names = [p.name for p in pages]
+        
+        return jsonify({
+            'configs': oa_list,
+            'allowed_pages': allowed_page_names
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

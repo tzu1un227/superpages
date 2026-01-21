@@ -10,6 +10,7 @@ import Broadcast from './pages/Broadcast';
 import ScheduledEvents from './pages/ScheduledEvents';
 import PrizeStatus from './pages/PrizeStatus';
 import AdminPage from './pages/AdminPage'; // Import Admin Page
+import api from './api';
 import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send, Gift, Shield } from 'lucide-react';
 
 const GOOGLE_CLIENT_ID = "909213734319-feblc4e1vhgu7e0r340e43h9aabc8iqf.apps.googleusercontent.com"; // From web-dashboard .env
@@ -30,6 +31,19 @@ const AdminRoute = ({ children }) => {
 
 const AppContent = () => {
   const { isAuthenticated, logout, user } = useAuth();
+  const [allowedPages, setAllowedPages] = React.useState([]);
+
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      api.get('/my_oas').then(res => {
+        setAllowedPages(res.data.allowed_pages || []);
+      }).catch(err => console.error(err));
+    }
+  }, [isAuthenticated]);
+
+  const hasAccess = (pageName) => {
+    return user?.role === 'admin' || allowedPages.includes(pageName);
+  };
 
   return (
     <Router>
@@ -38,36 +52,48 @@ const AppContent = () => {
           <nav style={{ width: '260px', backgroundColor: '#111', borderRight: '1px solid #333', padding: '30px 20px', display: 'flex', flexDirection: 'column' }}>
             <h2 className="text-yellow" style={{ marginBottom: '40px', fontSize: '24px' }}>SuperPages</h2>
             <ul style={{ listStyle: 'none', flex: 1 }}>
-              <li style={{ marginBottom: '15px' }}>
-                <Link to="/statistics" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px' }} className="nav-link">
-                  <BarChart3 size={20} className="text-yellow" /> 綜合數據
-                </Link>
-              </li>
-              <li style={{ marginBottom: '15px' }}>
-                <Link to="/messages" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px' }} className="nav-link">
-                  <MessageSquare size={20} className="text-yellow" /> 訊息中心
-                </Link>
-              </li>
-              <li style={{ marginBottom: '15px' }}>
-                <Link to="/projects" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px' }} className="nav-link">
-                  <LayoutDashboard size={20} className="text-yellow" /> 專案與排程
-                </Link>
-              </li>
-              <li style={{ marginBottom: '15px' }}>
-                <Link to="/broadcast" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px' }} className="nav-link">
-                  <Send size={20} className="text-yellow" /> 群發訊息
-                </Link>
-              </li>
-              <li style={{ marginBottom: '15px' }}>
-                <Link to="/scheduled-events" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px' }} className="nav-link">
-                  <Clock size={20} className="text-yellow" /> 定時觸發
-                </Link>
-              </li>
-              <li style={{ marginBottom: '15px' }}>
-                <Link to="/prizes" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px' }} className="nav-link">
-                  <Gift size={20} className="text-yellow" /> 獎品查詢
-                </Link>
-              </li>
+              {hasAccess('Statistics') && (
+                <li style={{ marginBottom: '15px' }}>
+                  <Link to="/statistics" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px' }} className="nav-link">
+                    <BarChart3 size={20} className="text-yellow" /> 綜合數據
+                  </Link>
+                </li>
+              )}
+              {hasAccess('MessageCenter') && (
+                <li style={{ marginBottom: '15px' }}>
+                  <Link to="/messages" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px' }} className="nav-link">
+                    <MessageSquare size={20} className="text-yellow" /> 訊息中心
+                  </Link>
+                </li>
+              )}
+              {hasAccess('Projects') && (
+                <li style={{ marginBottom: '15px' }}>
+                  <Link to="/projects" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px' }} className="nav-link">
+                    <LayoutDashboard size={20} className="text-yellow" /> 專案與排程
+                  </Link>
+                </li>
+              )}
+              {hasAccess('Broadcast') && (
+                <li style={{ marginBottom: '15px' }}>
+                  <Link to="/broadcast" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px' }} className="nav-link">
+                    <Send size={20} className="text-yellow" /> 群發訊息
+                  </Link>
+                </li>
+              )}
+              {hasAccess('ScheduledEvents') && (
+                <li style={{ marginBottom: '15px' }}>
+                  <Link to="/scheduled-events" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px' }} className="nav-link">
+                    <Clock size={20} className="text-yellow" /> 定時觸發
+                  </Link>
+                </li>
+              )}
+              {hasAccess('PrizeStatus') && (
+                <li style={{ marginBottom: '15px' }}>
+                  <Link to="/prizes" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px' }} className="nav-link">
+                    <Gift size={20} className="text-yellow" /> 獎品查詢
+                  </Link>
+                </li>
+              )}
               {user?.role === 'admin' && (
                 <li style={{ marginBottom: '15px' }}>
                   <Link to="/admin" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px' }} className="nav-link">
