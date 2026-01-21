@@ -12,6 +12,7 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('jwt'));
 
   const [myOAs, setMyOAs] = useState([]);
+  const [allowedPages, setAllowedPages] = useState([]);
   const [currentAccount, setCurrentAccount] = useState(null);
 
   // Fetch OAs function
@@ -26,17 +27,24 @@ export const AuthProvider = ({ children }) => {
       if (response.ok) {
         const data = await response.json();
         console.log('Fetched My OAs:', data);
-        setMyOAs(data);
+
+        // Handle new response structure { configs: [], allowed_pages: [] }
+        const configs = data.configs || (Array.isArray(data) ? data : []);
+        const pages = data.allowed_pages || [];
+
+        setMyOAs(configs);
+        setAllowedPages(pages);
+
         // Set default account if not set or invalid
         // Check localStorage for saved preference
         const savedAccountId = localStorage.getItem('currentAccountId');
-        const savedAccount = data.find(oa => oa.id.toString() === savedAccountId);
+        const savedAccount = configs.find(oa => oa.id.toString() === savedAccountId);
 
         if (savedAccount) {
           setCurrentAccount(savedAccount);
-        } else if (data.length > 0) {
-          setCurrentAccount(data[0]);
-          localStorage.setItem('currentAccountId', data[0].id);
+        } else if (configs.length > 0) {
+          setCurrentAccount(configs[0]);
+          localStorage.setItem('currentAccountId', configs[0].id);
         }
       } else {
         const text = await response.text();
@@ -144,6 +152,7 @@ export const AuthProvider = ({ children }) => {
     isLoading,
     token,
     myOAs,
+    allowedPages,
     currentAccount,
     switchAccount,
     login,

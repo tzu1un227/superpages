@@ -30,19 +30,11 @@ const AdminRoute = ({ children }) => {
 };
 
 const AppContent = () => {
-  const { isAuthenticated, logout, user } = useAuth();
-  const [allowedPages, setAllowedPages] = React.useState([]);
-
-  React.useEffect(() => {
-    if (isAuthenticated) {
-      api.get('/my_oas').then(res => {
-        setAllowedPages(res.data.allowed_pages || []);
-      }).catch(err => console.error(err));
-    }
-  }, [isAuthenticated]);
+  const { isAuthenticated, logout, user, allowedPages } = useAuth();
+  // allowedPages is now provided by AuthProvider
 
   const hasAccess = (pageName) => {
-    return user?.role === 'admin' || allowedPages.includes(pageName);
+    return user?.role === 'admin' || (allowedPages && allowedPages.includes(pageName));
   };
 
   return (
