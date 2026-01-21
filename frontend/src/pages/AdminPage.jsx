@@ -29,6 +29,7 @@ import {
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
+import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
 
 function TabPanel(props) {
