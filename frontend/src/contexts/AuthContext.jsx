@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { API_BASE_URL } from '../services/api'; // Use standardized base URL
+import { API_BASE_URL } from '../api'; // Use standardized base URL
 
 // Create Auth Context
 const AuthContext = createContext();
