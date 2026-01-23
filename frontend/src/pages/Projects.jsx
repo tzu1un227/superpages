@@ -534,13 +534,13 @@ const ProjectsManagement = () => {
                                     <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>訊息內容</label>
                                     <div style={{ display: 'flex', gap: '5px' }}>
                                         <input type="text" value={newSchedule.message_content} onChange={e => setNewSchedule({ ...newSchedule, message_content: e.target.value })} style={{ width: '100%' }} />
-                                        <button 
+                                        <button
                                             onClick={() => openRichEditor(
-                                                newSchedule.message_content, 
-                                                newSchedule.project_id || selectedProjectId, 
+                                                newSchedule.message_content,
+                                                newSchedule.project_id || selectedProjectId,
                                                 newSchedule.step_id,
                                                 (val) => setNewSchedule(prev => ({ ...prev, message_content: val }))
-                                            )} 
+                                            )}
                                             title="編輯多媒體/Flex訊息"
                                             style={{ padding: '8px', background: '#333', border: '1px solid #444', color: 'var(--primary-yellow)' }}
                                         >
@@ -589,13 +589,13 @@ const ProjectsManagement = () => {
                                             {editingScheduleId === s.schedule_id ? (
                                                 <div style={{ display: 'flex', gap: '5px' }}>
                                                     <input type="text" value={editScheduleFormData.message_content} onChange={e => setEditScheduleFormData({ ...editScheduleFormData, message_content: e.target.value })} style={{ width: '100%' }} />
-                                                    <button 
+                                                    <button
                                                         onClick={() => openRichEditor(
-                                                            editScheduleFormData.message_content, 
-                                                            editScheduleFormData.project_id, 
+                                                            editScheduleFormData.message_content,
+                                                            editScheduleFormData.project_id,
                                                             editScheduleFormData.step_id,
                                                             (val) => setEditScheduleFormData(prev => ({ ...prev, message_content: val }))
-                                                        )} 
+                                                        )}
                                                         style={{ padding: '5px', background: '#333', border: '1px solid #444', color: 'var(--primary-yellow)' }}
                                                     >
                                                         <MessageSquare size={14} />
@@ -605,7 +605,7 @@ const ProjectsManagement = () => {
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                     {s.message_content}
                                                     {s.message_content && s.message_content.startsWith('QA|') && (
-                                                         <MessageSquare size={14} color="#4CAF50" title="Rich Message" />
+                                                        <MessageSquare size={14} color="#4CAF50" title="Rich Message" />
                                                     )}
                                                 </div>
                                             )}
@@ -687,8 +687,8 @@ const ProjectsManagement = () => {
                 </div>
             )}
             {/* Rich Message Modal */}
-            <RichMessageModal 
-                isOpen={isRichModalOpen} 
+            <RichMessageModal
+                isOpen={isRichModalOpen}
                 onClose={() => setIsRichModalOpen(false)}
                 onSave={richModalConfig.onSave}
                 initialTag={richModalConfig.initialTag}
@@ -731,14 +731,19 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, projectId, step
             let msgs = res.data.msg_rpy || [];
             // Parse strings if they are JSON strings (backend might return list of strings or list of dicts depending on implementation)
             // Our backend returns list of strings (json dumped).
-            msgs = msgs.map(m => typeof m === 'string' ? JSON.parse(m) : m);
+            msgs = msgs.map(m => {
+                let parsed = typeof m === 'string' ? JSON.parse(m) : m;
+                // Backend wraps content in {"Line": ...}, we need to unwrap it for the editor
+                if (parsed.Line) return parsed.Line;
+                return parsed;
+            });
             if (msgs.length === 0) msgs = [createEmptyMsg()];
             setMessages(msgs);
         } catch (err) {
             if (err.response && err.response.status === 404) {
-               setMessages([createEmptyMsg()]);
+                setMessages([createEmptyMsg()]);
             } else {
-               alert('讀取失敗: ' + err.message);
+                alert('讀取失敗: ' + err.message);
             }
         } finally {
             setLoading(false);
@@ -751,11 +756,11 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, projectId, step
         // Let's validate required fields.
         for (let i = 0; i < messages.length; i++) {
             const m = messages[i];
-            if (m.OTYPE === 'TextSendMessage' && !m.text) { alert(`第 ${i+1} 則訊息內容不能為空`); return; }
+            if (m.OTYPE === 'TextSendMessage' && !m.text) { alert(`第 ${i + 1} 則訊息內容不能為空`); return; }
             if (m.OTYPE === 'FlexSendMessage') {
-                if (!m.contents) { alert(`第 ${i+1} 則 Flex 內容不能為空`); return; }
+                if (!m.contents) { alert(`第 ${i + 1} 則 Flex 內容不能為空`); return; }
                 if (typeof m.contents === 'string') {
-                    try { JSON.parse(m.contents); } catch(e) { alert(`第 ${i+1} 則 JSON 格式錯誤`); return; }
+                    try { JSON.parse(m.contents); } catch (e) { alert(`第 ${i + 1} 則 JSON 格式錯誤`); return; }
                 }
             }
         }
@@ -764,10 +769,10 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, projectId, step
         try {
             // Converts contents string to object if needed for Flex
             const payloadMessages = messages.map(m => {
-                 if (m.OTYPE === 'FlexSendMessage' && typeof m.contents === 'string') {
-                     return { ...m, contents: JSON.parse(m.contents) };
-                 }
-                 return m;
+                if (m.OTYPE === 'FlexSendMessage' && typeof m.contents === 'string') {
+                    return { ...m, contents: JSON.parse(m.contents) };
+                }
+                return m;
             });
 
             await api.post('/qa-bank', {
@@ -835,7 +840,7 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, projectId, step
                     <h2 style={{ fontSize: '20px' }}>進階訊息編輯器 (QA_bank)</h2>
                     <X style={{ cursor: 'pointer' }} onClick={onClose} />
                 </div>
-                
+
                 <div style={{ marginBottom: '15px' }}>
                     <label style={{ display: 'block', color: '#888', marginBottom: '5px' }}>Tag (識別標籤)</label>
                     <input type="text" value={tag} onChange={(e) => setTag(e.target.value)} style={{ width: '100%', padding: '8px', background: '#333', border: '1px solid #444', color: '#fff' }} />
@@ -845,15 +850,15 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, projectId, step
                     {/* Left: Message List */}
                     <div style={{ width: '200px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
                         {messages.map((m, i) => (
-                            <div key={i} 
+                            <div key={i}
                                 onClick={() => setActiveMsgIndex(i)}
                                 style={{
-                                    padding: '10px', backgroundColor: activeMsgIndex === i ? '#444' : '#333', 
+                                    padding: '10px', backgroundColor: activeMsgIndex === i ? '#444' : '#333',
                                     borderRadius: '8px', cursor: 'pointer', border: activeMsgIndex === i ? '1px solid var(--primary-yellow)' : '1px solid transparent',
                                     display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                                 }}
                             >
-                                <span style={{fontSize: '14px'}}>#{i+1} {m.OTYPE.replace('SendMessage', '')}</span>
+                                <span style={{ fontSize: '14px' }}>#{i + 1} {m.OTYPE.replace('SendMessage', '')}</span>
                                 <Trash2 size={14} color="#FF4D4D" onClick={(e) => { e.stopPropagation(); removeMessageSlot(i); }} />
                             </div>
                         ))}
@@ -870,8 +875,8 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, projectId, step
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                 <div>
                                     <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>類型</label>
-                                    <select 
-                                        value={messages[activeMsgIndex].OTYPE} 
+                                    <select
+                                        value={messages[activeMsgIndex].OTYPE}
                                         onChange={(e) => changeType(activeMsgIndex, e.target.value)}
                                         style={{ width: '100%', padding: '8px', background: '#222', border: 'none', color: '#fff' }}
                                     >
@@ -886,8 +891,8 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, projectId, step
                                 {messages[activeMsgIndex].OTYPE === 'TextSendMessage' && (
                                     <div>
                                         <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>內容</label>
-                                        <textarea 
-                                            value={messages[activeMsgIndex].text} 
+                                        <textarea
+                                            value={messages[activeMsgIndex].text}
                                             onChange={(e) => updateMessage(activeMsgIndex, 'text', e.target.value)}
                                             rows={8}
                                             style={{ width: '100%', padding: '10px', background: '#222', border: 'none', color: '#fff' }}
@@ -903,11 +908,11 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, projectId, step
                                                 updateMessage(activeMsgIndex, 'original_content_url', e.target.value);
                                                 updateMessage(activeMsgIndex, 'preview_image_url', e.target.value); // Auto sync preview
                                             }} style={{ width: '100%', padding: '8px', background: '#222', border: 'none', color: '#fff' }} />
-                                            <p style={{fontSize:'12px', color:'#666'}}>*Preview URL 自動同步</p>
+                                            <p style={{ fontSize: '12px', color: '#666' }}>*Preview URL 自動同步</p>
                                         </div>
                                     </>
                                 )}
-                                
+
                                 {messages[activeMsgIndex].OTYPE === 'VideoSendMessage' && (
                                     <>
                                         <div>
@@ -942,8 +947,8 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, projectId, step
                                         </div>
                                         <div>
                                             <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>JSON 內容 (contents)</label>
-                                            <textarea 
-                                                value={typeof messages[activeMsgIndex].contents === 'string' ? messages[activeMsgIndex].contents : JSON.stringify(messages[activeMsgIndex].contents, null, 2)} 
+                                            <textarea
+                                                value={typeof messages[activeMsgIndex].contents === 'string' ? messages[activeMsgIndex].contents : JSON.stringify(messages[activeMsgIndex].contents, null, 2)}
                                                 onChange={(e) => updateMessage(activeMsgIndex, 'contents', e.target.value)}
                                                 rows={10}
                                                 style={{ width: '100%', padding: '10px', background: '#222', border: 'none', color: '#fff', fontFamily: 'monospace' }}
@@ -954,7 +959,7 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, projectId, step
 
                             </div>
                         ) : (
-                            <div style={{color: '#666', textAlign: 'center', marginTop: '50px'}}>請選擇或新增訊息</div>
+                            <div style={{ color: '#666', textAlign: 'center', marginTop: '50px' }}>請選擇或新增訊息</div>
                         )}
                     </div>
                 </div>

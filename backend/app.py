@@ -644,7 +644,14 @@ def save_qa_bank():
         # Inspector said "msg_rpy (ARRAY)". Migration said "ARRAY(postgresql.JSON(astext_type=sa.Text()))".
         # Let's try passing list of strings (json dumped).
         
-        msg_rpy_strings = [json.dumps(m, ensure_ascii=False) for m in msg_rpy] if msg_rpy else []
+        # User Requirement: msg_rpy column needs to be formatted as {"{\"Line\": {\"OTYPE\": ...}}"}
+        # This implies each element in the array is a stringified JSON object with a root key "Line".
+        
+        msg_rpy_strings = []
+        if msg_rpy:
+            for m in msg_rpy:
+                wrapped_message = {"Line": m}
+                msg_rpy_strings.append(json.dumps(wrapped_message, ensure_ascii=False))
         
         conn = get_db_connection()
         cur = conn.cursor()
