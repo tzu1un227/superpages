@@ -89,14 +89,18 @@ const ProjectsManagement = () => {
         }
     };
 
-    const handleAddUserToProject = async () => {
+    // User Selection Modal State
+    const [isUserSelectModalOpen, setIsUserSelectModalOpen] = useState(false);
+
+    const handleAddUserToProject = () => {
         if (!selectedProjectId) {
             alert('請先選擇一個專案');
             return;
         }
-        const userId = window.prompt('請輸入要加入的 User ID:');
-        if (!userId) return;
+        setIsUserSelectModalOpen(true);
+    };
 
+    const onUserSelected = async (userId) => {
         try {
             await api.post('/trigger', {
                 user: userId,
@@ -105,6 +109,7 @@ const ProjectsManagement = () => {
                 api_index: 0
             });
             alert(`已送出加入專案指令 (User: ${userId}, Project: ${selectedProjectId})`);
+            setIsUserSelectModalOpen(false);
             setTimeout(() => fetchProjectUsers(selectedProjectId), 1000);
         } catch (err) {
             alert('指令發送失敗: ' + err.message);
@@ -661,6 +666,7 @@ const ProjectsManagement = () => {
                             <thead>
                                 <tr>
                                     <th>User ID</th>
+                                    <th>姓名</th>
                                     <th>所屬專案</th>
                                     <th>加入狀態</th>
                                 </tr>
@@ -669,6 +675,7 @@ const ProjectsManagement = () => {
                                 {projectUsers.length > 0 ? projectUsers.map((u, i) => (
                                     <tr key={i}>
                                         <td style={{ fontWeight: '600' }}>{u.user_id}</td>
+                                        <td>{u.user_name || '-'}</td>
                                         <td>
                                             {projects.find(p => p.project_id == selectedProjectId)?.project_name || `ID: ${selectedProjectId}`}
                                         </td>
@@ -694,6 +701,12 @@ const ProjectsManagement = () => {
                 initialTag={richModalConfig.initialTag}
                 projectId={richModalConfig.projectId}
                 stepId={richModalConfig.stepId}
+            />
+            {/* User Select Modal */}
+            <UserSelectModal
+                isOpen={isUserSelectModalOpen}
+                onClose={() => setIsUserSelectModalOpen(false)}
+                onSelect={onUserSelected}
             />
         </div>
     );
@@ -974,6 +987,95 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, projectId, step
                     <button onClick={handleSave} disabled={loading} style={{ background: 'var(--primary-yellow)', padding: '10px 20px', borderRadius: '4px', border: 'none', color: '#000', fontWeight: 'bold' }}>
                         {loading ? '儲存中...' : '儲存 QA 設定'}
                     </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const UserSelectModal = ({ isOpen, onClose, onSelect }) => {
+    const [users, setUsers] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+
+    useEffect(() => {
+        if (isOpen) {
+            fetchUsers();
+            setSearchTerm('');
+        }
+    }, [isOpen]);
+
+    const fetchUsers = async () => {
+        setLoading(true);
+        try {
+            const res = await api.get('/registered-users');
+            setUsers(res.data);
+        } catch (err) {
+            alert('無法取得用戶列表: ' + err.message);
+            onClose();
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const filteredUsers = users.filter(u =>
+        (u.name && u.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (u.user_id && u.user_id.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+    if (!isOpen) return null;
+
+    return (
+        <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1100,
+            display: 'flex', justifyContent: 'center', alignItems: 'center'
+        }}>
+            <div style={{ width: '500px', height: '600px', backgroundColor: '#222', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h2 style={{ fontSize: '20px' }}>選擇用戶加入專案</h2>
+                    <X style={{ cursor: 'pointer' }} onClick={onClose} />
+                </div>
+
+                <div style={{ marginBottom: '15px' }}>
+                    <input
+                        type="text"
+                        placeholder="搜尋姓名或是 User ID..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        style={{ width: '100%', padding: '10px', background: '#333', border: '1px solid #444', color: '#fff', borderRadius: '4px' }}
+                    />
+                </div>
+
+                <div style={{ flex: 1, overflowY: 'auto', backgroundColor: '#333', borderRadius: '8px' }}>
+                    {loading ? (
+                        <div style={{ padding: '20px', textAlign: 'center', color: '#888' }}>載入中...</div>
+                    ) : filteredUsers.length > 0 ? (
+                        filteredUsers.map((u) => (
+                            <div
+                                key={u.user_id}
+                                onClick={() => onSelect(u.user_id)}
+                                style={{
+                                    padding: '12px',
+                                    borderBottom: '1px solid #444',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#444'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            >
+                                <div>
+                                    <div style={{ fontWeight: 'bold', color: '#fff' }}>{u.name || '未命名'}</div>
+                                    <div style={{ fontSize: '12px', color: '#888' }}>{u.user_id}</div>
+                                </div>
+                                <Plus size={16} color="var(--primary-yellow)" />
+                            </div>
+                        ))
+                    ) : (
+                        <div style={{ padding: '20px', textAlign: 'center', color: '#888' }}>找不到符合的用戶</div>
+                    )}
                 </div>
             </div>
         </div>

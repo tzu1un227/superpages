@@ -370,7 +370,12 @@ def get_project_users(id):
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT DISTINCT user_id FROM cron_table WHERE project_id = %s", (id,))
+        cur.execute("""
+            SELECT DISTINCT c.user_id, p.value as user_name 
+            FROM cron_table c
+            LEFT JOIN "Private_var:5013" p ON c.user_id = p.user_id AND p.name = 'name'
+            WHERE c.project_id = %s
+        """, (id,))
         users = cur.fetchall()
         cur.close()
         conn.close()
@@ -492,6 +497,25 @@ def get_user_history(user_id):
         cur.close()
         conn.close()
         return json_response(history)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/registered-users', methods=['GET'])
+def get_registered_users():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        # Fetch users who have a name in Private_var
+        cur.execute("""
+            SELECT user_id, value as name 
+            FROM "Private_var:5013" 
+            WHERE name = 'name'
+            ORDER BY value
+        """)
+        users = cur.fetchall()
+        cur.close()
+        conn.close()
+        return json_response(users)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
