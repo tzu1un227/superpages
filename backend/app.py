@@ -661,11 +661,11 @@ def save_qa_bank():
             )
         else:
             # Insert
-            # Default columns: type='Sensor', io='Output', ans=ARRAY[''], check=ARRAY[''], function=''
+            # Default columns: io='Output', ans=ARRAY[''], check=ARRAY[''], function=''
             cur.execute(
                 '''INSERT INTO "QA_bank:5013" 
-                   (tag, msg_rpy, type, "io", "check", "function", ans) 
-                   VALUES (%s, %s::json[], 'Sensor', 'Output', ARRAY[''], '', ARRAY[''])''',
+                   (tag, msg_rpy, "io", "check", "function", ans) 
+                   VALUES (%s, %s::json[], 'Output', ARRAY[''], '', ARRAY[''])''',
                 (tag, msg_rpy_strings)
             )
             
