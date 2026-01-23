@@ -507,10 +507,11 @@ def get_registered_users():
         cur = conn.cursor(cursor_factory=RealDictCursor)
         # Fetch users who have a name in Private_var
         cur.execute("""
-            SELECT user_id, value as name 
-            FROM "Private_var:5013" 
-            WHERE name = 'name'
-            ORDER BY value
+            SELECT u1.user_id, u1.value as name, u2.value as pic
+            FROM "Private_var:5013" u1
+            LEFT JOIN "Private_var:5013" u2 ON u1.user_id = u2.user_id AND u2.name = 'pic'
+            WHERE u1.name = 'name'
+            ORDER BY u1.value
         """)
         users = cur.fetchall()
         cur.close()

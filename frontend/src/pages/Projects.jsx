@@ -1066,9 +1066,22 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
                                 onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#444'}
                                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                             >
-                                <div>
-                                    <div style={{ fontWeight: 'bold', color: '#fff' }}>{u.name || '未命名'}</div>
-                                    <div style={{ fontSize: '12px', color: '#888' }}>{u.user_id}</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    {u.pic ? (
+                                        <img
+                                            src={u.pic}
+                                            alt={u.name}
+                                            style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #444' }}
+                                        />
+                                    ) : (
+                                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#444', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
+                                            <Users size={20} />
+                                        </div>
+                                    )}
+                                    <div>
+                                        <div style={{ fontWeight: 'bold', color: '#fff' }}>{u.name || '未命名'}</div>
+                                        <div style={{ fontSize: '12px', color: '#888' }}>{u.user_id}</div>
+                                    </div>
                                 </div>
                                 <Plus size={16} color="var(--primary-yellow)" />
                             </div>
