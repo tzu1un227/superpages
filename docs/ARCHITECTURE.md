@@ -122,7 +122,7 @@ Superpages 是一個整合 LINE 官方帳號管理的後台系統，提供數據
 主要涉及的資料表：
 
 **PostgreSQL (業務數據)**:
-- `projects`: 儲存推播專案資訊 (ID, Name, Date Range, Status)。
+- `projects`: 儲存推播專案資訊 (ID, Name, Date Range, Status, Anchor, Dormancy)。
 - `project_schedules`: 儲存專案下的各個推播階段設定 (Interval, Content)。
 - `history:5013`: 儲存訊息與事件記錄。
 - `Private_var:5013`: 儲存用戶的標籤 (Tag) 等私有變量資訊。

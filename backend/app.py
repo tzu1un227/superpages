@@ -266,6 +266,30 @@ def get_projects():
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("SELECT * FROM projects ORDER BY project_id")
         projects = cur.fetchall()
+        
+        # Calculate Status
+        now = datetime.now()
+        for p in projects:
+            start = p['start_date']
+            end = p['end_date']
+            is_enabled = p['is_enabled']
+            
+            p['status'] = "未知"
+            if not is_enabled:
+                if now < start:
+                    p['status'] = "編輯中"
+                elif now > end:
+                    p['status'] = "已終止"
+                else:
+                    p['status'] = "已暫停"
+            else:
+                if now < start:
+                    p['status'] = "已排程"
+                elif now > end:
+                    p['status'] = "已完成"
+                else:
+                    p['status'] = "進行中"
+
         cur.close()
         conn.close()
         return json_response(projects)
@@ -283,11 +307,15 @@ def create_project():
         if end_date <= start_date:
             return jsonify({"status": "error", "message": "結束時間必須大於開始時間"}), 400
 
+        import json
+        anchor_config = json.dumps(data.get('anchor_config', {}))
+        dormancy_config = json.dumps(data.get('dormancy_config', {}))
+
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO projects (project_name, start_date, end_date, is_enabled) VALUES (%s, %s, %s, %s) RETURNING project_id",
-            (data['project_name'], data['start_date'], data['end_date'], data['is_enabled'])
+            "INSERT INTO projects (project_name, start_date, end_date, is_enabled, anchor_config, dormancy_config) VALUES (%s, %s, %s, %s, %s, %s) RETURNING project_id",
+            (data['project_name'], data['start_date'], data['end_date'], data['is_enabled'], anchor_config, dormancy_config)
         )
         project_id = cur.fetchone()[0]
         conn.commit()
@@ -307,11 +335,15 @@ def update_project(id):
         if end_date <= start_date:
             return jsonify({"status": "error", "message": "結束時間必須大於開始時間"}), 400
 
+        import json
+        anchor_config = json.dumps(data.get('anchor_config', {}))
+        dormancy_config = json.dumps(data.get('dormancy_config', {}))
+
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute(
-            "UPDATE projects SET project_name=%s, start_date=%s, end_date=%s, is_enabled=%s WHERE project_id=%s",
-            (data['project_name'], data['start_date'], data['end_date'], data['is_enabled'], id)
+            "UPDATE projects SET project_name=%s, start_date=%s, end_date=%s, is_enabled=%s, anchor_config=%s, dormancy_config=%s WHERE project_id=%s",
+            (data['project_name'], data['start_date'], data['end_date'], data['is_enabled'], anchor_config, dormancy_config, id)
         )
         conn.commit()
         cur.close()

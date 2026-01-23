@@ -9,7 +9,14 @@ const ProjectsManagement = () => {
     const [selectedProjectId, setSelectedProjectId] = useState('');
     const [editingProjectId, setEditingProjectId] = useState(null);
     const [editProjectFormData, setEditProjectFormData] = useState({});
-    const [newProject, setNewProject] = useState({ project_name: '', start_date: '', end_date: '', is_enabled: true });
+    const [newProject, setNewProject] = useState({
+        project_name: '',
+        start_date: '',
+        end_date: '',
+        is_enabled: true,
+        anchor_config: { type: 'immediate', day: 1, time: '09:00' },
+        dormancy_config: { enabled: false, start: '23:00', end: '08:00' }
+    });
     const [showAddProjectForm, setShowAddProjectForm] = useState(false);
 
     const [editingScheduleId, setEditingScheduleId] = useState(null);
@@ -78,7 +85,6 @@ const ProjectsManagement = () => {
                 api_index: 0
             });
             alert(`已送出加入專案指令 (User: ${userId}, Project: ${selectedProjectId})`);
-            // Refresh users after a short delay
             setTimeout(() => fetchProjectUsers(selectedProjectId), 1000);
         } catch (err) {
             alert('指令發送失敗: ' + err.message);
@@ -88,7 +94,12 @@ const ProjectsManagement = () => {
     // Project Actions
     const handleEditProjectClick = (project) => {
         setEditingProjectId(project.project_id);
-        setEditProjectFormData(project);
+        // Ensure configs exist
+        setEditProjectFormData({
+            ...project,
+            anchor_config: project.anchor_config || { type: 'immediate', day: 1, time: '09:00' },
+            dormancy_config: project.dormancy_config || { enabled: false, start: '23:00', end: '08:00' }
+        });
     };
 
     const handleUpdateProject = async () => {
@@ -113,7 +124,14 @@ const ProjectsManagement = () => {
         try {
             await api.post('/projects', newProject);
             setShowAddProjectForm(false);
-            setNewProject({ project_name: '', start_date: '', end_date: '', is_enabled: true });
+            setNewProject({
+                project_name: '',
+                start_date: '',
+                end_date: '',
+                is_enabled: true,
+                anchor_config: { type: 'immediate', day: 1, time: '09:00' },
+                dormancy_config: { enabled: false, start: '23:00', end: '08:00' }
+            });
             fetchProjects();
             setError('');
         } catch (err) {
@@ -161,6 +179,116 @@ const ProjectsManagement = () => {
             setError(err.response?.data?.message || '新增排程失敗');
         }
     };
+
+    // Helper for Status Badge
+    const getStatusBadge = (status) => {
+        const colors = {
+            '編輯中': '#B0B0B0', // Gray
+            '已排程': '#FFC107', // Amber/Yellow
+            '進行中': '#4CAF50', // Green
+            '已暫停': '#FF9800', // Orange
+            '已完成': '#2196F3', // Blue
+            '已終止': '#F44336', // Red
+            '未知': '#666'
+        };
+        const color = colors[status] || '#666';
+        return (
+            <span style={{
+                backgroundColor: `${color}20`,
+                color: color,
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '12px',
+                border: `1px solid ${color}40`,
+                display: 'inline-block',
+                minWidth: '60px',
+                textAlign: 'center'
+            }}>
+                {status}
+            </span>
+        );
+    };
+
+    // Reusable Config Inputs
+    const renderConfigInputs = (data, setData, isEditing) => (
+        <>
+            <div style={{ marginTop: '10px', padding: '10px', background: '#333', borderRadius: '8px' }}>
+                <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '8px' }}>錨點設定 (Anchor)</label>
+                <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '10px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px' }}>
+                        <input
+                            type="radio"
+                            name={`anchor_type_${isEditing ? 'edit' : 'new'}`}
+                            checked={data.anchor_config.type === 'immediate'}
+                            onChange={() => setData({ ...data, anchor_config: { ...data.anchor_config, type: 'immediate' } })}
+                        />
+                        立即觸發
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px' }}>
+                        <input
+                            type="radio"
+                            name={`anchor_type_${isEditing ? 'edit' : 'new'}`}
+                            checked={data.anchor_config.type === 'weekly'}
+                            onChange={() => setData({ ...data, anchor_config: { ...data.anchor_config, type: 'weekly' } })}
+                        />
+                        每週特定時間
+                    </label>
+                </div>
+                {data.anchor_config.type === 'weekly' && (
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <select
+                            value={data.anchor_config.day}
+                            onChange={(e) => setData({ ...data, anchor_config: { ...data.anchor_config, day: parseInt(e.target.value) } })}
+                            style={{ flex: 1 }}
+                        >
+                            <option value={1}>週一</option>
+                            <option value={2}>週二</option>
+                            <option value={3}>週三</option>
+                            <option value={4}>週四</option>
+                            <option value={5}>週五</option>
+                            <option value={6}>週六</option>
+                            <option value={0}>週日</option>
+                        </select>
+                        <input
+                            type="time"
+                            value={data.anchor_config.time}
+                            onChange={(e) => setData({ ...data, anchor_config: { ...data.anchor_config, time: e.target.value } })}
+                            style={{ flex: 1 }}
+                        />
+                    </div>
+                )}
+            </div>
+
+            <div style={{ marginTop: '10px', padding: '10px', background: '#333', borderRadius: '8px' }}>
+                <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '8px' }}>休眠時間 (Dormancy)</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#B0B0B0', marginBottom: '10px' }}>
+                    <input
+                        type="checkbox"
+                        checked={data.dormancy_config.enabled}
+                        onChange={(e) => setData({ ...data, dormancy_config: { ...data.dormancy_config, enabled: e.target.checked } })}
+                    />
+                    啟用休眠
+                </label>
+                {data.dormancy_config.enabled && (
+                    <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                        <input
+                            type="time"
+                            value={data.dormancy_config.start}
+                            onChange={(e) => setData({ ...data, dormancy_config: { ...data.dormancy_config, start: e.target.value } })}
+                            style={{ flex: 1 }}
+                        />
+                        <span>~</span>
+                        <input
+                            type="time"
+                            value={data.dormancy_config.end}
+                            onChange={(e) => setData({ ...data, dormancy_config: { ...data.dormancy_config, end: e.target.value } })}
+                            style={{ flex: 1 }}
+                        />
+                    </div>
+                )}
+            </div>
+        </>
+    );
 
     return (
         <div>
@@ -226,25 +354,32 @@ const ProjectsManagement = () => {
 
                     {showAddProjectForm && (
                         <div style={{ backgroundColor: '#222', padding: '20px', borderRadius: '12px', marginBottom: '25px', border: '1px solid #333' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto auto', gap: '15px', alignItems: 'end' }}>
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>專案名稱</label>
-                                    <input type="text" value={newProject.project_name} onChange={(e) => setNewProject({ ...newProject, project_name: e.target.value })} style={{ width: '100%' }} />
+                            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1fr) minmax(200px, 1fr) auto', gap: '20px', alignItems: 'start' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>專案名稱</label>
+                                        <input type="text" value={newProject.project_name} onChange={(e) => setNewProject({ ...newProject, project_name: e.target.value })} style={{ width: '100%' }} />
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>開始時間</label>
+                                            <input type="datetime-local" value={newProject.start_date} onChange={(e) => setNewProject({ ...newProject, start_date: e.target.value })} style={{ width: '100%' }} />
+                                        </div>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>結束時間</label>
+                                            <input type="datetime-local" value={newProject.end_date} onChange={(e) => setNewProject({ ...newProject, end_date: e.target.value })} style={{ width: '100%' }} />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#B0B0B0' }}>
+                                            <input type="checkbox" checked={newProject.is_enabled} onChange={(e) => setNewProject({ ...newProject, is_enabled: e.target.checked })} /> 啟用專案
+                                        </label>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>開始時間</label>
-                                    <input type="datetime-local" value={newProject.start_date} onChange={(e) => setNewProject({ ...newProject, start_date: e.target.value })} style={{ width: '100%' }} />
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    {renderConfigInputs(newProject, setNewProject, false)}
                                 </div>
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>結束時間</label>
-                                    <input type="datetime-local" value={newProject.end_date} onChange={(e) => setNewProject({ ...newProject, end_date: e.target.value })} style={{ width: '100%' }} />
-                                </div>
-                                <div style={{ marginBottom: '12px' }}>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#B0B0B0' }}>
-                                        <input type="checkbox" checked={newProject.is_enabled} onChange={(e) => setNewProject({ ...newProject, is_enabled: e.target.checked })} /> 啟用
-                                    </label>
-                                </div>
-                                <div style={{ display: 'flex', gap: '10px' }}>
+                                <div style={{ display: 'flex', gap: '10px', alignSelf: 'end' }}>
                                     <button className="primary" onClick={handleCreateProject}>儲存</button>
                                     <button onClick={() => setShowAddProjectForm(false)} style={{ background: '#444' }}>取消</button>
                                 </div>
@@ -260,6 +395,7 @@ const ProjectsManagement = () => {
                                     <th>專案名稱</th>
                                     <th>有效期間</th>
                                     <th>狀態</th>
+                                    <th>詳細設定</th>
                                     <th>操作</th>
                                 </tr>
                             </thead>
@@ -269,24 +405,45 @@ const ProjectsManagement = () => {
                                         <td>{p.project_id}</td>
                                         <td>
                                             {editingProjectId === p.project_id ? (
-                                                <input type="text" value={editProjectFormData.project_name} onChange={e => setEditProjectFormData({ ...editProjectFormData, project_name: e.target.value })} />
+                                                <input type="text" value={editProjectFormData.project_name} onChange={e => setEditProjectFormData({ ...editProjectFormData, project_name: e.target.value })} style={{ width: '100%' }} />
                                             ) : p.project_name}
                                         </td>
                                         <td style={{ fontSize: '14px' }}>
                                             {editingProjectId === p.project_id ? (
-                                                <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                                                     <input type="datetime-local" value={editProjectFormData.start_date.replace(' ', 'T').slice(0, 16)} onChange={e => setEditProjectFormData({ ...editProjectFormData, start_date: e.target.value })} style={{ padding: '5px' }} />
-                                                    <span>~</span>
                                                     <input type="datetime-local" value={editProjectFormData.end_date.replace(' ', 'T').slice(0, 16)} onChange={e => setEditProjectFormData({ ...editProjectFormData, end_date: e.target.value })} style={{ padding: '5px' }} />
                                                 </div>
                                             ) : (
-                                                <span style={{ color: '#B0B0B0' }}>{p.start_date} ~ {p.end_date}</span>
+                                                <span style={{ color: '#B0B0B0' }}>
+                                                    {p.start_date.slice(0, 16).replace('T', ' ')} <br />
+                                                    ~ {p.end_date.slice(0, 16).replace('T', ' ')}
+                                                </span>
                                             )}
                                         </td>
                                         <td>
                                             {editingProjectId === p.project_id ? (
-                                                <input type="checkbox" checked={editProjectFormData.is_enabled} onChange={e => setEditProjectFormData({ ...editProjectFormData, is_enabled: e.target.checked })} />
-                                            ) : (p.is_enabled ? <span style={{ color: '#4CAF50' }}>● 已啟用</span> : <span style={{ color: '#666' }}>○ 已停用</span>)}
+                                                <label>
+                                                    <input type="checkbox" checked={editProjectFormData.is_enabled} onChange={e => setEditProjectFormData({ ...editProjectFormData, is_enabled: e.target.checked })} /> 啟用
+                                                </label>
+                                            ) : (
+                                                getStatusBadge(p.status)
+                                            )}
+                                        </td>
+                                        <td style={{ fontSize: '12px', color: '#aaa', maxWidth: '200px' }}>
+                                            {editingProjectId === p.project_id ? (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                    <div style={{ fontSize: '11px', color: '#888' }}>設定詳細編輯中...</div>
+                                                    {renderConfigInputs(editProjectFormData, setEditProjectFormData, true)}
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <div>⚓ {p.anchor_config?.type === 'weekly' ? `週${['日', '一', '二', '三', '四', '五', '六'][p.anchor_config.day]} ${p.anchor_config.time}` : '立即'}</div>
+                                                    {p.dormancy_config?.enabled && (
+                                                        <div>💤 {p.dormancy_config.start}~{p.dormancy_config.end}</div>
+                                                    )}
+                                                </div>
+                                            )}
                                         </td>
                                         <td>
                                             {editingProjectId === p.project_id ? (
