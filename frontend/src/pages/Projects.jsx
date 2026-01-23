@@ -905,8 +905,13 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, projectId, step
                                         <div>
                                             <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>圖片網址 (Original)</label>
                                             <input type="text" value={messages[activeMsgIndex].original_content_url || ''} onChange={(e) => {
-                                                updateMessage(activeMsgIndex, 'original_content_url', e.target.value);
-                                                updateMessage(activeMsgIndex, 'preview_image_url', e.target.value); // Auto sync preview
+                                                const newMsgs = [...messages];
+                                                newMsgs[activeMsgIndex] = {
+                                                    ...newMsgs[activeMsgIndex],
+                                                    original_content_url: e.target.value,
+                                                    preview_image_url: e.target.value
+                                                };
+                                                setMessages(newMsgs);
                                             }} style={{ width: '100%', padding: '8px', background: '#222', border: 'none', color: '#fff' }} />
                                             <p style={{ fontSize: '12px', color: '#666' }}>*Preview URL 自動同步</p>
                                         </div>
