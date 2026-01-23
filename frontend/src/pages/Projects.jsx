@@ -665,7 +665,6 @@ const ProjectsManagement = () => {
                         <table>
                             <thead>
                                 <tr>
-                                    <th>User ID</th>
                                     <th>姓名</th>
                                     <th>所屬專案</th>
                                     <th>加入狀態</th>
@@ -674,8 +673,7 @@ const ProjectsManagement = () => {
                             <tbody>
                                 {projectUsers.length > 0 ? projectUsers.map((u, i) => (
                                     <tr key={i}>
-                                        <td style={{ fontWeight: '600' }}>{u.user_id}</td>
-                                        <td>{u.user_name || '-'}</td>
+                                        <td style={{ fontWeight: '600' }}>{u.user_name || u.user_id}</td>
                                         <td>
                                             {projects.find(p => p.project_id == selectedProjectId)?.project_name || `ID: ${selectedProjectId}`}
                                         </td>
@@ -707,6 +705,7 @@ const ProjectsManagement = () => {
                 isOpen={isUserSelectModalOpen}
                 onClose={() => setIsUserSelectModalOpen(false)}
                 onSelect={onUserSelected}
+                existingUsers={projectUsers.map(u => u.user_id)}
             />
         </div>
     );
@@ -993,7 +992,7 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, projectId, step
     );
 };
 
-const UserSelectModal = ({ isOpen, onClose, onSelect }) => {
+const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -1019,8 +1018,9 @@ const UserSelectModal = ({ isOpen, onClose, onSelect }) => {
     };
 
     const filteredUsers = users.filter(u =>
-        (u.name && u.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (u.user_id && u.user_id.toLowerCase().includes(searchTerm.toLowerCase()))
+        !existingUsers.includes(u.user_id) &&
+        ((u.name && u.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (u.user_id && u.user_id.toLowerCase().includes(searchTerm.toLowerCase())))
     );
 
     if (!isOpen) return null;
