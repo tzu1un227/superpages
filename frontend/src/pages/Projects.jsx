@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
-import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users } from 'lucide-react';
+import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type } from 'lucide-react';
 
 const ProjectsManagement = () => {
     const [projects, setProjects] = useState([]);
@@ -26,6 +26,26 @@ const ProjectsManagement = () => {
 
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState('projects'); // projects or schedules
+
+    // Rich Message Modal State
+    const [isRichModalOpen, setIsRichModalOpen] = useState(false);
+    const [richModalConfig, setRichModalConfig] = useState({ initialTag: '', projectId: '', stepId: '', onSave: null });
+
+    const openRichEditor = (currentValue, projectId, stepId, onSave) => {
+        let initialTag = '';
+        if (currentValue && currentValue.startsWith('QA|')) {
+            initialTag = currentValue.substring(3);
+        }
+        setRichModalConfig({
+            initialTag,
+            projectId,
+            stepId,
+            onSave: (tag) => {
+                onSave('QA|' + tag);
+            }
+        });
+        setIsRichModalOpen(true);
+    };
 
     useEffect(() => {
         fetchProjects();
@@ -512,7 +532,21 @@ const ProjectsManagement = () => {
                                 </div>
                                 <div>
                                     <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>訊息內容</label>
-                                    <input type="text" value={newSchedule.message_content} onChange={e => setNewSchedule({ ...newSchedule, message_content: e.target.value })} style={{ width: '100%' }} />
+                                    <div style={{ display: 'flex', gap: '5px' }}>
+                                        <input type="text" value={newSchedule.message_content} onChange={e => setNewSchedule({ ...newSchedule, message_content: e.target.value })} style={{ width: '100%' }} />
+                                        <button 
+                                            onClick={() => openRichEditor(
+                                                newSchedule.message_content, 
+                                                newSchedule.project_id || selectedProjectId, 
+                                                newSchedule.step_id,
+                                                (val) => setNewSchedule(prev => ({ ...prev, message_content: val }))
+                                            )} 
+                                            title="編輯多媒體/Flex訊息"
+                                            style={{ padding: '8px', background: '#333', border: '1px solid #444', color: 'var(--primary-yellow)' }}
+                                        >
+                                            <MessageSquare size={16} />
+                                        </button>
+                                    </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: '10px' }}>
                                     <button className="primary" onClick={handleCreateSchedule}>儲存</button>
@@ -551,10 +585,30 @@ const ProjectsManagement = () => {
                                                 <input type="number" step="0.1" value={editScheduleFormData.interval_hours} onChange={e => setEditScheduleFormData({ ...editScheduleFormData, interval_hours: e.target.value })} style={{ width: '80px' }} />
                                             ) : `${s.interval_hours} 小時`}
                                         </td>
-                                        <td style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        <td style={{ maxWidth: '300px' }}>
                                             {editingScheduleId === s.schedule_id ? (
-                                                <input type="text" value={editScheduleFormData.message_content} onChange={e => setEditScheduleFormData({ ...editScheduleFormData, message_content: e.target.value })} style={{ width: '100%' }} />
-                                            ) : s.message_content}
+                                                <div style={{ display: 'flex', gap: '5px' }}>
+                                                    <input type="text" value={editScheduleFormData.message_content} onChange={e => setEditScheduleFormData({ ...editScheduleFormData, message_content: e.target.value })} style={{ width: '100%' }} />
+                                                    <button 
+                                                        onClick={() => openRichEditor(
+                                                            editScheduleFormData.message_content, 
+                                                            editScheduleFormData.project_id, 
+                                                            editScheduleFormData.step_id,
+                                                            (val) => setEditScheduleFormData(prev => ({ ...prev, message_content: val }))
+                                                        )} 
+                                                        style={{ padding: '5px', background: '#333', border: '1px solid #444', color: 'var(--primary-yellow)' }}
+                                                    >
+                                                        <MessageSquare size={14} />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {s.message_content}
+                                                    {s.message_content && s.message_content.startsWith('QA|') && (
+                                                         <MessageSquare size={14} color="#4CAF50" title="Rich Message" />
+                                                    )}
+                                                </div>
+                                            )}
                                         </td>
                                         <td>
                                             {editingScheduleId === s.schedule_id ? (
@@ -632,6 +686,286 @@ const ProjectsManagement = () => {
                     </div>
                 </div>
             )}
+            {/* Rich Message Modal */}
+            <RichMessageModal 
+                isOpen={isRichModalOpen} 
+                onClose={() => setIsRichModalOpen(false)}
+                onSave={richModalConfig.onSave}
+                initialTag={richModalConfig.initialTag}
+                projectId={richModalConfig.projectId}
+                stepId={richModalConfig.stepId}
+            />
+        </div>
+    );
+};
+
+// Rich Message Editor Modal
+const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, projectId, stepId }) => {
+    const [tag, setTag] = useState(initialTag || '');
+    const [messages, setMessages] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [activeMsgIndex, setActiveMsgIndex] = useState(0);
+
+    // Default Tag Generation if empty
+    useEffect(() => {
+        if (isOpen) {
+            if (!initialTag) {
+                // Try to generate default tag
+                const pId = projectId || 'new';
+                const sId = stepId || 'new';
+                setTag(`cron_${pId}_${sId}`);
+                setMessages([createEmptyMsg()]); // Init with 1 empty message
+            } else {
+                setTag(initialTag);
+                fetchExistingMessages(initialTag);
+            }
+        }
+    }, [isOpen, initialTag, projectId, stepId]);
+
+    const createEmptyMsg = () => ({ OTYPE: 'TextSendMessage', text: '' });
+
+    const fetchExistingMessages = async (tagName) => {
+        setLoading(true);
+        try {
+            const res = await api.get(`/qa-bank/${tagName}`);
+            let msgs = res.data.msg_rpy || [];
+            // Parse strings if they are JSON strings (backend might return list of strings or list of dicts depending on implementation)
+            // Our backend returns list of strings (json dumped).
+            msgs = msgs.map(m => typeof m === 'string' ? JSON.parse(m) : m);
+            if (msgs.length === 0) msgs = [createEmptyMsg()];
+            setMessages(msgs);
+        } catch (err) {
+            if (err.response && err.response.status === 404) {
+               setMessages([createEmptyMsg()]);
+            } else {
+               alert('讀取失敗: ' + err.message);
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSave = async () => {
+        // Validation
+        // Filter out empty messages? Or allow them? usage limited to 5.
+        // Let's validate required fields.
+        for (let i = 0; i < messages.length; i++) {
+            const m = messages[i];
+            if (m.OTYPE === 'TextSendMessage' && !m.text) { alert(`第 ${i+1} 則訊息內容不能為空`); return; }
+            if (m.OTYPE === 'FlexSendMessage') {
+                if (!m.contents) { alert(`第 ${i+1} 則 Flex 內容不能為空`); return; }
+                if (typeof m.contents === 'string') {
+                    try { JSON.parse(m.contents); } catch(e) { alert(`第 ${i+1} 則 JSON 格式錯誤`); return; }
+                }
+            }
+        }
+
+        setLoading(true);
+        try {
+            // Converts contents string to object if needed for Flex
+            const payloadMessages = messages.map(m => {
+                 if (m.OTYPE === 'FlexSendMessage' && typeof m.contents === 'string') {
+                     return { ...m, contents: JSON.parse(m.contents) };
+                 }
+                 return m;
+            });
+
+            await api.post('/qa-bank', {
+                tag: tag,
+                msg_rpy: payloadMessages,
+                type: 'Sensor'
+            });
+            onSave(tag);
+            onClose();
+        } catch (err) {
+            alert('儲存失敗: ' + err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const updateMessage = (index, field, value) => {
+        const newMsgs = [...messages];
+        newMsgs[index] = { ...newMsgs[index], [field]: value };
+        setMessages(newMsgs);
+    };
+
+    const changeType = (index, newType) => {
+        const newMsgs = [...messages];
+        let newMsg = { OTYPE: newType };
+        if (newType === 'TextSendMessage') newMsg.text = '';
+        if (newType === 'ImageSendMessage' || newType === 'VideoSendMessage') {
+            newMsg.original_content_url = '';
+            newMsg.preview_image_url = '';
+        }
+        if (newType === 'AudioSendMessage') {
+            newMsg.original_content_url = '';
+            newMsg.duration = 1000;
+        }
+        if (newType === 'FlexSendMessage') {
+            newMsg.alt_text = 'Flex Message';
+            newMsg.contents = '{}';
+        }
+        newMsgs[index] = newMsg;
+        setMessages(newMsgs);
+    };
+
+    const addMessageSlot = () => {
+        if (messages.length >= 5) return;
+        setMessages([...messages, createEmptyMsg()]);
+        setActiveMsgIndex(messages.length);
+    };
+
+    const removeMessageSlot = (index) => {
+        const newMsgs = messages.filter((_, i) => i !== index);
+        setMessages(newMsgs);
+        if (activeMsgIndex >= newMsgs.length) setActiveMsgIndex(newMsgs.length - 1);
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1000,
+            display: 'flex', justifyContent: 'center', alignItems: 'center'
+        }}>
+            <div style={{ width: '800px', height: '80%', backgroundColor: '#222', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h2 style={{ fontSize: '20px' }}>進階訊息編輯器 (QA_bank)</h2>
+                    <X style={{ cursor: 'pointer' }} onClick={onClose} />
+                </div>
+                
+                <div style={{ marginBottom: '15px' }}>
+                    <label style={{ display: 'block', color: '#888', marginBottom: '5px' }}>Tag (識別標籤)</label>
+                    <input type="text" value={tag} onChange={(e) => setTag(e.target.value)} style={{ width: '100%', padding: '8px', background: '#333', border: '1px solid #444', color: '#fff' }} />
+                </div>
+
+                <div style={{ flex: 1, display: 'flex', gap: '20px', overflow: 'hidden' }}>
+                    {/* Left: Message List */}
+                    <div style={{ width: '200px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
+                        {messages.map((m, i) => (
+                            <div key={i} 
+                                onClick={() => setActiveMsgIndex(i)}
+                                style={{
+                                    padding: '10px', backgroundColor: activeMsgIndex === i ? '#444' : '#333', 
+                                    borderRadius: '8px', cursor: 'pointer', border: activeMsgIndex === i ? '1px solid var(--primary-yellow)' : '1px solid transparent',
+                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                                }}
+                            >
+                                <span style={{fontSize: '14px'}}>#{i+1} {m.OTYPE.replace('SendMessage', '')}</span>
+                                <Trash2 size={14} color="#FF4D4D" onClick={(e) => { e.stopPropagation(); removeMessageSlot(i); }} />
+                            </div>
+                        ))}
+                        {messages.length < 5 && (
+                            <button onClick={addMessageSlot} style={{ border: '1px dashed #666', background: 'transparent', padding: '10px', color: '#888' }}>
+                                + 新增訊息
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Right: Content Editor */}
+                    <div style={{ flex: 1, backgroundColor: '#333', borderRadius: '8px', padding: '20px', overflowY: 'auto' }}>
+                        {messages[activeMsgIndex] ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                <div>
+                                    <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>類型</label>
+                                    <select 
+                                        value={messages[activeMsgIndex].OTYPE} 
+                                        onChange={(e) => changeType(activeMsgIndex, e.target.value)}
+                                        style={{ width: '100%', padding: '8px', background: '#222', border: 'none', color: '#fff' }}
+                                    >
+                                        <option value="TextSendMessage">文字 (Text)</option>
+                                        <option value="ImageSendMessage">圖片 (Image)</option>
+                                        <option value="VideoSendMessage">影片 (Video)</option>
+                                        <option value="AudioSendMessage">聲音 (Audio)</option>
+                                        <option value="FlexSendMessage">Flex 訊息</option>
+                                    </select>
+                                </div>
+
+                                {messages[activeMsgIndex].OTYPE === 'TextSendMessage' && (
+                                    <div>
+                                        <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>內容</label>
+                                        <textarea 
+                                            value={messages[activeMsgIndex].text} 
+                                            onChange={(e) => updateMessage(activeMsgIndex, 'text', e.target.value)}
+                                            rows={8}
+                                            style={{ width: '100%', padding: '10px', background: '#222', border: 'none', color: '#fff' }}
+                                        />
+                                    </div>
+                                )}
+
+                                {messages[activeMsgIndex].OTYPE === 'ImageSendMessage' && (
+                                    <>
+                                        <div>
+                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>圖片網址 (Original)</label>
+                                            <input type="text" value={messages[activeMsgIndex].original_content_url || ''} onChange={(e) => {
+                                                updateMessage(activeMsgIndex, 'original_content_url', e.target.value);
+                                                updateMessage(activeMsgIndex, 'preview_image_url', e.target.value); // Auto sync preview
+                                            }} style={{ width: '100%', padding: '8px', background: '#222', border: 'none', color: '#fff' }} />
+                                            <p style={{fontSize:'12px', color:'#666'}}>*Preview URL 自動同步</p>
+                                        </div>
+                                    </>
+                                )}
+                                
+                                {messages[activeMsgIndex].OTYPE === 'VideoSendMessage' && (
+                                    <>
+                                        <div>
+                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>影片網址</label>
+                                            <input type="text" value={messages[activeMsgIndex].original_content_url || ''} onChange={(e) => updateMessage(activeMsgIndex, 'original_content_url', e.target.value)} style={{ width: '100%', padding: '8px', background: '#222', border: 'none', color: '#fff' }} />
+                                        </div>
+                                        <div>
+                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>預覽圖網址</label>
+                                            <input type="text" value={messages[activeMsgIndex].preview_image_url || ''} onChange={(e) => updateMessage(activeMsgIndex, 'preview_image_url', e.target.value)} style={{ width: '100%', padding: '8px', background: '#222', border: 'none', color: '#fff' }} />
+                                        </div>
+                                    </>
+                                )}
+
+                                {messages[activeMsgIndex].OTYPE === 'AudioSendMessage' && (
+                                    <>
+                                        <div>
+                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>音檔網址</label>
+                                            <input type="text" value={messages[activeMsgIndex].original_content_url || ''} onChange={(e) => updateMessage(activeMsgIndex, 'original_content_url', e.target.value)} style={{ width: '100%', padding: '8px', background: '#222', border: 'none', color: '#fff' }} />
+                                        </div>
+                                        <div>
+                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>長度 (毫秒)</label>
+                                            <input type="number" value={messages[activeMsgIndex].duration || 1000} onChange={(e) => updateMessage(activeMsgIndex, 'duration', parseInt(e.target.value))} style={{ width: '100%', padding: '8px', background: '#222', border: 'none', color: '#fff' }} />
+                                        </div>
+                                    </>
+                                )}
+
+                                {messages[activeMsgIndex].OTYPE === 'FlexSendMessage' && (
+                                    <>
+                                        <div>
+                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>替代文字 (Alt Text)</label>
+                                            <input type="text" value={messages[activeMsgIndex].alt_text || ''} onChange={(e) => updateMessage(activeMsgIndex, 'alt_text', e.target.value)} style={{ width: '100%', padding: '8px', background: '#222', border: 'none', color: '#fff' }} />
+                                        </div>
+                                        <div>
+                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>JSON 內容 (contents)</label>
+                                            <textarea 
+                                                value={typeof messages[activeMsgIndex].contents === 'string' ? messages[activeMsgIndex].contents : JSON.stringify(messages[activeMsgIndex].contents, null, 2)} 
+                                                onChange={(e) => updateMessage(activeMsgIndex, 'contents', e.target.value)}
+                                                rows={10}
+                                                style={{ width: '100%', padding: '10px', background: '#222', border: 'none', color: '#fff', fontFamily: 'monospace' }}
+                                            />
+                                        </div>
+                                    </>
+                                )}
+
+                            </div>
+                        ) : (
+                            <div style={{color: '#666', textAlign: 'center', marginTop: '50px'}}>請選擇或新增訊息</div>
+                        )}
+                    </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px', gap: '10px' }}>
+                    <button onClick={onClose} style={{ background: '#444', padding: '10px 20px', borderRadius: '4px', border: 'none', color: '#fff' }}>取消</button>
+                    <button onClick={handleSave} disabled={loading} style={{ background: 'var(--primary-yellow)', padding: '10px 20px', borderRadius: '4px', border: 'none', color: '#000', fontWeight: 'bold' }}>
+                        {loading ? '儲存中...' : '儲存 QA 設定'}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };

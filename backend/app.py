@@ -607,5 +607,76 @@ def get_tickets():
         print(f"Error in get_tickets: {e}")
         return jsonify({"error": str(e)}), 500
 
+# QA Bank CRUD
+@app.route('/api/qa-bank/<tag>', methods=['GET'])
+def get_qa_bank_by_tag(tag):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        # Assuming appNAME is 5013, so table is "QA_bank:5013"
+        cur.execute('SELECT * FROM "QA_bank:5013" WHERE tag = %s', (tag,))
+        result = cur.fetchone()
+        cur.close()
+        conn.close()
+        if result:
+            return json_response(result)
+        else:
+            return jsonify({"status": "not_found"}), 404
+    except Exception as e:
+        print(f"Error in get_qa_bank_by_tag: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/qa-bank', methods=['POST'])
+def save_qa_bank():
+    data = request.json
+    tag = data.get('tag')
+    msg_rpy = data.get('msg_rpy') # Should be list of dicts (JSON objects)
+    
+    if not tag:
+        return jsonify({"status": "error", "message": "Tag is required"}), 400
+
+    try:
+        import json
+        msg_rpy_json = json.dumps(msg_rpy) # Convert list to JSON string for ARRAY[JSON] ??
+        # Postgres ARRAY of JSON might need special handling.
+        # However, psycopg2 usually handles list of dicts -> ARRAY of JSON if type is specified?
+        # Or simpler: cast to text array if schema is ARRAY(TEXT) containing JSON strings?
+        # Inspector said "msg_rpy (ARRAY)". Migration said "ARRAY(postgresql.JSON(astext_type=sa.Text()))".
+        # Let's try passing list of strings (json dumped).
+        
+        msg_rpy_strings = [json.dumps(m, ensure_ascii=False) for m in msg_rpy] if msg_rpy else []
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if exists
+        cur.execute('SELECT id FROM "QA_bank:5013" WHERE tag = %s', (tag,))
+        existing = cur.fetchone()
+        
+        if existing:
+            # Update
+            cur.execute(
+                'UPDATE "QA_bank:5013" SET msg_rpy = %s::json[] WHERE tag = %s',
+                (msg_rpy_strings, tag)
+            )
+        else:
+            # Insert
+            # Default columns: type='Sensor', io='Output', ans=ARRAY[''], check=ARRAY[''], function=''
+            cur.execute(
+                '''INSERT INTO "QA_bank:5013" 
+                   (tag, msg_rpy, type, "io", check, "function", ans) 
+                   VALUES (%s, %s::json[], 'Sensor', 'Output', ARRAY[''], '', ARRAY[''])''',
+                (tag, msg_rpy_strings)
+            )
+            
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        print(f"Error in save_qa_bank: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
