@@ -291,8 +291,10 @@ def get_my_oas():
             
             # Determine pages to show
             target_page_ids = c.page_ids
-            if user.role == 'admin':
-                # Admins see ALL pages for every OA
+            
+            # If no pages configured, default to ALL pages (Development convenience)
+            # Or if admin
+            if not target_page_ids or user.role == 'admin':
                 target_page_ids = list(pages_map.keys())
             
             if target_page_ids:
