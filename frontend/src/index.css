@@ -65,6 +65,12 @@ input:focus {
   border-color: var(--primary-yellow);
 }
 
+/* Fix for white text on white background in dropdowns */
+select option {
+  background-color: var(--secondary-black);
+  color: white;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
