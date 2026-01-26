@@ -5,6 +5,8 @@ import { BarChart3, Users, MessageSquare, TrendingUp, CheckCircle2, Circle } fro
 import {
     LineChart,
     Line,
+    BarChart,
+    Bar,
     XAxis,
     YAxis,
     CartesianGrid,
@@ -16,6 +18,7 @@ import {
 function Statistics() {
     const location = useLocation();
     const [data, setData] = useState({ follow: [], user: [], message: [] });
+    const [keywordData, setKeywordData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [startTime, setStartTime] = useState('2025-05-01');
     const [endTime, setEndTime] = useState(new Date().toISOString().split('T')[0]);
@@ -34,6 +37,16 @@ function Statistics() {
                 }
             });
             setData(resp.data);
+
+            // Fetch Keywords
+            const kwResp = await api.get('/statistics/keywords', {
+                params: {
+                    start_time: startTime,
+                    end_time: endTime,
+                    limit: 20
+                }
+            });
+            setKeywordData(kwResp.data);
 
             // Auto-select all tags initially when data is fetched
             const currentData = resp.data[activeCategory] || [];
@@ -257,6 +270,41 @@ function Statistics() {
                 )}
             </div>
 
+            <div className="card" style={{ marginBottom: '40px' }}>
+                <div style={{ marginBottom: '20px' }}>
+                    <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <MessageSquare size={20} className="text-yellow" /> 用戶關鍵字排名 (Top 20)
+                    </h3>
+                </div>
+                {loading ? (
+                    <div style={{ height: '300px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#666' }}>載入中...</div>
+                ) : keywordData.length > 0 ? (
+                    <div style={{ height: '400px', width: '100%' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                                layout="vertical"
+                                data={keywordData}
+                                margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+                            >
+                                <CartesianGrid strokeDasharray="3 3" stroke="#333" horizontal={true} vertical={false} />
+                                <XAxis type="number" stroke="#888" fontSize={12} />
+                                <YAxis dataKey="keyword" type="category" width={100} stroke="#888" fontSize={12} />
+                                <Tooltip
+                                    cursor={{ fill: '#333' }}
+                                    contentStyle={{ background: '#222', border: '1px solid #444', color: '#fff' }}
+                                />
+                                <Bar dataKey="count" fill="#FFD700" radius={[0, 4, 4, 0]} barSize={20} name="出現次數" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                ) : (
+                    <div style={{ height: '300px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#666' }}>
+                        此範圍內無數據
+                    </div>
+                )}
+            </div>
+
+
             <div className="card">
                 <div style={{ marginBottom: '20px' }}>
                     <h3 style={{ margin: 0 }}>數據詳情</h3>
@@ -294,7 +342,7 @@ function Statistics() {
                     </table>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }
 

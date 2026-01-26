@@ -552,6 +552,34 @@ def get_statistics():
         print(f"Error in get_statistics: {e}")
         return jsonify({"error": str(e)}), 500
 
+
+@app.route('/api/statistics/keywords', methods=['GET'])
+def get_statistics_keywords():
+    try:
+        start_time = request.args.get('start_time', (datetime.now().replace(hour=0, minute=0, second=0)).isoformat())
+        end_time = request.args.get('end_time', datetime.now().isoformat())
+        tag = request.args.get('tag', None)
+        try:
+            limit = int(request.args.get('limit', 150))
+        except:
+            limit = 150
+
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cur.execute(
+            "SELECT * FROM get_keyword_ranking(%s, %s, %s, %s)",
+            (start_time, end_time, tag, limit)
+        )
+        results = cur.fetchall()
+            
+        cur.close()
+        conn.close()
+        return json_response(results)
+    except Exception as e:
+        print(f"Error in get_statistics_keywords: {e}")
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/history/<user_id>', methods=['GET'])
 def get_user_history(user_id):
     try:
