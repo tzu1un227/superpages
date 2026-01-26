@@ -72,6 +72,7 @@ function AdminPage() {
     const [oaName, setOaName] = useState('');
     const [pageIds, setPageIds] = useState([]); // Selected page IDs (Array)
     const [dbUrl, setDbUrl] = useState('');
+    const [socketUrl, setSocketUrl] = useState('');
 
     // axiosInstance removed in favor of shared api
 
@@ -167,7 +168,10 @@ function AdminPage() {
             const payload = {
                 page_ids: pageIds,
                 oa_name: oaName,
-                db_url: dbUrl // This is "Settings" or "Remote DB URL"
+                db_url: dbUrl,
+                other_settings: {
+                    socket_url: socketUrl
+                }
             };
             if (currentOA) {
                 await api.put(`/admin/oa_configs/${currentOA.id}`, payload, { headers: { Authorization: `Bearer ${token}` } });
@@ -187,13 +191,17 @@ function AdminPage() {
         setOaName('');
         setPageIds([]);
         setDbUrl('');
+        setSocketUrl('');
     };
 
     const openEditOA = (oa) => {
         setCurrentOA(oa);
         setOaName(oa.oa_name);
         setPageIds(oa.page_ids || []);
+        setOaName(oa.oa_name);
+        setPageIds(oa.page_ids || []);
         setDbUrl(oa.db_url);
+        setSocketUrl(oa.other_settings?.socket_url || '');
         setOpenOADialog(true);
     };
 
@@ -487,6 +495,19 @@ function AdminPage() {
                         value={dbUrl}
                         onChange={(e) => setDbUrl(e.target.value)}
                         placeholder="postgresql://user:pass@host:port/dbname"
+                        sx={{
+                            input: { color: 'white' },
+                            label: { color: '#B0B0B0' },
+                            '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#555' }, '&:hover fieldset': { borderColor: '#888' }, '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' } }
+                        }}
+                    />
+                    <TextField
+                        margin="dense"
+                        label="WebSocket URL"
+                        fullWidth
+                        value={socketUrl}
+                        onChange={(e) => setSocketUrl(e.target.value)}
+                        placeholder="http://127.0.0.1:3000"
                         sx={{
                             input: { color: 'white' },
                             label: { color: '#B0B0B0' },

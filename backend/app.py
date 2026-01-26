@@ -629,7 +629,19 @@ def trigger_socket_event():
         def on_connect():
             print(f"Connected to {namespace}")
 
-        sio.connect(WS_URL, namespaces=[namespace], wait_timeout=3)
+        # Determine Socket URL
+        target_ws_url = WS_URL
+        if hasattr(g, 'current_oa_id') and g.current_oa_id:
+            try:
+                oa = OAConfig.query.get(g.current_oa_id)
+                if oa and oa.other_settings and 'socket_url' in oa.other_settings:
+                    if oa.other_settings['socket_url']:
+                        target_ws_url = oa.other_settings['socket_url']
+            except Exception as e:
+                print(f"Error fetching OA socket config: {e}")
+
+        print(f"Connecting to Socket URL: {target_ws_url}")
+        sio.connect(target_ws_url, namespaces=[namespace], wait_timeout=3)
         sio.emit(f'{BOT_NAME}_message', data, namespace=namespace)
         time_to_wait = 0.5 # Small delay to ensure message is sent
         import time
