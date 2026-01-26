@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import api from '../api';
 import { BarChart3, Users, MessageSquare, TrendingUp, CheckCircle2, Circle } from 'lucide-react';
 import {
@@ -13,6 +14,7 @@ import {
 } from 'recharts';
 
 function Statistics() {
+    const location = useLocation();
     const [data, setData] = useState({ follow: [], user: [], message: [] });
     const [loading, setLoading] = useState(true);
     const [startTime, setStartTime] = useState('2025-05-01');
@@ -42,7 +44,7 @@ function Statistics() {
         } finally {
             setLoading(false);
         }
-    }, [startTime, endTime, groupUnit, activeCategory]);
+    }, [startTime, endTime, groupUnit, activeCategory, location.pathname]);
 
     useEffect(() => {
         fetchStats();

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import api from '../api';
 import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type } from 'lucide-react';
 
 const ProjectsManagement = () => {
+    const location = useLocation();
     // Helper to format hours to Day/Hour
     const formatInterval = (totalHours) => {
         const h = parseFloat(totalHours) || 0;
@@ -56,8 +58,11 @@ const ProjectsManagement = () => {
     };
 
     useEffect(() => {
+        setProjects([]);
+        setSchedules([]);
+        setSelectedProjectId('');
         fetchProjects();
-    }, []);
+    }, [location.pathname]);
 
     useEffect(() => {
         fetchSchedules();

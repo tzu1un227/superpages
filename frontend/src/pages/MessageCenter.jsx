@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import api from '../api';
 import { Send, User, Search, Tag } from 'lucide-react';
 
 function MessageCenter() {
+    const location = useLocation();
     const [users, setUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
     const [messages, setMessages] = useState([]);
@@ -11,8 +13,11 @@ function MessageCenter() {
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
+        setUsers([]);
+        setSelectedUser(null);
+        setMessages([]);
         fetchUsers();
-    }, []);
+    }, [location.pathname]);
 
     useEffect(() => {
         if (selectedUser) {

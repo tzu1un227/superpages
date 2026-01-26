@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import api from '../api';
 import { Play, Trophy, Square, Gift, PlusCircle, RefreshCw } from 'lucide-react';
 
 const PrizeStatus = () => {
+    const location = useLocation();
     const [tickets, setTickets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -24,8 +26,9 @@ const PrizeStatus = () => {
     };
 
     useEffect(() => {
+        setTickets([]);
         fetchTickets();
-    }, []);
+    }, [location.pathname]);
 
     const handleAction = async (actionType, content = '') => {
         let message = '';

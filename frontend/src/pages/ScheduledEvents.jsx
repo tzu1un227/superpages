@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import api from '../api';
 import { Clock, Plus, Trash2, Send, Calendar } from 'lucide-react';
 
 function ScheduledEvents() {
+    const location = useLocation();
     const [events, setEvents] = useState([]);
     const [targetUserId, setTargetUserId] = useState('');
     const [messageContent, setMessageContent] = useState('');
@@ -12,8 +14,9 @@ function ScheduledEvents() {
     const [error, setError] = useState('');
 
     useEffect(() => {
+        setEvents([]);
         fetchEvents();
-    }, []);
+    }, [location.pathname]);
 
     const fetchEvents = async () => {
         try {

@@ -1,13 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import api from '../api';
 import { Send, Users, Info } from 'lucide-react';
 
 function Broadcast() {
+    const location = useLocation();
     const [targetType, setTargetType] = useState('all'); // all, tag, ids
     const [tag, setTag] = useState('');
     const [ids, setIds] = useState('');
     const [message, setMessage] = useState('');
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        setTargetType('all');
+        setTag('');
+        setIds('');
+        setMessage('');
+    }, [location.pathname]);
 
     const handleBroadcast = async () => {
         if (!message.trim()) return;
