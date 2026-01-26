@@ -480,7 +480,19 @@ function AdminPage() {
                         </Select>
                     </FormControl>
 
-                    {/* DB URL Input Removed - Handled by Backend Default */}
+                    <TextField
+                        margin="dense"
+                        label="資料庫連線字串 (DB URL)"
+                        fullWidth
+                        value={dbUrl}
+                        onChange={(e) => setDbUrl(e.target.value)}
+                        placeholder="postgresql://user:pass@host:port/dbname"
+                        sx={{
+                            input: { color: 'white' },
+                            label: { color: '#B0B0B0' },
+                            '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#555' }, '&:hover fieldset': { borderColor: '#888' }, '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' } }
+                        }}
+                    />
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setOpenOADialog(false)} sx={{ color: '#B0B0B0' }}>取消</Button>
