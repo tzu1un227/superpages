@@ -289,16 +289,27 @@ def get_my_oas():
                 'pages': []
             }
             
-            if c.page_ids:
-                for pid in c.page_ids:
+            # Determine pages to show
+            target_page_ids = c.page_ids
+            if user.role == 'admin':
+                # Admins see ALL pages for every OA
+                target_page_ids = list(pages_map.keys())
+            
+            if target_page_ids:
+                for pid in target_page_ids:
                     if pid in pages_map:
                         p = pages_map[pid]
+                        # Sort by ID or some order if needed, currently arbitrary based on loop
                         oa_data['pages'].append({
                             'id': p.id,
                             'name': p.name,
                             'description': p.description,
                             'path': f"/oa/{c.id}/{p.name.lower()}" # Frontend can use this or build it
                         })
+            
+            # Sort pages by ID to keep consistent order
+            oa_data['pages'].sort(key=lambda x: x['id'])
+            
             oa_list.append(oa_data)
         
         return jsonify({
