@@ -267,12 +267,18 @@ def get_my_oas():
         if user.role == 'admin':
             configs = OAConfig.query.all()
         else:
-            # configs = OAConfig.query.filter(OAConfig.id.in_(allowed_ids)).all()
-            # If allowed_ids is a list of integers
-            if allowed_ids:
-                configs = OAConfig.query.filter(OAConfig.id.in_(allowed_ids)).all()
-            else:
+            allowed = user.allowed_oa_configs or []
+            print(f"DEBUG: User {user.id} allowed_oa_configs: {allowed} (type: {type(allowed)})")
+            
+            # Robust filtering: Handle string/int mismatch
+            if not allowed:
                 configs = []
+            else:
+                # Filter manually to be safe or use IN if Types match
+                all_configs = OAConfig.query.all()
+                configs = [c for c in all_configs if str(c.id) in [str(x) for x in allowed]]
+
+        print(f"DEBUG: Found {len(configs)} configs for user {user.id}")
         
         # Build hierarchical response
         oa_list = []
