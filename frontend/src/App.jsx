@@ -29,71 +29,72 @@ const AdminRoute = ({ children }) => {
   return children;
 };
 
-const AppContent = () => {
-  const { isAuthenticated, logout, user, allowedPages } = useAuth();
-  // allowedPages is now provided by AuthProvider
+const PAGE_ROUTE_MAP = {
+  'Statistics': 'statistics',
+  'MessageCenter': 'messages',
+  'Projects': 'projects',
+  'Broadcast': 'broadcast',
+  'ScheduledEvents': 'scheduled-events',
+  'PrizeStatus': 'prizes'
+};
 
-  const hasAccess = (pageName) => {
-    return user?.role === 'admin' || (allowedPages && allowedPages.includes(pageName));
-  };
+const PAGE_ICON_MAP = {
+  'Statistics': BarChart3,
+  'MessageCenter': MessageSquare,
+  'Projects': LayoutDashboard,
+  'Broadcast': Send,
+  'ScheduledEvents': Clock,
+  'PrizeStatus': Gift
+};
+
+const AppContent = () => {
+  const { isAuthenticated, logout, user, myOAs, isLoading } = useAuth();
+
+  if (isLoading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: '#fff', background: '#111' }}>Loading...</div>;
 
   return (
     <Router>
       <div style={{ display: 'flex', minHeight: '100vh' }}>
         {isAuthenticated && (
-          <nav style={{ width: '260px', backgroundColor: '#111', borderRight: '1px solid #333', padding: '30px 20px', display: 'flex', flexDirection: 'column' }}>
+          <nav style={{ width: '260px', backgroundColor: '#111', borderRight: '1px solid #333', padding: '30px 20px', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
             <h2 className="text-yellow" style={{ marginBottom: '40px', fontSize: '24px' }}>SuperPages</h2>
-            <ul style={{ listStyle: 'none', flex: 1 }}>
-              {hasAccess('Statistics') && (
-                <li style={{ marginBottom: '15px' }}>
-                  <Link to="/statistics" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px' }} className="nav-link">
-                    <BarChart3 size={20} className="text-yellow" /> 綜合數據
-                  </Link>
-                </li>
-              )}
-              {hasAccess('MessageCenter') && (
-                <li style={{ marginBottom: '15px' }}>
-                  <Link to="/messages" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px' }} className="nav-link">
-                    <MessageSquare size={20} className="text-yellow" /> 訊息中心
-                  </Link>
-                </li>
-              )}
-              {hasAccess('Projects') && (
-                <li style={{ marginBottom: '15px' }}>
-                  <Link to="/projects" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px' }} className="nav-link">
-                    <LayoutDashboard size={20} className="text-yellow" /> 專案與排程
-                  </Link>
-                </li>
-              )}
-              {hasAccess('Broadcast') && (
-                <li style={{ marginBottom: '15px' }}>
-                  <Link to="/broadcast" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px' }} className="nav-link">
-                    <Send size={20} className="text-yellow" /> 群發訊息
-                  </Link>
-                </li>
-              )}
-              {hasAccess('ScheduledEvents') && (
-                <li style={{ marginBottom: '15px' }}>
-                  <Link to="/scheduled-events" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px' }} className="nav-link">
-                    <Clock size={20} className="text-yellow" /> 定時觸發
-                  </Link>
-                </li>
-              )}
-              {hasAccess('PrizeStatus') && (
-                <li style={{ marginBottom: '15px' }}>
-                  <Link to="/prizes" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px' }} className="nav-link">
-                    <Gift size={20} className="text-yellow" /> 獎品查詢
-                  </Link>
-                </li>
-              )}
-              {user?.role === 'admin' && (
-                <li style={{ marginBottom: '15px' }}>
-                  <Link to="/admin" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px' }} className="nav-link">
-                    <Shield size={20} className="text-yellow" /> 管理員後台
-                  </Link>
-                </li>
-              )}
-            </ul>
+
+            {/* Admin Link Always Visible for Admin */}
+            {user?.role === 'admin' && (
+              <div style={{ marginBottom: '20px' }}>
+                <Link to="/admin" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px', background: '#222' }} className="nav-link">
+                  <Shield size={20} className="text-yellow" /> 管理員後台
+                </Link>
+              </div>
+            )}
+
+            <div style={{ flex: 1 }}>
+              {myOAs.map(oa => (
+                <div key={oa.id} style={{ marginBottom: '25px' }}>
+                  <div style={{ color: '#888', fontSize: '12px', fontWeight: 'bold', marginBottom: '10px', paddingLeft: '12px', textTransform: 'uppercase' }}>
+                    {oa.oa_name}
+                  </div>
+                  <ul style={{ listStyle: 'none', padding: 0 }}>
+                    {oa.pages && oa.pages.map(page => {
+                      const RouteIcon = PAGE_ICON_MAP[page.name] || LayoutDashboard;
+                      const routePath = PAGE_ROUTE_MAP[page.name] || 'dashboard';
+                      return (
+                        <li key={page.id} style={{ marginBottom: '5px' }}>
+                          <Link
+                            to={`/oa/${oa.id}/${routePath}`}
+                            style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '8px', fontSize: '14px' }}
+                            className="nav-link"
+                          >
+                            <RouteIcon size={18} className="text-yellow" /> {page.description}
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
+            </div>
+
             <div style={{ marginTop: 'auto', borderTop: '1px solid #333', paddingTop: '20px' }}>
               <div style={{ color: '#888', marginBottom: '10px', fontSize: '0.9em', paddingLeft: '12px' }}>
                 {user?.email}
@@ -107,16 +108,26 @@ const AppContent = () => {
         <main style={{ flex: 1, backgroundColor: '#1A1A1A', overflowY: 'auto', padding: '40px' }}>
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route path="/statistics" element={<ProtectedRoute><Statistics /></ProtectedRoute>} />
-            <Route path="/messages" element={<ProtectedRoute><MessageCenter /></ProtectedRoute>} />
-            <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
-            <Route path="/broadcast" element={<ProtectedRoute><Broadcast /></ProtectedRoute>} />
-            <Route path="/scheduled-events" element={<ProtectedRoute><ScheduledEvents /></ProtectedRoute>} />
-            <Route path="/prizes" element={<ProtectedRoute><PrizeStatus /></ProtectedRoute>} />
 
+            {/* Global Admin Route */}
             <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
 
-            <Route path="/" element={<Navigate to={isAuthenticated ? "/statistics" : "/login"} />} />
+            {/* Dynamic OA Routes */}
+            <Route path="/oa/:oaId/statistics" element={<ProtectedRoute><Statistics /></ProtectedRoute>} />
+            <Route path="/oa/:oaId/messages" element={<ProtectedRoute><MessageCenter /></ProtectedRoute>} />
+            <Route path="/oa/:oaId/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
+            <Route path="/oa/:oaId/broadcast" element={<ProtectedRoute><Broadcast /></ProtectedRoute>} />
+            <Route path="/oa/:oaId/scheduled-events" element={<ProtectedRoute><ScheduledEvents /></ProtectedRoute>} />
+            <Route path="/oa/:oaId/prizes" element={<ProtectedRoute><PrizeStatus /></ProtectedRoute>} />
+
+            {/* Redirect root to first available OA */}
+            <Route path="/" element={
+              isAuthenticated && myOAs.length > 0 ? (
+                <Navigate to={`/oa/${myOAs[0].id}/${PAGE_ROUTE_MAP[myOAs[0].pages[0]?.name] || 'statistics'}`} />
+              ) : (
+                <Navigate to="/login" />
+              )
+            } />
           </Routes>
         </main>
       </div>

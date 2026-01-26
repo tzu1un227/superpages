@@ -37,6 +37,20 @@ def token_required(f):
             if not current_user:
                 return jsonify({'message': 'User not found'}), 401
             g.current_user = current_user
+            
+            # Check for OA Permission if an OA Context is loaded
+            if hasattr(g, 'current_oa_id') and g.current_oa_id:
+                # Admins have access to everything
+                if current_user.role != 'admin':
+                    allowed_ids = current_user.allowed_oa_configs or []
+                    # Ensure integer comparison
+                    try:
+                        oa_id_int = int(g.current_oa_id)
+                        if oa_id_int not in allowed_ids:
+                             return jsonify({'message': f'You are not authorized to access OA {g.current_oa_id}'}), 403
+                    except ValueError:
+                         return jsonify({'message': 'Invalid OA ID format'}), 400
+
         except jwt.ExpiredSignatureError:
             return jsonify({'message': 'Token has expired'}), 401
         except jwt.InvalidTokenError as e:

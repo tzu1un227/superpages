@@ -23,4 +23,29 @@ const api = axios.create({
     baseURL: API_BASE_URL,
 });
 
+// Request interceptor to add Authorization token and X-OA-ID
+api.interceptors.request.use(
+    (config) => {
+        // JWT Token
+        const token = localStorage.getItem('jwt');
+        if (token) {
+            config.headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        // X-OA-ID from URL
+        // Match format /oa/:oaId/...
+        if (typeof window !== 'undefined') {
+            const match = window.location.pathname.match(/\/oa\/(\d+)/);
+            if (match) {
+                config.headers['X-OA-ID'] = match[1];
+            }
+        }
+
+        return config;
+    },
+    (error) => {
+        return Promise.reject(error);
+    }
+);
+
 export default api;

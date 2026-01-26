@@ -3,6 +3,14 @@ import api from '../api';
 import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type } from 'lucide-react';
 
 const ProjectsManagement = () => {
+    // Helper to format hours to Day/Hour
+    const formatInterval = (totalHours) => {
+        const h = parseFloat(totalHours) || 0;
+        const days = Math.floor(h / 24);
+        const hours = parseFloat((h % 24).toFixed(1));
+        return { days, hours };
+    };
+
     const [projects, setProjects] = useState([]);
     const [schedules, setSchedules] = useState([]);
     const [projectUsers, setProjectUsers] = useState([]);
@@ -532,8 +540,39 @@ const ProjectsManagement = () => {
                                     <input type="number" value={newSchedule.step_id} onChange={e => setNewSchedule({ ...newSchedule, step_id: e.target.value })} style={{ width: '100%' }} />
                                 </div>
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>間隔 (時)</label>
-                                    <input type="number" step="0.1" value={newSchedule.interval_hours} onChange={e => setNewSchedule({ ...newSchedule, interval_hours: e.target.value })} style={{ width: '100%' }} />
+                                    <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>間隔 (天/時)</label>
+                                    <div style={{ display: 'flex', gap: '5px' }}>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            placeholder="天"
+                                            value={Math.floor((parseFloat(newSchedule.interval_hours) || 0) / 24)}
+                                            onChange={e => {
+                                                const d = parseInt(e.target.value) || 0;
+                                                const currentH = parseFloat(newSchedule.interval_hours) || 0;
+                                                const h = parseFloat((currentH % 24).toFixed(1));
+                                                setNewSchedule({ ...newSchedule, interval_hours: (d * 24 + h).toString() });
+                                            }}
+                                            style={{ width: '100%' }}
+                                        />
+                                        <span style={{ alignSelf: 'center', color: '#B0B0B0' }}>天</span>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="23.9"
+                                            step="0.1"
+                                            placeholder="時"
+                                            value={parseFloat(((parseFloat(newSchedule.interval_hours) || 0) % 24).toFixed(1))}
+                                            onChange={e => {
+                                                const h = parseFloat(e.target.value) || 0;
+                                                const currentH = parseFloat(newSchedule.interval_hours) || 0;
+                                                const d = Math.floor(currentH / 24);
+                                                setNewSchedule({ ...newSchedule, interval_hours: (d * 24 + h).toString() });
+                                            }}
+                                            style={{ width: '100%' }}
+                                        />
+                                        <span style={{ alignSelf: 'center', color: '#B0B0B0' }}>時</span>
+                                    </div>
                                 </div>
                                 <div>
                                     <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>訊息內容</label>
@@ -587,8 +626,40 @@ const ProjectsManagement = () => {
                                         </td>
                                         <td>
                                             {editingScheduleId === s.schedule_id ? (
-                                                <input type="number" step="0.1" value={editScheduleFormData.interval_hours} onChange={e => setEditScheduleFormData({ ...editScheduleFormData, interval_hours: e.target.value })} style={{ width: '80px' }} />
-                                            ) : `${s.interval_hours} 小時`}
+                                                <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={Math.floor((parseFloat(editScheduleFormData.interval_hours) || 0) / 24)}
+                                                        onChange={e => {
+                                                            const d = parseInt(e.target.value) || 0;
+                                                            const currentH = parseFloat(editScheduleFormData.interval_hours) || 0;
+                                                            const h = parseFloat((currentH % 24).toFixed(1));
+                                                            setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (d * 24 + h).toString() });
+                                                        }}
+                                                        style={{ width: '50px' }}
+                                                    /> <span style={{ fontSize: '12px' }}>天</span>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        max="23.9"
+                                                        step="0.1"
+                                                        value={parseFloat(((parseFloat(editScheduleFormData.interval_hours) || 0) % 24).toFixed(1))}
+                                                        onChange={e => {
+                                                            const h = parseFloat(e.target.value) || 0;
+                                                            const currentH = parseFloat(editScheduleFormData.interval_hours) || 0;
+                                                            const d = Math.floor(currentH / 24);
+                                                            setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (d * 24 + h).toString() });
+                                                        }}
+                                                        style={{ width: '60px' }}
+                                                    /> <span style={{ fontSize: '12px' }}>時</span>
+                                                </div>
+                                            ) : (
+                                                (() => {
+                                                    const { days, hours } = formatInterval(s.interval_hours);
+                                                    return <span>{days > 0 ? `${days} 天 ` : ''}{hours} 小時</span>
+                                                })()
+                                            )}
                                         </td>
                                         <td style={{ maxWidth: '300px' }}>
                                             {editingScheduleId === s.schedule_id ? (

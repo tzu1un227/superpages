@@ -6,9 +6,15 @@ export const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '/api';
 // Helper function to get headers with JWT
 const getHeaders = () => {
   const token = localStorage.getItem('jwt');
+
+  // Extract OA ID from URL if present (format: /oa/:oaId/...)
+  const match = window.location.pathname.match(/\/oa\/(\d+)/);
+  const oaId = match ? match[1] : null;
+
   return {
     'Content-Type': 'application/json',
     ...(token && { Authorization: `Bearer ${token}` }),
+    ...(oaId && { 'X-OA-ID': oaId }),
   };
 };
 

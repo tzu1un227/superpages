@@ -86,8 +86,41 @@ WS_URL = "https://irl-svr.ee.yzu.edu.tw:5013"
 BOT_NAME = "websoc"
 
 def get_db_connection():
+    # Check if a dynamic DB URL is set in the context
+    if hasattr(g, 'current_db_url') and g.current_db_url:
+        # Assuming g.current_db_url is a DSN string or suitable for psycopg2
+        return psycopg2.connect(g.current_db_url)
+    
+    # Fallback to default DB
     conn = psycopg2.connect(**DB_CONFIG)
     return conn
+
+@app.before_request
+def load_oa_context():
+    # Skip for OPTIONS requests
+    if request.method == 'OPTIONS':
+        return
+
+    oa_id = request.headers.get('X-OA-ID')
+    if oa_id:
+        try:
+            # We need to query OAConfig, which is in the default SQLAlchemy DB
+            # Ensure we are inside app context (we are via before_request)
+            oa_config = OAConfig.query.get(oa_id)
+            if oa_config and oa_config.db_url:
+                # Security/Permission Check
+                # If user is logged in, verify they have access to this OA
+                # Note: token_required decorator usually runs *after* before_request if applied to route.
+                # However, g.current_user is set by token_required or similar.
+                # Since we haven't decoded the token yet globally, we might defer permission check 
+                # or we decode token here if we want strict enforcement.
+                # For now, we trust the ID exists and rely on route-level @token_required to check permissions
+                # But we MUST set the DB URL for the potential subsequent DB calls.
+                g.current_oa_config = oa_config
+                g.current_db_url = oa_config.db_url
+                g.current_oa_id = oa_id
+        except Exception as e:
+            print(f"Error loading OA context: {e}")
 
 def init_db():
     try:
@@ -234,26 +267,42 @@ def get_my_oas():
         if user.role == 'admin':
             configs = OAConfig.query.all()
         else:
-            allowed_ids = user.allowed_oa_configs or []
-            configs = OAConfig.query.filter(OAConfig.id.in_(allowed_ids)).all()
+            # configs = OAConfig.query.filter(OAConfig.id.in_(allowed_ids)).all()
+            # If allowed_ids is a list of integers
+            if allowed_ids:
+                configs = OAConfig.query.filter(OAConfig.id.in_(allowed_ids)).all()
+            else:
+                configs = []
         
-        oa_list = [{'id': c.id, 'oa_name': c.oa_name, 'page_ids': c.page_ids, 'db_url': c.db_url} for c in configs]
+        # Build hierarchical response
+        oa_list = []
         
-        # Collect all allowed page IDs
-        all_page_ids = set()
+        # Pre-fetch all pages to avoid N+1 queries ideally, but here list is small
+        all_pages = Page.query.all()
+        pages_map = {p.id: p for p in all_pages}
+        
         for c in configs:
+            oa_data = {
+                'id': c.id, 
+                'oa_name': c.oa_name, 
+                # 'db_url': c.db_url, # Security: Don't expose DB URL to frontend if not necessary
+                'pages': []
+            }
+            
             if c.page_ids:
-                all_page_ids.update(c.page_ids)
-        
-        # Fetch page names
-        allowed_page_names = []
-        if all_page_ids:
-            pages = Page.query.filter(Page.id.in_(all_page_ids)).all()
-            allowed_page_names = [p.name for p in pages]
+                for pid in c.page_ids:
+                    if pid in pages_map:
+                        p = pages_map[pid]
+                        oa_data['pages'].append({
+                            'id': p.id,
+                            'name': p.name,
+                            'description': p.description,
+                            'path': f"/oa/{c.id}/{p.name.lower()}" # Frontend can use this or build it
+                        })
+            oa_list.append(oa_data)
         
         return jsonify({
-            'configs': oa_list,
-            'allowed_pages': allowed_page_names
+            'configs': oa_list
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500

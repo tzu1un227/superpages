@@ -5,6 +5,7 @@
 ## 1. 專案概述
 
 Superpages 是一個整合 LINE 官方帳號管理的後台系統，提供數據分析、即時對話、群發訊息以及自動化推播專案管理功能。
+系統支援 **多官方帳號 (Multi-OA)** 管理，允許單一用戶切換不同帳號以管理不同資料庫的數據。
 
 ---
 
@@ -14,14 +15,14 @@ Superpages 是一個整合 LINE 官方帳號管理的後台系統，提供數據
 - **核心框架**: React (Vite 建立)
 - **UI 組件庫**: Vanilla CSS, Lucide React (圖示), Material UI (MUI - 用於 Admin/Login)
 - **數據可視化**: Recharts (圖表繪製)
-- **API 請求**: Axios
-- **路由管理**: React Router DOM
+- **API 請求**: Axios / Fetch Wrapper
+- **路由管理**: React Router DOM (支援動態 OA 路由)
 - **身分驗證**: Google OAuth 2.0 (@react-oauth/google)
 
 ### 後端 (Backend)
 - **核心框架**: Flask (Python)
 - **資料庫**: 
-    - PostgreSQL (業務數據)
+    - PostgreSQL (業務數據 - 每個 OA 可對應不同資料庫)
     - SQLite (系統權限與使用者資料 - `meta_data.db`)
     - ORM: SQLAlchemy (用於 SQLite)
 - **即時通訊**: Socket.IO (透過 python-socketio 行為觸發)
@@ -36,6 +37,14 @@ Superpages 是一個整合 LINE 官方帳號管理的後台系統，提供數據
 
 前端採用單頁應用程式 (SPA) 架構，主要包含以下頁面及功能：
 
+### 核心路由結構
+- `/login`: 登入頁面
+- `/admin`: 系統管理員頁面 (管理使用者與 OA 設定)
+- `/oa/:oaId/dashboard`: 特定 OA 的儀表板
+- `/oa/:oaId/message-center`: 特定 OA 的訊息中心
+- `/oa/:oaId/projects`: 特定 OA 的專案管理
+- ... (其他功能頁面均掛載於 `/oa/:oaId/` 下)
+
 ### 核心頁面功能詳述
 
 #### 1. 登入與權限 (`Login.jsx` & `AuthContext`)
@@ -43,6 +52,7 @@ Superpages 是一個整合 LINE 官方帳號管理的後台系統，提供數據
 - **權限控管**: 
     - 系統將用戶分為 `admin` (管理員) 與 `user` (一般用戶)。
     - `AuthContext` 負責全域狀態管理，並根據角色動態顯示側邊欄選單。
+    - **OA Context**: 登入後自動取得用戶可存取的 OA 列表，並生成對應的選單。
 
 #### 2. 管理員後台 (`AdminPage.jsx`)
 - **用戶管理**: 
@@ -55,44 +65,19 @@ Superpages 是一個整合 LINE 官方帳號管理的後台系統，提供數據
 #### 3. 綜合數據 (`Statistics.jsx`)
 - **看板摘要**: 顯示「總客戶數 (follow)」、「有效好友數 (user)」及「總訊息量 (message)」的總量統計。
 - **趨勢分析圖**: 使用 Line Chart 視覺化顯示各項指標隨時間變化的趨勢。
-- **動態過濾**:
-    - 支援選取不同的統計指標（訊息量、客戶數等）。
-    - 支援時間範圍選取與統計單位切換（日、週、月、年）。
-    - 提供「標籤過濾」功能，可動態在圖表上顯示或隱藏特定標籤的資料線。
-- **詳細數據清單**: 以表格形式列出具體的時間、標籤與數值。
 
-#### 3. 訊息中心 (`MessageCenter.jsx`)
-- **用戶列表**: 側邊欄列出所有與系統互動過的用戶 ID，並顯示最後一則訊息與時間。
-- **即時對話介面**:
-    - 顯示特定用戶的歷史訊息記錄（`/api/history/${userId}`）。
-    - 管理者可在此直接發送訊息給用戶（指令：`MSG|content`）。
-- **標籤管理**:
-    - 可針對個別用戶新增或刪除標籤（指令：`set_tag` / `del_tag`）。
-    - 標籤即時同步顯示於對話標頭。
+#### 4. 訊息中心 (`MessageCenter.jsx`)
+- **用戶列表**: 側邊欄列出所有與系統互動過的用戶 ID。
+- **即時對話介面**: 管理者可在此直接發送訊息給用戶。
 
-#### 4. 專案與排程管理 (`Projects.jsx`)
+#### 5. 專案與排程管理 (`Projects.jsx`)
 - **分頁式介面**: 將「專案管理」與「排程設定」整合於同一頁面切換。
-- **專案管理 (Projects)**: 
-    - 建立自動化推播專案。
-    - 設定專案名稱、有效起迄時間以及是否啟用。
-- **排程管理 (Schedules)**:
-    - 針對特定專案設定「推播步驟」。
-    - 定義每個步驟的「觸發間隔時間 (小時)」以及「預設訊息內容」。
-    - 提供按專案過濾排程的功能。
 
-#### 5. 群發訊息 (`Broadcast.jsx`)
-- 支援三種群發對象模式：
-    - **全體發送**: 向所有關聯用戶發送。
-    - **標籤受眾**: 針對特定標籤（如：VIP、新客戶）的群體發送。
-    - **指定 ID 列表**: 直接輸入 User ID 名單進行發送。
-- 透過轉發指令至 Socket.IO 伺服器來驅動手機端的發送行為。
-+
-+#### 6. 獎品查詢 (`PrizeStatus.jsx`)
-+- **獎品清單**: 顯示 `ticket_table` 中的獎品名稱與中獎者 ID。
-+- **遊戲控制與獎品管理**: 
-+    - 提供「啟動遊戲」、「抽大獎」、「關閉遊戲」之指令按鈕。
-+    - 提供「捐出獎品」、「新增獎品」之輸入與發送功能。
-+    - 所有按鈕均發送對應訊息至 `yzuadmin`。
+#### 6. 群發訊息 (`Broadcast.jsx`)
+- 支援全體發送、標籤受眾、指定 ID 列表三種模式。
+
+#### 7. 獎品查詢 (`PrizeStatus.jsx`)
+- **獎品清單**: 顯示 `ticket_table` 中的獎品名稱與中獎者 ID。
 
 ---
 
@@ -100,20 +85,15 @@ Superpages 是一個整合 LINE 官方帳號管理的後台系統，提供數據
 
 後端主要負責 API 提供與資料庫互動，其核心邏輯位於 `app.py`：
 
+- **動態資料庫連線 (Dynamic DB Connection)**:
+    - 透過 Header `X-OA-ID` 識別當前請求針對的官方帳號。
+    - Middleware 驗證用戶權限後，動態切換 `psycopg2` 連線至該 OA 設定的 `db_url`。
+
 - **API 路由**: 
     - `/api/auth/google-login`: Google Token 驗證與 JWT 發放。
     - `/api/admin`: 管理員專用接口 (Users, OA Configs CRUD)。
-    - `/api/my_oas`: 取得當前用戶被授權存取的 OA 列表。
-    - `/api/projects`: 專案之 CRUD。
-    - `/api/schedules`: 排程之 CRUD。
-    - `/api/statistics`: 呼叫 DB Function 獲取彙整後的統計數據。
-    - `/api/history/<user_id>`: 查詢與特定用戶的歷史訊息。
-    - `/api/users`: 取得互動用戶列表及其最新狀態。
-    - `/api/tickets`: 查詢 `ticket_table`。
-    - `/api/trigger`: 核心觸發介面，透過 Socket.IO 將管理端的指令發送至外部處理伺服器（如手機端或機器人）。
-- **資料庫整合**: 
-    - 使用 `psycopg2` 操作 PostgreSQL (業務數據)。
-    - 使用 `SQLAlchemy` 操作 SQLite (使用者與權限數據)。
+    - `/api/my_oas`: 取得當前用戶被授權存取的 OA 列表 (包含 Page 權限)。
+    - 一般業務 API (`/api/projects`, `/api/statistics` 等) 均需在 Header 帶入 OA ID。
 
 ---
 
@@ -121,17 +101,17 @@ Superpages 是一個整合 LINE 官方帳號管理的後台系統，提供數據
 
 主要涉及的資料表：
 
-**PostgreSQL (業務數據)**:
-- `projects`: 儲存推播專案資訊 (ID, Name, Date Range, Status, Anchor, Dormancy)。
-- `project_schedules`: 儲存專案下的各個推播階段設定 (Interval, Content)。
-- `history:5013`: 儲存訊息與事件記錄。
-- `Private_var:5013`: 儲存用戶的標籤 (Tag) 等私有變量資訊。
-- `ticket_table`: 儲存獎品資訊與中獎狀況。
+**PostgreSQL (業務數據 - 每一個 OA 一個 DB)**:
+- `projects`: 儲存推播專案資訊。
+- `project_schedules`: 儲存專案下的各個推播階段設定。
+- `history:5013` (或其他後綴): 儲存訊息與事件記錄。
+- `Private_var:5013`: 儲存用戶的標籤 (Tag)。
+- `ticket_table`: 儲存獎品資訊。
 
-**SQLite (Meta Data)**:
+**SQLite (Meta Data - 系統全域)**:
 - `users`: 系統使用者 (Email, Role, Allowed OAs)。
-- `pages`: 系統頁面定義。
-- `oa_configs`: 官方帳號設定 (OA Name, DB URL)。
+- `pages`: 系統頁面定義 (Name, Description)。
+- `oa_configs`: 官方帳號設定 (OA Name, DB URL, Page IDs)。
 
 ---
 
@@ -140,4 +120,3 @@ Superpages 是一個整合 LINE 官方帳號管理的後台系統，提供數據
 使用 `docker-compose.yml` 進行服務編排：
 - **Backend Service**: 執行於 Port 5000，映射至主機 9017。
 - **Frontend Service**: 執行於 Nginx 並映射至主機 9016。
-- 前端與後端透過 Docker 網路進行通訊，前端配置 `depends_on` 確保後端先行啟動。
