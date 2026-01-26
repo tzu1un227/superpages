@@ -43,10 +43,14 @@ def token_required(f):
                 # Admins have access to everything
                 if current_user.role != 'admin':
                     allowed_ids = current_user.allowed_oa_configs or []
-                    # Ensure integer comparison
+                    # Ensure integer comparison for robustness
                     try:
                         oa_id_int = int(g.current_oa_id)
-                        if oa_id_int not in allowed_ids:
+                        # Normalize allowed_ids to ints
+                        allowed_ids_int = [int(x) for x in allowed_ids]
+                        
+                        if oa_id_int not in allowed_ids_int:
+                             print(f"Auth Block: User {current_user.id} denied access to OA {oa_id_int}. Allowed: {allowed_ids_int}")
                              return jsonify({'message': f'You are not authorized to access OA {g.current_oa_id}'}), 403
                     except ValueError:
                          return jsonify({'message': 'Invalid OA ID format'}), 400
