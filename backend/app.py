@@ -95,6 +95,13 @@ def get_db_connection():
     conn = psycopg2.connect(**DB_CONFIG)
     return conn
 
+def get_current_app_id():
+    """Extract App ID (DB Name) from the current connection URL"""
+    if hasattr(g, 'current_db_url') and g.current_db_url:
+        # Assuming format .../5009
+        return g.current_db_url.split('/')[-1]
+    return '5013' # Default
+
 @app.before_request
 def load_oa_context():
     # Skip for OPTIONS requests
@@ -436,12 +443,13 @@ def delete_project(id):
 @app.route('/api/projects/<int:id>/users', methods=['GET'])
 def get_project_users(id):
     try:
+        app_id = get_current_app_id()
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("""
+        cur.execute(f"""
             SELECT DISTINCT c.user_id, p.value as user_name 
             FROM cron_table c
-            LEFT JOIN "Private_var:5013" p ON c.user_id = p.user_id AND p.name = 'name'
+            LEFT JOIN "Private_var:{app_id}" p ON c.user_id = p.user_id AND p.name = 'name'
             WHERE c.project_id = %s
         """, (id,))
         users = cur.fetchall()
@@ -583,10 +591,11 @@ def get_statistics_keywords():
 @app.route('/api/history/<user_id>', methods=['GET'])
 def get_user_history(user_id):
     try:
+        app_id = get_current_app_id()
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
-            'SELECT * FROM "history:5013" WHERE user_id = %s AND category = \'Message\' ORDER BY timestamp ASC',
+            f'SELECT * FROM "history:{app_id}" WHERE user_id = %s AND category = \'Message\' ORDER BY timestamp ASC',
             (user_id,)
         )
         history = cur.fetchall()
@@ -599,13 +608,14 @@ def get_user_history(user_id):
 @app.route('/api/registered-users', methods=['GET'])
 def get_registered_users():
     try:
+        app_id = get_current_app_id()
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         # Fetch users who have a name in Private_var
-        cur.execute("""
+        cur.execute(f"""
             SELECT u1.user_id, u1.value as name, u2.value as pic
-            FROM "Private_var:5013" u1
-            LEFT JOIN "Private_var:5013" u2 ON u1.user_id = u2.user_id AND u2.name = 'pic'
+            FROM "Private_var:{app_id}" u1
+            LEFT JOIN "Private_var:{app_id}" u2 ON u1.user_id = u2.user_id AND u2.name = 'pic'
             WHERE u1.name = 'name'
             ORDER BY u1.value
         """)
@@ -619,16 +629,17 @@ def get_registered_users():
 @app.route('/api/users', methods=['GET'])
 def get_users_list():
     try:
+        app_id = get_current_app_id()
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         # Fetch unique user IDs with their latest activity or tags if available
         # Based on requirement to show user list in Message Center
-        cur.execute("""
+        cur.execute(f"""
             SELECT DISTINCT h.user_id, 
-                   (SELECT content FROM "history:5013" WHERE user_id = h.user_id ORDER BY timestamp DESC LIMIT 1) as last_message,
-                   (SELECT timestamp FROM "history:5013" WHERE user_id = h.user_id ORDER BY timestamp DESC LIMIT 1) as last_time,
-                   (SELECT string_agg(value, '|') FROM "Private_var:5013" WHERE user_id = h.user_id AND name = 'tag') as tags
-            FROM "history:5013" h
+                   (SELECT content FROM "history:{app_id}" WHERE user_id = h.user_id ORDER BY timestamp DESC LIMIT 1) as last_message,
+                   (SELECT timestamp FROM "history:{app_id}" WHERE user_id = h.user_id ORDER BY timestamp DESC LIMIT 1) as last_time,
+                   (SELECT string_agg(value, '|') FROM "Private_var:{app_id}" WHERE user_id = h.user_id AND name = 'tag') as tags
+            FROM "history:{app_id}" h
             ORDER BY last_time DESC NULLS LAST
         """)
         users = cur.fetchall()
@@ -744,10 +755,11 @@ def get_tickets():
 @app.route('/api/qa-bank/<tag>', methods=['GET'])
 def get_qa_bank_by_tag(tag):
     try:
+        app_id = get_current_app_id()
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         # Assuming appNAME is 5013, so table is "QA_bank:5013"
-        cur.execute('SELECT * FROM "QA_bank:5013" WHERE tag = %s', (tag,))
+        cur.execute(f'SELECT * FROM "QA_bank:{app_id}" WHERE tag = %s', (tag,))
         result = cur.fetchone()
         cur.close()
         conn.close()
@@ -790,20 +802,21 @@ def save_qa_bank():
         cur = conn.cursor()
         
         # Check if exists
-        cur.execute('SELECT id FROM "QA_bank:5013" WHERE tag = %s', (tag,))
+        app_id = get_current_app_id()
+        cur.execute(f'SELECT id FROM "QA_bank:{app_id}" WHERE tag = %s', (tag,))
         existing = cur.fetchone()
         
         if existing:
             # Update
             cur.execute(
-                'UPDATE "QA_bank:5013" SET msg_rpy = %s::json[] WHERE tag = %s',
+                f'UPDATE "QA_bank:{app_id}" SET msg_rpy = %s::json[] WHERE tag = %s',
                 (msg_rpy_strings, tag)
             )
         else:
             # Insert
             # Default columns: io='Output', ans=ARRAY[''], check=ARRAY[''], function=''
             cur.execute(
-                '''INSERT INTO "QA_bank:5013" 
+                f'''INSERT INTO "QA_bank:{app_id}" 
                    (tag, msg_rpy, "io", "check", "function", ans) 
                    VALUES (%s, %s::json[], 'Output', ARRAY[''], '', ARRAY[''])''',
                 (tag, msg_rpy_strings)

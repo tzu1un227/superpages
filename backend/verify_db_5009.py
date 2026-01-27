@@ -10,37 +10,33 @@ def check_db():
         conn = psycopg2.connect(DB_URL)
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
-        # 1. Check static_view table
-        print("\n[1] Checking 'static_view' table...")
-        try:
-            cur.execute("SELECT count(*) as cnt, min(timestamp) as min_ts, max(timestamp) as max_ts FROM static_view")
-            row = cur.fetchone()
-            print(f"   - Row count: {row['cnt']}")
-            print(f"   - Time range: {row['min_ts']} to {row['max_ts']}")
-        except Exception as e:
-            print(f"   - Error: {e}")
-            conn.rollback()
+        # 1. List all tables
+        print("\n[1] Listing all tables in public schema...")
+        cur.execute("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public'
+            ORDER BY table_name;
+        """)
+        tables = cur.fetchall()
+        for t in tables:
+            print(f"   - {t['table_name']}")
 
-        # 2. Check functions
-        print("\n[2] Checking stored functions...")
-        funcs = ['get_events_count_by_category_and_tag', 'get_keyword_ranking']
-        for f in funcs:
-            cur.execute("SELECT proname FROM pg_proc WHERE proname = %s", (f,))
-            if cur.fetchone():
-                print(f"   - Function '{f}' EXISTS.")
+        # 2. Check for history tables specific to 5009
+        print("\n[2] Checking specific history tables...")
+        possible_names = ['history', 'history:5009', 'history:5013']
+        for name in possible_names:
+            if any(t['table_name'] == name for t in tables):
+                 print(f"   - Table '{name}' FOUND.")
+                 # Get count
+                 try:
+                     cur.execute(f'SELECT count(*) as cnt FROM "{name}"')
+                     cnt = cur.fetchone()['cnt']
+                     print(f"     -> Row count: {cnt}")
+                 except Exception as e:
+                     print(f"     -> Error reading: {e}")
             else:
-                print(f"   - Function '{f}' MISSING.")
-
-        # 3. Test Keyword Ranking
-        print("\n[3] Testing get_keyword_ranking...")
-        try:
-             # Use a wide range
-             cur.execute("SELECT * FROM get_keyword_ranking('2020-01-01', '2030-01-01', NULL, 5)")
-             results = cur.fetchall()
-             print(f"   - Results: {results}")
-        except Exception as e:
-            print(f"   - Error executing function: {e}")
-            conn.rollback()
+                 print(f"   - Table '{name}' NOT found.")
 
     except Exception as e:
         print(f"Connection failed: {e}")
