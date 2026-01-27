@@ -73,6 +73,7 @@ function AdminPage() {
     const [pageIds, setPageIds] = useState([]); // Selected page IDs (Array)
     const [dbUrl, setDbUrl] = useState('');
     const [socketUrl, setSocketUrl] = useState('');
+    const [appName, setAppName] = useState('');
 
     // axiosInstance removed in favor of shared api
 
@@ -170,7 +171,8 @@ function AdminPage() {
                 oa_name: oaName,
                 db_url: dbUrl,
                 other_settings: {
-                    socket_url: socketUrl
+                    socket_url: socketUrl,
+                    app_name: appName
                 }
             };
             if (currentOA) {
@@ -192,6 +194,7 @@ function AdminPage() {
         setPageIds([]);
         setDbUrl('');
         setSocketUrl('');
+        setAppName('');
     };
 
     const openEditOA = (oa) => {
@@ -202,6 +205,7 @@ function AdminPage() {
         setPageIds(oa.page_ids || []);
         setDbUrl(oa.db_url);
         setSocketUrl(oa.other_settings?.socket_url || '');
+        setAppName(oa.other_settings?.app_name || '');
         setOpenOADialog(true);
     };
 
@@ -508,6 +512,19 @@ function AdminPage() {
                         value={socketUrl}
                         onChange={(e) => setSocketUrl(e.target.value)}
                         placeholder="http://127.0.0.1:3000"
+                        sx={{
+                            input: { color: 'white' },
+                            label: { color: '#B0B0B0' },
+                            '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#555' }, '&:hover fieldset': { borderColor: '#888' }, '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' } }
+                        }}
+                    />
+                    <TextField
+                        margin="dense"
+                        label="App Name (Table Suffix)"
+                        fullWidth
+                        value={appName}
+                        onChange={(e) => setAppName(e.target.value)}
+                        placeholder="e.g. 5013 (Optional, defaults to DB name)"
                         sx={{
                             input: { color: 'white' },
                             label: { color: '#B0B0B0' },

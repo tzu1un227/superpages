@@ -96,10 +96,14 @@ def get_db_connection():
     return conn
 
 def get_current_app_id():
-    """Extract App ID (DB Name) from the current connection URL"""
+    """Extract App ID (DB Name) from the current connection URL or Configuration"""
+    if hasattr(g, 'current_app_name') and g.current_app_name:
+        return g.current_app_name
+        
     if hasattr(g, 'current_db_url') and g.current_db_url:
-        # Assuming format .../5009
-        return g.current_db_url.split('/')[-1]
+        # Assuming format .../5009 or .../5009?ssl=true
+        path_part = g.current_db_url.split('/')[-1]
+        return path_part.split('?')[0]
     return '5013' # Default
 
 @app.before_request
@@ -126,6 +130,11 @@ def load_oa_context():
                 g.current_oa_config = oa_config
                 g.current_db_url = oa_config.db_url
                 g.current_oa_id = oa_id
+                
+                # Check for explicit App Name override
+                if oa_config.other_settings and 'app_name' in oa_config.other_settings:
+                    if oa_config.other_settings['app_name']:
+                        g.current_app_name = str(oa_config.other_settings['app_name'])
         except Exception as e:
             print(f"Error loading OA context: {e}")
 
