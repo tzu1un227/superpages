@@ -646,12 +646,19 @@ def get_users_list():
         # Fetch unique user IDs with their latest activity or tags if available
         # Based on requirement to show user list in Message Center
         cur.execute(f"""
-            SELECT DISTINCT h.user_id, 
-                   (SELECT content FROM "history:{app_id}" WHERE user_id = h.user_id ORDER BY timestamp DESC LIMIT 1) as last_message,
-                   (SELECT timestamp FROM "history:{app_id}" WHERE user_id = h.user_id ORDER BY timestamp DESC LIMIT 1) as last_time,
-                   (SELECT string_agg(value, '|') FROM "Private_var:{app_id}" WHERE user_id = h.user_id AND name = 'tag') as tags
-            FROM "history:{app_id}" h
-            ORDER BY last_time DESC NULLS LAST
+            SELECT sub.user_id, 
+                   sub.last_message, 
+                   sub.last_time,
+                   (SELECT string_agg(value, '|') FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'tag') as tags
+            FROM (
+                SELECT DISTINCT ON (user_id) user_id, 
+                       content as last_message, 
+                       timestamp as last_time
+                FROM "history:{app_id}"
+                ORDER BY user_id, timestamp DESC
+            ) sub
+            ORDER BY sub.last_time DESC NULLS LAST
+            LIMIT 50
         """)
         users = cur.fetchall()
         print(f"DEBUG: get_users_list found {len(users)} users for app_id {app_id}")
