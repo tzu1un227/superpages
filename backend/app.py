@@ -98,12 +98,12 @@ def get_db_connection():
 def get_current_app_id():
     """Extract App ID (DB Name) from the current connection URL or Configuration"""
     if hasattr(g, 'current_app_name') and g.current_app_name:
-        return g.current_app_name
+        return g.current_app_name.strip()
         
     if hasattr(g, 'current_db_url') and g.current_db_url:
         # Assuming format .../5009 or .../5009?ssl=true
         path_part = g.current_db_url.split('/')[-1]
-        return path_part.split('?')[0]
+        return path_part.split('?')[0].strip()
     return '5013' # Default
 
 @app.before_request
@@ -639,6 +639,8 @@ def get_registered_users():
 def get_users_list():
     try:
         app_id = get_current_app_id()
+        print(f"DEBUG: get_users_list | app_id={app_id} | db_url={getattr(g, 'current_db_url', 'None')}")
+        
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         # Fetch unique user IDs with their latest activity or tags if available
@@ -652,6 +654,8 @@ def get_users_list():
             ORDER BY last_time DESC NULLS LAST
         """)
         users = cur.fetchall()
+        print(f"DEBUG: get_users_list found {len(users)} users for app_id {app_id}")
+        
         cur.close()
         conn.close()
         return json_response(users)
