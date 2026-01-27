@@ -5,12 +5,15 @@ import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, M
 
 const ProjectsManagement = () => {
     const location = useLocation();
-    // Helper to format hours to Day/Hour
+    // Helper to format hours to Day/Hour/Minute
     const formatInterval = (totalHours) => {
         const h = parseFloat(totalHours) || 0;
         const days = Math.floor(h / 24);
-        const hours = parseFloat((h % 24).toFixed(1));
-        return { days, hours };
+        const remainingHours = h % 24;
+        const hours = Math.floor(remainingHours);
+        // Deal with floating point precision for minutes (e.g. 0.5 hours = 30 mins)
+        const minutes = Math.round((remainingHours - hours) * 60);
+        return { days, hours, minutes };
     };
 
     const [projects, setProjects] = useState([]);
@@ -550,13 +553,17 @@ const ProjectsManagement = () => {
                                         <input
                                             type="number"
                                             min="0"
+                                            step="1"
                                             placeholder="天"
-                                            value={Math.floor((parseFloat(newSchedule.interval_hours) || 0) / 24)}
+                                            value={(() => {
+                                                const { days } = formatInterval(newSchedule.interval_hours);
+                                                return days;
+                                            })()}
                                             onChange={e => {
                                                 const d = parseInt(e.target.value) || 0;
-                                                const currentH = parseFloat(newSchedule.interval_hours) || 0;
-                                                const h = parseFloat((currentH % 24).toFixed(1));
-                                                setNewSchedule({ ...newSchedule, interval_hours: (d * 24 + h).toString() });
+                                                const { hours, minutes } = formatInterval(newSchedule.interval_hours);
+                                                const total = d * 24 + hours + minutes / 60;
+                                                setNewSchedule({ ...newSchedule, interval_hours: total.toString() });
                                             }}
                                             style={{ width: '100%' }}
                                         />
@@ -564,19 +571,41 @@ const ProjectsManagement = () => {
                                         <input
                                             type="number"
                                             min="0"
-                                            max="23.9"
-                                            step="0.1"
+                                            max="23"
+                                            step="1"
                                             placeholder="時"
-                                            value={parseFloat(((parseFloat(newSchedule.interval_hours) || 0) % 24).toFixed(1))}
+                                            value={(() => {
+                                                const { hours } = formatInterval(newSchedule.interval_hours);
+                                                return hours;
+                                            })()}
                                             onChange={e => {
-                                                const h = parseFloat(e.target.value) || 0;
-                                                const currentH = parseFloat(newSchedule.interval_hours) || 0;
-                                                const d = Math.floor(currentH / 24);
-                                                setNewSchedule({ ...newSchedule, interval_hours: (d * 24 + h).toString() });
+                                                const h = parseInt(e.target.value) || 0;
+                                                const { days, minutes } = formatInterval(newSchedule.interval_hours);
+                                                const total = days * 24 + h + minutes / 60;
+                                                setNewSchedule({ ...newSchedule, interval_hours: total.toString() });
                                             }}
                                             style={{ width: '100%' }}
                                         />
                                         <span style={{ alignSelf: 'center', color: '#B0B0B0' }}>時</span>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="59"
+                                            step="1"
+                                            placeholder="分"
+                                            value={(() => {
+                                                const { minutes } = formatInterval(newSchedule.interval_hours);
+                                                return minutes;
+                                            })()}
+                                            onChange={e => {
+                                                const m = parseInt(e.target.value) || 0;
+                                                const { days, hours } = formatInterval(newSchedule.interval_hours);
+                                                const total = days * 24 + hours + m / 60;
+                                                setNewSchedule({ ...newSchedule, interval_hours: total.toString() });
+                                            }}
+                                            style={{ width: '100%' }}
+                                        />
+                                        <span style={{ alignSelf: 'center', color: '#B0B0B0' }}>分</span>
                                     </div>
                                 </div>
                                 <div>
@@ -635,34 +664,63 @@ const ProjectsManagement = () => {
                                                     <input
                                                         type="number"
                                                         min="0"
-                                                        value={Math.floor((parseFloat(editScheduleFormData.interval_hours) || 0) / 24)}
+                                                        step="1"
+                                                        value={(() => {
+                                                            const { days } = formatInterval(editScheduleFormData.interval_hours);
+                                                            return days;
+                                                        })()}
                                                         onChange={e => {
                                                             const d = parseInt(e.target.value) || 0;
-                                                            const currentH = parseFloat(editScheduleFormData.interval_hours) || 0;
-                                                            const h = parseFloat((currentH % 24).toFixed(1));
-                                                            setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (d * 24 + h).toString() });
+                                                            const { hours, minutes } = formatInterval(editScheduleFormData.interval_hours);
+                                                            const total = d * 24 + hours + minutes / 60;
+                                                            setEditScheduleFormData({ ...editScheduleFormData, interval_hours: total.toString() });
                                                         }}
-                                                        style={{ width: '50px' }}
+                                                        style={{ width: '40px' }}
                                                     /> <span style={{ fontSize: '12px' }}>天</span>
                                                     <input
                                                         type="number"
                                                         min="0"
-                                                        max="23.9"
-                                                        step="0.1"
-                                                        value={parseFloat(((parseFloat(editScheduleFormData.interval_hours) || 0) % 24).toFixed(1))}
+                                                        max="23"
+                                                        step="1"
+                                                        value={(() => {
+                                                            const { hours } = formatInterval(editScheduleFormData.interval_hours);
+                                                            return hours;
+                                                        })()}
                                                         onChange={e => {
-                                                            const h = parseFloat(e.target.value) || 0;
-                                                            const currentH = parseFloat(editScheduleFormData.interval_hours) || 0;
-                                                            const d = Math.floor(currentH / 24);
-                                                            setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (d * 24 + h).toString() });
+                                                            const h = parseInt(e.target.value) || 0;
+                                                            const { days, minutes } = formatInterval(editScheduleFormData.interval_hours);
+                                                            const total = days * 24 + h + minutes / 60;
+                                                            setEditScheduleFormData({ ...editScheduleFormData, interval_hours: total.toString() });
                                                         }}
-                                                        style={{ width: '60px' }}
+                                                        style={{ width: '40px' }}
                                                     /> <span style={{ fontSize: '12px' }}>時</span>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        max="59"
+                                                        step="1"
+                                                        value={(() => {
+                                                            const { minutes } = formatInterval(editScheduleFormData.interval_hours);
+                                                            return minutes;
+                                                        })()}
+                                                        onChange={e => {
+                                                            const m = parseInt(e.target.value) || 0;
+                                                            const { days, hours } = formatInterval(editScheduleFormData.interval_hours);
+                                                            const total = days * 24 + hours + m / 60;
+                                                            setEditScheduleFormData({ ...editScheduleFormData, interval_hours: total.toString() });
+                                                        }}
+                                                        style={{ width: '40px' }}
+                                                    /> <span style={{ fontSize: '12px' }}>分</span>
                                                 </div>
                                             ) : (
                                                 (() => {
-                                                    const { days, hours } = formatInterval(s.interval_hours);
-                                                    return <span>{days > 0 ? `${days} 天 ` : ''}{hours} 小時</span>
+                                                    const { days, hours, minutes } = formatInterval(s.interval_hours);
+                                                    let text = '';
+                                                    if (days > 0) text += `${days} 天 `;
+                                                    if (hours > 0) text += `${hours} 小時 `;
+                                                    if (minutes > 0) text += `${minutes} 分`;
+                                                    if (!text) text = '0 分';
+                                                    return <span>{text}</span>
                                                 })()
                                             )}
                                         </td>
