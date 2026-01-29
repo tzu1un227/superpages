@@ -854,6 +854,7 @@ const ProjectsManagement = () => {
                 onClose={() => setIsRichModalOpen(false)}
                 onSave={richModalConfig.onSave}
                 initialTag={richModalConfig.initialTag}
+                initialText={richModalConfig.initialText}
                 projectId={richModalConfig.projectId}
                 stepId={richModalConfig.stepId}
             />
