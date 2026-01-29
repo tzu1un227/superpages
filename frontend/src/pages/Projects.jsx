@@ -554,7 +554,7 @@ const ProjectsManagement = () => {
 
                     {showAddScheduleForm && (
                         <div style={{ backgroundColor: '#222', padding: '20px', borderRadius: '12px', marginBottom: '25px', border: '1px solid #333' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) 100px 100px 2fr auto', gap: '15px', alignItems: 'end' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) 80px 340px 2fr auto', gap: '15px', alignItems: 'end' }}>
                                 <div>
                                     <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>所屬專案</label>
                                     <select
@@ -1012,7 +1012,7 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
         }}>
             <div style={{ width: '800px', height: '80%', backgroundColor: '#222', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <h2 style={{ fontSize: '20px' }}>進階訊息編輯器 (QA_bank)</h2>
+                    <h2 style={{ fontSize: '20px' }}>進階訊息編輯器</h2>
                     <X style={{ cursor: 'pointer' }} onClick={onClose} />
                 </div>
 
