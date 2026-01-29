@@ -46,11 +46,15 @@ const ProjectsManagement = () => {
 
     const openRichEditor = (currentValue, projectId, stepId, onSave) => {
         let initialTag = '';
+        let initialText = '';
         if (currentValue && currentValue.startsWith('QA|')) {
             initialTag = currentValue.substring(3);
+        } else {
+            initialText = currentValue || '';
         }
         setRichModalConfig({
             initialTag,
+            initialText,
             projectId,
             stepId,
             onSave: (tag) => {
@@ -144,6 +148,10 @@ const ProjectsManagement = () => {
     };
 
     const handleUpdateProject = async () => {
+        if (!editProjectFormData.project_name || !editProjectFormData.project_name.trim()) {
+            setError('專案名稱不能為空');
+            return;
+        }
         try {
             await api.put(`/projects/${editingProjectId}`, editProjectFormData);
             setEditingProjectId(null);
@@ -162,6 +170,10 @@ const ProjectsManagement = () => {
     };
 
     const handleCreateProject = async () => {
+        if (!newProject.project_name.trim()) {
+            setError('專案名稱不能為空');
+            return;
+        }
         try {
             await api.post('/projects', newProject);
             setShowAddProjectForm(false);
@@ -255,7 +267,7 @@ const ProjectsManagement = () => {
         <>
             <div style={{ marginTop: '10px', padding: '10px', background: '#333', borderRadius: '8px' }}>
                 <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '8px' }}>錨點設定 (Anchor)</label>
-                <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '10px' }}>
+                <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px' }}>
                         <input
                             type="radio"
@@ -421,8 +433,8 @@ const ProjectsManagement = () => {
                                     {renderConfigInputs(newProject, setNewProject, false)}
                                 </div>
                                 <div style={{ display: 'flex', gap: '10px', alignSelf: 'end' }}>
-                                    <button className="primary" onClick={handleCreateProject}>儲存</button>
-                                    <button onClick={() => setShowAddProjectForm(false)} style={{ background: '#444' }}>取消</button>
+                                    <button className="primary" onClick={handleCreateProject} style={{ minWidth: '80px' }}>儲存</button>
+                                    <button onClick={() => setShowAddProjectForm(false)} style={{ background: '#444', minWidth: '80px' }}>取消</button>
                                 </div>
                             </div>
                         </div>
@@ -432,7 +444,6 @@ const ProjectsManagement = () => {
                         <table>
                             <thead>
                                 <tr>
-                                    <th>ID</th>
                                     <th>專案名稱</th>
                                     <th>有效期間</th>
                                     <th>狀態</th>
@@ -443,11 +454,20 @@ const ProjectsManagement = () => {
                             <tbody>
                                 {projects.map((p) => (
                                     <tr key={p.project_id}>
-                                        <td>{p.project_id}</td>
-                                        <td>
+                                        <td
+                                            onClick={() => {
+                                                if (editingProjectId !== p.project_id) {
+                                                    setActiveTab('schedules');
+                                                    setSelectedProjectId(p.project_id);
+                                                }
+                                            }}
+                                            style={{ cursor: editingProjectId !== p.project_id ? 'pointer' : 'default', textDecoration: editingProjectId !== p.project_id ? 'underline' : 'none', color: '#fff' }}
+                                        >
                                             {editingProjectId === p.project_id ? (
                                                 <input type="text" value={editProjectFormData.project_name} onChange={e => setEditProjectFormData({ ...editProjectFormData, project_name: e.target.value })} style={{ width: '100%' }} />
-                                            ) : p.project_name}
+                                            ) : (
+                                                <span>{p.project_name} <span style={{ fontSize: '10px', color: '#666' }}>({p.project_id})</span></span>
+                                            )}
                                         </td>
                                         <td style={{ fontSize: '14px' }}>
                                             {editingProjectId === p.project_id ? (
@@ -523,6 +543,9 @@ const ProjectsManagement = () => {
                                     {projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
                                 </select>
                             </div>
+                            <span style={{ fontSize: '13px', color: '#888' }}>
+                                (共 {schedules.length} 筆排程)
+                            </span>
                         </div>
                         <button className="primary" onClick={() => setShowAddScheduleForm(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
                             <Plus size={18} /> 新增排程
@@ -565,7 +588,7 @@ const ProjectsManagement = () => {
                                                 const total = d * 24 + hours + minutes / 60;
                                                 setNewSchedule({ ...newSchedule, interval_hours: total.toString() });
                                             }}
-                                            style={{ width: '100%' }}
+                                            style={{ width: '100%', minWidth: '60px' }}
                                         />
                                         <span style={{ alignSelf: 'center', color: '#B0B0B0' }}>天</span>
                                         <input
@@ -584,7 +607,7 @@ const ProjectsManagement = () => {
                                                 const total = days * 24 + h + minutes / 60;
                                                 setNewSchedule({ ...newSchedule, interval_hours: total.toString() });
                                             }}
-                                            style={{ width: '100%' }}
+                                            style={{ width: '100%', minWidth: '60px' }}
                                         />
                                         <span style={{ alignSelf: 'center', color: '#B0B0B0' }}>時</span>
                                         <input
@@ -603,7 +626,7 @@ const ProjectsManagement = () => {
                                                 const total = days * 24 + hours + m / 60;
                                                 setNewSchedule({ ...newSchedule, interval_hours: total.toString() });
                                             }}
-                                            style={{ width: '100%' }}
+                                            style={{ width: '100%', minWidth: '60px' }}
                                         />
                                         <span style={{ alignSelf: 'center', color: '#B0B0B0' }}>分</span>
                                     </div>
@@ -627,8 +650,8 @@ const ProjectsManagement = () => {
                                     </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: '10px' }}>
-                                    <button className="primary" onClick={handleCreateSchedule}>儲存</button>
-                                    <button onClick={() => setShowAddScheduleForm(false)} style={{ background: '#444' }}>取消</button>
+                                    <button className="primary" onClick={handleCreateSchedule} style={{ minWidth: '80px' }}>儲存</button>
+                                    <button onClick={() => setShowAddScheduleForm(false)} style={{ background: '#444', minWidth: '80px' }}>取消</button>
                                 </div>
                             </div>
                         </div>
@@ -638,7 +661,6 @@ const ProjectsManagement = () => {
                         <table>
                             <thead>
                                 <tr>
-                                    <th>ID</th>
                                     <th>專案</th>
                                     <th>步驟</th>
                                     <th>間隔時間</th>
@@ -649,7 +671,6 @@ const ProjectsManagement = () => {
                             <tbody>
                                 {schedules.length > 0 ? schedules.map((s) => (
                                     <tr key={s.schedule_id}>
-                                        <td>{s.schedule_id}</td>
                                         <td style={{ fontSize: '13px', color: '#B0B0B0' }}>
                                             {projects.find(p => p.project_id === s.project_id)?.project_name || `ID: ${s.project_id}`}
                                         </td>
@@ -675,7 +696,7 @@ const ProjectsManagement = () => {
                                                             const total = d * 24 + hours + minutes / 60;
                                                             setEditScheduleFormData({ ...editScheduleFormData, interval_hours: total.toString() });
                                                         }}
-                                                        style={{ width: '40px' }}
+                                                        style={{ width: '40px', minWidth: '60px' }}
                                                     /> <span style={{ fontSize: '12px' }}>天</span>
                                                     <input
                                                         type="number"
@@ -692,7 +713,7 @@ const ProjectsManagement = () => {
                                                             const total = days * 24 + h + minutes / 60;
                                                             setEditScheduleFormData({ ...editScheduleFormData, interval_hours: total.toString() });
                                                         }}
-                                                        style={{ width: '40px' }}
+                                                        style={{ width: '40px', minWidth: '60px' }}
                                                     /> <span style={{ fontSize: '12px' }}>時</span>
                                                     <input
                                                         type="number"
@@ -709,7 +730,7 @@ const ProjectsManagement = () => {
                                                             const total = days * 24 + hours + m / 60;
                                                             setEditScheduleFormData({ ...editScheduleFormData, interval_hours: total.toString() });
                                                         }}
-                                                        style={{ width: '40px' }}
+                                                        style={{ width: '40px', minWidth: '60px' }}
                                                     /> <span style={{ fontSize: '12px' }}>分</span>
                                                 </div>
                                             ) : (
@@ -742,10 +763,12 @@ const ProjectsManagement = () => {
                                                 </div>
                                             ) : (
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                    {s.message_content}
-                                                    {s.message_content && s.message_content.startsWith('QA|') && (
-                                                        <MessageSquare size={14} color="#4CAF50" title="Rich Message" />
-                                                    )}
+                                                    {s.message_content && s.message_content.startsWith('QA|') ? (
+                                                        <>
+                                                            <MessageSquare size={14} color="#4CAF50" title="Rich Message" />
+                                                            <span style={{ color: '#aaa', fontStyle: 'italic' }}>Rich Message</span>
+                                                        </>
+                                                    ) : s.message_content}
                                                 </div>
                                             )}
                                         </td>
@@ -846,7 +869,7 @@ const ProjectsManagement = () => {
 };
 
 // Rich Message Editor Modal
-const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, projectId, stepId }) => {
+const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, projectId, stepId }) => {
     const [tag, setTag] = useState(initialTag || '');
     const [messages, setMessages] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -860,13 +883,19 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, projectId, step
                 const pId = projectId || 'new';
                 const sId = stepId || 'new';
                 setTag(`cron_${pId}_${sId}`);
-                setMessages([createEmptyMsg()]); // Init with 1 empty message
+
+                // If there is initialText (passed from input), stick it in first message
+                if (initialText) {
+                    setMessages([{ OTYPE: 'TextSendMessage', text: initialText }]);
+                } else {
+                    setMessages([createEmptyMsg()]); // Init with 1 empty message
+                }
             } else {
                 setTag(initialTag);
                 fetchExistingMessages(initialTag);
             }
         }
-    }, [isOpen, initialTag, projectId, stepId]);
+    }, [isOpen, initialTag, initialText, projectId, stepId]);
 
     const createEmptyMsg = () => ({ OTYPE: 'TextSendMessage', text: '' });
 
