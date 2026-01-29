@@ -147,6 +147,33 @@ const ProjectsManagement = () => {
         });
     };
 
+
+
+    // Helper to auto-save plain text as Rich Message (QA entry)
+    const saveAsRichMessage = async (content, projectId, stepId) => {
+        if (!content) return content;
+        if (content.startsWith('QA|')) return content;
+
+        // Generate standardized tag
+        const tag = `cron_${projectId}_${stepId}`;
+        const payload = [{
+            OTYPE: 'TextSendMessage',
+            text: content
+        }];
+
+        try {
+            await api.post('/qa-bank', {
+                tag: tag,
+                msg_rpy: payload,
+                type: 'Sensor'
+            });
+            return `QA|${tag}`;
+        } catch (err) {
+            console.error(err);
+            throw new Error(`訊息自動轉存 QA 失敗: ${err.message}`);
+        }
+    };
+
     const handleUpdateProject = async () => {
         if (!editProjectFormData.project_name || !editProjectFormData.project_name.trim()) {
             setError('專案名稱不能為空');
@@ -200,12 +227,28 @@ const ProjectsManagement = () => {
 
     const handleUpdateSchedule = async () => {
         try {
-            await api.put(`/schedules/${editingScheduleId}`, editScheduleFormData);
+            let finalMessageContent = editScheduleFormData.message_content;
+
+            // Auto convert plain text to QA tag if needed
+            if (finalMessageContent && !finalMessageContent.startsWith('QA|')) {
+                finalMessageContent = await saveAsRichMessage(
+                    finalMessageContent,
+                    editScheduleFormData.project_id,
+                    editScheduleFormData.step_id
+                );
+            }
+
+            // Update with processed message content
+            await api.put(`/schedules/${editingScheduleId}`, {
+                ...editScheduleFormData,
+                message_content: finalMessageContent
+            });
+
             setEditingScheduleId(null);
             fetchSchedules();
             setError('');
         } catch (err) {
-            setError(err.response?.data?.message || '排程更新失敗');
+            setError(err.response?.data?.message || err.message || '排程更新失敗');
         }
     };
 
@@ -223,13 +266,23 @@ const ProjectsManagement = () => {
                 setError('請先選擇或輸入專案 ID');
                 return;
             }
+
+            // Auto convert plain text to QA tag if needed
+            if (scheduleToCreate.message_content && !scheduleToCreate.message_content.startsWith('QA|')) {
+                scheduleToCreate.message_content = await saveAsRichMessage(
+                    scheduleToCreate.message_content,
+                    scheduleToCreate.project_id,
+                    scheduleToCreate.step_id
+                );
+            }
+
             await api.post('/schedules', scheduleToCreate);
             setShowAddScheduleForm(false);
             setNewSchedule({ project_id: '', step_id: '', interval_hours: '', message_content: '' });
             fetchSchedules();
             setError('');
         } catch (err) {
-            setError(err.response?.data?.message || '新增排程失敗');
+            setError(err.response?.data?.message || err.message || '新增排程失敗');
         }
     };
 
