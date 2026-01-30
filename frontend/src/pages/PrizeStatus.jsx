@@ -70,7 +70,7 @@ const PrizeStatus = () => {
     return (
         <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-                <h1 style={{ fontSize: '32px', marginBottom: '10px' }}>中獎獎品查詢</h1>
+                <h1 style={{ fontSize: '32px', marginBottom: '10px' }}>抽獎管理</h1>
                 <button
                     onClick={fetchTickets}
                     className="secondary"

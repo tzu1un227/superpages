@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
@@ -47,90 +47,127 @@ const PAGE_ICON_MAP = {
   'PrizeStatus': Gift
 };
 
-const AppContent = () => {
+const MainLayout = () => {
   const { isAuthenticated, logout, user, myOAs, isLoading } = useAuth();
+  const location = useLocation();
 
   if (isLoading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: '#fff', background: '#111' }}>Loading...</div>;
 
   return (
-    <Router>
-      <div style={{ display: 'flex', minHeight: '100vh' }}>
-        {isAuthenticated && (
-          <nav style={{ width: '260px', backgroundColor: '#111', borderRight: '1px solid #333', padding: '30px 20px', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-            <h2 className="text-yellow" style={{ marginBottom: '40px', fontSize: '24px' }}>SuperPages</h2>
+    <div style={{ display: 'flex', minHeight: '100vh' }}>
+      {isAuthenticated && (
+        <nav style={{ width: '260px', backgroundColor: '#111', borderRight: '1px solid #333', padding: '30px 20px', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+          <h2 className="text-yellow" style={{ marginBottom: '40px', fontSize: '24px' }}>SuperPages</h2>
 
-            {/* Admin Link Always Visible for Admin */}
-            {user?.role === 'admin' && (
-              <div style={{ marginBottom: '20px' }}>
-                <Link to="/admin" style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px', background: '#222' }} className="nav-link">
-                  <Shield size={20} className="text-yellow" /> 管理員後台
-                </Link>
-              </div>
-            )}
+          {/* Admin Link Always Visible for Admin */}
+          {user?.role === 'admin' && (
+            <div style={{ marginBottom: '20px' }}>
+              <Link
+                to="/admin"
+                style={{
+                  color: 'white',
+                  textDecoration: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  background: location.pathname === '/admin' ? '#333' : '#222'
+                }}
+                className="nav-link"
+              >
+                <Shield size={20} className="text-yellow" /> 管理員後台
+              </Link>
+            </div>
+          )}
 
-            <div style={{ flex: 1 }}>
-              {myOAs.map(oa => (
-                <div key={oa.id} style={{ marginBottom: '25px' }}>
-                  <div style={{ color: '#888', fontSize: '12px', fontWeight: 'bold', marginBottom: '10px', paddingLeft: '12px', textTransform: 'uppercase' }}>
-                    {oa.oa_name}
-                  </div>
-                  <ul style={{ listStyle: 'none', padding: 0 }}>
-                    {oa.pages && oa.pages.map(page => {
-                      const RouteIcon = PAGE_ICON_MAP[page.name] || LayoutDashboard;
-                      const routePath = PAGE_ROUTE_MAP[page.name] || 'dashboard';
-                      return (
-                        <li key={page.id} style={{ marginBottom: '5px' }}>
-                          <Link
-                            to={`/oa/${oa.id}/${routePath}`}
-                            style={{ color: 'white', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '8px', fontSize: '14px' }}
-                            className="nav-link"
-                          >
-                            <RouteIcon size={18} className="text-yellow" /> {page.description}
-                          </Link>
-                        </li>
-                      );
-                    })}
-                  </ul>
+          <div style={{ flex: 1 }}>
+            {myOAs.map(oa => (
+              <div key={oa.id} style={{ marginBottom: '25px' }}>
+                <div style={{ color: '#888', fontSize: '12px', fontWeight: 'bold', marginBottom: '10px', paddingLeft: '12px', textTransform: 'uppercase' }}>
+                  {oa.oa_name}
                 </div>
-              ))}
-            </div>
+                <ul style={{ listStyle: 'none', padding: 0 }}>
+                  {oa.pages && oa.pages.map(page => {
+                    const RouteIcon = PAGE_ICON_MAP[page.name] || LayoutDashboard;
+                    const routePath = PAGE_ROUTE_MAP[page.name] || 'dashboard';
+                    const fullPath = `/oa/${oa.id}/${routePath}`;
+                    const isActive = location.pathname.startsWith(fullPath); // Active state logic
 
-            <div style={{ marginTop: 'auto', borderTop: '1px solid #333', paddingTop: '20px' }}>
-              <div style={{ color: '#888', marginBottom: '10px', fontSize: '0.9em', paddingLeft: '12px' }}>
-                {user?.email}
+                    // Rename PrizeStatus
+                    const displayName = page.name === 'PrizeStatus' ? '抽獎管理' : page.description;
+
+                    return (
+                      <li key={page.id} style={{ marginBottom: '5px' }}>
+                        <Link
+                          to={fullPath}
+                          style={{
+                            color: 'white',
+                            textDecoration: 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            fontSize: '14px',
+                            backgroundColor: isActive ? '#333' : 'transparent',
+                            borderLeft: isActive ? '4px solid #FFD700' : '4px solid transparent'
+                          }}
+                          className="nav-link"
+                        >
+                          <RouteIcon size={18} className="text-yellow" /> {displayName}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
-              <button onClick={logout} style={{ background: 'transparent', color: '#B0B0B0', display: 'flex', alignItems: 'center', gap: '12px', width: '100%', padding: '12px', cursor: 'pointer', border: 'none' }}>
-                <LogOut size={20} /> Logout
-              </button>
+            ))}
+          </div>
+
+          <div style={{ marginTop: 'auto', borderTop: '1px solid #333', paddingTop: '20px' }}>
+            <div style={{ color: '#888', marginBottom: '10px', fontSize: '0.9em', paddingLeft: '12px' }}>
+              {user?.email}
             </div>
-          </nav>
-        )}
-        <main style={{ flex: 1, backgroundColor: '#1A1A1A', overflowY: 'auto', padding: '40px' }}>
-          <Routes>
-            <Route path="/login" element={<Login />} />
+            <button onClick={logout} style={{ background: 'transparent', color: '#B0B0B0', display: 'flex', alignItems: 'center', gap: '12px', width: '100%', padding: '12px', cursor: 'pointer', border: 'none' }}>
+              <LogOut size={20} /> Logout
+            </button>
+          </div>
+        </nav>
+      )}
+      <main style={{ flex: 1, backgroundColor: '#1A1A1A', overflowY: 'auto', padding: '40px' }}>
+        <Routes>
+          <Route path="/login" element={<Login />} />
 
-            {/* Global Admin Route */}
-            <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
+          {/* Global Admin Route */}
+          <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
 
-            {/* Dynamic OA Routes */}
-            <Route path="/oa/:oaId/statistics" element={<ProtectedRoute><Statistics /></ProtectedRoute>} />
-            <Route path="/oa/:oaId/messages" element={<ProtectedRoute><MessageCenter /></ProtectedRoute>} />
-            <Route path="/oa/:oaId/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
-            <Route path="/oa/:oaId/broadcast" element={<ProtectedRoute><Broadcast /></ProtectedRoute>} />
-            <Route path="/oa/:oaId/scheduled-events" element={<ProtectedRoute><ScheduledEvents /></ProtectedRoute>} />
-            <Route path="/oa/:oaId/prizes" element={<ProtectedRoute><PrizeStatus /></ProtectedRoute>} />
+          {/* Dynamic OA Routes */}
+          <Route path="/oa/:oaId/statistics" element={<ProtectedRoute><Statistics /></ProtectedRoute>} />
+          <Route path="/oa/:oaId/messages" element={<ProtectedRoute><MessageCenter /></ProtectedRoute>} />
+          <Route path="/oa/:oaId/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
+          <Route path="/oa/:oaId/broadcast" element={<ProtectedRoute><Broadcast /></ProtectedRoute>} />
+          <Route path="/oa/:oaId/scheduled-events" element={<ProtectedRoute><ScheduledEvents /></ProtectedRoute>} />
+          <Route path="/oa/:oaId/prizes" element={<ProtectedRoute><PrizeStatus /></ProtectedRoute>} />
 
-            {/* Redirect root to first available OA */}
-            <Route path="/" element={
-              isAuthenticated && myOAs.length > 0 ? (
-                <Navigate to={`/oa/${myOAs[0].id}/${PAGE_ROUTE_MAP[myOAs[0].pages[0]?.name] || 'statistics'}`} />
-              ) : (
-                <Navigate to="/login" />
-              )
-            } />
-          </Routes>
-        </main>
-      </div>
+          {/* Redirect root to first available OA */}
+          <Route path="/" element={
+            isAuthenticated && myOAs.length > 0 ? (
+              <Navigate to={`/oa/${myOAs[0].id}/${PAGE_ROUTE_MAP[myOAs[0].pages[0]?.name] || 'statistics'}`} />
+            ) : (
+              <Navigate to="/login" />
+            )
+          } />
+        </Routes>
+      </main>
+    </div>
+  );
+};
+
+const AppContent = () => {
+  return (
+    <Router>
+      <MainLayout />
     </Router>
   );
 };

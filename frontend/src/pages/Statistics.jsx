@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import api from '../api';
-import { BarChart3, Users, MessageSquare, TrendingUp, CheckCircle2, Circle } from 'lucide-react';
+import { BarChart3, Users, MessageSquare, TrendingUp, CheckCircle2, Circle, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { downloadCSV } from '../utils/csvUtils';
 import {
     LineChart,
     Line,
@@ -26,6 +27,10 @@ function Statistics() {
     const [activeCategory, setActiveCategory] = useState('message');
     const [selectedTags, setSelectedTags] = useState([]);
 
+    // Pagination state for keywords
+    const [keywordPage, setKeywordPage] = useState(1);
+    const ITEMS_PER_PAGE = 20;
+
     const fetchStats = useCallback(async () => {
         setLoading(true);
         try {
@@ -38,15 +43,16 @@ function Statistics() {
             });
             setData(resp.data);
 
-            // Fetch Keywords
+            // Fetch Keywords (Fetch more to allow client-side pagination)
             const kwResp = await api.get('/statistics/keywords', {
                 params: {
                     start_time: startTime,
                     end_time: endTime,
-                    limit: 20
+                    limit: 100 // Fetch top 100
                 }
             });
             setKeywordData(kwResp.data);
+            setKeywordPage(1); // Reset to first page on new fetch
 
             // Auto-select all tags initially when data is fetched
             const currentData = resp.data[activeCategory] || [];
@@ -126,6 +132,34 @@ function Statistics() {
         </div>
     );
 
+    // CSV Download Handlers
+    const handleDownloadTrend = () => {
+        const currentData = data[activeCategory] || [];
+        const filteredData = currentData.filter(item => selectedTags.includes(item.tag));
+        const formattedData = filteredData.map(item => ({
+            '時間範圍': item.group_key,
+            '標籤': item.tag,
+            '分類': categoryMap[activeCategory].label,
+            '數值': item.tag_count
+        }));
+        downloadCSV(formattedData, `trend_analysis_${startTime}_${endTime}.csv`);
+    };
+
+    const handleDownloadKeywords = () => {
+        const formattedData = keywordData.map(item => ({
+            '關鍵字': item.keyword,
+            '出現次數': item.count
+        }));
+        downloadCSV(formattedData, `keyword_ranking_${startTime}_${endTime}.csv`);
+    };
+
+    // Pagination Logic
+    const totalKeywordPages = Math.ceil(keywordData.length / ITEMS_PER_PAGE);
+    const currentKeywordData = keywordData.slice(
+        (keywordPage - 1) * ITEMS_PER_PAGE,
+        keywordPage * ITEMS_PER_PAGE
+    );
+
     return (
         <div>
             <div style={{ marginBottom: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
@@ -183,23 +217,32 @@ function Statistics() {
                     <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
                         <BarChart3 size={20} className="text-yellow" /> 趨勢分析
                     </h3>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <label style={{ fontSize: '14px', color: '#B0B0B0' }}>指標分類：</label>
-                        <select
-                            className="input"
-                            value={activeCategory}
-                            onChange={(e) => {
-                                setActiveCategory(e.target.value);
-                                // Refresh selected tags for the new category
-                                const tags = [...new Set(data[e.target.value]?.map(item => item.tag) || [])];
-                                setSelectedTags(tags);
-                            }}
-                            style={{ padding: '5px 10px', width: '150px', background: '#222', border: '1px solid #333', color: '#fff' }}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <label style={{ fontSize: '14px', color: '#B0B0B0' }}>指標分類：</label>
+                            <select
+                                className="input"
+                                value={activeCategory}
+                                onChange={(e) => {
+                                    setActiveCategory(e.target.value);
+                                    // Refresh selected tags for the new category
+                                    const tags = [...new Set(data[e.target.value]?.map(item => item.tag) || [])];
+                                    setSelectedTags(tags);
+                                }}
+                                style={{ padding: '5px 10px', width: '150px', background: '#222', border: '1px solid #333', color: '#fff' }}
+                            >
+                                {Object.entries(categoryMap).map(([key, info]) => (
+                                    <option key={key} value={key}>{info.label}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <button
+                            onClick={handleDownloadTrend}
+                            className="secondary"
+                            style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', fontSize: '13px' }}
                         >
-                            {Object.entries(categoryMap).map(([key, info]) => (
-                                <option key={key} value={key}>{info.label}</option>
-                            ))}
-                        </select>
+                            <Download size={16} /> 下載報表
+                        </button>
                     </div>
                 </div>
 
@@ -271,19 +314,51 @@ function Statistics() {
             </div>
 
             <div className="card" style={{ marginBottom: '40px' }}>
-                <div style={{ marginBottom: '20px' }}>
+                <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <MessageSquare size={20} className="text-yellow" /> 用戶關鍵字排名 (Top 20)
+                        <MessageSquare size={20} className="text-yellow" /> 用戶關鍵字排名 (Top {keywordData.length})
                     </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        {/* Pagination Controls */}
+                        {totalKeywordPages > 1 && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: '#222', padding: '4px', borderRadius: '8px' }}>
+                                <button
+                                    onClick={() => setKeywordPage(p => Math.max(1, p - 1))}
+                                    disabled={keywordPage === 1}
+                                    style={{ background: 'transparent', border: 'none', color: keywordPage === 1 ? '#444' : '#fff', cursor: keywordPage === 1 ? 'default' : 'pointer', display: 'flex' }}
+                                >
+                                    <ChevronLeft size={20} />
+                                </button>
+                                <span style={{ fontSize: '13px', minWidth: '60px', textAlign: 'center' }}>
+                                    {keywordPage} / {totalKeywordPages}
+                                </span>
+                                <button
+                                    onClick={() => setKeywordPage(p => Math.min(totalKeywordPages, p + 1))}
+                                    disabled={keywordPage === totalKeywordPages}
+                                    style={{ background: 'transparent', border: 'none', color: keywordPage === totalKeywordPages ? '#444' : '#fff', cursor: keywordPage === totalKeywordPages ? 'default' : 'pointer', display: 'flex' }}
+                                >
+                                    <ChevronRight size={20} />
+                                </button>
+                            </div>
+                        )}
+
+                        <button
+                            onClick={handleDownloadKeywords}
+                            className="secondary"
+                            style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', fontSize: '13px' }}
+                        >
+                            <Download size={16} /> 下載報表
+                        </button>
+                    </div>
                 </div>
                 {loading ? (
                     <div style={{ height: '300px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#666' }}>載入中...</div>
-                ) : keywordData.length > 0 ? (
+                ) : currentKeywordData.length > 0 ? (
                     <div style={{ height: '400px', width: '100%' }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart
                                 layout="vertical"
-                                data={keywordData}
+                                data={currentKeywordData}
                                 margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
                             >
                                 <CartesianGrid strokeDasharray="3 3" stroke="#333" horizontal={true} vertical={false} />
@@ -303,45 +378,7 @@ function Statistics() {
                     </div>
                 )}
             </div>
-
-
-            <div className="card">
-                <div style={{ marginBottom: '20px' }}>
-                    <h3 style={{ margin: 0 }}>數據詳情</h3>
-                </div>
-                <div style={{ padding: '0px', overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                            <tr style={{ borderBottom: '1px solid #333', textAlign: 'left' }}>
-                                <th style={{ padding: '12px' }}>時間範圍</th>
-                                <th style={{ padding: '12px' }}>標籤</th>
-                                <th style={{ padding: '12px' }}>指標分類</th>
-                                <th style={{ padding: '12px' }}>數值</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {data[activeCategory]?.length > 0 ? (
-                                data[activeCategory]
-                                    .filter(item => selectedTags.includes(item.tag))
-                                    .map((item, idx) => (
-                                        <tr key={`${activeCategory}-${idx}`} style={{ borderBottom: '1px solid #222' }}>
-                                            <td style={{ padding: '12px' }}>{item.group_key}</td>
-                                            <td style={{ padding: '12px' }}>{item.tag}</td>
-                                            <td style={{ padding: '12px' }}>{categoryMap[activeCategory].label}</td>
-                                            <td style={{ padding: '12px' }}>{item.tag_count}</td>
-                                        </tr>
-                                    ))
-                            ) : (
-                                <tr>
-                                    <td colSpan="4" style={{ padding: '40px', textAlign: 'center', color: '#666' }}>
-                                        此範圍內無數據
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            {/* Data Details Section Removed */}
         </div >
     );
 }
