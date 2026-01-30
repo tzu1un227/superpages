@@ -604,7 +604,7 @@ def get_user_history(user_id):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
-            f'SELECT * FROM "history:{app_id}" WHERE user_id = %s AND category = \'Message\' ORDER BY timestamp ASC',
+            f'SELECT * FROM "history:{app_id}" WHERE user_id = %s ORDER BY timestamp ASC',
             (user_id,)
         )
         history = cur.fetchall()
@@ -669,7 +669,8 @@ def get_users_list():
             SELECT sub.user_id, 
                    sub.last_message, 
                    sub.last_time,
-                   (SELECT string_agg(value, '|') FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'tag') as tags
+                   (SELECT string_agg(value, '|') FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'tag') as tags,
+                   (SELECT value FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'name' LIMIT 1) as name
             FROM (
                 SELECT DISTINCT ON (user_id) user_id, 
                        content as last_message, 

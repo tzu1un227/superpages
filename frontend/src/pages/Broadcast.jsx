@@ -100,7 +100,7 @@ function Broadcast() {
                             onClick={() => setTargetType('ids')}
                             style={{ padding: '10px 20px', backgroundColor: targetType === 'ids' ? 'rgba(255, 215, 0, 0.2)' : '#333', border: targetType === 'ids' ? '1px solid var(--primary-yellow)' : '1px solid transparent', color: targetType === 'ids' ? 'var(--primary-yellow)' : 'white' }}
                         >
-                            指定 ID 列表
+                            指定用戶
                         </button>
                     </div>
                 </div>

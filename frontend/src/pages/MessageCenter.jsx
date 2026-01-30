@@ -164,7 +164,7 @@ function MessageCenter() {
                                     <User size={18} />
                                 </div>
                                 <div style={{ flex: 1, overflow: 'hidden' }}>
-                                    <p style={{ fontWeight: '600', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.user_id}</p>
+                                    <p style={{ fontWeight: '600', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name || u.user_id}</p>
                                     <p style={{ fontSize: '12px', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.last_message || '尚無訊息'}</p>
                                 </div>
                             </div>
@@ -179,7 +179,7 @@ function MessageCenter() {
                     <>
                         <div style={{ padding: '20px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                             <div>
-                                <h3 style={{ fontSize: '18px', marginBottom: '5px' }}>{selectedUser}</h3>
+                                <h3 style={{ fontSize: '18px', marginBottom: '5px' }}>{users.find(u => u.user_id === selectedUser)?.name || selectedUser}</h3>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '10px' }}>
                                     {getCurrentUserTags().map((t, i) => (
                                         <span key={i} style={{
@@ -229,19 +229,34 @@ function MessageCenter() {
                             </div>
                         </div>
                         <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                            {messages.map((m, i) => (
-                                <div key={i} style={{
-                                    alignSelf: m.user_id === 'Admin' ? 'flex-end' : 'flex-start',
-                                    maxWidth: '70%',
-                                    padding: '12px 16px',
-                                    borderRadius: '16px',
-                                    backgroundColor: m.user_id === 'Admin' ? 'var(--primary-yellow)' : '#333',
-                                    color: m.user_id === 'Admin' ? 'black' : 'white',
-                                }}>
-                                    <p style={{ fontSize: '14px' }}>{m.content}</p>
-                                    <p style={{ fontSize: '10px', marginTop: '5px', opacity: 0.6 }}>{new Date(m.timestamp).toLocaleTimeString()}</p>
-                                </div>
-                            ))}
+                            {messages.filter(m => {
+                                // Filter out system commands from view
+                                if (m.category === 'Sensor') {
+                                    const c = m.content || '';
+                                    if (c.startsWith('cron|') || c.startsWith('set_tag|') || c.startsWith('del_tag|')) return false;
+                                }
+                                return true;
+                            }).map((m, i) => {
+                                const isAdmin = m.user_id === 'yzuadmin' || m.category === 'Sensor' || m.category === 'Response';
+                                let displayContent = m.content;
+                                if (isAdmin && displayContent.startsWith('MSG|')) {
+                                    displayContent = displayContent.substring(4);
+                                }
+
+                                return (
+                                    <div key={i} style={{
+                                        alignSelf: isAdmin ? 'flex-end' : 'flex-start',
+                                        maxWidth: '70%',
+                                        padding: '12px 16px',
+                                        borderRadius: '16px',
+                                        backgroundColor: isAdmin ? 'var(--primary-yellow)' : '#333',
+                                        color: isAdmin ? 'black' : 'white',
+                                    }}>
+                                        <p style={{ fontSize: '14px' }}>{displayContent}</p>
+                                        <p style={{ fontSize: '10px', marginTop: '5px', opacity: 0.6 }}>{new Date(m.timestamp).toLocaleTimeString()}</p>
+                                    </div>
+                                );
+                            })}
                         </div>
                         <div style={{ padding: '20px', borderTop: '1px solid #333', display: 'flex', gap: '15px' }}>
                             <input
