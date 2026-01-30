@@ -2,20 +2,36 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import api from '../api';
 import { Send, Users, Info } from 'lucide-react';
+import { Autocomplete, TextField, Chip, Box } from '@mui/material';
 
 function Broadcast() {
     const location = useLocation();
     const [targetType, setTargetType] = useState('all'); // all, tag, ids
-    const [tag, setTag] = useState('');
-    const [ids, setIds] = useState('');
+    const [tag, setTag] = useState(null); // Changed to null for Autocomplete
+    const [selectedUsers, setSelectedUsers] = useState([]); // For ID list selection
     const [message, setMessage] = useState('');
     const [loading, setLoading] = useState(false);
 
+    // Data sources
+    const [availableTags, setAvailableTags] = useState([]);
+    const [availableUsers, setAvailableUsers] = useState([]);
+
     useEffect(() => {
         setTargetType('all');
-        setTag('');
-        setIds('');
+        setTag(null);
+        setSelectedUsers([]);
         setMessage('');
+
+        // Fetch Tags
+        api.get('/tags')
+            .then(res => setAvailableTags(res.data))
+            .catch(err => console.error('Error fetching tags:', err));
+
+        // Fetch Users
+        api.get('/registered-users')
+            .then(res => setAvailableUsers(res.data))
+            .catch(err => console.error('Error fetching users:', err));
+
     }, [location.pathname]);
 
     const handleBroadcast = async () => {
@@ -25,8 +41,17 @@ function Broadcast() {
         if (targetType === 'all') {
             broadcastCmd = `broadcast_cmd|${message}`;
         } else if (targetType === 'tag') {
+            if (!tag) {
+                alert('請輸入或選擇標籤');
+                return;
+            }
             broadcastCmd = `nwcast|${tag}|${message}`;
         } else {
+            if (selectedUsers.length === 0) {
+                alert('請至少選擇一位用戶');
+                return;
+            }
+            const ids = selectedUsers.map(u => u.user_id).join(',');
             broadcastCmd = `bmcast|${ids}|${message}`;
         }
 
@@ -40,6 +65,7 @@ function Broadcast() {
             });
             alert('廣播指令已送出');
             setMessage('');
+            if (targetType === 'ids') setSelectedUsers([]);
         } catch (err) {
             alert('廣播失敗: ' + err.message);
         } finally {
@@ -81,25 +107,75 @@ function Broadcast() {
 
                 {targetType === 'tag' && (
                     <div>
-                        <label style={{ display: 'block', marginBottom: '10px', fontSize: '14px', color: '#B0B0B0' }}>輸入標籤名稱</label>
-                        <input
+                        <label style={{ display: 'block', marginBottom: '10px', fontSize: '14px', color: '#B0B0B0' }}>選擇或輸入標籤</label>
+                        <Autocomplete
+                            freeSolo
+                            options={availableTags.map(t => t)}
                             value={tag}
-                            onChange={e => setTag(e.target.value)}
-                            placeholder="例如: VIP, 新客戶..."
-                            style={{ width: '100%' }}
+                            onChange={(event, newValue) => setTag(newValue)}
+                            onInputChange={(event, newInputValue) => setTag(newInputValue)}
+                            renderInput={(params) => (
+                                <TextField
+                                    {...params}
+                                    placeholder="例如: VIP, 新客戶..."
+                                    variant="outlined"
+                                    sx={{
+                                        '& .MuiOutlinedInput-root': {
+                                            color: 'white',
+                                            '& fieldset': { borderColor: '#444' },
+                                            '&:hover fieldset': { borderColor: '#666' },
+                                            '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' },
+                                        },
+                                        backgroundColor: '#222',
+                                        borderRadius: '8px'
+                                    }}
+                                />
+                            )}
                         />
                     </div>
                 )}
 
                 {targetType === 'ids' && (
                     <div>
-                        <label style={{ display: 'block', marginBottom: '10px', fontSize: '14px', color: '#B0B0B0' }}>輸入 User IDs (以逗號分隔)</label>
-                        <textarea
-                            value={ids}
-                            onChange={e => setIds(e.target.value)}
-                            placeholder="U123456..., U789012..."
-                            rows={4}
-                            style={{ width: '100%', resize: 'none' }}
+                        <label style={{ display: 'block', marginBottom: '10px', fontSize: '14px', color: '#B0B0B0' }}>選擇用戶 (可多選)</label>
+                        <Autocomplete
+                            multiple
+                            id="tags-outlined"
+                            options={availableUsers}
+                            getOptionLabel={(option) => option.name || option.user_id}
+                            value={selectedUsers}
+                            onChange={(event, newValue) => setSelectedUsers(newValue)}
+                            filterSelectedOptions
+                            renderInput={(params) => (
+                                <TextField
+                                    {...params}
+                                    placeholder="搜尋用戶..."
+                                    sx={{
+                                        '& .MuiOutlinedInput-root': {
+                                            color: 'white',
+                                            '& fieldset': { borderColor: '#444' },
+                                            '&:hover fieldset': { borderColor: '#666' },
+                                            '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' },
+                                        },
+                                        backgroundColor: '#222',
+                                        borderRadius: '8px'
+                                    }}
+                                />
+                            )}
+                            renderTags={(value, getTagProps) =>
+                                value.map((option, index) => (
+                                    <Chip
+                                        key={index}
+                                        label={option.name || option.user_id}
+                                        {...getTagProps({ index })}
+                                        sx={{
+                                            backgroundColor: '#333',
+                                            color: 'white',
+                                            '& .MuiChip-deleteIcon': { color: '#888', '&:hover': { color: '#fff' } }
+                                        }}
+                                    />
+                                ))
+                            }
                         />
                     </div>
                 )}

@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, g
+﻿from flask import Flask, request, jsonify, g
 from flask_cors import CORS
 from config import Config
 import psycopg2
@@ -47,12 +47,12 @@ with app.app_context():
     def seed_data():
         print("Seeding/Updating pages...")
         default_pages = [
-            {'name': 'Statistics', 'description': '綜合數據'},
-            {'name': 'MessageCenter', 'description': '訊息中心'},
-            {'name': 'Projects', 'description': '專案與排程'},
-            {'name': 'Broadcast', 'description': '群發訊息'},
-            {'name': 'ScheduledEvents', 'description': '定時觸發'},
-            {'name': 'PrizeStatus', 'description': '獎品查詢'}
+            {'name': 'Statistics', 'description': '蝬??豢?'},
+            {'name': 'MessageCenter', 'description': '閮銝剖?'},
+            {'name': 'Projects', 'description': '撠???蝔?},
+            {'name': 'Broadcast', 'description': '蝢斤閮'},
+            {'name': 'ScheduledEvents', 'description': '摰?閫貊'},
+            {'name': 'PrizeStatus', 'description': '???亥岷'}
         ]
         
         for p in default_pages:
@@ -242,7 +242,7 @@ def google_login():
         
         if not user:
             # Auto-register logic or Fail?
-            # Requirement: "原先設定好可以有所有權限的google帳號後...新增其他人的帳號"
+            # Requirement: "??閮剖?憟賢隞交??????google撣唾?敺?..?啣??嗡?鈭箇?撣唾?"
             # This implies the first user (Super Admin) might need to be created manually or we auto-create the *first* one.
             # For now, let's return 401 if not found, implying they need to be added by an admin.
             # EXCEPTION: If the DB is empty (no users), we could allow the first one to be Admin?
@@ -358,21 +358,21 @@ def get_projects():
             end = p['end_date']
             is_enabled = p['is_enabled']
             
-            p['status'] = "未知"
+            p['status'] = "?芰"
             if not is_enabled:
                 if now < start:
-                    p['status'] = "編輯中"
+                    p['status'] = "蝺刻摩銝?
                 elif now > end:
-                    p['status'] = "已終止"
+                    p['status'] = "撌脩?甇?
                 else:
-                    p['status'] = "已暫停"
+                    p['status'] = "撌脫??
             else:
                 if now < start:
-                    p['status'] = "已排程"
+                    p['status'] = "撌脫?蝔?
                 elif now > end:
-                    p['status'] = "已完成"
+                    p['status'] = "撌脣???
                 else:
-                    p['status'] = "進行中"
+                    p['status'] = "?脰?銝?
 
         cur.close()
         conn.close()
@@ -389,7 +389,7 @@ def create_project():
         end_date = datetime.fromisoformat(data['end_date'])
         
         if end_date <= start_date:
-            return jsonify({"status": "error", "message": "結束時間必須大於開始時間"}), 400
+            return jsonify({"status": "error", "message": "蝯???敹?憭扳????"}), 400
 
         import json
         anchor_config = json.dumps(data.get('anchor_config', {}))
@@ -417,7 +417,7 @@ def update_project(id):
         end_date = datetime.fromisoformat(data['end_date'])
         
         if end_date <= start_date:
-            return jsonify({"status": "error", "message": "結束時間必須大於開始時間"}), 400
+            return jsonify({"status": "error", "message": "蝯???敹?憭扳????"}), 400
 
         import json
         anchor_config = json.dumps(data.get('anchor_config', {}))
@@ -494,7 +494,7 @@ def create_schedule():
     data = request.json
     try:
         if float(data['interval_hours']) <= 0:
-            return jsonify({"status": "error", "message": "間隔時間必須大於 0"}), 400
+            return jsonify({"status": "error", "message": "????敹?憭扳 0"}), 400
 
         conn = get_db_connection()
         cur = conn.cursor()
@@ -515,7 +515,7 @@ def update_schedule(id):
     data = request.json
     try:
         if float(data['interval_hours']) <= 0:
-            return jsonify({"status": "error", "message": "間隔時間必須大於 0"}), 400
+            return jsonify({"status": "error", "message": "????敹?憭扳 0"}), 400
 
         conn = get_db_connection()
         cur = conn.cursor()
@@ -851,5 +851,27 @@ def save_qa_bank():
         return jsonify({"error": str(e)}), 500
 
 
+
+@app.route('/api/tags', methods=['GET'])
+def get_tags():
+    try:
+        app_id = get_current_app_id()
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        # Fetch unique tags from Private_var
+        cur.execute(f"""
+            SELECT DISTINCT value 
+            FROM "Private_var:{app_id}" 
+            WHERE name = 'tag'
+            ORDER BY value
+        """)
+        tags = [row['value'] for row in cur.fetchall()]
+        cur.close()
+        conn.close()
+        return json_response(tags)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
+
