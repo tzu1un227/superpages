@@ -468,6 +468,19 @@ def get_project_users(id):
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route('/api/projects/<int:id>/users/<string:user_id>', methods=['DELETE'])
+def delete_project_user(id, user_id):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM cron_table WHERE project_id = %s AND user_id = %s", (id, user_id))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 # Schedules CRUD
 @app.route('/api/schedules', methods=['GET'])
 def get_schedules():
@@ -481,6 +494,48 @@ def get_schedules():
         else:
             cur.execute("SELECT * FROM project_schedules ORDER BY schedule_id")
         schedules = cur.fetchall()
+        
+        # Enrich with message preview
+        app_id = get_current_app_id()
+        for s in schedules:
+            content = s['message_content']
+            s['message_preview'] = None
+            if content and content.startswith('QA|'):
+                tag = content.split('|', 1)[1]
+                # Efficiently fetch just the first message text? 
+                # Or just fetch the whole row since we need to parse JSON anyway.
+                # Optimization: Could be done in a single batch query if performance matters, 
+                # but for simplicity and existing structure, we query one by one for now (or improve if slow).
+                # Actually, let's use a quick lookup if we can, but `get_qa_bank_by_tag` logic is reusable.
+                try:
+                    cur.execute(f'SELECT msg_rpy FROM "QA_bank:{app_id}" WHERE tag = %s', (tag,))
+                    res = cur.fetchone()
+                    if res and res['msg_rpy']:
+                        # msg_rpy is a list of JSON strings (as per save_qa_bank)
+                        # We want the first message's text/alt-text
+                        first_msg_str = res['msg_rpy'][0]
+                        # It might be a dict if driver converts it, or string if TEXT. 
+                        # Based on typical usage here:
+                        first_msg = first_msg_str if isinstance(first_msg_str, dict) else json.loads(first_msg_str)
+                        
+                        # Unwrap "Line" if present (based on save_qa_bank logic)
+                        if 'Line' in first_msg:
+                            first_msg = first_msg['Line']
+                            
+                        # Extract Preview
+                        if first_msg.get('OTYPE') == 'TextSendMessage':
+                            s['message_preview'] = first_msg.get('text', '')
+                        elif first_msg.get('OTYPE') == 'FlexSendMessage':
+                            s['message_preview'] = f"[Flex] {first_msg.get('alt_text', 'Flex Message')}"
+                        elif first_msg.get('OTYPE') == 'ImageSendMessage':
+                            s['message_preview'] = "[圖片]"
+                        elif first_msg.get('OTYPE') == 'VideoSendMessage':
+                            s['message_preview'] = "[影片]"
+                        elif first_msg.get('OTYPE') == 'AudioSendMessage':
+                            s['message_preview'] = "[語音]"
+                except Exception as e:
+                    print(f"Error fetching preview for {tag}: {e}")
+
         cur.close()
         conn.close()
         print(f"Successfully fetched {len(schedules)} schedules")

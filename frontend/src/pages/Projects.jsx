@@ -76,7 +76,23 @@ const ProjectsManagement = () => {
         if (activeTab === 'users' && selectedProjectId) {
             fetchProjectUsers(selectedProjectId);
         }
+        if (activeTab === 'users' && selectedProjectId) {
+            fetchProjectUsers(selectedProjectId);
+        }
     }, [selectedProjectId, activeTab]);
+
+    // Auto-fill Step ID
+    useEffect(() => {
+        if (showAddScheduleForm && newSchedule.project_id) {
+            const projectSchedules = schedules.filter(s => s.project_id == newSchedule.project_id);
+            if (projectSchedules.length > 0) {
+                const maxStep = Math.max(...projectSchedules.map(s => parseInt(s.step_id) || 0));
+                setNewSchedule(prev => ({ ...prev, step_id: maxStep + 1 }));
+            } else {
+                setNewSchedule(prev => ({ ...prev, step_id: 1 }));
+            }
+        }
+    }, [newSchedule.project_id, showAddScheduleForm]); // Depend on schedules? Maybe, but mostly project_id change triggers it.
 
     const fetchProjects = async () => {
         try {
@@ -133,6 +149,16 @@ const ProjectsManagement = () => {
             setTimeout(() => fetchProjectUsers(selectedProjectId), 1000);
         } catch (err) {
             alert('指令發送失敗: ' + err.message);
+        }
+    };
+
+    const handleRemoveUser = async (userId) => {
+        if (!window.confirm(`確定要將用戶 ${userId} 從此專案移除嗎？`)) return;
+        try {
+            await api.delete(`/projects/${selectedProjectId}/users/${userId}`);
+            fetchProjectUsers(selectedProjectId);
+        } catch (err) {
+            alert('移除失敗: ' + (err.response?.data?.message || err.message));
         }
     };
 
@@ -460,7 +486,7 @@ const ProjectsManagement = () => {
 
                     {showAddProjectForm && (
                         <div style={{ backgroundColor: '#222', padding: '20px', borderRadius: '12px', marginBottom: '25px', border: '1px solid #333' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1fr) minmax(200px, 1fr) auto', gap: '20px', alignItems: 'start' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) auto', gap: '20px', alignItems: 'start' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                     <div>
                                         <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>專案名稱</label>
@@ -816,7 +842,13 @@ const ProjectsManagement = () => {
                                                 </div>
                                             ) : (
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                    {s.message_content && s.message_content.startsWith('QA|') ? (
+                                                    {s.message_preview ? (
+                                                        <>
+                                                            {/* <MessageSquare size={14} color="#4CAF50" title="Rich Message" /> */}
+                                                            <span>{s.message_preview}</span>
+                                                            <span style={{ fontSize: '10px', color: '#666' }}>({s.message_content.split('|')[1]?.split('_').pop()})</span>
+                                                        </>
+                                                    ) : s.message_content && s.message_content.startsWith('QA|') ? (
                                                         <>
                                                             <MessageSquare size={14} color="#4CAF50" title="Rich Message" />
                                                             <span style={{ color: '#aaa', fontStyle: 'italic' }}>Rich Message</span>
@@ -887,7 +919,18 @@ const ProjectsManagement = () => {
                                         <td>
                                             {projects.find(p => p.project_id == selectedProjectId)?.project_name || `ID: ${selectedProjectId}`}
                                         </td>
-                                        <td><span style={{ color: '#4CAF50' }}>● 已在排程中</span></td>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <span style={{ color: '#4CAF50' }}>● 已在排程中</span>
+                                                <button
+                                                    onClick={() => handleRemoveUser(u.user_id)}
+                                                    style={{ padding: '4px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#FF4D4D' }}
+                                                    title="移除用戶"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        </td>
                                     </tr>
                                 )) : (
                                     <tr>
