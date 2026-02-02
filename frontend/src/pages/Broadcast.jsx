@@ -24,7 +24,32 @@ function Broadcast() {
 
         // Fetch Tags
         api.get('/tags')
-            .then(res => setAvailableTags(res.data))
+            .then(res => {
+                try {
+                    const rawTags = res.data;
+                    const uniqueTags = new Set();
+                    rawTags.forEach(t => {
+                        if (typeof t === 'string' && t.trim().startsWith('[') && t.trim().endsWith(']')) {
+                            try {
+                                const parsed = JSON.parse(t);
+                                if (Array.isArray(parsed)) {
+                                    parsed.forEach(pt => uniqueTags.add(pt));
+                                } else {
+                                    uniqueTags.add(t);
+                                }
+                            } catch {
+                                uniqueTags.add(t);
+                            }
+                        } else {
+                            uniqueTags.add(t);
+                        }
+                    });
+                    setAvailableTags(Array.from(uniqueTags).sort());
+                } catch (e) {
+                    console.error('Error parsing tags:', e);
+                    setAvailableTags(res.data);
+                }
+            })
             .catch(err => console.error('Error fetching tags:', err));
 
         // Fetch Users
