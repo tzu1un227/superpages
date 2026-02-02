@@ -1143,10 +1143,10 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                     <X style={{ cursor: 'pointer' }} onClick={onClose} />
                 </div>
 
-                <div style={{ marginBottom: '15px' }}>
+                {/* <div style={{ marginBottom: '15px' }}>
                     <label style={{ display: 'block', color: '#888', marginBottom: '5px' }}>Tag (識別標籤)</label>
                     <input type="text" value={tag} onChange={(e) => setTag(e.target.value)} style={{ width: '100%', padding: '8px', background: '#333', border: '1px solid #444', color: '#fff' }} />
-                </div>
+                </div> */}
 
                 <div style={{ flex: 1, display: 'flex', gap: '20px', overflow: 'hidden' }}>
                     {/* Left: Message List */}
