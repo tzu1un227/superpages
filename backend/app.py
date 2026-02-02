@@ -548,8 +548,8 @@ def get_schedules():
 def create_schedule():
     data = request.json
     try:
-        if float(data['interval_hours']) <= 0:
-            return jsonify({"status": "error", "message": "間隔時間必須大於 0"}), 400
+        if float(data['interval_hours']) < 0:
+            return jsonify({"status": "error", "message": "間隔時間必須大於或等於 0"}), 400
 
         conn = get_db_connection()
         cur = conn.cursor()
@@ -569,8 +569,8 @@ def create_schedule():
 def update_schedule(id):
     data = request.json
     try:
-        if float(data['interval_hours']) <= 0:
-            return jsonify({"status": "error", "message": "間隔時間必須大於 0"}), 400
+        if float(data['interval_hours']) < 0:
+            return jsonify({"status": "error", "message": "間隔時間必須大於或等於 0"}), 400
 
         conn = get_db_connection()
         cur = conn.cursor()
