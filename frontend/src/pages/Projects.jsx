@@ -84,7 +84,12 @@ const ProjectsManagement = () => {
     // Auto-fill Step ID
     useEffect(() => {
         if (showAddScheduleForm && newSchedule.project_id) {
+            // Filter schedules for the selected project
+            // Note: 'schedules' might contain all schedules or filtered ones depending on fetchSchedules state. 
+            // Better to rely on what is currently loaded, but ideally we should fetch fresh if needed. 
+            // For now, assuming 'schedules' contains relevant data effectively enough for a helper.
             const projectSchedules = schedules.filter(s => s.project_id == newSchedule.project_id);
+
             if (projectSchedules.length > 0) {
                 const maxStep = Math.max(...projectSchedules.map(s => parseInt(s.step_id) || 0));
                 setNewSchedule(prev => ({ ...prev, step_id: maxStep + 1 }));
@@ -92,7 +97,7 @@ const ProjectsManagement = () => {
                 setNewSchedule(prev => ({ ...prev, step_id: 1 }));
             }
         }
-    }, [newSchedule.project_id, showAddScheduleForm]); // Depend on schedules? Maybe, but mostly project_id change triggers it.
+    }, [newSchedule.project_id, showAddScheduleForm, schedules]); // Added schedules dependency to ensure it updates if schedules load later
 
     const fetchProjects = async () => {
         try {
@@ -248,7 +253,17 @@ const ProjectsManagement = () => {
     // Schedule Actions
     const handleEditScheduleClick = (schedule) => {
         setEditingScheduleId(schedule.schedule_id);
-        setEditScheduleFormData(schedule);
+
+        let initialContent = schedule.message_content;
+        // If it's a QA tag and we have a preview, use the preview text for the input
+        if (schedule.message_preview && schedule.message_content.startsWith('QA|')) {
+            initialContent = schedule.message_preview;
+        }
+
+        setEditScheduleFormData({
+            ...schedule,
+            message_content: initialContent
+        });
     };
 
     const handleUpdateSchedule = async () => {
