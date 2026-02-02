@@ -83,21 +83,36 @@ const ProjectsManagement = () => {
 
     // Auto-fill Step ID
     useEffect(() => {
-        if (showAddScheduleForm && newSchedule.project_id) {
+        if (!showAddScheduleForm) return;
+
+        const effectiveProjectId = newSchedule.project_id || selectedProjectId;
+        if (effectiveProjectId) {
             // Filter schedules for the selected project
-            // Note: 'schedules' might contain all schedules or filtered ones depending on fetchSchedules state. 
-            // Better to rely on what is currently loaded, but ideally we should fetch fresh if needed. 
-            // For now, assuming 'schedules' contains relevant data effectively enough for a helper.
-            const projectSchedules = schedules.filter(s => s.project_id == newSchedule.project_id);
+            const projectSchedules = schedules.filter(s => s.project_id == effectiveProjectId);
 
             if (projectSchedules.length > 0) {
                 const maxStep = Math.max(...projectSchedules.map(s => parseInt(s.step_id) || 0));
-                setNewSchedule(prev => ({ ...prev, step_id: maxStep + 1 }));
+                setNewSchedule(prev => {
+                    // Start from max + 1
+                    const nextStep = maxStep + 1;
+                    // Only update if it's different to avoid loops (though dependency array handles most)
+                    // and strictly if we haven't manually typed something else? 
+                    // Actually user wants auto-fill. If they manually typed, this effect *might* overwrite if logic triggers again.
+                    // But logic triggers on projectId change or form open. 
+                    // If they type step_id, efficientProjectId doesn't change, form doesn't close. Effect doesn't run. Safe.
+                    if (prev.step_id !== nextStep) {
+                        return { ...prev, step_id: nextStep };
+                    }
+                    return prev;
+                });
             } else {
-                setNewSchedule(prev => ({ ...prev, step_id: 1 }));
+                setNewSchedule(prev => {
+                    if (prev.step_id !== 1) return { ...prev, step_id: 1 };
+                    return prev;
+                });
             }
         }
-    }, [newSchedule.project_id, showAddScheduleForm, schedules]); // Added schedules dependency to ensure it updates if schedules load later
+    }, [newSchedule.project_id, selectedProjectId, showAddScheduleForm, schedules]);
 
     const fetchProjects = async () => {
         try {
