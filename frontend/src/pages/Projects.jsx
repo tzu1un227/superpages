@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import api from '../api';
 import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type } from 'lucide-react';
+import FlexMessageEditor from '../components/FlexMessageEditor';
 
 const ProjectsManagement = () => {
     const location = useLocation();
@@ -1252,15 +1253,18 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                             <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>替代文字 (Alt Text)</label>
                                             <input type="text" value={messages[activeMsgIndex].alt_text || ''} onChange={(e) => updateMessage(activeMsgIndex, 'alt_text', e.target.value)} style={{ width: '100%', padding: '8px', background: '#222', border: 'none', color: '#fff' }} />
                                         </div>
-                                        <div>
-                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>JSON 內容 (contents)</label>
-                                            <textarea
-                                                value={typeof messages[activeMsgIndex].contents === 'string' ? messages[activeMsgIndex].contents : JSON.stringify(messages[activeMsgIndex].contents, null, 2)}
-                                                onChange={(e) => updateMessage(activeMsgIndex, 'contents', e.target.value)}
-                                                rows={10}
-                                                style={{ width: '100%', padding: '10px', background: '#222', border: 'none', color: '#fff', fontFamily: 'monospace' }}
-                                            />
-                                        </div>
+                                        <>
+                                            <div style={{ height: '600px', border: '1px solid #444', borderRadius: '8px', overflow: 'hidden' }}>
+                                                <FlexMessageEditor
+                                                    initialContent={messages[activeMsgIndex].contents}
+                                                    onSave={(jsonString) => {
+                                                        updateMessage(activeMsgIndex, 'contents', jsonString);
+                                                        alert('Flex 訊息已更新至暫存區 (記得點擊下方 "儲存 QA 設定" 以永久儲存)');
+                                                    }}
+                                                    onCancel={() => { }}
+                                                />
+                                            </div>
+                                        </>
                                     </>
                                 )}
 
