@@ -58,8 +58,8 @@ const ProjectsManagement = () => {
             initialText,
             projectId,
             stepId,
-            onSave: (tag) => {
-                onSave('QA|' + tag);
+            onSave: (tag, preview) => {
+                onSave('QA|' + tag, preview);
             }
         });
         setIsRichModalOpen(true);
@@ -740,13 +740,20 @@ const ProjectsManagement = () => {
                                 <div>
                                     <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>訊息內容</label>
                                     <div style={{ display: 'flex', gap: '5px' }}>
-                                        <input type="text" value={newSchedule.message_content} onChange={e => setNewSchedule({ ...newSchedule, message_content: e.target.value })} style={{ width: '100%' }} />
+                                        <input
+                                            type="text"
+                                            value={(newSchedule.message_content && newSchedule.message_content.startsWith('QA|') && newSchedule.message_preview)
+                                                ? newSchedule.message_preview
+                                                : newSchedule.message_content
+                                            }
+                                            onChange={e => setNewSchedule({ ...newSchedule, message_content: e.target.value })}
+                                            style={{ width: '100%' }}
+                                        />
                                         <button
                                             onClick={() => openRichEditor(
-                                                newSchedule.message_content,
-                                                newSchedule.project_id || selectedProjectId,
+                                                selectedProjectId,
                                                 newSchedule.step_id,
-                                                (val) => setNewSchedule(prev => ({ ...prev, message_content: val }))
+                                                (val, preview) => setNewSchedule(prev => ({ ...prev, message_content: val, message_preview: preview }))
                                             )}
                                             title="編輯多媒體/Flex訊息"
                                             style={{ padding: '8px', background: '#333', border: '1px solid #444', color: 'var(--primary-yellow)' }}
@@ -854,13 +861,20 @@ const ProjectsManagement = () => {
                                         <td style={{ maxWidth: '300px' }}>
                                             {editingScheduleId === s.schedule_id ? (
                                                 <div style={{ display: 'flex', gap: '5px' }}>
-                                                    <input type="text" value={editScheduleFormData.message_content} onChange={e => setEditScheduleFormData({ ...editScheduleFormData, message_content: e.target.value })} style={{ width: '100%' }} />
+                                                    <input
+                                                        type="text"
+                                                        value={(editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.message_preview)
+                                                            ? editScheduleFormData.message_preview
+                                                            : editScheduleFormData.message_content
+                                                        }
+                                                        onChange={e => setEditScheduleFormData({ ...editScheduleFormData, message_content: e.target.value })}
+                                                        style={{ width: '100%' }}
+                                                    />
                                                     <button
                                                         onClick={() => openRichEditor(
-                                                            editScheduleFormData.message_content,
                                                             editScheduleFormData.project_id,
                                                             editScheduleFormData.step_id,
-                                                            (val) => setEditScheduleFormData(prev => ({ ...prev, message_content: val }))
+                                                            (val, preview) => setEditScheduleFormData(prev => ({ ...prev, message_content: val, message_preview: preview }))
                                                         )}
                                                         style={{ padding: '5px', background: '#333', border: '1px solid #444', color: 'var(--primary-yellow)' }}
                                                     >
@@ -1079,7 +1093,14 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                 msg_rpy: payloadMessages,
                 type: 'Sensor'
             });
-            onSave(tag);
+            const firstMsg = payloadMessages[0];
+            let previewText = '';
+            if (firstMsg) {
+                if (firstMsg.OTYPE === 'TextSendMessage') previewText = firstMsg.text;
+                else if (firstMsg.OTYPE === 'FlexSendMessage') previewText = firstMsg.alt_text || 'Flex Message';
+                else previewText = `[${firstMsg.OTYPE.replace('SendMessage', '')}]`;
+            }
+            onSave(tag, previewText);
             onClose();
         } catch (err) {
             alert('儲存失敗: ' + err.message);
