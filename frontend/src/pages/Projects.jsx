@@ -271,10 +271,6 @@ const ProjectsManagement = () => {
         setEditingScheduleId(schedule.schedule_id);
 
         let initialContent = schedule.message_content;
-        // If it's a QA tag and we have a preview, use the preview text for the input
-        if (schedule.message_preview && schedule.message_content.startsWith('QA|')) {
-            initialContent = schedule.message_preview;
-        }
 
         setEditScheduleFormData({
             ...schedule,

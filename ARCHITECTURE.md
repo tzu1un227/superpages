@@ -31,3 +31,8 @@ This project is a web application with a Flask backend and a React frontend. It 
 -   Managed via `/api/schedules`.
 -   Stored in `project_schedules` table.
 -   *Note: No active background execution loop was found in `app.py` for this table. It may be used by external scripts or is a passive configuration.*
+
+### Rich Message Handling
+-   **QA Integration**: Messages can be stored as complex structures (Flex, Image, etc.) in the `qa_bank` table.
+-   **Reference Protocol**: In `project_schedules` or other text fields, these are referenced using the `QA|` prefix followed by the unique tag (e.g., `QA|cron_project_step`).
+-   **Editor Behavior**: The frontend detects this prefix to open the advanced visual editor instead of a plain text input.
