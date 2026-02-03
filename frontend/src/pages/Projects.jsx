@@ -751,6 +751,7 @@ const ProjectsManagement = () => {
                                         />
                                         <button
                                             onClick={() => openRichEditor(
+                                                newSchedule.message_content,
                                                 selectedProjectId,
                                                 newSchedule.step_id,
                                                 (val, preview) => setNewSchedule(prev => ({ ...prev, message_content: val, message_preview: preview }))
@@ -872,6 +873,7 @@ const ProjectsManagement = () => {
                                                     />
                                                     <button
                                                         onClick={() => openRichEditor(
+                                                            editScheduleFormData.message_content,
                                                             editScheduleFormData.project_id,
                                                             editScheduleFormData.step_id,
                                                             (val, preview) => setEditScheduleFormData(prev => ({ ...prev, message_content: val, message_preview: preview }))
