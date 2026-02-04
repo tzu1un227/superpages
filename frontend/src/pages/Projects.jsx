@@ -38,6 +38,7 @@ const ProjectsManagement = () => {
     const [newSchedule, setNewSchedule] = useState({ project_id: '', step_id: '', interval_hours: '', message_content: '' });
     const [showAddScheduleForm, setShowAddScheduleForm] = useState(false);
 
+    const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState('projects'); // projects, schedules, users, or stats
 
     const [projectStats, setProjectStats] = useState({ tc: 0, cc: 0, ms: 0, mss: 0, msf: 0, completion_rate: 0 });
@@ -176,10 +177,10 @@ const ProjectsManagement = () => {
         try {
             const res = await api.get(`/api/projects/${selectedProjectId}/schedules/export`);
             const dataStr = JSON.stringify(res.data, null, 2);
-            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-            
+            const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+
             const exportFileDefaultName = `project_${selectedProjectId}_schedules.json`;
-            
+
             let linkElement = document.createElement('a');
             linkElement.setAttribute('href', dataUri);
             linkElement.setAttribute('download', exportFileDefaultName);
@@ -737,7 +738,7 @@ const ProjectsManagement = () => {
                             </span>
                         </div>
                         <div style={{ display: 'flex', gap: '10px' }}>
-                            <button 
+                            <button
                                 onClick={handleExportSchedules}
                                 style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', backgroundColor: '#333', color: '#fff' }}
                                 title="匯出步驟為 JSON"
@@ -1021,7 +1022,7 @@ const ProjectsManagement = () => {
                 </div>
             ) : activeTab === 'stats' ? (
                 <div className="card">
-                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                             <h3 style={{ fontSize: '20px' }}>專案統計數據</h3>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#111', padding: '5px 15px', borderRadius: '8px' }}>
@@ -1039,17 +1040,17 @@ const ProjectsManagement = () => {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <span style={{ fontSize: '14px', color: '#B0B0B0' }}>時間範圍:</span>
-                            <input 
-                                type="date" 
-                                value={statsDateRange.start} 
-                                onChange={e => setStatsDateRange({...statsDateRange, start: e.target.value})}
+                            <input
+                                type="date"
+                                value={statsDateRange.start}
+                                onChange={e => setStatsDateRange({ ...statsDateRange, start: e.target.value })}
                                 style={{ padding: '4px 8px', background: '#333', border: '1px solid #444', color: '#fff' }}
                             />
                             <span>~</span>
-                            <input 
-                                type="date" 
-                                value={statsDateRange.end} 
-                                onChange={e => setStatsDateRange({...statsDateRange, end: e.target.value})}
+                            <input
+                                type="date"
+                                value={statsDateRange.end}
+                                onChange={e => setStatsDateRange({ ...statsDateRange, end: e.target.value })}
                                 style={{ padding: '4px 8px', background: '#333', border: '1px solid #444', color: '#fff' }}
                             />
                         </div>
