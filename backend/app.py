@@ -106,6 +106,47 @@ def get_current_app_id():
         return path_part.split('?')[0].strip()
     return '5013' # Default
 
+def increment_project_stat(project_id, metric, app_id, date_str=None):
+    """
+    Increments a project-specific metric in the Global_var table.
+    Metrics: tc (Trigger Count), cc (Completion Count), ms (Messages Sent), mss (Success), msf (Failure)
+    """
+    if not date_str:
+        date_str = datetime.now().strftime('%Y-%m-%d')
+    variable_name = f"pj:{project_id}:stats:{date_str}:{metric}"
+    
+    try:
+        # We need a fresh connection since this might be called outside g context or in background
+        # If we have app_id, we can potentially find the DB URL from OAConfig
+        # But for now, let's assume Global_var is in the main DB or the one matching app_id
+        # Actually, the requirement said pj:{project_id}:stats:... in Global_var
+        
+        conn = psycopg2.connect(**DB_CONFIG) # For now assume default DB holds global stats? 
+        # No, the previous implementation used Global_var:{app_id}.
+        
+        # Determine correct DB for app_id
+        db_url = None
+        # In background thread we don't have app context / OAConfig easily without query
+        # But we can query the main DB for the db_url of the app_id
+        oa = OAConfig.query.get(app_id) # This works inside app.app_context()
+        if oa:
+            db_url = oa.db_url
+        
+        if db_url:
+            target_conn = psycopg2.connect(db_url)
+            cur = target_conn.cursor()
+            table_name = f"Global_var:{app_id}"
+            
+            # Manual Upsert logic (since Global_var might lack unique constraints)
+            cur.execute(f"UPDATE \"{table_name}\" SET value = (COALESCE(value, '0')::int + 1)::text WHERE name = %s", (variable_name,))
+            if cur.rowcount == 0:
+                cur.execute(f"INSERT INTO \"{table_name}\" (name, value) VALUES (%s, '1')", (variable_name,))
+            target_conn.commit()
+            cur.close()
+            target_conn.close()
+    except Exception as e:
+        print(f"Error in increment_project_stat: {e}")
+
 @app.before_request
 def load_oa_context():
     # Skip for OPTIONS requests
@@ -209,6 +250,82 @@ def scheduled_event_processor():
 
 # Start background thread
 threading.Thread(target=scheduled_event_processor, daemon=True).start()
+
+def project_stats_processor():
+    """
+    Background thread to monitor history and update project-specific statistics.
+    """
+    while True:
+        try:
+            with app.app_context():
+                # Get all OAs to poll their history
+                oas = OAConfig.query.all()
+                for oa in oas:
+                    app_id = oa.id
+                    db_url = oa.db_url
+                    if not db_url: continue
+                    
+                    try:
+                        conn = psycopg2.connect(db_url)
+                        cur = conn.cursor(cursor_factory=RealDictCursor)
+                        
+                        # Get last processed time from Global_var
+                        g_var_table = f"Global_var:{app_id}"
+                        cur.execute(f"SELECT value FROM \"{g_var_table}\" WHERE name = 'last_stats_process_time'")
+                        row = cur.fetchone()
+                        last_time = row['value'] if row else '2000-01-01 00:00:00'
+                        
+                        # Fetch new history entries
+                        history_table = f"history:{app_id}"
+                        cur.execute(f"""
+                            SELECT * FROM "{history_table}" 
+                            WHERE timestamp > %s 
+                            AND (category = 'Message' AND content LIKE 'QA|cron_%%')
+                            ORDER BY timestamp ASC
+                        """, (last_time,))
+                        entries = cur.fetchall()
+                        
+                        max_timestamp = last_time
+                        
+                        for entry in entries:
+                            max_timestamp = entry['timestamp']
+                            content = entry['content']
+                            # Format: QA|cron_{project_id}_{step_id}
+                            try:
+                                parts = content.split('_')
+                                if len(parts) >= 3:
+                                    pj_id = int(parts[1])
+                                    step_id = int(parts[2])
+                                    
+                                    # Increment messages sent and success (since it's in history)
+                                    increment_project_stat(pj_id, 'ms', app_id, entry['timestamp'].strftime('%Y-%m-%d'))
+                                    increment_project_stat(pj_id, 'mss', app_id, entry['timestamp'].strftime('%Y-%m-%d'))
+                                    
+                                    # Check if it's the last step
+                                    cur.execute("SELECT MAX(step_id) FROM project_schedules WHERE project_id = %s", (pj_id,))
+                                    m_row = cur.fetchone()
+                                    if m_row and m_row['max'] == step_id:
+                                        increment_project_stat(pj_id, 'cc', app_id, entry['timestamp'].strftime('%Y-%m-%d'))
+                            except Exception as pe:
+                                print(f"Error parsing history entry for stats: {pe}")
+                        
+                        # Update last processed time
+                        cur.execute(f"UPDATE \"{g_var_table}\" SET value = %s WHERE name = 'last_stats_process_time'", (str(max_timestamp),))
+                        if cur.rowcount == 0:
+                            cur.execute(f"INSERT INTO \"{g_var_table}\" (name, value) VALUES ('last_stats_process_time', %s)", (str(max_timestamp),))
+                        
+                        conn.commit()
+                        cur.close()
+                        conn.close()
+                    except Exception as db_err:
+                        print(f"Error processing stats for app {app_id}: {db_err}")
+                        
+        except Exception as e:
+            print(f"Error in project_stats_processor: {e}")
+        
+        time.sleep(30) # Check every 30 seconds
+
+threading.Thread(target=project_stats_processor, daemon=True).start()
 
 @app.route('/api/login', methods=['POST'])
 def login():
@@ -873,6 +990,17 @@ def trigger_socket_event():
         print(f"Connecting to Socket URL: {target_ws_url}")
         sio.connect(target_ws_url, namespaces=[namespace], wait_timeout=3)
         sio.emit(f'{BOT_NAME}_message', data, namespace=namespace)
+        
+        # Track statistics if it's a project trigger
+        try:
+            message = data.get('message', '')
+            if message.startswith('iup|'):
+                project_id = int(message.split('|')[1])
+                app_id = get_current_app_id()
+                increment_project_stat(project_id, 'tc', app_id)
+        except Exception as te:
+            print(f"Error tracking trigger stat: {te}")
+
         time_to_wait = 0.5 # Small delay to ensure message is sent
         import time
         time.sleep(time_to_wait)

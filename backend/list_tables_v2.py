@@ -9,21 +9,22 @@ DB_CONFIG = {
     "password": "0000"
 }
 
-def check_stats():
+def list_tables():
     try:
         conn = psycopg2.connect(**DB_CONFIG)
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        cur.execute('SELECT name, value FROM "Global_var:5013" WHERE name LIKE %s', ('pj:1:stats:%',))
-        rows = cur.fetchall()
-        print(f"Found {len(rows)} stats entries for project 1")
-        for row in rows[:5]:
-            print(row)
-            
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public'
+        """)
+        tables = cur.fetchall()
+        for table in tables:
+            print(table[0])
         cur.close()
         conn.close()
     except Exception as e:
         print(f"Error: {e}")
 
 if __name__ == "__main__":
-    check_stats()
+    list_tables()
