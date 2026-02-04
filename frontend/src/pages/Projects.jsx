@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import api from '../api';
-import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type } from 'lucide-react';
+import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type, BarChart2, Download, Upload } from 'lucide-react';
 import FlexMessageEditor from '../components/FlexMessageEditor';
 
 const ProjectsManagement = () => {
@@ -38,8 +38,13 @@ const ProjectsManagement = () => {
     const [newSchedule, setNewSchedule] = useState({ project_id: '', step_id: '', interval_hours: '', message_content: '' });
     const [showAddScheduleForm, setShowAddScheduleForm] = useState(false);
 
-    const [error, setError] = useState('');
-    const [activeTab, setActiveTab] = useState('projects'); // projects or schedules
+    const [activeTab, setActiveTab] = useState('projects'); // projects, schedules, users, or stats
+
+    const [projectStats, setProjectStats] = useState({ tc: 0, cc: 0, ms: 0, mss: 0, msf: 0, completion_rate: 0 });
+    const [statsDateRange, setStatsDateRange] = useState({
+        start: new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().split('T')[0],
+        end: new Date().toISOString().split('T')[0]
+    });
 
     // Rich Message Modal State
     const [isRichModalOpen, setIsRichModalOpen] = useState(false);
@@ -73,14 +78,16 @@ const ProjectsManagement = () => {
     }, [location.pathname]);
 
     useEffect(() => {
-        fetchSchedules();
-        if (activeTab === 'users' && selectedProjectId) {
-            fetchProjectUsers(selectedProjectId);
+        if (activeTab === 'schedules') {
+            fetchSchedules();
         }
         if (activeTab === 'users' && selectedProjectId) {
             fetchProjectUsers(selectedProjectId);
         }
-    }, [selectedProjectId, activeTab]);
+        if (activeTab === 'stats' && selectedProjectId) {
+            fetchProjectStats(selectedProjectId);
+        }
+    }, [selectedProjectId, activeTab, statsDateRange]);
 
     // Auto-fill Step ID
     useEffect(() => {
@@ -144,6 +151,70 @@ const ProjectsManagement = () => {
         } catch (err) {
             setError('無法取得專案用戶列表');
         }
+    };
+
+    const fetchProjectStats = async (projectId) => {
+        if (!projectId) return;
+        try {
+            const res = await api.get(`/api/projects/${projectId}/stats`, {
+                params: {
+                    start_date: statsDateRange.start,
+                    end_date: statsDateRange.end
+                }
+            });
+            setProjectStats(res.data);
+        } catch (err) {
+            setError('無法取得統計數據');
+        }
+    };
+
+    const handleExportSchedules = async () => {
+        if (!selectedProjectId) {
+            alert('請先選擇一個專案');
+            return;
+        }
+        try {
+            const res = await api.get(`/api/projects/${selectedProjectId}/schedules/export`);
+            const dataStr = JSON.stringify(res.data, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            
+            const exportFileDefaultName = `project_${selectedProjectId}_schedules.json`;
+            
+            let linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileDefaultName);
+            linkElement.click();
+        } catch (err) {
+            alert('匯出失敗: ' + err.message);
+        }
+    };
+
+    const handleImportSchedules = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (!selectedProjectId) {
+            alert('請先選擇一個專案');
+            return;
+        }
+
+        if (!window.confirm('警告：匯入將會覆蓋此專案現有的所有步驟。確定要繼續嗎？')) {
+            e.target.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const jsonData = JSON.parse(event.target.result);
+                await api.post(`/api/projects/${selectedProjectId}/schedules/import`, jsonData);
+                alert('匯入成功');
+                fetchSchedules();
+            } catch (err) {
+                alert('匯入失敗: ' + err.message);
+            }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
     };
 
     // User Selection Modal State
@@ -500,6 +571,18 @@ const ProjectsManagement = () => {
                 >
                     <Users size={18} /> 參與用戶
                 </button>
+                <button
+                    onClick={() => setActiveTab('stats')}
+                    style={{
+                        padding: '12px 25px',
+                        backgroundColor: activeTab === 'stats' ? 'var(--secondary-black)' : 'transparent',
+                        color: activeTab === 'stats' ? 'var(--primary-yellow)' : '#B0B0B0',
+                        borderBottom: activeTab === 'stats' ? '2px solid var(--primary-yellow)' : 'none',
+                        display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '8px 8px 0 0'
+                    }}
+                >
+                    <BarChart2 size={18} /> 統計數據
+                </button>
             </div>
 
             {activeTab === 'projects' ? (
@@ -653,9 +736,22 @@ const ProjectsManagement = () => {
                                 (共 {schedules.length} 筆排程)
                             </span>
                         </div>
-                        <button className="primary" onClick={() => setShowAddScheduleForm(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
-                            <Plus size={18} /> 新增排程
-                        </button>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <button 
+                                onClick={handleExportSchedules}
+                                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', backgroundColor: '#333', color: '#fff' }}
+                                title="匯出步驟為 JSON"
+                            >
+                                <Download size={18} /> 匯出
+                            </button>
+                            <label className="primary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', cursor: 'pointer' }}>
+                                <Upload size={18} /> 匯入
+                                <input type="file" accept=".json" onChange={handleImportSchedules} style={{ display: 'none' }} />
+                            </label>
+                            <button className="primary" onClick={() => setShowAddScheduleForm(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
+                                <Plus size={18} /> 新增排程
+                            </button>
+                        </div>
                     </div>
 
                     {showAddScheduleForm && (
@@ -922,6 +1018,72 @@ const ProjectsManagement = () => {
                             </tbody>
                         </table>
                     </div>
+                </div>
+            ) : activeTab === 'stats' ? (
+                <div className="card">
+                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                            <h3 style={{ fontSize: '20px' }}>專案統計數據</h3>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#111', padding: '5px 15px', borderRadius: '8px' }}>
+                                <Filter size={16} className="text-yellow" />
+                                <span style={{ fontSize: '14px' }}>選擇專案:</span>
+                                <select
+                                    value={selectedProjectId}
+                                    onChange={e => setSelectedProjectId(e.target.value)}
+                                    style={{ background: 'transparent', border: 'none', padding: '5px' }}
+                                >
+                                    <option value="">請選擇專案...</option>
+                                    {projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ fontSize: '14px', color: '#B0B0B0' }}>時間範圍:</span>
+                            <input 
+                                type="date" 
+                                value={statsDateRange.start} 
+                                onChange={e => setStatsDateRange({...statsDateRange, start: e.target.value})}
+                                style={{ padding: '4px 8px', background: '#333', border: '1px solid #444', color: '#fff' }}
+                            />
+                            <span>~</span>
+                            <input 
+                                type="date" 
+                                value={statsDateRange.end} 
+                                onChange={e => setStatsDateRange({...statsDateRange, end: e.target.value})}
+                                style={{ padding: '4px 8px', background: '#333', border: '1px solid #444', color: '#fff' }}
+                            />
+                        </div>
+                    </div>
+
+                    {!selectedProjectId ? (
+                        <div style={{ textAlign: 'center', padding: '60px', color: '#666' }}>
+                            請先選擇一個專案以查看統計數據。
+                        </div>
+                    ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
+                            <div style={{ background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333' }}>
+                                <div style={{ color: '#888', fontSize: '14px', marginBottom: '10px' }}>觸發客戶數</div>
+                                <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--primary-yellow)' }}>{projectStats.tc}</div>
+                            </div>
+                            <div style={{ background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333' }}>
+                                <div style={{ color: '#888', fontSize: '14px', marginBottom: '10px' }}>完成率</div>
+                                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#4CAF50' }}>{projectStats.completion_rate}%</div>
+                                <div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>共 {projectStats.cc} 人完成全部步驟</div>
+                            </div>
+                            <div style={{ background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333' }}>
+                                <div style={{ color: '#888', fontSize: '14px', marginBottom: '10px' }}>總發送延遲訊息</div>
+                                <div style={{ fontSize: '32px', fontWeight: 'bold' }}>{projectStats.ms}</div>
+                            </div>
+                            <div style={{ background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333' }}>
+                                <div style={{ color: '#888', fontSize: '14px', marginBottom: '10px' }}>發送成功數</div>
+                                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#4CAF50' }}>{projectStats.mss}</div>
+                            </div>
+                            <div style={{ background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333' }}>
+                                <div style={{ color: '#888', fontSize: '14px', marginBottom: '10px' }}>發送失敗數</div>
+                                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#FF4D4D' }}>{projectStats.msf}</div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             ) : (
                 <div className="card">

@@ -449,6 +449,101 @@ def delete_project(id):
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route('/api/projects/<int:id>/stats', methods=['GET'])
+def get_project_stats(id):
+    try:
+        start_date = request.args.get('start_date') # YYYY-MM-DD
+        end_date = request.args.get('end_date')     # YYYY-MM-DD
+        
+        if not start_date or not end_date:
+            return jsonify({"error": "Missing start_date or end_date"}), 400
+
+        app_id = get_current_app_id()
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # We search for keys like "pj:{id}:stats:{YYYY-MM-DD}:{metric}"
+        # Metrics: tc, cc, ms, mss, msf
+        query = f"""
+            SELECT name, value 
+            FROM "Global_var:{app_id}" 
+            WHERE name LIKE %s
+        """
+        prefix = f"pj:{id}:stats:"
+        cur.execute(query, (f"{prefix}%",))
+        rows = cur.fetchall()
+        
+        stats = {
+            "tc": 0,
+            "cc": 0,
+            "ms": 0,
+            "mss": 0,
+            "msf": 0
+        }
+        
+        # Parse and aggregate
+        # name format: pj:{id}:stats:{YYYY-MM-DD}:{metric}
+        for row in rows:
+            parts = row['name'].split(':')
+            if len(parts) == 5:
+                date_str = parts[3]
+                metric = parts[4]
+                if start_date <= date_str <= end_date:
+                    if metric in stats:
+                        try:
+                            stats[metric] += int(row['value'])
+                        except:
+                            pass
+        
+        # Calculate completion rate
+        stats['completion_rate'] = 0
+        if stats['tc'] > 0:
+            stats['completion_rate'] = round((stats['cc'] / stats['tc']) * 100, 2)
+            
+        cur.close()
+        conn.close()
+        return jsonify(stats)
+    except Exception as e:
+        print(f"Error in get_project_stats: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/projects/<int:id>/schedules/export', methods=['GET'])
+def export_project_schedules(id):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT step_id, interval_hours, message_content FROM project_schedules WHERE project_id = %s ORDER BY step_id", (id,))
+        schedules = cur.fetchall()
+        cur.close()
+        conn.close()
+        return json_response(schedules)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/projects/<int:id>/schedules/import', methods=['POST'])
+def import_project_schedules(id):
+    data = request.json # List of schedules
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Delete existing
+        cur.execute("DELETE FROM project_schedules WHERE project_id = %s", (id,))
+        
+        # Insert new
+        for s in data:
+            cur.execute(
+                "INSERT INTO project_schedules (project_id, step_id, interval_hours, message_content) VALUES (%s, %s, %s, %s)",
+                (id, s['step_id'], s['interval_hours'], s['message_content'])
+            )
+            
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/projects/<int:id>/users', methods=['GET'])
 def get_project_users(id):
     try:
