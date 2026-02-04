@@ -157,7 +157,7 @@ const ProjectsManagement = () => {
     const fetchProjectStats = async (projectId) => {
         if (!projectId) return;
         try {
-            const res = await api.get(`/api/projects/${projectId}/stats`, {
+            const res = await api.get(`/projects/${projectId}/stats`, {
                 params: {
                     start_date: statsDateRange.start,
                     end_date: statsDateRange.end
@@ -175,7 +175,7 @@ const ProjectsManagement = () => {
             return;
         }
         try {
-            const res = await api.get(`/api/projects/${selectedProjectId}/schedules/export`);
+            const res = await api.get(`/projects/${selectedProjectId}/schedules/export`);
             const dataStr = JSON.stringify(res.data, null, 2);
             const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
 
@@ -207,7 +207,7 @@ const ProjectsManagement = () => {
         reader.onload = async (event) => {
             try {
                 const jsonData = JSON.parse(event.target.result);
-                await api.post(`/api/projects/${selectedProjectId}/schedules/import`, jsonData);
+                await api.post(`/projects/${selectedProjectId}/schedules/import`, jsonData);
                 alert('匯入成功');
                 fetchSchedules();
             } catch (err) {
