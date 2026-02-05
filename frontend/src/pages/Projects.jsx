@@ -1,11 +1,71 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import api from '../api';
-import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type, BarChart2, Download, Upload } from 'lucide-react';
+import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type, BarChart2, Download, Upload, Play, ExternalLink } from 'lucide-react';
 import FlexMessageEditor from '../components/FlexMessageEditor';
+import JourneyPreview from '../components/JourneyPreview';
 
 const ProjectsManagement = () => {
     const location = useLocation();
+
+    // Project Preview State & Handlers
+    const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+    const [previewSteps, setPreviewSteps] = useState([]);
+    const [previewLoading, setPreviewLoading] = useState(false);
+
+    const handlePreviewProject = async () => {
+        if (!selectedProjectId) {
+            alert('請先選擇一個專案');
+            return;
+        }
+        setPreviewLoading(true);
+        setIsPreviewModalOpen(true);
+        setPreviewSteps([]);
+
+        try {
+            // Determine sort order
+            const currentProjectSchedules = schedules.filter(s => s.project_id == selectedProjectId);
+            const sorted = [...currentProjectSchedules].sort((a, b) => (parseInt(a.step_id) || 0) - (parseInt(b.step_id) || 0));
+
+            const steps = [];
+            for (const s of sorted) {
+                let msg = null;
+                const content = s.message_content;
+                if (content && content.startsWith('QA|')) {
+                    const tag = content.substring(3);
+                    try {
+                        const res = await api.get(`/qa-bank/${tag}`);
+                        const msgs = res.data.msg_rpy || [];
+                        // Take the first message for preview sim
+                        if (msgs.length > 0) {
+                            let first = msgs[0];
+                            if (typeof first === 'string') {
+                                try { first = JSON.parse(first); } catch (e) { }
+                            }
+                            if (first.Line) first = first.Line;
+                            msg = first;
+                        }
+                    } catch (e) {
+                        console.error("Failed to fetch QA content", e);
+                        msg = { OTYPE: 'TextSendMessage', text: '[無法讀取訊息內容]' };
+                    }
+                } else if (content) {
+                    msg = { OTYPE: 'TextSendMessage', text: content };
+                }
+
+                if (msg) {
+                    // Format delay
+                    const delay = `Step ${s.step_id} (間隔 ${s.interval_hours} hr)`;
+                    steps.push({ ...msg, delay });
+                }
+            }
+            setPreviewSteps(steps);
+        } catch (err) {
+            alert('預覽生成失敗: ' + err.message);
+        } finally {
+            setPreviewLoading(false);
+        }
+    };
     // Helper to format hours to Day/Hour/Minute
     const formatInterval = (totalHours) => {
         const h = parseFloat(totalHours) || 0;
@@ -255,6 +315,54 @@ const ProjectsManagement = () => {
         }
     };
 
+    // Project Preview State
+
+
+
+
+
+    // try {
+    // Fetch schedules again or use state? Use state `schedules` but ensure it's up to date?
+    // `schedules` state might be filtered or not? 
+    // `fetchSchedules` fetches by `selectedProjectId` if set.
+    // Let's rely on `schedules` but sort it.
+
+
+    /* const steps = [];
+    // for (const s of sorted) {
+    let msg = null;
+    const content = s.message_content;
+    if (content && content.startsWith('QA|')) {
+        const tag = content.substring(3);
+        try {
+            const res = await api.get(`/qa-bank/${tag}`);
+            const msgs = res.data.msg_rpy || [];
+            // Take the first message for preview sim
+            if (msgs.length > 0) {
+                let first = msgs[0];
+                if (typeof first === 'string') first = JSON.parse(first);
+                if (first.Line) first = first.Line;
+                msg = first;
+            }
+        } catch (e) {
+            console.error("Failed to fetch QA content", e);
+            msg = { OTYPE: 'TextSendMessage', text: '[無法讀取訊息內容]' };
+        }
+    } else if (content) {
+        msg = { OTYPE: 'TextSendMessage', text: content };
+    }
+
+    if (msg) {
+        // Format delay
+        const delay = `Step ${s.step_id} (間隔 ${s.interval_hours} hr)`;
+        steps.push({ ...msg, delay });
+    }
+}
+setPreviewSteps(steps);
+// } catch (err) { */
+    // alert('預覽生成失敗: ' + err.message);
+
+
     // Project Actions
     const handleEditProjectClick = (project) => {
         setEditingProjectId(project.project_id);
@@ -363,9 +471,15 @@ const ProjectsManagement = () => {
                 );
             }
 
+            // Ensure interval_hours is valid
+            const safeInterval = (editScheduleFormData.interval_hours === '' || editScheduleFormData.interval_hours === null)
+                ? '0'
+                : editScheduleFormData.interval_hours;
+
             // Update with processed message content
             await api.put(`/schedules/${editingScheduleId}`, {
                 ...editScheduleFormData,
+                interval_hours: safeInterval,
                 message_content: finalMessageContent
             });
 
@@ -399,6 +513,11 @@ const ProjectsManagement = () => {
                     scheduleToCreate.project_id,
                     scheduleToCreate.step_id
                 );
+            }
+
+            // Ensure interval_hours is valid
+            if (scheduleToCreate.interval_hours === '' || scheduleToCreate.interval_hours === null) {
+                scheduleToCreate.interval_hours = '0';
             }
 
             await api.post('/schedules', scheduleToCreate);
@@ -586,570 +705,579 @@ const ProjectsManagement = () => {
                 </button>
             </div>
 
-            {activeTab === 'projects' ? (
-                <div className="card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                        <h3 style={{ fontSize: '20px' }}>專案列表</h3>
-                        <button className="primary" onClick={() => setShowAddProjectForm(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
-                            <Plus size={18} /> 新增專案
-                        </button>
-                    </div>
+            {
+                activeTab === 'projects' ? (
+                    <div className="card">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                            <h3 style={{ fontSize: '20px' }}>專案列表</h3>
+                            <button className="primary" onClick={() => setShowAddProjectForm(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
+                                <Plus size={18} /> 新增專案
+                            </button>
+                        </div>
 
-                    {showAddProjectForm && (
-                        <div style={{ backgroundColor: '#222', padding: '20px', borderRadius: '12px', marginBottom: '25px', border: '1px solid #333' }}>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', alignItems: 'flex-start' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', flex: '1 1 480px', minWidth: '300px' }}>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>專案名稱</label>
-                                        <input type="text" value={newProject.project_name} onChange={(e) => setNewProject({ ...newProject, project_name: e.target.value })} style={{ width: '100%' }} />
-                                    </div>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                                        <div style={{ flex: '1 1 180px' }}>
-                                            <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>開始時間</label>
-                                            <input type="datetime-local" value={newProject.start_date} onChange={(e) => setNewProject({ ...newProject, start_date: e.target.value })} style={{ width: '100%' }} />
+                        {showAddProjectForm && (
+                            <div style={{ backgroundColor: '#222', padding: '20px', borderRadius: '12px', marginBottom: '25px', border: '1px solid #333' }}>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', alignItems: 'flex-start' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', flex: '1 1 480px', minWidth: '300px' }}>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>專案名稱</label>
+                                            <input type="text" value={newProject.project_name} onChange={(e) => setNewProject({ ...newProject, project_name: e.target.value })} style={{ width: '100%' }} />
                                         </div>
-                                        <div style={{ flex: '1 1 180px' }}>
-                                            <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>結束時間</label>
-                                            <input type="datetime-local" value={newProject.end_date} onChange={(e) => setNewProject({ ...newProject, end_date: e.target.value })} style={{ width: '100%' }} />
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                                            <div style={{ flex: '1 1 180px' }}>
+                                                <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>開始時間</label>
+                                                <input type="datetime-local" value={newProject.start_date} onChange={(e) => setNewProject({ ...newProject, start_date: e.target.value })} style={{ width: '100%' }} />
+                                            </div>
+                                            <div style={{ flex: '1 1 180px' }}>
+                                                <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>結束時間</label>
+                                                <input type="datetime-local" value={newProject.end_date} onChange={(e) => setNewProject({ ...newProject, end_date: e.target.value })} style={{ width: '100%' }} />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#B0B0B0' }}>
+                                                <input type="checkbox" checked={newProject.is_enabled} onChange={(e) => setNewProject({ ...newProject, is_enabled: e.target.checked })} /> 啟用專案
+                                            </label>
                                         </div>
                                     </div>
-                                    <div>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#B0B0B0' }}>
-                                            <input type="checkbox" checked={newProject.is_enabled} onChange={(e) => setNewProject({ ...newProject, is_enabled: e.target.checked })} /> 啟用專案
-                                        </label>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: '1 1 480px', minWidth: '300px' }}>
+                                        {renderConfigInputs(newProject, setNewProject, false)}
                                     </div>
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: '1 1 480px', minWidth: '300px' }}>
-                                    {renderConfigInputs(newProject, setNewProject, false)}
-                                </div>
-                                <div style={{ display: 'flex', gap: '10px', alignSelf: 'flex-end', flex: '0 0 auto', marginLeft: 'auto' }}>
-                                    <button className="primary" onClick={handleCreateProject} style={{ minWidth: '80px' }}>儲存</button>
-                                    <button onClick={() => setShowAddProjectForm(false)} style={{ background: '#444', minWidth: '80px' }}>取消</button>
+                                    <div style={{ display: 'flex', gap: '10px', alignSelf: 'flex-end', flex: '0 0 auto', marginLeft: 'auto' }}>
+                                        <button className="primary" onClick={handleCreateProject} style={{ minWidth: '80px' }}>儲存</button>
+                                        <button onClick={() => setShowAddProjectForm(false)} style={{ background: '#444', minWidth: '80px' }}>取消</button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        )}
 
-                    <div style={{ overflowX: 'auto' }}>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>專案名稱</th>
-                                    <th>有效期間</th>
-                                    <th>狀態</th>
-                                    <th>詳細設定</th>
-                                    <th>操作</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {projects.map((p) => (
-                                    <tr key={p.project_id}>
-                                        <td
-                                            onClick={() => {
-                                                if (editingProjectId !== p.project_id) {
-                                                    setActiveTab('schedules');
-                                                    setSelectedProjectId(p.project_id);
-                                                }
-                                            }}
-                                            style={{ cursor: editingProjectId !== p.project_id ? 'pointer' : 'default', textDecoration: editingProjectId !== p.project_id ? 'underline' : 'none', color: '#fff' }}
-                                        >
-                                            {editingProjectId === p.project_id ? (
-                                                <input type="text" value={editProjectFormData.project_name} onChange={e => setEditProjectFormData({ ...editProjectFormData, project_name: e.target.value })} style={{ width: '100%' }} />
-                                            ) : (
-                                                <span>{p.project_name} <span style={{ fontSize: '10px', color: '#666' }}>({p.project_id})</span></span>
-                                            )}
-                                        </td>
-                                        <td style={{ fontSize: '14px' }}>
-                                            {editingProjectId === p.project_id ? (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                                    <input type="datetime-local" value={editProjectFormData.start_date.replace(' ', 'T').slice(0, 16)} onChange={e => setEditProjectFormData({ ...editProjectFormData, start_date: e.target.value })} style={{ padding: '5px' }} />
-                                                    <input type="datetime-local" value={editProjectFormData.end_date.replace(' ', 'T').slice(0, 16)} onChange={e => setEditProjectFormData({ ...editProjectFormData, end_date: e.target.value })} style={{ padding: '5px' }} />
-                                                </div>
-                                            ) : (
-                                                <span style={{ color: '#B0B0B0' }}>
-                                                    {p.start_date.slice(0, 16).replace('T', ' ')} <br />
-                                                    ~ {p.end_date.slice(0, 16).replace('T', ' ')}
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td>
-                                            {editingProjectId === p.project_id ? (
-                                                <label>
-                                                    <input type="checkbox" checked={editProjectFormData.is_enabled} onChange={e => setEditProjectFormData({ ...editProjectFormData, is_enabled: e.target.checked })} /> 啟用
-                                                </label>
-                                            ) : (
-                                                getStatusBadge(p.status)
-                                            )}
-                                        </td>
-                                        <td style={{ fontSize: '12px', color: '#aaa', maxWidth: '200px' }}>
-                                            {editingProjectId === p.project_id ? (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                                    <div style={{ fontSize: '11px', color: '#888' }}>設定詳細編輯中...</div>
-                                                    {renderConfigInputs(editProjectFormData, setEditProjectFormData, true)}
-                                                </div>
-                                            ) : (
-                                                <div>
-                                                    <div>⚓ {p.anchor_config?.type === 'weekly' ? `週${['日', '一', '二', '三', '四', '五', '六'][p.anchor_config.day]} ${p.anchor_config.time}` : '立即'}</div>
-                                                    {p.dormancy_config?.enabled && (
-                                                        <div>💤 {p.dormancy_config.start}~{p.dormancy_config.end}</div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </td>
-                                        <td>
-                                            {editingProjectId === p.project_id ? (
-                                                <div style={{ display: 'flex', gap: '10px' }}>
-                                                    <Check className="text-yellow" style={{ cursor: 'pointer' }} onClick={handleUpdateProject} />
-                                                    <X style={{ cursor: 'pointer' }} onClick={() => setEditingProjectId(null)} />
-                                                </div>
-                                            ) : (
-                                                <div style={{ display: 'flex', gap: '15px' }}>
-                                                    <Edit2 size={18} style={{ cursor: 'pointer', color: '#B0B0B0' }} onClick={() => handleEditProjectClick(p)} />
-                                                    <Trash2 size={18} style={{ cursor: 'pointer', color: '#FF4D4D' }} onClick={() => handleDeleteProject(p.project_id)} />
-                                                </div>
-                                            )}
-                                        </td>
+                        <div style={{ overflowX: 'auto' }}>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>專案名稱</th>
+                                        <th>有效期間</th>
+                                        <th>狀態</th>
+                                        <th>詳細設定</th>
+                                        <th>操作</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            ) : activeTab === 'schedules' ? (
-                <div className="card">
-                    {/* ... Schedules content remains same, just adjusted the nesting ... */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                            <h3 style={{ fontSize: '20px' }}>排程清單</h3>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#111', padding: '5px 15px', borderRadius: '8px' }}>
-                                <Filter size={16} className="text-yellow" />
-                                <span style={{ fontSize: '14px' }}>過濾專案:</span>
-                                <select
-                                    value={selectedProjectId}
-                                    onChange={e => setSelectedProjectId(e.target.value)}
-                                    style={{ background: 'transparent', border: 'none', padding: '5px' }}
-                                >
-                                    <option value="">全部顯示</option>
-                                    {projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
-                                </select>
-                            </div>
-                            <span style={{ fontSize: '13px', color: '#888' }}>
-                                (共 {schedules.length} 筆排程)
-                            </span>
+                                </thead>
+                                <tbody>
+                                    {projects.map((p) => (
+                                        <tr key={p.project_id}>
+                                            <td
+                                                onClick={() => {
+                                                    if (editingProjectId !== p.project_id) {
+                                                        setActiveTab('schedules');
+                                                        setSelectedProjectId(p.project_id);
+                                                    }
+                                                }}
+                                                style={{ cursor: editingProjectId !== p.project_id ? 'pointer' : 'default', textDecoration: editingProjectId !== p.project_id ? 'underline' : 'none', color: '#fff' }}
+                                            >
+                                                {editingProjectId === p.project_id ? (
+                                                    <input type="text" value={editProjectFormData.project_name} onChange={e => setEditProjectFormData({ ...editProjectFormData, project_name: e.target.value })} style={{ width: '100%' }} />
+                                                ) : (
+                                                    <span>{p.project_name} <span style={{ fontSize: '10px', color: '#666' }}>({p.project_id})</span></span>
+                                                )}
+                                            </td>
+                                            <td style={{ fontSize: '14px' }}>
+                                                {editingProjectId === p.project_id ? (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                        <input type="datetime-local" value={editProjectFormData.start_date.replace(' ', 'T').slice(0, 16)} onChange={e => setEditProjectFormData({ ...editProjectFormData, start_date: e.target.value })} style={{ padding: '5px' }} />
+                                                        <input type="datetime-local" value={editProjectFormData.end_date.replace(' ', 'T').slice(0, 16)} onChange={e => setEditProjectFormData({ ...editProjectFormData, end_date: e.target.value })} style={{ padding: '5px' }} />
+                                                    </div>
+                                                ) : (
+                                                    <span style={{ color: '#B0B0B0' }}>
+                                                        {p.start_date.slice(0, 16).replace('T', ' ')} <br />
+                                                        ~ {p.end_date.slice(0, 16).replace('T', ' ')}
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td>
+                                                {editingProjectId === p.project_id ? (
+                                                    <label>
+                                                        <input type="checkbox" checked={editProjectFormData.is_enabled} onChange={e => setEditProjectFormData({ ...editProjectFormData, is_enabled: e.target.checked })} /> 啟用
+                                                    </label>
+                                                ) : (
+                                                    getStatusBadge(p.status)
+                                                )}
+                                            </td>
+                                            <td style={{ fontSize: '12px', color: '#aaa', maxWidth: '200px' }}>
+                                                {editingProjectId === p.project_id ? (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                        <div style={{ fontSize: '11px', color: '#888' }}>設定詳細編輯中...</div>
+                                                        {renderConfigInputs(editProjectFormData, setEditProjectFormData, true)}
+                                                    </div>
+                                                ) : (
+                                                    <div>
+                                                        <div>⚓ {p.anchor_config?.type === 'weekly' ? `週${['日', '一', '二', '三', '四', '五', '六'][p.anchor_config.day]} ${p.anchor_config.time}` : '立即'}</div>
+                                                        {p.dormancy_config?.enabled && (
+                                                            <div>💤 {p.dormancy_config.start}~{p.dormancy_config.end}</div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td>
+                                                {editingProjectId === p.project_id ? (
+                                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                                        <Check className="text-yellow" style={{ cursor: 'pointer' }} onClick={handleUpdateProject} />
+                                                        <X style={{ cursor: 'pointer' }} onClick={() => setEditingProjectId(null)} />
+                                                    </div>
+                                                ) : (
+                                                    <div style={{ display: 'flex', gap: '15px' }}>
+                                                        <Edit2 size={18} style={{ cursor: 'pointer', color: '#B0B0B0' }} onClick={() => handleEditProjectClick(p)} />
+                                                        <Trash2 size={18} style={{ cursor: 'pointer', color: '#FF4D4D' }} onClick={() => handleDeleteProject(p.project_id)} />
+                                                    </div>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                            <button
-                                onClick={handleExportSchedules}
-                                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', backgroundColor: '#333', color: '#fff' }}
-                                title="匯出步驟為 JSON"
-                            >
-                                <Download size={18} /> 匯出
-                            </button>
-                            <label className="primary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', cursor: 'pointer' }}>
-                                <Upload size={18} /> 匯入
-                                <input type="file" accept=".json" onChange={handleImportSchedules} style={{ display: 'none' }} />
-                            </label>
-                            <button className="primary" onClick={() => setShowAddScheduleForm(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
-                                <Plus size={18} /> 新增排程
-                            </button>
-                        </div>
                     </div>
-
-                    {showAddScheduleForm && (
-                        <div style={{ backgroundColor: '#222', padding: '20px', borderRadius: '12px', marginBottom: '25px', border: '1px solid #333' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) 80px 340px 2fr auto', gap: '15px', alignItems: 'end' }}>
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>所屬專案</label>
+                ) : activeTab === 'schedules' ? (
+                    <div className="card">
+                        {/* ... Schedules content remains same, just adjusted the nesting ... */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                                <h3 style={{ fontSize: '20px' }}>排程清單</h3>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#111', padding: '5px 15px', borderRadius: '8px' }}>
+                                    <Filter size={16} className="text-yellow" />
+                                    <span style={{ fontSize: '14px' }}>過濾專案:</span>
                                     <select
-                                        value={newSchedule.project_id || selectedProjectId}
-                                        onChange={e => setNewSchedule({ ...newSchedule, project_id: e.target.value })}
-                                        style={{ width: '100%' }}
+                                        value={selectedProjectId}
+                                        onChange={e => setSelectedProjectId(e.target.value)}
+                                        style={{ background: 'transparent', border: 'none', padding: '5px' }}
                                     >
-                                        <option value="">選擇專案...</option>
+                                        <option value="">全部顯示</option>
                                         {projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
                                     </select>
                                 </div>
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>步驟 ID</label>
-                                    <input type="number" value={newSchedule.step_id} onChange={e => setNewSchedule({ ...newSchedule, step_id: e.target.value })} style={{ width: '100%' }} />
-                                </div>
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>間隔 (天/時)</label>
-                                    <div style={{ display: 'flex', gap: '5px' }}>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            step="1"
-                                            placeholder="天"
-                                            value={(() => {
-                                                const { days } = formatInterval(newSchedule.interval_hours);
-                                                return days;
-                                            })()}
-                                            onChange={e => {
-                                                const d = parseInt(e.target.value) || 0;
-                                                const { hours, minutes } = formatInterval(newSchedule.interval_hours);
-                                                const total = d * 24 + hours + minutes / 60;
-                                                setNewSchedule({ ...newSchedule, interval_hours: total.toString() });
-                                            }}
-                                            style={{ width: '100%', minWidth: '60px' }}
-                                        />
-                                        <span style={{ alignSelf: 'center', color: '#B0B0B0' }}>天</span>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            max="23"
-                                            step="1"
-                                            placeholder="時"
-                                            value={(() => {
-                                                const { hours } = formatInterval(newSchedule.interval_hours);
-                                                return hours;
-                                            })()}
-                                            onChange={e => {
-                                                const h = parseInt(e.target.value) || 0;
-                                                const { days, minutes } = formatInterval(newSchedule.interval_hours);
-                                                const total = days * 24 + h + minutes / 60;
-                                                setNewSchedule({ ...newSchedule, interval_hours: total.toString() });
-                                            }}
-                                            style={{ width: '100%', minWidth: '60px' }}
-                                        />
-                                        <span style={{ alignSelf: 'center', color: '#B0B0B0' }}>時</span>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            max="59"
-                                            step="1"
-                                            placeholder="分"
-                                            value={(() => {
-                                                const { minutes } = formatInterval(newSchedule.interval_hours);
-                                                return minutes;
-                                            })()}
-                                            onChange={e => {
-                                                const m = parseInt(e.target.value) || 0;
-                                                const { days, hours } = formatInterval(newSchedule.interval_hours);
-                                                const total = days * 24 + hours + m / 60;
-                                                setNewSchedule({ ...newSchedule, interval_hours: total.toString() });
-                                            }}
-                                            style={{ width: '100%', minWidth: '60px' }}
-                                        />
-                                        <span style={{ alignSelf: 'center', color: '#B0B0B0' }}>分</span>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>訊息內容</label>
-                                    <div style={{ display: 'flex', gap: '5px' }}>
-                                        <input
-                                            type="text"
-                                            value={(newSchedule.message_content && newSchedule.message_content.startsWith('QA|') && newSchedule.message_preview)
-                                                ? newSchedule.message_preview
-                                                : newSchedule.message_content
-                                            }
-                                            onChange={e => setNewSchedule({ ...newSchedule, message_content: e.target.value })}
-                                            style={{ width: '100%' }}
-                                        />
-                                        <button
-                                            onClick={() => openRichEditor(
-                                                newSchedule.message_content,
-                                                selectedProjectId,
-                                                newSchedule.step_id,
-                                                (val, preview) => setNewSchedule(prev => ({ ...prev, message_content: val, message_preview: preview }))
-                                            )}
-                                            title="編輯多媒體/Flex訊息"
-                                            style={{ padding: '8px', background: '#333', border: '1px solid #444', color: 'var(--primary-yellow)' }}
-                                        >
-                                            <MessageSquare size={16} />
-                                        </button>
-                                    </div>
-                                </div>
-                                <div style={{ display: 'flex', gap: '10px' }}>
-                                    <button className="primary" onClick={handleCreateSchedule} style={{ minWidth: '80px' }}>儲存</button>
-                                    <button onClick={() => setShowAddScheduleForm(false)} style={{ background: '#444', minWidth: '80px' }}>取消</button>
-                                </div>
+                                <span style={{ fontSize: '13px', color: '#888' }}>
+                                    (共 {schedules.length} 筆排程)
+                                </span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                                <button
+                                    onClick={handlePreviewProject}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', backgroundColor: '#444', color: '#fff' }}
+                                    title="預覽專案完整流程"
+                                >
+                                    <Play size={18} /> 預覽專案
+                                </button>
+                                <button
+                                    onClick={handleExportSchedules}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', backgroundColor: '#333', color: '#fff' }}
+                                    title="匯出步驟為 JSON"
+                                >
+                                    <Download size={18} /> 匯出
+                                </button>
+                                <label className="primary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', cursor: 'pointer' }}>
+                                    <Upload size={18} /> 匯入
+                                    <input type="file" accept=".json" onChange={handleImportSchedules} style={{ display: 'none' }} />
+                                </label>
+                                <button className="primary" onClick={() => setShowAddScheduleForm(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
+                                    <Plus size={18} /> 新增排程
+                                </button>
                             </div>
                         </div>
-                    )}
 
-                    <div style={{ overflowX: 'auto' }}>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>專案</th>
-                                    <th>步驟</th>
-                                    <th>間隔時間</th>
-                                    <th>預設訊息內容</th>
-                                    <th>操作</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {schedules.length > 0 ? schedules.map((s) => (
-                                    <tr key={s.schedule_id}>
-                                        <td style={{ fontSize: '13px', color: '#B0B0B0' }}>
-                                            {projects.find(p => p.project_id === s.project_id)?.project_name || `ID: ${s.project_id}`}
-                                        </td>
-                                        <td>
-                                            {editingScheduleId === s.schedule_id ? (
-                                                <input type="number" value={editScheduleFormData.step_id} onChange={e => setEditScheduleFormData({ ...editScheduleFormData, step_id: e.target.value })} style={{ width: '60px' }} />
-                                            ) : s.step_id}
-                                        </td>
-                                        <td>
-                                            {editingScheduleId === s.schedule_id ? (
-                                                <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        step="1"
-                                                        value={(() => {
-                                                            const { days } = formatInterval(editScheduleFormData.interval_hours);
-                                                            return days;
-                                                        })()}
-                                                        onChange={e => {
-                                                            const d = parseInt(e.target.value) || 0;
-                                                            const { hours, minutes } = formatInterval(editScheduleFormData.interval_hours);
-                                                            const total = d * 24 + hours + minutes / 60;
-                                                            setEditScheduleFormData({ ...editScheduleFormData, interval_hours: total.toString() });
-                                                        }}
-                                                        style={{ width: '40px', minWidth: '60px' }}
-                                                    /> <span style={{ fontSize: '12px' }}>天</span>
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        max="23"
-                                                        step="1"
-                                                        value={(() => {
-                                                            const { hours } = formatInterval(editScheduleFormData.interval_hours);
-                                                            return hours;
-                                                        })()}
-                                                        onChange={e => {
-                                                            const h = parseInt(e.target.value) || 0;
-                                                            const { days, minutes } = formatInterval(editScheduleFormData.interval_hours);
-                                                            const total = days * 24 + h + minutes / 60;
-                                                            setEditScheduleFormData({ ...editScheduleFormData, interval_hours: total.toString() });
-                                                        }}
-                                                        style={{ width: '40px', minWidth: '60px' }}
-                                                    /> <span style={{ fontSize: '12px' }}>時</span>
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        max="59"
-                                                        step="1"
-                                                        value={(() => {
-                                                            const { minutes } = formatInterval(editScheduleFormData.interval_hours);
-                                                            return minutes;
-                                                        })()}
-                                                        onChange={e => {
-                                                            const m = parseInt(e.target.value) || 0;
-                                                            const { days, hours } = formatInterval(editScheduleFormData.interval_hours);
-                                                            const total = days * 24 + hours + m / 60;
-                                                            setEditScheduleFormData({ ...editScheduleFormData, interval_hours: total.toString() });
-                                                        }}
-                                                        style={{ width: '40px', minWidth: '60px' }}
-                                                    /> <span style={{ fontSize: '12px' }}>分</span>
-                                                </div>
-                                            ) : (
-                                                (() => {
-                                                    const { days, hours, minutes } = formatInterval(s.interval_hours);
-                                                    let text = '';
-                                                    if (days > 0) text += `${days} 天 `;
-                                                    if (hours > 0) text += `${hours} 小時 `;
-                                                    if (minutes > 0) text += `${minutes} 分`;
-                                                    if (!text) text = '0 分';
-                                                    return <span>{text}</span>
-                                                })()
-                                            )}
-                                        </td>
-                                        <td style={{ maxWidth: '300px' }}>
-                                            {editingScheduleId === s.schedule_id ? (
-                                                <div style={{ display: 'flex', gap: '5px' }}>
-                                                    <input
-                                                        type="text"
-                                                        value={(editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.message_preview)
-                                                            ? editScheduleFormData.message_preview
-                                                            : editScheduleFormData.message_content
-                                                        }
-                                                        onChange={e => setEditScheduleFormData({ ...editScheduleFormData, message_content: e.target.value })}
-                                                        style={{ width: '100%' }}
-                                                    />
+                        {showAddScheduleForm && (
+                            <div style={{ backgroundColor: '#222', padding: '20px', borderRadius: '12px', marginBottom: '25px', border: '1px solid #333' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) 80px 340px 2fr auto', gap: '15px', alignItems: 'end' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>所屬專案</label>
+                                        <select
+                                            value={newSchedule.project_id || selectedProjectId}
+                                            onChange={e => setNewSchedule({ ...newSchedule, project_id: e.target.value })}
+                                            style={{ width: '100%' }}
+                                        >
+                                            <option value="">選擇專案...</option>
+                                            {projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>步驟 ID</label>
+                                        <input type="number" value={newSchedule.step_id} onChange={e => setNewSchedule({ ...newSchedule, step_id: e.target.value })} style={{ width: '100%' }} />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>間隔 (天/時)</label>
+                                        <div style={{ display: 'flex', gap: '5px' }}>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="1"
+                                                placeholder="天"
+                                                value={(() => {
+                                                    const { days } = formatInterval(newSchedule.interval_hours);
+                                                    return days;
+                                                })()}
+                                                onChange={e => {
+                                                    const d = parseInt(e.target.value) || 0;
+                                                    const { hours, minutes } = formatInterval(newSchedule.interval_hours);
+                                                    const total = d * 24 + hours + minutes / 60;
+                                                    setNewSchedule({ ...newSchedule, interval_hours: total.toString() });
+                                                }}
+                                                style={{ width: '100%', minWidth: '60px' }}
+                                            />
+                                            <span style={{ alignSelf: 'center', color: '#B0B0B0' }}>天</span>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                max="23"
+                                                step="1"
+                                                placeholder="時"
+                                                value={(() => {
+                                                    const { hours } = formatInterval(newSchedule.interval_hours);
+                                                    return hours;
+                                                })()}
+                                                onChange={e => {
+                                                    const h = parseInt(e.target.value) || 0;
+                                                    const { days, minutes } = formatInterval(newSchedule.interval_hours);
+                                                    const total = days * 24 + h + minutes / 60;
+                                                    setNewSchedule({ ...newSchedule, interval_hours: total.toString() });
+                                                }}
+                                                style={{ width: '100%', minWidth: '60px' }}
+                                            />
+                                            <span style={{ alignSelf: 'center', color: '#B0B0B0' }}>時</span>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                max="59"
+                                                step="1"
+                                                placeholder="分"
+                                                value={(() => {
+                                                    const { minutes } = formatInterval(newSchedule.interval_hours);
+                                                    return minutes;
+                                                })()}
+                                                onChange={e => {
+                                                    const m = parseInt(e.target.value) || 0;
+                                                    const { days, hours } = formatInterval(newSchedule.interval_hours);
+                                                    const total = days * 24 + hours + m / 60;
+                                                    setNewSchedule({ ...newSchedule, interval_hours: total.toString() });
+                                                }}
+                                                style={{ width: '100%', minWidth: '60px' }}
+                                            />
+                                            <span style={{ alignSelf: 'center', color: '#B0B0B0' }}>分</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>訊息內容</label>
+                                        <div style={{ display: 'flex', gap: '5px' }}>
+                                            <input
+                                                type="text"
+                                                value={(newSchedule.message_content && newSchedule.message_content.startsWith('QA|') && newSchedule.message_preview)
+                                                    ? newSchedule.message_preview
+                                                    : newSchedule.message_content
+                                                }
+                                                onChange={e => setNewSchedule({ ...newSchedule, message_content: e.target.value })}
+                                                style={{ width: '100%' }}
+                                            />
+                                            <button
+                                                onClick={() => openRichEditor(
+                                                    newSchedule.message_content,
+                                                    selectedProjectId,
+                                                    newSchedule.step_id,
+                                                    (val, preview) => setNewSchedule(prev => ({ ...prev, message_content: val, message_preview: preview }))
+                                                )}
+                                                title="編輯多媒體/Flex訊息"
+                                                style={{ padding: '8px', background: '#333', border: '1px solid #444', color: 'var(--primary-yellow)' }}
+                                            >
+                                                <MessageSquare size={16} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                        <button className="primary" onClick={handleCreateSchedule} style={{ minWidth: '80px' }}>儲存</button>
+                                        <button onClick={() => setShowAddScheduleForm(false)} style={{ background: '#444', minWidth: '80px' }}>取消</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div style={{ overflowX: 'auto' }}>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>專案</th>
+                                        <th>步驟</th>
+                                        <th>間隔時間</th>
+                                        <th>預設訊息內容</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {schedules.length > 0 ? schedules.map((s) => (
+                                        <tr key={s.schedule_id}>
+                                            <td style={{ fontSize: '13px', color: '#B0B0B0' }}>
+                                                {projects.find(p => p.project_id === s.project_id)?.project_name || `ID: ${s.project_id}`}
+                                            </td>
+                                            <td>
+                                                {editingScheduleId === s.schedule_id ? (
+                                                    <input type="number" value={editScheduleFormData.step_id} onChange={e => setEditScheduleFormData({ ...editScheduleFormData, step_id: e.target.value })} style={{ width: '60px' }} />
+                                                ) : s.step_id}
+                                            </td>
+                                            <td>
+                                                {editingScheduleId === s.schedule_id ? (
+                                                    <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            step="1"
+                                                            value={(() => {
+                                                                const { days } = formatInterval(editScheduleFormData.interval_hours);
+                                                                return days;
+                                                            })()}
+                                                            onChange={e => {
+                                                                const d = parseInt(e.target.value) || 0;
+                                                                const { hours, minutes } = formatInterval(editScheduleFormData.interval_hours);
+                                                                const total = d * 24 + hours + minutes / 60;
+                                                                setEditScheduleFormData({ ...editScheduleFormData, interval_hours: total.toString() });
+                                                            }}
+                                                            style={{ width: '40px', minWidth: '60px' }}
+                                                        /> <span style={{ fontSize: '12px' }}>天</span>
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            max="23"
+                                                            step="1"
+                                                            value={(() => {
+                                                                const { hours } = formatInterval(editScheduleFormData.interval_hours);
+                                                                return hours;
+                                                            })()}
+                                                            onChange={e => {
+                                                                const h = parseInt(e.target.value) || 0;
+                                                                const { days, minutes } = formatInterval(editScheduleFormData.interval_hours);
+                                                                const total = days * 24 + h + minutes / 60;
+                                                                setEditScheduleFormData({ ...editScheduleFormData, interval_hours: total.toString() });
+                                                            }}
+                                                            style={{ width: '40px', minWidth: '60px' }}
+                                                        /> <span style={{ fontSize: '12px' }}>時</span>
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            max="59"
+                                                            step="1"
+                                                            value={(() => {
+                                                                const { minutes } = formatInterval(editScheduleFormData.interval_hours);
+                                                                return minutes;
+                                                            })()}
+                                                            onChange={e => {
+                                                                const m = parseInt(e.target.value) || 0;
+                                                                const { days, hours } = formatInterval(editScheduleFormData.interval_hours);
+                                                                const total = days * 24 + hours + m / 60;
+                                                                setEditScheduleFormData({ ...editScheduleFormData, interval_hours: total.toString() });
+                                                            }}
+                                                            style={{ width: '40px', minWidth: '60px' }}
+                                                        /> <span style={{ fontSize: '12px' }}>分</span>
+                                                    </div>
+                                                ) : (
+                                                    (() => {
+                                                        const { days, hours, minutes } = formatInterval(s.interval_hours);
+                                                        let text = '';
+                                                        if (days > 0) text += `${days} 天 `;
+                                                        if (hours > 0) text += `${hours} 小時 `;
+                                                        if (minutes > 0) text += `${minutes} 分`;
+                                                        if (!text) text = '0 分';
+                                                        return <span>{text}</span>
+                                                    })()
+                                                )}
+                                            </td>
+                                            <td style={{ maxWidth: '300px' }}>
+                                                {editingScheduleId === s.schedule_id ? (
+                                                    <div style={{ display: 'flex', gap: '5px' }}>
+                                                        <input
+                                                            type="text"
+                                                            value={(editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.message_preview)
+                                                                ? editScheduleFormData.message_preview
+                                                                : editScheduleFormData.message_content
+                                                            }
+                                                            onChange={e => setEditScheduleFormData({ ...editScheduleFormData, message_content: e.target.value })}
+                                                            style={{ width: '100%' }}
+                                                        />
+                                                        <button
+                                                            onClick={() => openRichEditor(
+                                                                editScheduleFormData.message_content,
+                                                                editScheduleFormData.project_id,
+                                                                editScheduleFormData.step_id,
+                                                                (val, preview) => setEditScheduleFormData(prev => ({ ...prev, message_content: val, message_preview: preview }))
+                                                            )}
+                                                            style={{ padding: '5px', background: '#333', border: '1px solid #444', color: 'var(--primary-yellow)' }}
+                                                        >
+                                                            <MessageSquare size={14} />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {s.message_preview ? (
+                                                            <>
+                                                                {/* <MessageSquare size={14} color="#4CAF50" title="Rich Message" /> */}
+                                                                <span>{s.message_preview}</span>
+                                                                <span style={{ fontSize: '10px', color: '#666' }}>({s.message_content.split('|')[1]?.split('_').pop()})</span>
+                                                            </>
+                                                        ) : s.message_content && s.message_content.startsWith('QA|') ? (
+                                                            <>
+                                                                <MessageSquare size={14} color="#4CAF50" title="Rich Message" />
+                                                                <span style={{ color: '#aaa', fontStyle: 'italic' }}>Rich Message</span>
+                                                            </>
+                                                        ) : s.message_content}
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td>
+                                                {editingScheduleId === s.schedule_id ? (
+                                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                                        <Check className="text-yellow" style={{ cursor: 'pointer' }} onClick={handleUpdateSchedule} />
+                                                        <X style={{ cursor: 'pointer' }} onClick={() => setEditingScheduleId(null)} />
+                                                    </div>
+                                                ) : (
+                                                    <div style={{ display: 'flex', gap: '15px' }}>
+                                                        <Edit2 size={18} style={{ cursor: 'pointer', color: '#B0B0B0' }} onClick={() => handleEditScheduleClick(s)} />
+                                                        <Trash2 size={18} style={{ cursor: 'pointer', color: '#FF4D4D' }} onClick={() => handleDeleteSchedule(s.schedule_id)} />
+                                                    </div>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    )) : (
+                                        <tr>
+                                            <td colSpan="6" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>無排程資料，請切換專案或建立新排程。</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                ) : activeTab === 'stats' ? (
+                    <div className="card">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                                <h3 style={{ fontSize: '20px' }}>專案統計數據</h3>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#111', padding: '5px 15px', borderRadius: '8px' }}>
+                                    <Filter size={16} className="text-yellow" />
+                                    <span style={{ fontSize: '14px' }}>選擇專案:</span>
+                                    <select
+                                        value={selectedProjectId}
+                                        onChange={e => setSelectedProjectId(e.target.value)}
+                                        style={{ background: 'transparent', border: 'none', padding: '5px' }}
+                                    >
+                                        <option value="">請選擇專案...</option>
+                                        {projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <span style={{ fontSize: '14px', color: '#B0B0B0' }}>時間範圍:</span>
+                                <input
+                                    type="date"
+                                    value={statsDateRange.start}
+                                    onChange={e => setStatsDateRange({ ...statsDateRange, start: e.target.value })}
+                                    style={{ padding: '4px 8px', background: '#333', border: '1px solid #444', color: '#fff' }}
+                                />
+                                <span>~</span>
+                                <input
+                                    type="date"
+                                    value={statsDateRange.end}
+                                    onChange={e => setStatsDateRange({ ...statsDateRange, end: e.target.value })}
+                                    style={{ padding: '4px 8px', background: '#333', border: '1px solid #444', color: '#fff' }}
+                                />
+                            </div>
+                        </div>
+
+                        {!selectedProjectId ? (
+                            <div style={{ textAlign: 'center', padding: '60px', color: '#666' }}>
+                                請先選擇一個專案以查看統計數據。
+                            </div>
+                        ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
+                                <div style={{ background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333' }}>
+                                    <div style={{ color: '#888', fontSize: '14px', marginBottom: '10px' }}>觸發客戶數</div>
+                                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--primary-yellow)' }}>{projectStats.tc}</div>
+                                </div>
+                                <div style={{ background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333' }}>
+                                    <div style={{ color: '#888', fontSize: '14px', marginBottom: '10px' }}>完成率</div>
+                                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#4CAF50' }}>{projectStats.completion_rate}%</div>
+                                    <div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>共 {projectStats.cc} 人完成全部步驟</div>
+                                </div>
+                                <div style={{ background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333' }}>
+                                    <div style={{ color: '#888', fontSize: '14px', marginBottom: '10px' }}>總發送延遲訊息</div>
+                                    <div style={{ fontSize: '32px', fontWeight: 'bold' }}>{projectStats.ms}</div>
+                                </div>
+                                <div style={{ background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333' }}>
+                                    <div style={{ color: '#888', fontSize: '14px', marginBottom: '10px' }}>發送成功數</div>
+                                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#4CAF50' }}>{projectStats.mss}</div>
+                                </div>
+                                <div style={{ background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333' }}>
+                                    <div style={{ color: '#888', fontSize: '14px', marginBottom: '10px' }}>發送失敗數</div>
+                                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#FF4D4D' }}>{projectStats.msf}</div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="card">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                                <h3 style={{ fontSize: '20px' }}>參與用戶列表</h3>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#111', padding: '5px 15px', borderRadius: '8px' }}>
+                                    <Filter size={16} className="text-yellow" />
+                                    <span style={{ fontSize: '14px' }}>選擇專案:</span>
+                                    <select
+                                        value={selectedProjectId}
+                                        onChange={e => setSelectedProjectId(e.target.value)}
+                                        style={{ background: 'transparent', border: 'none', padding: '5px' }}
+                                    >
+                                        <option value="">請選擇專案...</option>
+                                        {projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                            <button className="primary" onClick={handleAddUserToProject} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
+                                <Plus size={18} /> 手動加入用戶
+                            </button>
+                        </div>
+
+                        <div style={{ overflowX: 'auto' }}>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>姓名</th>
+                                        <th>所屬專案</th>
+                                        <th>加入狀態</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {projectUsers.length > 0 ? projectUsers.map((u, i) => (
+                                        <tr key={i}>
+                                            <td style={{ fontWeight: '600' }}>{u.user_name || u.user_id}</td>
+                                            <td>
+                                                {projects.find(p => p.project_id == selectedProjectId)?.project_name || `ID: ${selectedProjectId}`}
+                                            </td>
+                                            <td>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                    <span style={{ color: '#4CAF50' }}>● 已在排程中</span>
                                                     <button
-                                                        onClick={() => openRichEditor(
-                                                            editScheduleFormData.message_content,
-                                                            editScheduleFormData.project_id,
-                                                            editScheduleFormData.step_id,
-                                                            (val, preview) => setEditScheduleFormData(prev => ({ ...prev, message_content: val, message_preview: preview }))
-                                                        )}
-                                                        style={{ padding: '5px', background: '#333', border: '1px solid #444', color: 'var(--primary-yellow)' }}
+                                                        onClick={() => handleRemoveUser(u.user_id)}
+                                                        style={{ padding: '4px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#FF4D4D' }}
+                                                        title="移除用戶"
                                                     >
-                                                        <MessageSquare size={14} />
+                                                        <Trash2 size={16} />
                                                     </button>
                                                 </div>
-                                            ) : (
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                    {s.message_preview ? (
-                                                        <>
-                                                            {/* <MessageSquare size={14} color="#4CAF50" title="Rich Message" /> */}
-                                                            <span>{s.message_preview}</span>
-                                                            <span style={{ fontSize: '10px', color: '#666' }}>({s.message_content.split('|')[1]?.split('_').pop()})</span>
-                                                        </>
-                                                    ) : s.message_content && s.message_content.startsWith('QA|') ? (
-                                                        <>
-                                                            <MessageSquare size={14} color="#4CAF50" title="Rich Message" />
-                                                            <span style={{ color: '#aaa', fontStyle: 'italic' }}>Rich Message</span>
-                                                        </>
-                                                    ) : s.message_content}
-                                                </div>
-                                            )}
-                                        </td>
-                                        <td>
-                                            {editingScheduleId === s.schedule_id ? (
-                                                <div style={{ display: 'flex', gap: '10px' }}>
-                                                    <Check className="text-yellow" style={{ cursor: 'pointer' }} onClick={handleUpdateSchedule} />
-                                                    <X style={{ cursor: 'pointer' }} onClick={() => setEditingScheduleId(null)} />
-                                                </div>
-                                            ) : (
-                                                <div style={{ display: 'flex', gap: '15px' }}>
-                                                    <Edit2 size={18} style={{ cursor: 'pointer', color: '#B0B0B0' }} onClick={() => handleEditScheduleClick(s)} />
-                                                    <Trash2 size={18} style={{ cursor: 'pointer', color: '#FF4D4D' }} onClick={() => handleDeleteSchedule(s.schedule_id)} />
-                                                </div>
-                                            )}
-                                        </td>
-                                    </tr>
-                                )) : (
-                                    <tr>
-                                        <td colSpan="6" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>無排程資料，請切換專案或建立新排程。</td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            ) : activeTab === 'stats' ? (
-                <div className="card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                            <h3 style={{ fontSize: '20px' }}>專案統計數據</h3>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#111', padding: '5px 15px', borderRadius: '8px' }}>
-                                <Filter size={16} className="text-yellow" />
-                                <span style={{ fontSize: '14px' }}>選擇專案:</span>
-                                <select
-                                    value={selectedProjectId}
-                                    onChange={e => setSelectedProjectId(e.target.value)}
-                                    style={{ background: 'transparent', border: 'none', padding: '5px' }}
-                                >
-                                    <option value="">請選擇專案...</option>
-                                    {projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
-                                </select>
-                            </div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <span style={{ fontSize: '14px', color: '#B0B0B0' }}>時間範圍:</span>
-                            <input
-                                type="date"
-                                value={statsDateRange.start}
-                                onChange={e => setStatsDateRange({ ...statsDateRange, start: e.target.value })}
-                                style={{ padding: '4px 8px', background: '#333', border: '1px solid #444', color: '#fff' }}
-                            />
-                            <span>~</span>
-                            <input
-                                type="date"
-                                value={statsDateRange.end}
-                                onChange={e => setStatsDateRange({ ...statsDateRange, end: e.target.value })}
-                                style={{ padding: '4px 8px', background: '#333', border: '1px solid #444', color: '#fff' }}
-                            />
+                                            </td>
+                                        </tr>
+                                    )) : (
+                                        <tr>
+                                            <td colSpan="3" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                                                {selectedProjectId ? '此專案目前無參與用戶。' : '請先選擇一個專案以查看參與用戶。'}
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
-
-                    {!selectedProjectId ? (
-                        <div style={{ textAlign: 'center', padding: '60px', color: '#666' }}>
-                            請先選擇一個專案以查看統計數據。
-                        </div>
-                    ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
-                            <div style={{ background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333' }}>
-                                <div style={{ color: '#888', fontSize: '14px', marginBottom: '10px' }}>觸發客戶數</div>
-                                <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--primary-yellow)' }}>{projectStats.tc}</div>
-                            </div>
-                            <div style={{ background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333' }}>
-                                <div style={{ color: '#888', fontSize: '14px', marginBottom: '10px' }}>完成率</div>
-                                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#4CAF50' }}>{projectStats.completion_rate}%</div>
-                                <div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>共 {projectStats.cc} 人完成全部步驟</div>
-                            </div>
-                            <div style={{ background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333' }}>
-                                <div style={{ color: '#888', fontSize: '14px', marginBottom: '10px' }}>總發送延遲訊息</div>
-                                <div style={{ fontSize: '32px', fontWeight: 'bold' }}>{projectStats.ms}</div>
-                            </div>
-                            <div style={{ background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333' }}>
-                                <div style={{ color: '#888', fontSize: '14px', marginBottom: '10px' }}>發送成功數</div>
-                                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#4CAF50' }}>{projectStats.mss}</div>
-                            </div>
-                            <div style={{ background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333' }}>
-                                <div style={{ color: '#888', fontSize: '14px', marginBottom: '10px' }}>發送失敗數</div>
-                                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#FF4D4D' }}>{projectStats.msf}</div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            ) : (
-                <div className="card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                            <h3 style={{ fontSize: '20px' }}>參與用戶列表</h3>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#111', padding: '5px 15px', borderRadius: '8px' }}>
-                                <Filter size={16} className="text-yellow" />
-                                <span style={{ fontSize: '14px' }}>選擇專案:</span>
-                                <select
-                                    value={selectedProjectId}
-                                    onChange={e => setSelectedProjectId(e.target.value)}
-                                    style={{ background: 'transparent', border: 'none', padding: '5px' }}
-                                >
-                                    <option value="">請選擇專案...</option>
-                                    {projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
-                                </select>
-                            </div>
-                        </div>
-                        <button className="primary" onClick={handleAddUserToProject} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
-                            <Plus size={18} /> 手動加入用戶
-                        </button>
-                    </div>
-
-                    <div style={{ overflowX: 'auto' }}>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>姓名</th>
-                                    <th>所屬專案</th>
-                                    <th>加入狀態</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {projectUsers.length > 0 ? projectUsers.map((u, i) => (
-                                    <tr key={i}>
-                                        <td style={{ fontWeight: '600' }}>{u.user_name || u.user_id}</td>
-                                        <td>
-                                            {projects.find(p => p.project_id == selectedProjectId)?.project_name || `ID: ${selectedProjectId}`}
-                                        </td>
-                                        <td>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                <span style={{ color: '#4CAF50' }}>● 已在排程中</span>
-                                                <button
-                                                    onClick={() => handleRemoveUser(u.user_id)}
-                                                    style={{ padding: '4px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#FF4D4D' }}
-                                                    title="移除用戶"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )) : (
-                                    <tr>
-                                        <td colSpan="3" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
-                                            {selectedProjectId ? '此專案目前無參與用戶。' : '請先選擇一個專案以查看參與用戶。'}
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
+                )
+            }
             {/* Rich Message Modal */}
             <RichMessageModal
                 isOpen={isRichModalOpen}
@@ -1167,7 +1295,32 @@ const ProjectsManagement = () => {
                 onSelect={onUserSelected}
                 existingUsers={projectUsers.map(u => u.user_id)}
             />
-        </div>
+            {/* Preview Modal */}
+            {
+                isPreviewModalOpen && (
+                    <div style={{
+                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                        backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1100,
+                        display: 'flex', justifyContent: 'center', alignItems: 'center'
+                    }}>
+                        <div style={{ width: '400px', height: '80%', backgroundColor: '#fff', borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ padding: '15px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f5f5f5' }}>
+                                <h3 style={{ margin: 0, fontSize: '16px', color: '#333' }}>專案預覽</h3>
+                                <X style={{ cursor: 'pointer', color: '#666' }} onClick={() => setIsPreviewModalOpen(false)} />
+                            </div>
+                            <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                                {previewLoading && (
+                                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.8)', zIndex: 10 }}>
+                                        載入中...
+                                    </div>
+                                )}
+                                <JourneyPreview steps={previewSteps} />
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+        </div >
     );
 };
 
@@ -1441,7 +1594,6 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                                     initialContent={messages[activeMsgIndex].contents}
                                                     onSave={(jsonString) => {
                                                         updateMessage(activeMsgIndex, 'contents', jsonString);
-                                                        alert('Flex 訊息已更新至暫存區 (記得點擊下方 "儲存 QA 設定" 以永久儲存)');
                                                     }}
                                                     onCancel={() => { }}
                                                 />
@@ -1460,7 +1612,7 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px', gap: '10px' }}>
                     <button onClick={onClose} style={{ background: '#444', padding: '10px 20px', borderRadius: '4px', border: 'none', color: '#fff' }}>取消</button>
                     <button onClick={handleSave} disabled={loading} style={{ background: 'var(--primary-yellow)', padding: '10px 20px', borderRadius: '4px', border: 'none', color: '#000', fontWeight: 'bold' }}>
-                        {loading ? '儲存中...' : '儲存 QA 設定'}
+                        {loading ? '儲存中...' : '儲存'}
                     </button>
                 </div>
             </div>

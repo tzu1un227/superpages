@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Plus, X, Image as ImageIcon, Link as LinkIcon, MessageSquare, Save } from 'lucide-react';
-import JourneyPreview from './JourneyPreview';
+import { ChevronLeft, ChevronRight, Plus, X, Image as ImageIcon, Link as LinkIcon, MessageSquare } from 'lucide-react';
 
 const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
     // Modes
@@ -47,6 +46,12 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
             }
         }
     }, [initialContent]);
+
+    // Auto-save when cards or mode changes
+    useEffect(() => {
+        const json = generateJson();
+        onSave(JSON.stringify(json));
+    }, [cards, mode]);
 
     // Helper: Parse Bubble back to internal Card state
     const parseBubbleToCard = (bubble) => {
@@ -310,16 +315,13 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
-                    <button onClick={onCancel} style={{ background: 'transparent', border: '1px solid #666', color: '#fff', padding: '6px 15px', borderRadius: '4px' }}>取消</button>
-                    <button onClick={() => onSave(JSON.stringify(generateJson()))} style={{ background: 'var(--primary-yellow)', border: 'none', color: '#000', padding: '6px 15px', borderRadius: '4px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                        <Save size={16} /> 儲存
-                    </button>
+                    {/* <button onClick={onCancel} style={{ background: 'transparent', border: '1px solid #666', color: '#fff', padding: '6px 15px', borderRadius: '4px' }}>取消</button> */}
                 </div>
             </div>
 
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-                {/* Left: Form */}
-                <div style={{ width: '50%', padding: '20px', overflowY: 'auto', borderRight: '1px solid #444' }}>
+                {/* Form - Full Width */}
+                <div style={{ width: '100%', padding: '20px', overflowY: 'auto' }}>
 
                     {/* Carousel Nav */}
                     {mode === 'carousel' && (
@@ -362,7 +364,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
 
                     {/* Template Selector */}
                     <div style={{ marginBottom: '20px' }}>
-                        <div style={{ marginBottom: '10px', fontSize: '13px', color: '#aaa' }}>卡片模板 (Template)</div>
+                        <div style={{ marginBottom: '10px', fontSize: '13px', color: '#aaa' }}>卡片模板</div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                             <div
                                 onClick={() => updateCurrentCard('template', 'option')}
@@ -371,7 +373,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                                     borderRadius: '8px', cursor: 'pointer', backgroundColor: '#333', textAlign: 'center'
                                 }}
                             >
-                                <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>選項型 (Option)</div>
+                                <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>選項型</div>
                                 <div style={{ fontSize: '11px', color: '#888' }}>圖 + 文 + 按鈕</div>
                             </div>
                             <div
@@ -381,7 +383,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                                     borderRadius: '8px', cursor: 'pointer', backgroundColor: '#333', textAlign: 'center'
                                 }}
                             >
-                                <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>圖片型 (Image)</div>
+                                <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>圖片型</div>
                                 <div style={{ fontSize: '11px', color: '#888' }}>純圖片 + 點擊與否</div>
                             </div>
                         </div>
@@ -460,17 +462,17 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                                                     <span style={{ fontSize: '12px', color: '#888' }}>按鈕 {idx + 1}</span>
                                                     {currentCard.buttons.length > 1 && <X size={14} color="#FF4D4D" onClick={() => removeCardButton(idx)} style={{ cursor: 'pointer' }} />}
                                                 </div>
-                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px', marginBottom: '5px' }}>
+                                                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '10px', marginBottom: '5px' }}>
                                                     <input
                                                         type="text" placeholder="按鈕文字"
                                                         value={btn.text}
                                                         onChange={e => updateCardButton(idx, 'text', e.target.value)}
-                                                        style={{ padding: '5px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '4px' }}
+                                                        style={{ padding: '8px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '4px', width: '100%' }}
                                                     />
                                                     <select
                                                         value={btn.action}
                                                         onChange={e => updateCardButton(idx, 'action', e.target.value)}
-                                                        style={{ padding: '5px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '4px' }}
+                                                        style={{ padding: '8px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '4px', width: '100%' }}
                                                     >
                                                         <option value="message">傳送訊息</option>
                                                         <option value="uri">開啟連結</option>
@@ -481,7 +483,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                                                     placeholder={btn.action === 'uri' ? 'http://...' : '回傳文字'}
                                                     value={btn.value}
                                                     onChange={e => updateCardButton(idx, 'value', e.target.value)}
-                                                    style={{ width: '100%', padding: '5px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '4px' }}
+                                                    style={{ width: '100%', padding: '8px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '4px' }}
                                                 />
                                             </div>
                                         ))}
@@ -489,16 +491,6 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                                 </div>
                             </>
                         )}
-                    </div>
-                </div>
-
-                {/* Right: Preview */}
-                <div style={{ width: '50%', backgroundColor: '#111', display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ padding: '10px', textAlign: 'center', color: '#666', fontSize: '12px', borderBottom: '1px solid #333' }}>
-                        即時預覽 (JourneyPreview)
-                    </div>
-                    <div style={{ flex: 1, overflow: 'hidden' }}>
-                        <JourneyPreview steps={previewWrapper} />
                     </div>
                 </div>
             </div>
