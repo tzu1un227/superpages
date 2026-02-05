@@ -276,9 +276,78 @@ function MessageCenter() {
                                 if (m.category === 'sys_reply') {
                                     try {
                                         const parsed = JSON.parse(m.content);
-                                        if (parsed.text) {
+
+                                        // Handle Text
+                                        if (parsed.type === 'text' && parsed.text) {
                                             displayContent = parsed.text;
                                         }
+
+                                        // Handle Image
+                                        else if (parsed.type === 'image') {
+                                            displayContent = (
+                                                <img
+                                                    src={parsed.previewImageUrl || parsed.originalContentUrl}
+                                                    alt="Image"
+                                                    style={{ maxWidth: '200px', borderRadius: '8px', cursor: 'pointer' }}
+                                                    onClick={() => window.open(parsed.originalContentUrl, '_blank')}
+                                                />
+                                            );
+                                        }
+
+                                        // Handle Video
+                                        else if (parsed.type === 'video') {
+                                            displayContent = (
+                                                <div style={{ maxWidth: '200px' }}>
+                                                    <video
+                                                        src={parsed.originalContentUrl}
+                                                        controls
+                                                        poster={parsed.previewImageUrl}
+                                                        style={{ width: '100%', borderRadius: '8px' }}
+                                                    />
+                                                </div>
+                                            );
+                                        }
+
+                                        // Handle Audio
+                                        else if (parsed.type === 'audio') {
+                                            displayContent = (
+                                                <audio controls src={parsed.originalContentUrl} style={{ maxWidth: '200px' }} />
+                                            );
+                                        }
+
+                                        // Handle Flex
+                                        else if (parsed.type === 'flex' && parsed.contents) {
+                                            const renderFlexBubble = (bubble) => {
+                                                const hero = bubble.hero || {};
+                                                const body = bubble.body || {};
+                                                // Simple extraction of title and image
+                                                const title = body.contents?.find(c => c.size === 'xl' || c.weight === 'bold')?.text || bubble.altText || 'Flex Message';
+                                                const imageUrl = hero.url;
+
+                                                return (
+                                                    <div style={{ backgroundColor: '#fff', color: '#000', borderRadius: '8px', overflow: 'hidden', width: '200px', fontSize: '12px' }}>
+                                                        {imageUrl && <img src={imageUrl} style={{ width: '100%', height: '100px', objectFit: 'cover' }} />}
+                                                        <div style={{ padding: '8px' }}>
+                                                            {title && <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{title}</div>}
+                                                            <div style={{ color: '#666' }}>[Flex 訊息]</div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            };
+
+                                            if (parsed.contents.type === 'carousel') {
+                                                displayContent = (
+                                                    <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '5px', maxWidth: '300px' }}>
+                                                        {parsed.contents.contents.map((b, idx) => (
+                                                            <div key={idx} style={{ flexShrink: 0 }}>{renderFlexBubble(b)}</div>
+                                                        ))}
+                                                    </div>
+                                                );
+                                            } else {
+                                                displayContent = renderFlexBubble(parsed.contents);
+                                            }
+                                        }
+
                                     } catch (e) {
                                         // keeping original content if not JSON
                                     }
