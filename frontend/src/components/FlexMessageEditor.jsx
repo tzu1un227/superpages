@@ -27,6 +27,8 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
 
     const [cards, setCards] = useState([{ ...defaultCard }]);
 
+    const [hasInitialized, setHasInitialized] = useState(false);
+
     // Initialize from props
     useEffect(() => {
         if (initialContent) {
@@ -37,6 +39,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                 // relying on JSON.stringify for deep comparison of simple objects
                 const currentJson = generateJson();
                 if (JSON.stringify(parsed) === JSON.stringify(currentJson)) {
+                    setHasInitialized(true);
                     return;
                 }
 
@@ -48,24 +51,34 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                     setMode('single');
                     setCards([parseBubbleToCard(parsed)]);
                 }
+                setHasInitialized(true);
             } catch (e) {
                 console.error("Failed to parse initial content", e);
                 // Fallback to default
+                setHasInitialized(true);
             }
+        } else {
+            setHasInitialized(true);
         }
     }, [initialContent]);
 
     // Auto-save when cards or mode changes
     useEffect(() => {
+        if (!hasInitialized) return;
+
         const json = generateJson();
         const jsonString = JSON.stringify(json);
 
-        // Prevent infinite loops by only saving if content has actually changed
-        // from what was initially passed in.
-        if (jsonString !== initialContent) {
+        // Final sanity check: if what we have is semantically what was passed in, don't save.
+        let normalizedInitial = initialContent;
+        if (typeof initialContent === 'string' && initialContent) {
+            try { normalizedInitial = JSON.stringify(JSON.parse(initialContent)); } catch (e) { }
+        }
+
+        if (jsonString !== normalizedInitial) {
             onSave(jsonString);
         }
-    }, [cards, mode]);
+    }, [cards, mode, hasInitialized]);
 
     // Helper: Parse Bubble back to internal Card state
     const parseBubbleToCard = (bubble) => {
@@ -74,16 +87,16 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
         const footer = bubble.footer || {};
 
         // Detect Template Type
-        // If we strictly follow our generation logic:
-        // Image Card has NO footer and NO Title/Desc in Body (or minimal body).
-        // Option Card has Footer.
+        // We now use an explicit marker if available, or fall back to structural cues
+        let template = bubble._template || 'option';
 
-        let template = 'option';
-        const hasButtons = footer.contents && footer.contents.length > 0;
-        const hasTitle = body.contents?.some(c => c.size === 'xl');
-
-        if (!hasButtons && !hasTitle) {
-            template = 'image';
+        // Final fallback if _template is missing:
+        if (!bubble._template) {
+            const hasButtons = footer.contents && footer.contents.length > 0;
+            const hasTitle = body.contents?.some(c => c.size === 'xl');
+            if (body.paddingAll === '0px' && !hasButtons && !hasTitle) {
+                template = 'image';
+            }
         }
 
         const card = {
@@ -106,8 +119,6 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
             const titleObj = body.contents.find(c => c.size === 'xl');
             if (titleObj) card.title = titleObj.text;
 
-            if (titleObj) card.title = titleObj.text;
-
             const descObj = body.contents.find(c => (c.color === '#666666' || c.wrap === true) && c !== titleObj);
             if (descObj) card.description = descObj.text;
         }
@@ -115,15 +126,10 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
         // Buttons
         if (footer.contents) {
             card.buttons = footer.contents.map(b => ({
-                text: b.style === 'link' ? (b.action.label || 'LINK') : (b.action.label || 'BTN'), // Heuristic
+                text: b.action.label || 'BTN',
                 action: b.action.type,
                 value: b.action.uri || b.action.text
             }));
-            // Fix text label if needed
-            card.buttons.forEach((btn, i) => {
-                const originalBtn = footer.contents[i];
-                if (originalBtn.action && originalBtn.action.label) btn.text = originalBtn.action.label;
-            });
         }
 
         return card;
@@ -134,7 +140,8 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
         const bubbles = cards.map(card => {
             const bubble = {
                 type: 'bubble',
-                size: 'giga', // Better for full width
+                _template: card.template, // Internal marker to ensure stable parsing
+                size: 'giga',
                 hero: {
                     type: 'image',
                     url: card.imageUrl || 'https://via.placeholder.com/800x400?text=No+Image',
@@ -192,28 +199,18 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                         contents: card.buttons.map(btn => {
                             const btnObj = {
                                 type: 'button',
-                                style: btn.action === 'uri' ? 'link' : 'primary', // Use link style for URI as requested (Blue text implied) or primary
+                                style: 'primary',
                                 height: 'sm',
                                 action: {
                                     type: btn.action,
                                     label: btn.text
                                 }
                             };
-
-                            // Visual Customization per request
-                            // "Open Link": Blue bg + Icon (Not standard Flex, but we can approximate with colors)
-                            // "Send Message": White bg + Icon
-                            // Actually Flex Button `style` is limited (link, primary, secondary).
-                            // Primary is usually Green/AppColor. Secondary is Grey/White. Link is text only.
-                            // The user requested specific visuals: "Blue background" vs "White background".
-                            // We can use `color` property for background if style is primary/secondary.
-
                             if (btn.action === 'uri') {
-                                btnObj.style = 'primary';
                                 btnObj.color = '#1E88E5'; // Blue
                                 btnObj.action.uri = btn.value;
                             } else {
-                                btnObj.style = 'secondary'; // White-ish/Light Grey
+                                btnObj.style = 'secondary';
                                 btnObj.action.text = btn.value;
                             }
                             return btnObj;
@@ -222,9 +219,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                 }
             } else {
                 // Image Card
-                // Body is just a placeholder to keep valid structure or empty?
-                // Minimal body
-                bubble.body.paddingAll = "0px";
+                bubble.body.paddingAll = '0px';
             }
 
             return bubble;
