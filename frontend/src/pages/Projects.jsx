@@ -597,8 +597,8 @@ const ProjectsManagement = () => {
 
                     {showAddProjectForm && (
                         <div style={{ backgroundColor: '#222', padding: '20px', borderRadius: '12px', marginBottom: '25px', border: '1px solid #333' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) auto', gap: '20px', alignItems: 'start' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', alignItems: 'flex-start' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', flex: '1 1 300px', minWidth: '300px' }}>
                                     <div>
                                         <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>專案名稱</label>
                                         <input type="text" value={newProject.project_name} onChange={(e) => setNewProject({ ...newProject, project_name: e.target.value })} style={{ width: '100%' }} />
@@ -619,10 +619,10 @@ const ProjectsManagement = () => {
                                         </label>
                                     </div>
                                 </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: '1 1 300px', minWidth: '300px' }}>
                                     {renderConfigInputs(newProject, setNewProject, false)}
                                 </div>
-                                <div style={{ display: 'flex', gap: '10px', alignSelf: 'end' }}>
+                                <div style={{ display: 'flex', gap: '10px', alignSelf: 'flex-end', flex: '0 0 auto', marginLeft: 'auto' }}>
                                     <button className="primary" onClick={handleCreateProject} style={{ minWidth: '80px' }}>儲存</button>
                                     <button onClick={() => setShowAddProjectForm(false)} style={{ background: '#444', minWidth: '80px' }}>取消</button>
                                 </div>

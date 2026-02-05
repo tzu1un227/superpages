@@ -3,6 +3,7 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **Improved Project Page UI**: Replaced CSS Grid with Flexbox in "Add Project" form to prevent overlapping of fields at high zoom levels (150%+), ensuring a responsive layout.
 - Fixed bug in Advanced Message Editor: Prevented overwriting of QA tag with preview text during schedule editing, ensuring saved Rich Messages can be correctly reloading and edited.
 - Improved Lottery Management: Added "Registered Users" tab to display user list (Name + Avatar).
 - Improved Lottery Management: Game status and ticket list now automatically refresh after actions (e.g., Start Game).
