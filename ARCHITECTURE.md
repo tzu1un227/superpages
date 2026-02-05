@@ -36,3 +36,20 @@ This project is a web application with a Flask backend and a React frontend. It 
 -   **QA Integration**: Messages can be stored as complex structures (Flex, Image, etc.) in the `qa_bank` table.
 -   **Reference Protocol**: In `project_schedules` or other text fields, these are referenced using the `QA|` prefix followed by the unique tag (e.g., `QA|cron_project_step`).
 -   **Editor Behavior**: The frontend detects this prefix to open the advanced visual editor instead of a plain text input.
+
+### Lottery Management (抽獎管理)
+
+#### Components
+1.  **Frontend**: `PrizeStatus.jsx`.
+    -   Displays `gameStatus` (Fetched from `/api/game-status`, source: `Global_var:5013` -> `SYS_STAT`).
+    -   Lists prizes (`tickets`) from `ticket_table`.
+    -   Provides controls to Start/Stop game (via direct socket triggers) and manage prizes (Delete/Create).
+
+2.  **Database**:
+    -   `ticket_table`: Stores the list of prizes (`id`, `name`, `order`, `user_id`).
+    -   `Global_var:5013`: Stores the system status key `SYS_STAT` ("WAIT" = Not Started, "RUN" = In Progress).
+
+3.  **Endpoints**:
+    -   `GET /api/game-status`: Returns the current game status.
+    -   `DELETE /api/tickets/<id>`: Deletes a specific prize.
+    -   `get_tickets` and `trigger_socket_event` (existing).

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import api from '../api';
-import { Play, Trophy, Square, Gift, PlusCircle, RefreshCw } from 'lucide-react';
+import { Play, Trophy, Square, Gift, PlusCircle, RefreshCw, Trash2 } from 'lucide-react';
 
 const PrizeStatus = () => {
     const location = useLocation();
@@ -10,6 +10,7 @@ const PrizeStatus = () => {
     const [error, setError] = useState(null);
     const [idInput, setIdInput] = useState('');
     const [nameInput, setNameInput] = useState('');
+    const [gameStatus, setGameStatus] = useState('UNKNOWN');
 
     const fetchTickets = async () => {
         setLoading(true);
@@ -25,9 +26,32 @@ const PrizeStatus = () => {
         }
     };
 
+    const fetchGameStatus = async () => {
+        try {
+            const response = await api.get('/game-status');
+            setGameStatus(response.data.status);
+        } catch (err) {
+            console.error('Error fetching game status:', err);
+        }
+    };
+
+    const handleDeleteTicket = async (id) => {
+        if (!window.confirm('確定要刪除此獎品嗎？')) return;
+        try {
+            await api.delete(`/tickets/${id}`);
+            fetchTickets(); // Refresh list
+        } catch (err) {
+            console.error('Error deleting ticket:', err);
+            alert('刪除失敗');
+        }
+    };
+
     useEffect(() => {
         setTickets([]);
         fetchTickets();
+        fetchGameStatus();
+        const interval = setInterval(fetchGameStatus, 5000);
+        return () => clearInterval(interval);
     }, [location.pathname]);
 
     const handleAction = async (actionType, content = '') => {
@@ -70,7 +94,20 @@ const PrizeStatus = () => {
     return (
         <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-                <h1 style={{ fontSize: '32px', marginBottom: '10px' }}>抽獎管理</h1>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    <h1 style={{ fontSize: '32px', marginBottom: '10px' }}>抽獎管理</h1>
+                    <div style={{
+                        padding: '4px 12px',
+                        borderRadius: '16px',
+                        backgroundColor: gameStatus === 'RUN' || gameStatus === 'RUNNING' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                        color: gameStatus === 'RUN' || gameStatus === 'RUNNING' ? '#22C55E' : '#EF4444',
+                        border: `1px solid ${gameStatus === 'RUN' || gameStatus === 'RUNNING' ? '#22C55E' : '#EF4444'}`,
+                        fontSize: '14px',
+                        fontWeight: '500'
+                    }}>
+                        {gameStatus === 'RUN' || gameStatus === 'RUNNING' ? '遊戲進行中' : '遊戲未開始'}
+                    </div>
+                </div>
                 <button
                     onClick={fetchTickets}
                     className="secondary"
@@ -168,6 +205,7 @@ const PrizeStatus = () => {
                                     <th style={{ textAlign: 'left' }}>ID</th>
                                     <th style={{ textAlign: 'left' }}>獎品名稱</th>
                                     <th style={{ textAlign: 'left' }}>中獎使用者 (User ID)</th>
+                                    <th style={{ textAlign: 'center', width: '80px' }}>操作</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -176,6 +214,16 @@ const PrizeStatus = () => {
                                         <td style={{ fontWeight: '600' }}>{ticket.id}</td>
                                         <td>{ticket.name}</td>
                                         <td style={{ color: 'var(--primary-yellow)', fontFamily: 'monospace' }}>{ticket.user_id || '尚未有人中獎'}</td>
+                                        <td style={{ textAlign: 'center' }}>
+                                            <button
+                                                onClick={() => handleDeleteTicket(ticket.id)}
+                                                className="icon-btn danger"
+                                                title="刪除"
+                                                style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: '4px' }}
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>

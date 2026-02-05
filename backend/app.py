@@ -1070,6 +1070,37 @@ def get_tickets():
         print(f"Error in get_tickets: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/tickets/<int:id>', methods=['DELETE'])
+def delete_ticket(id):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM ticket_table WHERE id = %s", (id,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/game-status', methods=['GET'])
+def get_game_status():
+    try:
+        app_id = get_current_app_id()
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        # Fetch SYS_STAT
+        cur.execute(f'SELECT value FROM "Global_var:{app_id}" WHERE name = \'SYS_STAT\'')
+        row = cur.fetchone()
+        status = row['value'] if row else "UNKNOWN"
+        
+        cur.close()
+        conn.close()
+        return jsonify({"status": status})
+    except Exception as e:
+        print(f"Error in get_game_status: {e}")
+        return jsonify({"error": str(e)}), 500
+
 # QA Bank CRUD
 @app.route('/api/qa-bank/<tag>', methods=['GET'])
 def get_qa_bank_by_tag(tag):
