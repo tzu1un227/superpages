@@ -907,13 +907,11 @@ def get_registered_users():
         app_id = get_current_app_id()
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        # Fetch users who have a name in Private_var
-        cur.execute(f"""
-            SELECT u1.user_id, u1.value as name, u2.value as pic
-            FROM "Private_var:{app_id}" u1
-            LEFT JOIN "Private_var:{app_id}" u2 ON u1.user_id = u2.user_id AND u2.name = 'pic'
-            WHERE u1.name = 'name'
-            ORDER BY u1.value
+        # Fetch users from person_table
+        cur.execute("""
+            SELECT user_id, name 
+            FROM person_table 
+            ORDER BY id::integer
         """)
         users = cur.fetchall()
         cur.close()

@@ -237,7 +237,7 @@ function MessageCenter() {
                                 }
                                 return true;
                             }).map((m, i) => {
-                                const isAdmin = m.user_id === 'yzuadmin' || m.category === 'Sensor' || m.category === 'Response';
+                                const isAdmin = m.user_id === 'yzuadmin' || m.category === 'Sensor' || m.category === 'Response' || m.category === 'sys_reply';
                                 let displayContent = m.content;
                                 if (isAdmin && displayContent.startsWith('MSG|')) {
                                     displayContent = displayContent.substring(4);

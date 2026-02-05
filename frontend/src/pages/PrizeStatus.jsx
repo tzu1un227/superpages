@@ -301,36 +301,31 @@ const PrizeStatus = () => {
                                 {registeredUsers.map((user) => (
                                     <div key={user.user_id} style={{
                                         backgroundColor: '#181818',
-                                        padding: '20px',
-                                        borderRadius: '12px',
+                                        padding: '16px',
+                                        borderRadius: '8px',
                                         display: 'flex',
-                                        flexDirection: 'column',
                                         alignItems: 'center',
+                                        justifyContent: 'space-between',
                                         gap: '15px'
                                     }}>
-                                        <div style={{
-                                            width: '80px',
-                                            height: '80px',
-                                            borderRadius: '50%',
-                                            overflow: 'hidden',
-                                            border: '3px solid #333'
-                                        }}>
-                                            {user.pic ? (
-                                                <img
-                                                    src={user.pic}
-                                                    alt={user.name}
-                                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                                />
-                                            ) : (
-                                                <div style={{ width: '100%', height: '100%', backgroundColor: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666' }}>
-                                                    <Users size={40} />
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                            <div style={{
+                                                width: '40px',
+                                                height: '40px',
+                                                borderRadius: '50%',
+                                                backgroundColor: '#333',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                color: '#666'
+                                            }}>
+                                                <Users size={20} />
+                                            </div>
+                                            <div>
+                                                <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{user.name}</div>
+                                                <div style={{ fontSize: '12px', color: '#666', fontFamily: 'monospace' }}>
+                                                    {user.user_id}
                                                 </div>
-                                            )}
-                                        </div>
-                                        <div style={{ textAlign: 'center' }}>
-                                            <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{user.name}</div>
-                                            <div style={{ fontSize: '12px', color: '#666', marginTop: '4px', fontFamily: 'monospace' }}>
-                                                {user.user_id}
                                             </div>
                                         </div>
                                     </div>

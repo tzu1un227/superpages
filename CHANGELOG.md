@@ -9,4 +9,5 @@ All notable changes to this project will be documented in this file.
 - Added Game Status display in Lottery Management (抽獎管理).
 - Added functionality to delete prizes (tickets) in Lottery Management.
 - Added new backend endpoints: `GET /api/game-status` and `DELETE /api/tickets/<id>`.
+- Improved Message Center UI: `sys_reply` messages are now right-aligned and display only content without filters.
 - Initial creation of CHANGELOG.md and ARCHITECTURE.md.

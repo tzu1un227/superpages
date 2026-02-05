@@ -44,12 +44,24 @@ This project is a web application with a Flask backend and a React frontend. It 
     -   Displays `gameStatus` (Fetched from `/api/game-status`, source: `Global_var:5013` -> `SYS_STAT`).
     -   Lists prizes (`tickets`) from `ticket_table`.
     -   Provides controls to Start/Stop game (via direct socket triggers) and manage prizes (Delete/Create).
+    -   Displays "Registered Users" list (Name + Partial UserID).
 
 2.  **Database**:
     -   `ticket_table`: Stores the list of prizes (`id`, `name`, `order`, `user_id`).
+    -   `person_table`: Stores user information (`name`, `user_id`, etc.) for the registered users list.
     -   `Global_var:5013`: Stores the system status key `SYS_STAT` ("WAIT" = Not Started, "RUN" = In Progress).
 
 3.  **Endpoints**:
     -   `GET /api/game-status`: Returns the current game status.
     -   `DELETE /api/tickets/<id>`: Deletes a specific prize.
+    -   `GET /api/registered-users`: Fetches list of registered users from `person_table` (columns: `name`, `user_id`).
     -   `get_tickets` and `trigger_socket_event` (existing).
+
+### Message Center (訊息中心)
+- **Frontend**: `MessageCenter.jsx`.
+  - Displays list of users and their chat history.
+  - Supports sending messages and managing tags.
+  - **Message Display**:
+    - Messages from `yzuadmin`, or with category `Sensor`, `Response`, or `sys_reply` are displayed on the right (Admin/System side).
+    - `sys_reply` messages are displayed with raw content, without type indicators.
+- **Backend**: `/api/history/<user_id>` fetches chat history from `history:{app_id}` table.
