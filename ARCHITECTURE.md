@@ -54,7 +54,7 @@ This project is a web application with a Flask backend and a React frontend. It 
 3.  **Endpoints**:
     -   `GET /api/game-status`: Returns the current game status.
     -   `DELETE /api/tickets/<id>`: Deletes a specific prize.
-    -   `GET /api/registered-users`: Fetches list of registered users from `person_table` (columns: `name`, `user_id`).
+    -   `GET /api/registered-users`: Fetches list of registered users from `Private_var` (Requires both `name` and `pic` entries) to support Project Manual Add and Lottery.
     -   `get_tickets` and `trigger_socket_event` (existing).
 
 ### Message Center (訊息中心)

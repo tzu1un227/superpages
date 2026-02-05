@@ -242,6 +242,16 @@ function MessageCenter() {
                                 if (isAdmin && displayContent.startsWith('MSG|')) {
                                     displayContent = displayContent.substring(4);
                                 }
+                                if (m.category === 'sys_reply') {
+                                    try {
+                                        const parsed = JSON.parse(m.content);
+                                        if (parsed.text) {
+                                            displayContent = parsed.text;
+                                        }
+                                    } catch (e) {
+                                        // keeping original content if not JSON
+                                    }
+                                }
 
                                 return (
                                     <div key={i} style={{
