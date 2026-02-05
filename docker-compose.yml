@@ -7,6 +7,7 @@ services:
       - "9017:5000"
     environment:
       - PYTHONUNBUFFERED=1
+      - TZ=Asia/Taipei
     restart: always
 
   frontend:
