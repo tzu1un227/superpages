@@ -46,6 +46,21 @@ function MessageCenter() {
         }
     };
 
+    const [availableTags, setAvailableTags] = useState([]);
+
+    const fetchAvailableTags = async () => {
+        try {
+            const resp = await api.get('/tags');
+            setAvailableTags(resp.data);
+        } catch (err) {
+            console.error('Error fetching tags:', err);
+        }
+    };
+
+    useEffect(() => {
+        fetchAvailableTags();
+    }, []);
+
     const sendMessage = async () => {
         if (!input.trim() || !selectedUser) return;
         try {
@@ -215,13 +230,23 @@ function MessageCenter() {
                             </div>
                             <div style={{ display: 'flex', gap: '8px' }}>
                                 <input
+                                    list="available-tags"
                                     value={tagInput}
                                     onChange={e => setTagInput(e.target.value)}
-                                    placeholder="新標籤..."
-                                    style={{ width: '120px', padding: '6px 12px', fontSize: '12px' }}
+                                    placeholder="選擇或輸入標籤..."
+                                    style={{ width: '200px', padding: '6px 12px', fontSize: '12px' }}
                                 />
+                                <datalist id="available-tags">
+                                    {availableTags.map((tag, idx) => (
+                                        <option key={idx} value={tag} />
+                                    ))}
+                                </datalist>
                                 <button
-                                    onClick={handleAddTag}
+                                    onClick={() => {
+                                        handleAddTag();
+                                        // Refresh tags list shortly after adding, in case it's a new tag
+                                        setTimeout(fetchAvailableTags, 1500);
+                                    }}
                                     style={{ padding: '6px 15px', fontSize: '12px', backgroundColor: 'var(--primary-yellow)', color: 'black' }}
                                 >
                                     新增
