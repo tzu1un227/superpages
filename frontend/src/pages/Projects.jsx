@@ -115,25 +115,9 @@ const ProjectsManagement = () => {
     const [showAddScheduleForm, setShowAddScheduleForm] = useState(false);
 
     const [error, setError] = useState('');
-    const [activeTab, setActiveTab] = useState('projects'); // projects, schedules, users, or stats
+    const [activeTab, setActiveTab] = useState('projects'); // projects, schedules, users
 
     const [projectStats, setProjectStats] = useState({ tc: 0, cc: 0, ms: 0, mss: 0, msf: 0, completion_rate: 0 });
-
-    // Global Statistics States (from Statistics.jsx)
-    const [globalData, setGlobalData] = useState({ follow: [], user: [], message: [] });
-    const [keywordData, setKeywordData] = useState([]);
-    const [statsLoading, setStatsLoading] = useState(false);
-    const [groupUnit, setGroupUnit] = useState('day');
-    const [activeCategory, setActiveCategory] = useState('message');
-    const [selectedTags, setSelectedTags] = useState([]);
-    const [keywordPage, setKeywordPage] = useState(1);
-    const ITEMS_PER_PAGE = 20;
-
-    const categoryMap = {
-        'message': { label: '總訊息量', key: 'message', color: '#2196F3' },
-        'follow': { label: '總客戶數', key: 'follow', color: '#FFD700' },
-        'user': { label: '有效好友數', key: 'user', color: '#4CAF50' }
-    };
 
     const colors = [
         '#2196F3', '#4CAF50', '#FFD700', '#F44336', '#9C27B0',
@@ -178,14 +162,14 @@ const ProjectsManagement = () => {
     useEffect(() => {
         if (activeTab === 'schedules') {
             fetchSchedules();
+            if (selectedProjectId) {
+                fetchProjectStats(selectedProjectId);
+            }
         }
         if (activeTab === 'users' && selectedProjectId) {
             fetchProjectUsers(selectedProjectId);
         }
-        if (activeTab === 'stats') {
-            fetchProjectStats(selectedProjectId);
-        }
-    }, [selectedProjectId, activeTab, statsDateRange, groupUnit]);
+    }, [selectedProjectId, activeTab, statsDateRange]);
 
     // Auto-fill Step ID
     useEffect(() => {
@@ -252,130 +236,19 @@ const ProjectsManagement = () => {
     };
 
     const fetchProjectStats = async (projectId) => {
-        if (!projectId) {
-            fetchGlobalStats();
-            return;
-        };
+        if (!projectId) return;
         try {
-            const res = await api.get(`/projects/${projectId}/stats`, {
-                params: {
-                    start_date: statsDateRange.start,
-                    end_date: statsDateRange.end
-                }
-            });
-            setProjectStats(res.data);
-        } catch (err) {
-            setError('無法取得統計數據');
-        }
-    };
-
-    const fetchGlobalStats = async () => {
-        setStatsLoading(true);
-        try {
-            const resp = await api.get('/statistics', {
+            const resp = await api.get(`/projects/${projectId}/stats`, {
                 params: {
                     start_time: statsDateRange.start,
-                    end_time: statsDateRange.end,
-                    group_unit: groupUnit
+                    end_time: statsDateRange.end
                 }
             });
-            setGlobalData(resp.data);
-
-            // Fetch Keywords
-            const kwResp = await api.get('/statistics/keywords', {
-                params: {
-                    start_time: statsDateRange.start,
-                    end_time: statsDateRange.end,
-                    limit: 100
-                }
-            });
-            setKeywordData(kwResp.data);
-            setKeywordPage(1);
-
-            // Auto-select all tags initially
-            const currentData = resp.data[activeCategory] || [];
-            const tags = [...new Set(currentData.map(item => item.tag))];
-            setSelectedTags(tags);
+            setProjectStats(resp.data);
         } catch (err) {
-            console.error('Error fetching global stats:', err);
-        } finally {
-            setStatsLoading(false);
+            console.error('Error fetching project stats:', err);
         }
     };
-
-    // Available tags for the active category
-    const availableTags = React.useMemo(() => {
-        const currentData = globalData[activeCategory] || [];
-        return [...new Set(currentData.map(item => item.tag))];
-    }, [globalData, activeCategory]);
-
-    // Data formatted for Recharts
-    const chartData = React.useMemo(() => {
-        const currentData = globalData[activeCategory] || [];
-        const groupMap = {};
-
-        currentData.forEach(item => {
-            if (!groupMap[item.group_key]) {
-                groupMap[item.group_key] = { name: item.group_key };
-            }
-            if (selectedTags.includes(item.tag)) {
-                groupMap[item.group_key][item.tag] = item.tag_count;
-            }
-        });
-
-        return Object.values(groupMap).sort((a, b) => a.name.localeCompare(b.name));
-    }, [globalData, activeCategory, selectedTags]);
-
-    const handleTagToggle = (tag) => {
-        setSelectedTags(prev =>
-            prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
-        );
-    };
-
-    const handleSelectAll = () => {
-        if (selectedTags.length === availableTags.length) {
-            setSelectedTags([]);
-        } else {
-            setSelectedTags(availableTags);
-        }
-    };
-
-    const getGlobalSum = (arr) => (arr || []).reduce((acc, curr) => acc + (curr.tag_count || 0), 0);
-
-    const handleDownloadTrend = () => {
-        const currentData = globalData[activeCategory] || [];
-        const filteredData = currentData.filter(item => selectedTags.includes(item.tag));
-        const formattedData = filteredData.map(item => ({
-            '時間範圍': item.group_key,
-            '標籤': item.tag,
-            '分類': categoryMap[activeCategory].label,
-            '數值': item.tag_count
-        }));
-        downloadCSV(formattedData, `trend_analysis_${statsDateRange.start}_${statsDateRange.end}.csv`);
-    };
-
-    const handleDownloadKeywords = () => {
-        const formattedData = keywordData.map(item => ({
-            '關鍵字': item.keyword,
-            '出現次數': item.count
-        }));
-        downloadCSV(formattedData, `keyword_ranking_${statsDateRange.start}_${statsDateRange.end}.csv`);
-    };
-
-    const StatCard = ({ title, value, icon: Component, color }) => (
-        <div style={{
-            background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333',
-            display: 'flex', alignItems: 'center', gap: '20px'
-        }}>
-            <div style={{ backgroundColor: `${color}22`, padding: '15px', borderRadius: '12px' }}>
-                <Component size={32} style={{ color: color }} />
-            </div>
-            <div>
-                <p style={{ color: '#B0B0B0', fontSize: '14px', marginBottom: '5px' }}>{title}</p>
-                <h3 style={{ fontSize: '28px', fontWeight: 'bold' }}>{value.toLocaleString()}</h3>
-            </div>
-        </div>
-    );
 
     const handleExportSchedules = async () => {
         if (!selectedProjectId) {
@@ -839,18 +712,6 @@ setPreviewSteps(steps);
                 >
                     <Users size={18} /> 參與用戶
                 </button>
-                <button
-                    onClick={() => setActiveTab('stats')}
-                    style={{
-                        padding: '12px 25px',
-                        backgroundColor: activeTab === 'stats' ? 'var(--secondary-black)' : 'transparent',
-                        color: activeTab === 'stats' ? 'var(--primary-yellow)' : '#B0B0B0',
-                        borderBottom: activeTab === 'stats' ? '2px solid var(--primary-yellow)' : 'none',
-                        display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '8px 8px 0 0'
-                    }}
-                >
-                    <BarChart2 size={18} /> 統計數據
-                </button>
             </div>
 
             {
@@ -988,22 +849,35 @@ setPreviewSteps(steps);
                         {/* ... Schedules content remains same, just adjusted the nesting ... */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                                <h3 style={{ fontSize: '20px' }}>排程清單</h3>
+                                <h3 style={{ fontSize: '20px' }}>排程步驟設定</h3>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#111', padding: '5px 15px', borderRadius: '8px' }}>
                                     <Filter size={16} className="text-yellow" />
-                                    <span style={{ fontSize: '14px' }}>過濾專案:</span>
+                                    <span style={{ fontSize: '14px' }}>選擇專案:</span>
                                     <select
                                         value={selectedProjectId}
                                         onChange={e => setSelectedProjectId(e.target.value)}
                                         style={{ background: 'transparent', border: 'none', padding: '5px' }}
                                     >
-                                        <option value="">全部顯示</option>
+                                        <option value="">請選擇專案...</option>
                                         {projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
                                     </select>
                                 </div>
-                                <span style={{ fontSize: '13px', color: '#888' }}>
-                                    (共 {schedules.length} 筆排程)
-                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <span style={{ fontSize: '14px', color: '#B0B0B0' }}>統計範圍:</span>
+                                    <input
+                                        type="date"
+                                        value={statsDateRange.start}
+                                        onChange={e => setStatsDateRange({ ...statsDateRange, start: e.target.value })}
+                                        style={{ padding: '4px 8px', background: '#333', border: '1px solid #444', color: '#fff' }}
+                                    />
+                                    <span>~</span>
+                                    <input
+                                        type="date"
+                                        value={statsDateRange.end}
+                                        onChange={e => setStatsDateRange({ ...statsDateRange, end: e.target.value })}
+                                        style={{ padding: '4px 8px', background: '#333', border: '1px solid #444', color: '#fff' }}
+                                    />
+                                </div>
                             </div>
                             <div style={{ display: 'flex', gap: '10px' }}>
                                 <button
@@ -1029,6 +903,32 @@ setPreviewSteps(steps);
                                 </button>
                             </div>
                         </div>
+
+                        {selectedProjectId && (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '25px' }}>
+                                <div style={{ background: '#1a1a1a', padding: '15px', borderRadius: '8px', border: '1px solid #333' }}>
+                                    <div style={{ color: '#888', fontSize: '12px' }}>觸發客戶數</div>
+                                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--primary-yellow)' }}>{projectStats.tc || 0}</div>
+                                </div>
+                                <div style={{ background: '#1a1a1a', padding: '15px', borderRadius: '8px', border: '1px solid #333' }}>
+                                    <div style={{ color: '#888', fontSize: '12px' }}>完成率</div>
+                                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#4CAF50' }}>{projectStats.completion_rate || 0}%</div>
+                                    <div style={{ fontSize: '10px', color: '#555' }}>共 {projectStats.cc || 0} 人完成</div>
+                                </div>
+                                <div style={{ background: '#1a1a1a', padding: '15px', borderRadius: '8px', border: '1px solid #333' }}>
+                                    <div style={{ color: '#888', fontSize: '12px' }}>總發送數</div>
+                                    <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{projectStats.ms || 0}</div>
+                                </div>
+                                <div style={{ background: '#1a1a1a', padding: '15px', borderRadius: '8px', border: '1px solid #333' }}>
+                                    <div style={{ color: '#888', fontSize: '12px' }}>成功 / 失敗</div>
+                                    <div style={{ display: 'flex', gap: '10px', alignItems: 'baseline' }}>
+                                        <span style={{ fontSize: '24px', fontWeight: 'bold', color: '#4CAF50' }}>{projectStats.mss || 0}</span>
+                                        <span style={{ color: '#444' }}>/</span>
+                                        <span style={{ fontSize: '20px', fontWeight: 'bold', color: '#FF4D4D' }}>{projectStats.msf || 0}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {showAddScheduleForm && (
                             <div style={{ backgroundColor: '#222', padding: '20px', borderRadius: '12px', marginBottom: '25px', border: '1px solid #333' }}>
@@ -1293,254 +1193,6 @@ setPreviewSteps(steps);
                                     )}
                                 </tbody>
                             </table>
-                        </div>
-                    </div>
-                ) : activeTab === 'stats' ? (
-                    <div className="card">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                                <h3 style={{ fontSize: '20px' }}>數據分析</h3>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#111', padding: '5px 15px', borderRadius: '8px' }}>
-                                    <Filter size={16} className="text-yellow" />
-                                    <span style={{ fontSize: '14px' }}>數據對象:</span>
-                                    <select
-                                        value={selectedProjectId}
-                                        onChange={e => setSelectedProjectId(e.target.value)}
-                                        style={{ background: 'transparent', border: 'none', padding: '5px' }}
-                                    >
-                                        <option value="">綜合數據 (全帳號)</option>
-                                        {projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginRight: '10px' }}>
-                                    <span style={{ fontSize: '14px', color: '#B0B0B0' }}>統計單位:</span>
-                                    <select
-                                        className="input"
-                                        value={groupUnit}
-                                        onChange={(e) => setGroupUnit(e.target.value)}
-                                        style={{ padding: '4px 8px', background: '#333', border: '1px solid #444', color: '#fff' }}
-                                    >
-                                        <option value="day">日</option>
-                                        <option value="week">週</option>
-                                        <option value="month">月</option>
-                                        <option value="year">年</option>
-                                    </select>
-                                </div>
-                                <span style={{ fontSize: '14px', color: '#B0B0B0' }}>時間範圍:</span>
-                                <input
-                                    type="date"
-                                    value={statsDateRange.start}
-                                    onChange={e => setStatsDateRange({ ...statsDateRange, start: e.target.value })}
-                                    style={{ padding: '4px 8px', background: '#333', border: '1px solid #444', color: '#fff' }}
-                                />
-                                <span>~</span>
-                                <input
-                                    type="date"
-                                    value={statsDateRange.end}
-                                    onChange={e => setStatsDateRange({ ...statsDateRange, end: e.target.value })}
-                                    style={{ padding: '4px 8px', background: '#333', border: '1px solid #444', color: '#fff' }}
-                                />
-                            </div>
-                        </div>
-
-                        {selectedProjectId ? (
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-                                <div style={{ background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333' }}>
-                                    <div style={{ color: '#888', fontSize: '14px', marginBottom: '10px' }}>觸發客戶數</div>
-                                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--primary-yellow)' }}>{projectStats.tc}</div>
-                                </div>
-                                <div style={{ background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333' }}>
-                                    <div style={{ color: '#888', fontSize: '14px', marginBottom: '10px' }}>完成率</div>
-                                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#4CAF50' }}>{projectStats.completion_rate}%</div>
-                                    <div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>共 {projectStats.cc} 人完成全部步驟</div>
-                                </div>
-                                <div style={{ background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333' }}>
-                                    <div style={{ color: '#888', fontSize: '14px', marginBottom: '10px' }}>總發送延遲訊息</div>
-                                    <div style={{ fontSize: '32px', fontWeight: 'bold' }}>{projectStats.ms}</div>
-                                </div>
-                                <div style={{ background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333' }}>
-                                    <div style={{ color: '#888', fontSize: '14px', marginBottom: '10px' }}>發送成功數</div>
-                                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#4CAF50' }}>{projectStats.mss}</div>
-                                </div>
-                                <div style={{ background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333' }}>
-                                    <div style={{ color: '#888', fontSize: '14px', marginBottom: '10px' }}>發送失敗數</div>
-                                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#FF4D4D' }}>{projectStats.msf}</div>
-                                </div>
-                            </div>
-                        ) : (
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-                                <StatCard title="總客戶數" value={getGlobalSum(globalData.follow)} icon={Users} color="#FFD700" />
-                                <StatCard title="有效好友數" value={getGlobalSum(globalData.user)} icon={TrendingUp} color="#4CAF50" />
-                                <StatCard title="總訊息量" value={getGlobalSum(globalData.message)} icon={MessageSquare} color="#2196F3" />
-                            </div>
-                        )}
-
-                        <div className="inner-card" style={{ marginBottom: '40px', padding: '20px', background: '#1a1a1a', borderRadius: '12px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                                <h4 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
-                                    <BarChart3 size={18} className="text-yellow" /> 趨勢分析
-                                </h4>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                        <label style={{ fontSize: '14px', color: '#B0B0B0' }}>指標分類：</label>
-                                        <select
-                                            className="input"
-                                            value={activeCategory}
-                                            onChange={(e) => {
-                                                const newCat = e.target.value;
-                                                setActiveCategory(newCat);
-                                                const tags = [...new Set(globalData[newCat]?.map(item => item.tag) || [])];
-                                                setSelectedTags(tags);
-                                            }}
-                                            style={{ padding: '5px 10px', width: '150px', background: '#222', border: '1px solid #333', color: '#fff' }}
-                                        >
-                                            {Object.entries(categoryMap).map(([key, info]) => (
-                                                <option key={key} value={key}>{info.label}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <button
-                                        onClick={handleDownloadTrend}
-                                        className="secondary"
-                                        style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', fontSize: '13px' }}
-                                    >
-                                        <Download size={16} /> 下載報表
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div style={{ marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '10px', padding: '10px', background: '#111', borderRadius: '8px' }}>
-                                <div
-                                    onClick={handleSelectAll}
-                                    style={{
-                                        display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer',
-                                        padding: '4px 10px', borderRadius: '20px',
-                                        background: selectedTags.length === availableTags.length ? '#333' : 'transparent',
-                                        border: '1px solid #444', transition: 'all 0.2s', fontSize: '12px'
-                                    }}
-                                >
-                                    {selectedTags.length === availableTags.length ? <CheckCircle2 size={14} className="text-yellow" /> : <Circle size={14} />}
-                                    <span>全選</span>
-                                </div>
-                                {availableTags.map((tag, idx) => (
-                                    <div
-                                        key={tag}
-                                        onClick={() => handleTagToggle(tag)}
-                                        style={{
-                                            display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer',
-                                            padding: '4px 10px', borderRadius: '20px',
-                                            background: selectedTags.includes(tag) ? `${colors[idx % colors.length]}22` : 'transparent',
-                                            border: `1px solid ${selectedTags.includes(tag) ? colors[idx % colors.length] : '#444'}`,
-                                            transition: 'all 0.2s', fontSize: '12px'
-                                        }}
-                                    >
-                                        {selectedTags.includes(tag) ? <CheckCircle2 size={14} style={{ color: colors[idx % colors.length] }} /> : <Circle size={14} />}
-                                        <span>{tag}</span>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {statsLoading ? (
-                                <div style={{ height: '350px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#666' }}>載入中...</div>
-                            ) : chartData.length > 0 ? (
-                                <div style={{ height: '350px', width: '100%' }}>
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                                            <XAxis dataKey="name" stroke="#888" fontSize={11} />
-                                            <YAxis stroke="#888" fontSize={11} />
-                                            <Tooltip
-                                                contentStyle={{ background: '#222', border: '1px solid #444', color: '#fff' }}
-                                                itemStyle={{ fontSize: '11px' }}
-                                            />
-                                            <Legend wrapperStyle={{ fontSize: '11px' }} />
-                                            {availableTags.map((tag, idx) => (
-                                                selectedTags.includes(tag) && (
-                                                    <Line
-                                                        key={tag}
-                                                        type="monotone"
-                                                        dataKey={tag}
-                                                        stroke={colors[idx % colors.length]}
-                                                        activeDot={{ r: 6 }}
-                                                        strokeWidth={2}
-                                                    />
-                                                )
-                                            ))}
-                                        </LineChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            ) : (
-                                <div style={{ height: '350px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#666' }}>
-                                    此範圍內或勾選標籤下無數據
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="inner-card" style={{ padding: '20px', background: '#1a1a1a', borderRadius: '12px' }}>
-                            <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <MessageSquare size={18} className="text-yellow" /> 用戶關鍵字排名 (Top {keywordData.length})
-                                </h4>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                    {Math.ceil(keywordData.length / ITEMS_PER_PAGE) > 1 && (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: '#111', padding: '4px', borderRadius: '8px' }}>
-                                            <button
-                                                onClick={() => setKeywordPage(p => Math.max(1, p - 1))}
-                                                disabled={keywordPage === 1}
-                                                style={{ background: 'transparent', border: 'none', color: keywordPage === 1 ? '#444' : '#fff', cursor: keywordPage === 1 ? 'default' : 'pointer', display: 'flex' }}
-                                            >
-                                                <ChevronLeft size={18} />
-                                            </button>
-                                            <span style={{ fontSize: '12px', minWidth: '50px', textAlign: 'center' }}>
-                                                {keywordPage} / {Math.ceil(keywordData.length / ITEMS_PER_PAGE)}
-                                            </span>
-                                            <button
-                                                onClick={() => setKeywordPage(p => Math.min(Math.ceil(keywordData.length / ITEMS_PER_PAGE), p + 1))}
-                                                disabled={keywordPage === Math.ceil(keywordData.length / ITEMS_PER_PAGE)}
-                                                style={{ background: 'transparent', border: 'none', color: keywordPage === Math.ceil(keywordData.length / ITEMS_PER_PAGE) ? '#444' : '#fff', cursor: keywordPage === Math.ceil(keywordData.length / ITEMS_PER_PAGE) ? 'default' : 'pointer', display: 'flex' }}
-                                            >
-                                                <ChevronRight size={18} />
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    <button
-                                        onClick={handleDownloadKeywords}
-                                        className="secondary"
-                                        style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', fontSize: '13px' }}
-                                    >
-                                        <Download size={16} /> 下載報表
-                                    </button>
-                                </div>
-                            </div>
-                            {statsLoading ? (
-                                <div style={{ height: '300px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#666' }}>載入中...</div>
-                            ) : keywordData.length > 0 ? (
-                                <div style={{ height: '350px', width: '100%' }}>
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart
-                                            layout="vertical"
-                                            data={keywordData.slice((keywordPage - 1) * ITEMS_PER_PAGE, keywordPage * ITEMS_PER_PAGE)}
-                                            margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
-                                        >
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#333" horizontal={true} vertical={false} />
-                                            <XAxis type="number" stroke="#888" fontSize={11} />
-                                            <YAxis dataKey="keyword" type="category" width={90} stroke="#888" fontSize={11} />
-                                            <Tooltip
-                                                cursor={{ fill: '#333' }}
-                                                contentStyle={{ background: '#222', border: '1px solid #444', color: '#fff' }}
-                                            />
-                                            <Bar dataKey="count" fill="#FFD700" radius={[0, 4, 4, 0]} barSize={18} name="出現次數" />
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            ) : (
-                                <div style={{ height: '300px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#666' }}>
-                                    此範圍內無數據
-                                </div>
-                            )}
                         </div>
                     </div>
                 ) : (

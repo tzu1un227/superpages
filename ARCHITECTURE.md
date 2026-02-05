@@ -71,15 +71,14 @@ This project is a web application with a Flask backend and a React frontend. It 
 ## Data Analysis & Statistics (數據分析與統計)
 
 ### Core Components
-1. **Integrated Stats View**: Located within `Projects.jsx` (activeTab: `stats`).
-2. **Global View**: Displayed when no project is selected.
-   - **Trend Analysis**: Fetches data from `/api/statistics` (Trend data).
-   - **Keyword Ranking**: Fetches data from `/api/statistics/keywords`.
-3. **Project View**: Displayed when a project is selected.
-   - **Metrics**: Triggered users, completion rate, success/failure counts.
-   - **Source**: Fetched via `/api/projects/<id>/stats`.
+1. **Integrated Project Metrics**: Located within `Projects.jsx` -> `activeTab === 'schedules'`.
+   - Displays project-specific metrics: 觸發客戶數 (tc), 完成率 (completion_rate), 成功/失敗數 (mss/msf).
+   - Metrics are filtered by the selected project and the specified date range.
+2. **Global Account Analysis**: Located within `Statistics.jsx`.
+   - **Trend Analysis**: Fetches data from `/api/statistics` (Global metrics: Messages, Follows, User count).
+   - **Keyword Ranking**: Fetches data from `/api/statistics/keywords` (Top keyword rankings).
 
 ### Visualization
 - Uses `recharts` for LineCharts (Trend Analysis) and BarCharts (Keyword Ranking).
-- Supports filtering by category (Message, Follow, User) and multiple tag selection.
-- Data export supported via CSV downloads.
+- Supports filtering by category (Message, Follow, User), tag selection, and group unit (Day/Week/Month/Year).
+- Data export supported via CSV downloads in the global Statistics page.
