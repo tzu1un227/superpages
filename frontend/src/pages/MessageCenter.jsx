@@ -51,7 +51,10 @@ function MessageCenter() {
     const fetchAvailableTags = async () => {
         try {
             const resp = await api.get('/tags');
-            setAvailableTags(resp.data);
+            // Clean up brackets and quotes
+            const cleanedTags = (resp.data || []).map(t => String(t).replace(/^[\["']+|[\]"']+$/g, ''));
+            // Unique tags again after cleaning
+            setAvailableTags([...new Set(cleanedTags)]);
         } catch (err) {
             console.error('Error fetching tags:', err);
         }
