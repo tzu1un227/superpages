@@ -3,8 +3,9 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
-- **Flex Message Editor Fix**: Fixed infinite loop and UI flickering by ensuring auto-save only triggers on semantic content changes.
-- **Improved Project Preview**: The pre-broadcast preview now displays ALL messages within a step (multi-message support) and live-syncs with unsaved edits in the editor modal.
+- **Project Import Isolation Fix**: Resolved issue where different projects shared the same message tags. Each project now gets unique cloned tags during import.
+- **Flex Message Editor Stability**: Fixed oscillating template states and UI flickers using semantic normalization and initialization guards.
+- **Flex Message Editor Fix**: Improved auto-save reliability to prevent infinite loops.
 - **Improved Project Page UI**: Replaced CSS Grid with Flexbox in "Add Project" form to prevent overlapping of fields at high zoom levels (150%+), ensuring a responsive layout.
 - Fixed bug in Advanced Message Editor: Prevented overwriting of QA tag with preview text during schedule editing, ensuring saved Rich Messages can be correctly reloading and edited.
 - Improved Lottery Management: Added "Registered Users" tab to display user list (Name + Avatar).

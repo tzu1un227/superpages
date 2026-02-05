@@ -644,7 +644,7 @@ def import_project_schedules(id):
     data = request.json # List of schedules
     try:
         conn = get_db_connection()
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
         # Delete existing
         cur.execute("DELETE FROM project_schedules WHERE project_id = %s", (id,))

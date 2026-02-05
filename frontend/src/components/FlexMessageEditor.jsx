@@ -29,54 +29,88 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
 
     const [hasInitialized, setHasInitialized] = useState(false);
 
-    // Initialize from props
+    // Initial load from props
     useEffect(() => {
-        if (initialContent) {
-            try {
-                const parsed = typeof initialContent === 'string' ? JSON.parse(initialContent) : initialContent;
+        if (!initialContent) {
+            setHasInitialized(true);
+            return;
+        }
 
-                // Prevent infinite loop: if incoming content matches current state, do nothing
-                // relying on JSON.stringify for deep comparison of simple objects
-                const currentJson = generateJson();
-                if (JSON.stringify(parsed) === JSON.stringify(currentJson)) {
-                    setHasInitialized(true);
-                    return;
-                }
+        try {
+            const incoming = typeof initialContent === 'string' ? JSON.parse(initialContent) : initialContent;
 
-                if (parsed.type === 'carousel') {
+            // Normalize both for a stable semantic comparison
+            const normalize = (obj) => {
+                if (!obj) return null;
+                // Deep clone and sort keys/omit internal markers
+                const clone = JSON.parse(JSON.stringify(obj));
+                const sweep = (o) => {
+                    if (Array.isArray(o)) o.forEach(sweep);
+                    else if (o && typeof o === 'object') {
+                        delete o._template;
+                        // Sort keys for stringify stability if needed, 
+                        // but usually JSON.stringify is consistent enough for cloned objects here.
+                        Object.values(o).forEach(sweep);
+                    }
+                };
+                sweep(clone);
+                return JSON.stringify(clone);
+            };
+
+            const current = generateJson();
+            if (normalize(incoming) === normalize(current)) {
+                // If semantically identical, just mark as initialized and stop
+                if (!hasInitialized) setHasInitialized(true);
+                return;
+            }
+
+            // If we're already initialized and the parent pulse doesn't look like an external reset, 
+            // we should be careful about overwriting local state.
+            // But if it's a DIFFERENT message (external change), we MUST load it.
+            // Heuristic: If we are carousel and incoming is bubble, or vice-versa, or card count differs.
+            const isExternalChange = !hasInitialized; // Always load on first mounting
+
+            if (isExternalChange) {
+                if (incoming.type === 'carousel') {
                     setMode('carousel');
-                    const loadedCards = parsed.contents.map(bubble => parseBubbleToCard(bubble));
-                    setCards(loadedCards);
-                } else if (parsed.type === 'bubble') {
+                    setCards(incoming.contents.map(b => parseBubbleToCard(b)));
+                } else if (incoming.type === 'bubble') {
                     setMode('single');
-                    setCards([parseBubbleToCard(parsed)]);
+                    setCards([parseBubbleToCard(incoming)]);
                 }
-                setHasInitialized(true);
-            } catch (e) {
-                console.error("Failed to parse initial content", e);
-                // Fallback to default
                 setHasInitialized(true);
             }
-        } else {
+        } catch (e) {
+            console.error("FlexEditor Load Error:", e);
             setHasInitialized(true);
         }
     }, [initialContent]);
 
-    // Auto-save when cards or mode changes
+    // Auto-save logic
     useEffect(() => {
         if (!hasInitialized) return;
 
-        const json = generateJson();
-        const jsonString = JSON.stringify(json);
+        const normalize = (obj) => {
+            if (!obj) return null;
+            try {
+                const clone = JSON.parse(JSON.stringify(obj));
+                const sweep = (o) => {
+                    if (Array.isArray(o)) o.forEach(sweep);
+                    else if (o && typeof o === 'object') {
+                        delete o._template;
+                        Object.values(o).forEach(sweep);
+                    }
+                };
+                sweep(clone);
+                return JSON.stringify(clone);
+            } catch (e) { return null; }
+        };
 
-        // Final sanity check: if what we have is semantically what was passed in, don't save.
-        let normalizedInitial = initialContent;
-        if (typeof initialContent === 'string' && initialContent) {
-            try { normalizedInitial = JSON.stringify(JSON.parse(initialContent)); } catch (e) { }
-        }
+        const currentJson = generateJson();
+        const incomingJson = typeof initialContent === 'string' ? JSON.parse(initialContent || '{}') : initialContent;
 
-        if (jsonString !== normalizedInitial) {
-            onSave(jsonString);
+        if (normalize(currentJson) !== normalize(incomingJson)) {
+            onSave(JSON.stringify(currentJson));
         }
     }, [cards, mode, hasInitialized]);
 
