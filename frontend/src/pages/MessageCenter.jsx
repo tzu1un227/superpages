@@ -146,7 +146,10 @@ function MessageCenter() {
         });
 
         // Unique and filter empty
-        return [...new Set(tagList.map(t => String(t).trim()).filter(t => t && t !== 'null' && t !== 'undefined'))];
+        const uniqueTags = [...new Set(tagList.map(t => String(t).trim()).filter(t => t && t !== 'null' && t !== 'undefined'))];
+
+        // Clean up brackets and quotes from display
+        return uniqueTags.map(t => t.replace(/^[\["']+|[\]"']+$/g, ''));
     };
 
     return (

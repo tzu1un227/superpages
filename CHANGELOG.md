@@ -13,4 +13,5 @@ All notable changes to this project will be documented in this file.
 - **Improved Project Management**: "Manual Participants" list now correctly fetches users with name and picture from `Private_var` instead of `person_table`.
 - **Improved Message Center**: `sys_reply` messages containing JSON (e.g., `{"text": "...", "type": "..."}`) are now parsed to display only the text content in Traditional Chinese.
 - **Improved Message Center**: Enhanced Tag Input to support selecting existing tags (via dropdown) or entering new ones, and increased input width for better usability.
+- **Improved Message Center**: Tags are now displayed without surrounding brackets or quotes (e.g., `['tag']` becomes `tag`), ensuring cleaner UI.
 - Initial creation of CHANGELOG.md and ARCHITECTURE.md.
