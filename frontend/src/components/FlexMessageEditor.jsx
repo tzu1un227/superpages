@@ -58,7 +58,13 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
     // Auto-save when cards or mode changes
     useEffect(() => {
         const json = generateJson();
-        onSave(JSON.stringify(json));
+        const jsonString = JSON.stringify(json);
+
+        // Prevent infinite loops by only saving if content has actually changed
+        // from what was initially passed in.
+        if (jsonString !== initialContent) {
+            onSave(jsonString);
+        }
     }, [cards, mode]);
 
     // Helper: Parse Bubble back to internal Card state

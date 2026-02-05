@@ -29,34 +29,37 @@ const ProjectsManagement = () => {
 
             const steps = [];
             for (const s of sorted) {
-                let msg = null;
-                const content = s.message_content;
+                // If this is the schedule currently being edited, use the form data instead of the fixed schedule state
+                let content = s.message_content;
+                if (editingScheduleId === s.schedule_id && editScheduleFormData.message_content) {
+                    content = editScheduleFormData.message_content;
+                }
+
                 if (content && content.startsWith('QA|')) {
                     const tag = content.substring(3);
                     try {
                         const res = await api.get(`/qa-bank/${tag}`);
                         const msgs = res.data.msg_rpy || [];
-                        // Take the first message for preview sim
-                        if (msgs.length > 0) {
-                            let first = msgs[0];
-                            if (typeof first === 'string') {
-                                try { first = JSON.parse(first); } catch (e) { }
+
+                        // Process each message in the QA bank entry
+                        for (let i = 0; i < msgs.length; i++) {
+                            let m = msgs[i];
+                            if (typeof m === 'string') {
+                                try { m = JSON.parse(m); } catch (e) { }
                             }
-                            if (first.Line) first = first.Line;
-                            msg = first;
+                            if (m.Line) m = m.Line;
+
+                            // Format delay info only for the first message of a step
+                            const stepLabel = `Step ${s.step_id} (間隔 ${s.interval_hours} hr)`;
+                            const delay = i === 0 ? stepLabel : '';
+                            steps.push({ ...m, delay });
                         }
                     } catch (e) {
                         console.error("Failed to fetch QA content", e);
-                        msg = { OTYPE: 'TextSendMessage', text: '[無法讀取訊息內容]' };
+                        steps.push({ OTYPE: 'TextSendMessage', text: `[無法讀取訊息內容: ${tag}]`, delay: `Step ${s.step_id}` });
                     }
                 } else if (content) {
-                    msg = { OTYPE: 'TextSendMessage', text: content };
-                }
-
-                if (msg) {
-                    // Format delay
-                    const delay = `Step ${s.step_id} (間隔 ${s.interval_hours} hr)`;
-                    steps.push({ ...msg, delay });
+                    steps.push({ OTYPE: 'TextSendMessage', text: content, delay: `Step ${s.step_id} (間隔 ${s.interval_hours} hr)` });
                 }
             }
             setPreviewSteps(steps);
