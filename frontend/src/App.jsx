@@ -4,7 +4,6 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Projects from './pages/Projects';
-import Statistics from './pages/Statistics';
 import MessageCenter from './pages/MessageCenter';
 import Broadcast from './pages/Broadcast';
 import ScheduledEvents from './pages/ScheduledEvents';
@@ -30,7 +29,6 @@ const AdminRoute = ({ children }) => {
 };
 
 const PAGE_ROUTE_MAP = {
-  'Statistics': 'statistics',
   'MessageCenter': 'messages',
   'Projects': 'projects',
   'Broadcast': 'broadcast',
@@ -39,7 +37,6 @@ const PAGE_ROUTE_MAP = {
 };
 
 const PAGE_ICON_MAP = {
-  'Statistics': BarChart3,
   'MessageCenter': MessageSquare,
   'Projects': LayoutDashboard,
   'Broadcast': Send,
@@ -143,7 +140,6 @@ const MainLayout = () => {
           <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
 
           {/* Dynamic OA Routes */}
-          <Route path="/oa/:oaId/statistics" element={<ProtectedRoute><Statistics /></ProtectedRoute>} />
           <Route path="/oa/:oaId/messages" element={<ProtectedRoute><MessageCenter /></ProtectedRoute>} />
           <Route path="/oa/:oaId/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
           <Route path="/oa/:oaId/broadcast" element={<ProtectedRoute><Broadcast /></ProtectedRoute>} />
@@ -153,7 +149,7 @@ const MainLayout = () => {
           {/* Redirect root to first available OA */}
           <Route path="/" element={
             isAuthenticated && myOAs.length > 0 ? (
-              <Navigate to={`/oa/${myOAs[0].id}/${PAGE_ROUTE_MAP[myOAs[0].pages[0]?.name] || 'statistics'}`} />
+              <Navigate to={`/oa/${myOAs[0].id}/${PAGE_ROUTE_MAP[myOAs[0].pages[0]?.name] || 'projects'}`} />
             ) : (
               <Navigate to="/login" />
             )

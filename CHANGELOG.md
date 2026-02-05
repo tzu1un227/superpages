@@ -3,6 +3,7 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **Statistics Integration**: Consolidated standalone statistics functionality into the `Projects.jsx` page. Global statistics (Trends, Keywords) are now visible by default in the "stats" tab when no project is selected, alongside project-specific metrics. Removed the redundant `Statistics.jsx` page and associated route from `App.jsx`.
 - **Project Import Isolation Fix**: Resolved issue where different projects shared the same message tags. Each project now gets unique cloned tags during import.
 - **Flex Message Editor Stability**: Fixed oscillating template states and UI flickers using semantic normalization and initialization guards.
 - **Flex Message Editor Fix**: Improved auto-save reliability to prevent infinite loops.
@@ -20,4 +21,5 @@ All notable changes to this project will be documented in this file.
 - **Improved Message Center**: Tags (both in display and dropdown menu) are now displayed without surrounding brackets or quotes (e.g., `['tag']` becomes `tag`), ensuring cleaner UI.
 - **Improved Lottery Management**: "Registered Users" list now fetches from `person_table` and displays only the user's name, providing a cleaner view for lottery purposes.
 - **Improved Message Center**: `sys_reply` messages can now display images, videos, audio, and simplified Flex messages (instead of raw JSON text), providing a better preview of bot responses.
+- **Backend**: `/api/history/<user_id>` fetches chat history from `history:{app_id}` table.
 - Initial creation of CHANGELOG.md and ARCHITECTURE.md.

@@ -67,3 +67,19 @@ This project is a web application with a Flask backend and a React frontend. It 
     - Messages from `yzuadmin`, or with category `Sensor`, `Response`, or `sys_reply` are displayed on the right (Admin/System side).
     - `sys_reply` messages are displayed with raw content, without type indicators.
 - **Backend**: `/api/history/<user_id>` fetches chat history from `history:{app_id}` table.
+
+## Data Analysis & Statistics (數據分析與統計)
+
+### Core Components
+1. **Integrated Stats View**: Located within `Projects.jsx` (activeTab: `stats`).
+2. **Global View**: Displayed when no project is selected.
+   - **Trend Analysis**: Fetches data from `/api/statistics` (Trend data).
+   - **Keyword Ranking**: Fetches data from `/api/statistics/keywords`.
+3. **Project View**: Displayed when a project is selected.
+   - **Metrics**: Triggered users, completion rate, success/failure counts.
+   - **Source**: Fetched via `/api/projects/<id>/stats`.
+
+### Visualization
+- Uses `recharts` for LineCharts (Trend Analysis) and BarCharts (Keyword Ranking).
+- Supports filtering by category (Message, Follow, User) and multiple tag selection.
+- Data export supported via CSV downloads.
