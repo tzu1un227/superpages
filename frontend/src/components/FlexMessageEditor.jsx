@@ -32,6 +32,14 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
         if (initialContent) {
             try {
                 const parsed = typeof initialContent === 'string' ? JSON.parse(initialContent) : initialContent;
+
+                // Prevent infinite loop: if incoming content matches current state, do nothing
+                // relying on JSON.stringify for deep comparison of simple objects
+                const currentJson = generateJson();
+                if (JSON.stringify(parsed) === JSON.stringify(currentJson)) {
+                    return;
+                }
+
                 if (parsed.type === 'carousel') {
                     setMode('carousel');
                     const loadedCards = parsed.contents.map(bubble => parseBubbleToCard(bubble));
