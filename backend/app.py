@@ -907,13 +907,25 @@ def get_registered_users():
         app_id = get_current_app_id()
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        # Fetch users from Private_var with name and pic
-        cur.execute(f"""
-            SELECT t1.user_id, t1.value as name, t2.value as pic
-            FROM "Private_var:{app_id}" t1
-            JOIN "Private_var:{app_id}" t2 ON t1.user_id = t2.user_id
-            WHERE t1.name = 'name' AND t2.name = 'pic'
-        """)
+        
+        source = request.args.get('source', 'private_var')
+        
+        if source == 'person_table':
+            # Fetch users from person_table
+            cur.execute("""
+                SELECT user_id, name 
+                FROM person_table 
+                ORDER BY id::integer
+            """)
+        else:
+            # Fetch users from Private_var with name and pic
+            cur.execute(f"""
+                SELECT t1.user_id, t1.value as name, t2.value as pic
+                FROM "Private_var:{app_id}" t1
+                JOIN "Private_var:{app_id}" t2 ON t1.user_id = t2.user_id
+                WHERE t1.name = 'name' AND t2.name = 'pic'
+            """)
+            
         users = cur.fetchall()
         cur.close()
         conn.close()

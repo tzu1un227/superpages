@@ -14,4 +14,5 @@ All notable changes to this project will be documented in this file.
 - **Improved Message Center**: `sys_reply` messages containing JSON (e.g., `{"text": "...", "type": "..."}`) are now parsed to display only the text content in Traditional Chinese.
 - **Improved Message Center**: Enhanced Tag Input to support selecting existing tags (via dropdown) or entering new ones, and increased input width for better usability.
 - **Improved Message Center**: Tags (both in display and dropdown menu) are now displayed without surrounding brackets or quotes (e.g., `['tag']` becomes `tag`), ensuring cleaner UI.
+- **Improved Lottery Management**: "Registered Users" list now fetches from `person_table` and displays only the user's name, providing a cleaner view for lottery purposes.
 - Initial creation of CHANGELOG.md and ARCHITECTURE.md.

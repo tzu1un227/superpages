@@ -39,12 +39,14 @@ const PrizeStatus = () => {
 
     const fetchRegisteredUsers = async () => {
         try {
-            const response = await api.get('/registered-users');
+            const response = await api.get('/registered-users?source=person_table');
             setRegisteredUsers(response.data);
         } catch (err) {
             console.error('Error fetching registered users:', err);
         }
     };
+
+
 
     const handleDeleteTicket = async (id) => {
         if (!window.confirm('確定要刪除此獎品嗎？')) return;
@@ -301,33 +303,11 @@ const PrizeStatus = () => {
                                 {registeredUsers.map((user) => (
                                     <div key={user.user_id} style={{
                                         backgroundColor: '#181818',
-                                        padding: '16px',
+                                        padding: '12px',
                                         borderRadius: '8px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        gap: '15px'
+                                        textAlign: 'center'
                                     }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                            <div style={{
-                                                width: '40px',
-                                                height: '40px',
-                                                borderRadius: '50%',
-                                                backgroundColor: '#333',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                color: '#666'
-                                            }}>
-                                                <Users size={20} />
-                                            </div>
-                                            <div>
-                                                <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{user.name}</div>
-                                                <div style={{ fontSize: '12px', color: '#666', fontFamily: 'monospace' }}>
-                                                    {user.user_id}
-                                                </div>
-                                            </div>
-                                        </div>
+                                        <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{user.name}</div>
                                     </div>
                                 ))}
                             </div>

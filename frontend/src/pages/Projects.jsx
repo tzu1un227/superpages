@@ -1483,7 +1483,7 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
     const fetchUsers = async () => {
         setLoading(true);
         try {
-            const res = await api.get('/registered-users');
+            const res = await api.get('/registered-users?source=private_var');
             setUsers(res.data);
         } catch (err) {
             alert('無法取得用戶列表: ' + err.message);
