@@ -204,9 +204,25 @@ const ProjectsManagement = () => {
         }
     }, [newSchedule.project_id, selectedProjectId, showAddScheduleForm, schedules]);
 
+    // Auto-refresh Projects every 30 seconds
+    useEffect(() => {
+        let interval;
+        if (activeTab === 'projects') {
+            // Initial fetch is handled by other effects or immediate need
+            // But we ensure we Poll
+            interval = setInterval(() => {
+                fetchProjects();
+            }, 30000);
+        }
+        return () => {
+            if (interval) clearInterval(interval);
+        };
+    }, [activeTab]);
+
     const fetchProjects = async () => {
         try {
-            const res = await api.get('/projects');
+            // Add timestamp to prevent caching
+            const res = await api.get('/projects', { params: { _t: new Date().getTime() } });
             setProjects(res.data);
         } catch (err) {
             setError('無法取得專案列表');
