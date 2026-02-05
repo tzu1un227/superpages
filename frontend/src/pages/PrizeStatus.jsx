@@ -85,6 +85,12 @@ const PrizeStatus = () => {
             } else if (actionType === '新增獎品') {
                 setNameInput('');
             }
+
+            // Wait a moment for backend/socket to process, then refresh status
+            setTimeout(() => {
+                fetchGameStatus();
+                fetchTickets(); // Also refresh tickets as they might change
+            }, 1000);
         } catch (err) {
             console.error('Error triggering action:', err);
             alert('發生錯誤: ' + (err.response?.data?.message || err.message));
