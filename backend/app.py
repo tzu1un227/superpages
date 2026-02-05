@@ -469,10 +469,12 @@ def get_projects():
         projects = cur.fetchall()
         
         # Calculate Status
-        now = datetime.now()
+        now = datetime.now().replace(second=0, microsecond=0)
         for p in projects:
-            start = p['start_date']
-            end = p['end_date']
+            # Truncate seconds for comparison to be minute-precise
+            start = p['start_date'].replace(second=0, microsecond=0) if p['start_date'] else p['start_date']
+            end = p['end_date'].replace(second=0, microsecond=0) if p['end_date'] else p['end_date']
+            
             is_enabled = p['is_enabled']
             
             p['status'] = "未知"
@@ -648,10 +650,80 @@ def import_project_schedules(id):
         cur.execute("DELETE FROM project_schedules WHERE project_id = %s", (id,))
         
         # Insert new
+        app_id = get_current_app_id()
+        
         for s in data:
+            # Import Sync Logic: If message is a QA tag, clone it to completely decouple from original project
+            content = s['message_content']
+            if content and content.startswith('QA|'):
+                try:
+                    old_tag = content.split('|', 1)[1]
+                    # Fetch existing
+                    cur.execute(f'SELECT * FROM "QA_bank:{app_id}" WHERE tag = %s', (old_tag,))
+                    qa_row = cur.fetchone()
+                    
+                    if qa_row:
+                        # Create New Tag
+                        new_tag = f"cron_{id}_{s['step_id']}"
+                        
+                        # Check if new tag exists (it shouldn't since we cleared schedules, but QA bank persist)
+                        # Actually we should overwrite if exists to be safe or just insert
+                        # But wait, QA bank is not cleared when we delete schedules. 
+                        
+                        # Prepare msg_rpy (it comes out as list of strings/dicts depending on driver)
+                        # We need to re-insert it. 
+                        raw_msg_rpy = qa_row['msg_rpy']
+                        
+                        # Logic similar to save_qa_bank but we have the raw data already in correct DB format hopefully?
+                        # If raw_msg_rpy is already a list of JSON strings (as postgres array), we can just pass it back?
+                        # We need to be careful about the Format. 
+                        # In save_qa_bank we did: wrapped_message = {"Line": m} ... json.dumps ...
+                        # Here we are reading from DB. 
+                        
+                        # Let's try to upsert the new tag with the SAME content
+                        # We can use the retrieved value directly if we cast it properly or pass it as ARRAY?
+                        
+                        # Simplest way: Read it in Python, Insert it back.
+                        # `qa_row['msg_rpy']` from RealDictCursor might be a list of strings if using psycopg2 with json support?
+                        # Or list of dicts? 
+                        # Migration said: ARRAY(postgresql.JSON(astext_type=sa.Text()))
+                        # Psycopg2 normally converts JSON to dict. So ARRAY of JSON -> List of Dicts.
+                        
+                        # If it is List of Dicts, we need to convert back to List of JSON Strings for the INSERT/UPDATE if we use the same logic as save_qa_bank?
+                        # save_qa_bank: `msg_rpy_strings.append(json.dumps(wrapped_message))`
+                        # Wait, the data inside DB (qa_row['msg_rpy']) is ALREADY wrapped in {"Line": ...} ?
+                        # Yes, save_qa_bank wraps it.
+                        
+                        # So if we read it back, we have [{"Line": ...}, {"Line": ...}]
+                        # We just need to dump them to strings again to insert?
+                        # Or if we pass list of dicts to psycopg2 for JSON array, it might handle it?
+                        # Let's follow `save_qa_bank` pattern to be safe: valid JSON strings.
+                        
+                        new_msg_rpy_strings = []
+                        if raw_msg_rpy:
+                            for item in raw_msg_rpy:
+                                # item is likely a dict {"Line": ...}
+                                # We just json dump it
+                                new_msg_rpy_strings.append(json.dumps(item, ensure_ascii=False))
+                        
+                        # Upsert new tag
+                        check_q = f'SELECT id FROM "QA_bank:{app_id}" WHERE tag = %s'
+                        cur.execute(check_q, (new_tag,))
+                        if cur.fetchone():
+                             cur.execute(f'UPDATE "QA_bank:{app_id}" SET msg_rpy = %s::json[] WHERE tag = %s', (new_msg_rpy_strings, new_tag))
+                        else:
+                             cur.execute(f'INSERT INTO "QA_bank:{app_id}" (tag, msg_rpy, "io", "check", "function", ans) VALUES (%s, %s::json[], \'Output\', ARRAY[\'\'], \'\', ARRAY[\'\'])', (new_tag, new_msg_rpy_strings))
+                        
+                        # Update content to use new tag
+                        content = f"QA|{new_tag}"
+                        
+                except Exception as sync_err:
+                    print(f"Error syncing imported message for step {s['step_id']}: {sync_err}")
+                    # Fallback: keep original content
+            
             cur.execute(
                 "INSERT INTO project_schedules (project_id, step_id, interval_hours, message_content) VALUES (%s, %s, %s, %s)",
-                (id, s['step_id'], s['interval_hours'], s['message_content'])
+                (id, s['step_id'], s['interval_hours'], content)
             )
             
         conn.commit()

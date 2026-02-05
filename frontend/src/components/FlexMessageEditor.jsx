@@ -87,8 +87,10 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
             const titleObj = body.contents.find(c => c.size === 'xl');
             if (titleObj) card.title = titleObj.text;
 
-            const descObj = body.contents.find(c => c.color === '#666666' || c.wrap === true);
-            if (descObj && descObj !== titleObj) card.description = descObj.text;
+            if (titleObj) card.title = titleObj.text;
+
+            const descObj = body.contents.find(c => (c.color === '#666666' || c.wrap === true) && c !== titleObj);
+            if (descObj) card.description = descObj.text;
         }
 
         // Buttons

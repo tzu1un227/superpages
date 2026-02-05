@@ -55,7 +55,7 @@ const MainLayout = () => {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
-      {isAuthenticated && (
+      {isAuthenticated && location.pathname !== '/login' && (
         <nav style={{ width: '260px', backgroundColor: '#111', borderRight: '1px solid #333', padding: '30px 20px', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
           <h2 className="text-yellow" style={{ marginBottom: '40px', fontSize: '24px' }}>SuperPages</h2>
 

@@ -121,34 +121,34 @@ const styles = {
 };
 
 const JourneyPreview = ({ steps = [] }) => {
-    
+
     const renderFlexCard = (card, index) => {
         // Handle both "Option" (Template A) and "Image" (Template B)
         // Image Card (Template B) usually is just an image? Or image with actions.
         // Prompt says Template B: Image only, clickable.
-        
+
         const isImageCard = !card.title && !card.description && (!card.buttons || card.buttons.length === 0);
-        
+
         if (isImageCard) {
-             return (
+            return (
                 <div key={index} style={styles.flexBubble}>
-                    <div style={{...styles.flexImage, height: '160px', position: 'relative'}}>
+                    <div style={{ ...styles.flexImage, height: '160px', position: 'relative' }}>
                         {card.imageUrl ? (
-                            <img src={card.imageUrl} alt="Card" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                            <img src={card.imageUrl} alt="Card" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         ) : (
-                            <div style={{width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ccc', color: '#666'}}>
+                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ccc', color: '#666' }}>
                                 No Image
                             </div>
                         )}
                         {/* Overlay to hint action */}
                         {card.imageAction && card.imageAction.type !== 'none' && (
-                             <div style={{
-                                 position: 'absolute', bottom: 0, left: 0, right: 0, 
-                                 background: 'rgba(0,0,0,0.5)', color: '#fff', 
-                                 fontSize: '10px', padding: '5px', textAlign: 'center'
-                             }}>
-                                 {card.imageAction.type === 'message' ? '點擊傳送訊息' : '點擊開啟連結'}
-                             </div>
+                            <div style={{
+                                position: 'absolute', bottom: 0, left: 0, right: 0,
+                                background: 'rgba(0,0,0,0.5)', color: '#fff',
+                                fontSize: '10px', padding: '5px', textAlign: 'center'
+                            }}>
+                                {card.imageAction.type === 'message' ? '點擊傳送訊息' : '點擊開啟連結'}
+                            </div>
                         )}
                     </div>
                 </div>
@@ -158,28 +158,28 @@ const JourneyPreview = ({ steps = [] }) => {
         // Option Card (Template A)
         return (
             <div key={index} style={styles.flexBubble}>
-                 <div style={styles.flexImage}>
+                <div style={styles.flexImage}>
                     {card.imageUrl ? (
-                        <img src={card.imageUrl} alt={card.title || "Card"} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                        <img src={card.imageUrl} alt={card.title || "Card"} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : (
-                         <div style={{width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ccc', color: '#666'}}>
+                        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ccc', color: '#666' }}>
                             No Image
                         </div>
                     )}
-                 </div>
-                 <div style={styles.flexContent}>
+                </div>
+                <div style={styles.flexContent}>
                     {card.title && <div style={styles.flexTitle}>{card.title}</div>}
                     {card.description && <div style={styles.flexDesc}>{card.description}</div>}
-                 </div>
-                 {/* Buttons */}
-                 {card.buttons && card.buttons.map((btn, btnIdx) => (
-                     <button key={btnIdx} style={{
-                         ...styles.flexButton,
-                         color: btn.action === 'uri' ? '#3b82f6' : '#000', // Blue for link, Black for message
-                     }}>
-                         {btn.action === 'uri' && '🔗 '}{btn.text || '按鈕'}
-                     </button>
-                 ))}
+                </div>
+                {/* Buttons */}
+                {card.buttons && card.buttons.map((btn, btnIdx) => (
+                    <button key={btnIdx} style={{
+                        ...styles.flexButton,
+                        color: btn.action === 'uri' ? '#3b82f6' : '#000', // Blue for link, Black for message
+                    }}>
+                        {btn.action === 'uri' && '🔗 '}{btn.text || '按鈕'}
+                    </button>
+                ))}
             </div>
         );
     };
@@ -189,12 +189,12 @@ const JourneyPreview = ({ steps = [] }) => {
         if (msg.OTYPE === 'TextSendMessage') {
             return <div key={idx} style={styles.textBubble}>{msg.text}</div>;
         }
-        
+
         // Handle Image
         if (msg.OTYPE === 'ImageSendMessage') {
             return (
                 <div key={idx} style={styles.imageBubble}>
-                    <img src={msg.preview_image_url || msg.original_content_url} alt="Image" style={{width: '100%'}} />
+                    <img src={msg.preview_image_url || msg.original_content_url} alt="Image" style={{ width: '100%' }} />
                 </div>
             );
         }
@@ -205,64 +205,66 @@ const JourneyPreview = ({ steps = [] }) => {
             let content = msg.contents;
             if (typeof content === 'string') {
                 try {
-                     content = JSON.parse(content);
-                } catch(e) {
-                    return <div key={idx} style={{...styles.textBubble, color: 'red'}}>Invalid JSON</div>;
+                    content = JSON.parse(content);
+                } catch (e) {
+                    return <div key={idx} style={{ ...styles.textBubble, color: 'red' }}>Invalid JSON</div>;
                 }
             }
-            
+
             // Should interpret our internal structure (cards) if passed directly, 
             // OR standardized LINE Flex JSON.
             // But since the editor state passes the internal `cards` structure separate from the generated JSON,
             // we might want this preview to accept `cards` prop directly if it's the "editing" message.
             // A common pattern is to normalize everything to standard Flex for preview.
-            
+
             // However, implementing a full Flex renderer is hard.
             // Let's assume content is standard Flex bubble/carousel.
-            
+
             if (content.type === 'carousel') {
-                 // Mock Carousel
-                 return (
-                     <div key={idx} style={styles.flexContainer}>
-                         {content.contents.map((bubble, bIdx) => {
+                // Mock Carousel
+                return (
+                    <div key={idx} style={styles.flexContainer}>
+                        {content.contents.map((bubble, bIdx) => {
                             // Map standard Flex Bubble back to our render helper? 
                             // Or just simple visualization.
                             // Let's try to parse the bubble structure loosely.
-                            
+
                             const hero = bubble.hero || {};
                             const body = bubble.body || {};
                             const footer = bubble.footer || {};
-                            
-                            const title = body.contents?.find(c => c.size === 'xl')?.text || '';
-                            const desc = body.contents?.find(c => c.wrap === true)?.text || '';
+
+                            const titleObj = body.contents?.find(c => c.size === 'xl');
+                            const title = titleObj?.text || '';
+                            const desc = body.contents?.find(c => c.wrap === true && c !== titleObj)?.text || '';
                             const imageUrl = hero.url;
-                            
+
                             const buttons = footer.contents?.map(b => ({
                                 text: b.action?.label || 'Button',
-                                action: b.action?.type || 'message' 
+                                action: b.action?.type || 'message'
                             }));
 
                             return renderFlexCard({ imageUrl, title, description: desc, buttons }, bIdx);
-                         })}
-                     </div>
-                 );
+                        })}
+                    </div>
+                );
             } else if (content.type === 'bubble') {
-                 // Single Bubble
-                  const hero = content.hero || {};
-                  const body = content.body || {};
-                  const footer = content.footer || {};
-                
-                  const title = body.contents?.find(c => c.size === 'xl')?.text || '';
-                  const desc = body.contents?.find(c => c.wrap === true)?.text || '';
-                  const imageUrl = hero.url;
-                  const buttons = footer.contents?.map(b => ({
-                         text: b.action?.label || 'Button',
-                         action: b.action?.type || 'message' 
-                 }));
-                 
-                 return <div key={idx} style={styles.bubbleContainer}>{renderFlexCard({ imageUrl, title, description: desc, buttons }, 0)}</div>;
+                // Single Bubble
+                const hero = content.hero || {};
+                const body = content.body || {};
+                const footer = content.footer || {};
+
+                const titleObj = body.contents?.find(c => c.size === 'xl');
+                const title = titleObj?.text || '';
+                const desc = body.contents?.find(c => c.wrap === true && c !== titleObj)?.text || '';
+                const imageUrl = hero.url;
+                const buttons = footer.contents?.map(b => ({
+                    text: b.action?.label || 'Button',
+                    action: b.action?.type || 'message'
+                }));
+
+                return <div key={idx} style={styles.bubbleContainer}>{renderFlexCard({ imageUrl, title, description: desc, buttons }, 0)}</div>;
             } else {
-                 return <div key={idx} style={styles.textBubble}>Unsupported Flex Type</div>;
+                return <div key={idx} style={styles.textBubble}>Unsupported Flex Type</div>;
             }
         }
 
@@ -277,14 +279,14 @@ const JourneyPreview = ({ steps = [] }) => {
                     <div style={styles.bubbleContainer}>
                         {step.delay && <div style={styles.delayLabel}>{step.delay}</div>}
                         <div style={styles.stepBadge}>{index + 1}</div>
-                         {/* Step can be a wrapper of messages or a single message? 
+                        {/* Step can be a wrapper of messages or a single message? 
                              The prompt implies steps in a journey. 
                              If `steps` is just a list of messages from the editor: */}
-                         {renderMessage(step, 0)}
+                        {renderMessage(step, 0)}
                     </div>
                 </div>
             ))}
-             {steps.length === 0 && <div style={{textAlign: 'center', color: '#fff', marginTop: '20px'}}>預覽區域</div>}
+            {steps.length === 0 && <div style={{ textAlign: 'center', color: '#fff', marginTop: '20px' }}>預覽區域</div>}
         </div>
     );
 };
