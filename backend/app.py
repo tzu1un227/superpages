@@ -771,17 +771,130 @@ def restart_project_user(id, user_id):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        # Reset step to 0 and status to active
-        cur.execute("UPDATE cron_table SET step_id = 0, status = 'active' WHERE project_id = %s AND user_id = %s", (id, user_id))
+        # Reset step to 0 and status to active, scheduled immediately
+        cur.execute("UPDATE cron_table SET step_id = 0, status = 'active', scheduled_at = NOW() WHERE project_id = %s AND user_id = %s", (id, user_id))
         conn.commit()
         cur.close()
         conn.close()
-        
-        # Optionally trigger immediate first step? 
-        # For now, let the driver pick it up based on anchor/schedule.
         return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+def cron_scheduler_processor():
+    """
+    Background thread to execute project steps based on cron_table schedule.
+    """
+    while True:
+        try:
+            with app.app_context():
+                # Get all OAs/Apps to process
+                oas = OAConfig.query.all()
+                for oa in oas:
+                    app_id = oa.id
+                    db_url = oa.db_url
+                    if not db_url: continue
+
+                    try:
+                        conn = psycopg2.connect(db_url)
+                        cur = conn.cursor(cursor_factory=RealDictCursor)
+                        
+                        now = datetime.now()
+                        
+                        # Fetch due tasks
+                        # We need to know which table 'projects' and 'cron_table' are in. 
+                        # Assuming they are in the App DB (db_url).
+                        
+                        cur.execute("""
+                            SELECT c.user_id, c.project_id, c.step_id, p.is_recurring 
+                            FROM cron_table c
+                            JOIN projects p ON c.project_id = p.project_id
+                            WHERE c.status = 'active' 
+                            AND c.scheduled_at IS NOT NULL 
+                            AND c.scheduled_at <= %s
+                            AND p.is_enabled = TRUE
+                        """, (now,))
+                        due_tasks = cur.fetchall()
+                        
+                        for task in due_tasks:
+                            user_id = task['user_id']
+                            project_id = task['project_id']
+                            step_id = task['step_id']
+                            is_recurring = task['is_recurring']
+                            
+                            # 1. Fetch Message Content for current step
+                            cur.execute("SELECT message_content, interval_hours FROM project_schedules WHERE project_id = %s AND step_id = %s", (project_id, step_id))
+                            schedule = cur.fetchone()
+                            
+                            if schedule:
+                                content = schedule['message_content']
+                                # Send Message logic
+                                namespace = f"/{BOT_NAME}"
+                                target_ws_url = oa.other_settings.get('socket_url', WS_URL) if oa.other_settings else WS_URL
+                                
+                                data = {
+                                    "user": user_id,
+                                    "message": content,
+                                    "type": "Sensor", # Default to Sensor/Text
+                                    "api_index": 0
+                                }
+                                
+                                try:
+                                    # We use a short-lived socket connection for each trigger (or batch if optimized later)
+                                    sio = socketio.Client()
+                                    sio.connect(target_ws_url, namespaces=[namespace], wait_timeout=3)
+                                    sio.emit(f'{BOT_NAME}_message', data, namespace=namespace)
+                                    time.sleep(0.2)
+                                    sio.disconnect()
+                                    print(f"Cron Trigger: Project {project_id} Step {step_id} -> User {user_id}")
+                                    
+                                    # Update Stats (Trigger Count)
+                                    increment_project_stat(project_id, 'tc', app_id)
+                                    
+                                except Exception as socket_err:
+                                    print(f"Socket Emit Error for {user_id}: {socket_err}")
+                            
+                            # 2. Schedule Next Step
+                            next_step_id = step_id + 1
+                            cur.execute("SELECT interval_hours FROM project_schedules WHERE project_id = %s AND step_id = %s", (project_id, next_step_id))
+                            next_schedule = cur.fetchone()
+                            
+                            if next_schedule:
+                                # Next step exists
+                                delay_hours = next_schedule['interval_hours']
+                                next_run = now + timedelta(hours=float(delay_hours))
+                                cur.execute("UPDATE cron_table SET step_id = %s, scheduled_at = %s WHERE user_id = %s AND project_id = %s", (next_step_id, next_run, user_id, project_id))
+                            else:
+                                # No next step -> Check recurrence for Loop or Complete
+                                if is_recurring:
+                                    # Loop back to Step 0? OR Step 1? 
+                                    # Usually Loop means restart.
+                                    # Get Step 0 interval
+                                    cur.execute("SELECT interval_hours FROM project_schedules WHERE project_id = %s AND step_id = 0", (project_id,))
+                                    s0 = cur.fetchone()
+                                    base_interval = s0['interval_hours'] if s0 else 0
+                                    next_run = now + timedelta(hours=float(base_interval))
+                                    
+                                    # Reset to Step 0
+                                    cur.execute("UPDATE cron_table SET step_id = 0, scheduled_at = %s WHERE user_id = %s AND project_id = %s", (next_run, user_id, project_id))
+                                else:
+                                    # Complete
+                                    cur.execute("UPDATE cron_table SET status = 'completed', scheduled_at = NULL WHERE user_id = %s AND project_id = %s", (user_id, project_id))
+                                    # Update 'cc' stat (Completion Count)
+                                    increment_project_stat(project_id, 'cc', app_id)
+                                    
+                            conn.commit()
+
+                        cur.close()
+                        conn.close()
+                    except Exception as db_err:
+                        print(f"Error in cron_scheduler_processor for app {app_id}: {db_err}")
+                        
+        except Exception as e:
+            print(f"Critical Error in cron_scheduler_processor: {e}")
+        
+        time.sleep(10)
+
+threading.Thread(target=cron_scheduler_processor, daemon=True).start()
 
 # Schedules CRUD
 @app.route('/api/schedules', methods=['GET'])

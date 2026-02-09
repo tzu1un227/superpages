@@ -364,9 +364,9 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                 </div>
             </div>
 
-            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-                {/* Editor Panel - 60% */}
-                <div style={{ flex: '6', padding: '20px', overflowY: 'auto', borderRight: '1px solid #444' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                {/* Editor Panel - Top */}
+                <div style={{ flex: '1', padding: '20px', overflowY: 'auto', borderBottom: '1px solid #444' }}>
 
                     {/* Carousel Nav */}
                     {mode === 'carousel' && (
@@ -584,7 +584,8 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                 </div>
 
                 {/* Preview Panel - 40% */}
-                <div style={{ flex: '4', backgroundColor: '#1a1a1a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderLeft: '1px solid #444', padding: '10px' }}>
+                {/* Preview Panel - Bottom */}
+                <div style={{ flex: '1', backgroundColor: '#1a1a1a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px', overflowY: 'auto' }}>
                     <div style={{ marginBottom: '10px', color: '#666', fontSize: '12px' }}>即時預覽</div>
                     <div style={{
                         width: '320px',
