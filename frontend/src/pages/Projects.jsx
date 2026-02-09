@@ -883,6 +883,8 @@ setPreviewSteps(steps);
                                     <input
                                         type="date"
                                         value={statsDateRange.start}
+                                        min={projects.find(p => p.project_id == selectedProjectId)?.start_date?.split('T')[0]}
+                                        max={projects.find(p => p.project_id == selectedProjectId)?.end_date?.split('T')[0]}
                                         onChange={e => setStatsDateRange({ ...statsDateRange, start: e.target.value })}
                                         style={{ padding: '4px 8px', background: '#333', border: '1px solid #444', color: '#fff' }}
                                     />
@@ -890,6 +892,8 @@ setPreviewSteps(steps);
                                     <input
                                         type="date"
                                         value={statsDateRange.end}
+                                        min={projects.find(p => p.project_id == selectedProjectId)?.start_date?.split('T')[0]}
+                                        max={projects.find(p => p.project_id == selectedProjectId)?.end_date?.split('T')[0]}
                                         onChange={e => setStatsDateRange({ ...statsDateRange, end: e.target.value })}
                                         style={{ padding: '4px 8px', background: '#333', border: '1px solid #444', color: '#fff' }}
                                     />

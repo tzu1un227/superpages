@@ -74,6 +74,12 @@ function AdminPage() {
     const [dbUrl, setDbUrl] = useState('');
     const [socketUrl, setSocketUrl] = useState('');
     const [appName, setAppName] = useState('');
+    const [githubConfig, setGithubConfig] = useState({
+        token: '',
+        repo: '',
+        branch: 'main',
+        path: 'assets/images/'
+    });
 
     // axiosInstance removed in favor of shared api
 
@@ -172,7 +178,8 @@ function AdminPage() {
                 db_url: dbUrl,
                 other_settings: {
                     socket_url: socketUrl,
-                    app_name: appName
+                    app_name: appName,
+                    github_config: githubConfig
                 }
             };
             if (currentOA) {
@@ -194,7 +201,14 @@ function AdminPage() {
         setPageIds([]);
         setDbUrl('');
         setSocketUrl('');
+        setSocketUrl('');
         setAppName('');
+        setGithubConfig({
+            token: '',
+            repo: '',
+            branch: 'main',
+            path: 'assets/images/'
+        });
     };
 
     const openEditOA = (oa) => {
@@ -205,7 +219,18 @@ function AdminPage() {
         setPageIds(oa.page_ids || []);
         setDbUrl(oa.db_url);
         setSocketUrl(oa.other_settings?.socket_url || '');
+        setSocketUrl(oa.other_settings?.socket_url || '');
         setAppName(oa.other_settings?.app_name || '');
+        if (oa.other_settings && oa.other_settings.github_config) {
+            setGithubConfig(oa.other_settings.github_config);
+        } else {
+            setGithubConfig({
+                token: '',
+                repo: '',
+                branch: 'main',
+                path: 'assets/images/'
+            });
+        }
         setOpenOADialog(true);
     };
 
