@@ -201,7 +201,6 @@ function AdminPage() {
         setPageIds([]);
         setDbUrl('');
         setSocketUrl('');
-        setSocketUrl('');
         setAppName('');
         setGithubConfig({
             token: '',
@@ -215,10 +214,7 @@ function AdminPage() {
         setCurrentOA(oa);
         setOaName(oa.oa_name);
         setPageIds(oa.page_ids || []);
-        setOaName(oa.oa_name);
-        setPageIds(oa.page_ids || []);
         setDbUrl(oa.db_url);
-        setSocketUrl(oa.other_settings?.socket_url || '');
         setSocketUrl(oa.other_settings?.socket_url || '');
         setAppName(oa.other_settings?.app_name || '');
         if (oa.other_settings && oa.other_settings.github_config) {
@@ -550,6 +546,57 @@ function AdminPage() {
                         value={appName}
                         onChange={(e) => setAppName(e.target.value)}
                         placeholder="e.g. 5013 (Optional, defaults to DB name)"
+                        sx={{
+                            input: { color: 'white' },
+                            label: { color: '#B0B0B0' },
+                            '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#555' }, '&:hover fieldset': { borderColor: '#888' }, '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' } }
+                        }}
+                    />
+
+                    <Typography variant="h6" sx={{ mt: 2, mb: 1, fontSize: '1rem', color: 'var(--primary-yellow)' }}>GitHub 圖片上傳設定</Typography>
+                    <TextField
+                        margin="dense"
+                        label="GitHub Token"
+                        fullWidth
+                        type="password"
+                        value={githubConfig.token}
+                        onChange={(e) => setGithubConfig({ ...githubConfig, token: e.target.value })}
+                        sx={{
+                            input: { color: 'white' },
+                            label: { color: '#B0B0B0' },
+                            '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#555' }, '&:hover fieldset': { borderColor: '#888' }, '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' } }
+                        }}
+                    />
+                    <TextField
+                        margin="dense"
+                        label="GitHub Repository (例如: username/repo)"
+                        fullWidth
+                        value={githubConfig.repo}
+                        onChange={(e) => setGithubConfig({ ...githubConfig, repo: e.target.value })}
+                        sx={{
+                            input: { color: 'white' },
+                            label: { color: '#B0B0B0' },
+                            '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#555' }, '&:hover fieldset': { borderColor: '#888' }, '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' } }
+                        }}
+                    />
+                    <TextField
+                        margin="dense"
+                        label="分支 (Branch)"
+                        fullWidth
+                        value={githubConfig.branch}
+                        onChange={(e) => setGithubConfig({ ...githubConfig, branch: e.target.value })}
+                        sx={{
+                            input: { color: 'white' },
+                            label: { color: '#B0B0B0' },
+                            '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#555' }, '&:hover fieldset': { borderColor: '#888' }, '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' } }
+                        }}
+                    />
+                    <TextField
+                        margin="dense"
+                        label="儲存路徑 (Path)"
+                        fullWidth
+                        value={githubConfig.path}
+                        onChange={(e) => setGithubConfig({ ...githubConfig, path: e.target.value })}
                         sx={{
                             input: { color: 'white' },
                             label: { color: '#B0B0B0' },
