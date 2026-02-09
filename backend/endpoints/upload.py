@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 import requests
 import os
 import base64
@@ -7,18 +7,21 @@ from auth import token_required
 
 upload_bp = Blueprint('upload', __name__)
 
-# GitHub Settings (Should ideally be in .env)
-# The user will need to fill these in .env later
-GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
-GITHUB_REPO = os.environ.get('GITHUB_REPO') # e.g., "username/repo"
-GITHUB_BRANCH = os.environ.get('GITHUB_BRANCH', 'main')
-GITHUB_PATH = os.environ.get('GITHUB_PATH', 'assets/images/')
-
 @upload_bp.route('/github', methods=['POST'])
 @token_required
 def upload_to_github():
-    if not GITHUB_TOKEN or not GITHUB_REPO:
-        return jsonify({'message': 'GitHub configuration is missing (GITHUB_TOKEN or GITHUB_REPO)'}), 500
+    # Retrieve settings from current OA context
+    github_config = {}
+    if hasattr(g, 'current_oa_config') and g.current_oa_config.other_settings:
+        github_config = g.current_oa_config.other_settings.get('github_config', {})
+
+    token = github_config.get('token') or os.environ.get('GITHUB_TOKEN')
+    repo = github_config.get('repo') or os.environ.get('GITHUB_REPO')
+    branch = github_config.get('branch') or os.environ.get('GITHUB_BRANCH', 'main')
+    path = github_config.get('path') or os.environ.get('GITHUB_PATH', 'assets/images/')
+
+    if not token or not repo:
+        return jsonify({'message': 'GitHub configuration is missing (Token or Repo)'}), 500
 
     if 'file' not in request.files:
         return jsonify({'message': 'No file part'}), 400
@@ -38,21 +41,20 @@ def upload_to_github():
         filename = f"{timestamp}_{file.filename}"
         
         # Ensure path ends with /
-        path = GITHUB_PATH
         if not path.endswith('/'):
             path += '/'
         
-        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}{filename}"
+        url = f"https://api.github.com/repos/{repo}/contents/{path}{filename}"
         
         headers = {
-            "Authorization": f"token {GITHUB_TOKEN}",
+            "Authorization": f"token {token}",
             "Accept": "application/vnd.github.v3+json"
         }
         
         payload = {
             "message": f"Upload image: {filename}",
             "content": encoded_content,
-            "branch": GITHUB_BRANCH
+            "branch": branch
         }
         
         response = requests.put(url, headers=headers, json=payload)

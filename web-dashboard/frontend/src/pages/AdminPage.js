@@ -73,6 +73,12 @@ function AdminPage() {
     const [oaName, setOaName] = useState('');
     const [pageId, setPageId] = useState(''); // Selected page ID
     const [dbUrl, setDbUrl] = useState('');
+    const [githubConfig, setGithubConfig] = useState({
+        token: '',
+        repo: '',
+        branch: 'main',
+        path: 'assets/images/'
+    });
 
     const axiosInstance = axios.create({
         baseURL: API_BASE_URL,
@@ -168,7 +174,11 @@ function AdminPage() {
             const payload = {
                 page_id: pageId,
                 oa_name: oaName,
-                db_url: dbUrl // This is "Settings" or "Remote DB URL"
+                db_url: dbUrl,
+                other_settings: {
+                    ...currentOA?.other_settings,
+                    github_config: githubConfig
+                }
             };
             if (currentOA) {
                 await axiosInstance.put(`admin/oa_configs/${currentOA.id}`, payload);
@@ -188,6 +198,12 @@ function AdminPage() {
         setOaName('');
         setPageId('');
         setDbUrl('');
+        setGithubConfig({
+            token: '',
+            repo: '',
+            branch: 'main',
+            path: 'assets/images/'
+        });
     };
 
     const openEditOA = (oa) => {
@@ -195,6 +211,16 @@ function AdminPage() {
         setOaName(oa.oa_name);
         setPageId(oa.page_id);
         setDbUrl(oa.db_url);
+        if (oa.other_settings && oa.other_settings.github_config) {
+            setGithubConfig(oa.other_settings.github_config);
+        } else {
+            setGithubConfig({
+                token: '',
+                repo: '',
+                branch: 'main',
+                path: 'assets/images/'
+            });
+        }
         setOpenOADialog(true);
     };
 
@@ -409,10 +435,41 @@ function AdminPage() {
 
                     <TextField
                         margin="dense"
-                        label="設定"
+                        label="設定 (資料庫連線字串)"
                         fullWidth
                         value={dbUrl}
                         onChange={(e) => setDbUrl(e.target.value)}
+                    />
+
+                    <Typography variant="h6" sx={{ mt: 2, mb: 1, fontSize: '1rem' }}>GitHub 圖片上傳設定</Typography>
+                    <TextField
+                        margin="dense"
+                        label="GitHub Token"
+                        fullWidth
+                        type="password"
+                        value={githubConfig.token}
+                        onChange={(e) => setGithubConfig({ ...githubConfig, token: e.target.value })}
+                    />
+                    <TextField
+                        margin="dense"
+                        label="GitHub Repository (例如: username/repo)"
+                        fullWidth
+                        value={githubConfig.repo}
+                        onChange={(e) => setGithubConfig({ ...githubConfig, repo: e.target.value })}
+                    />
+                    <TextField
+                        margin="dense"
+                        label="分支 (Branch)"
+                        fullWidth
+                        value={githubConfig.branch}
+                        onChange={(e) => setGithubConfig({ ...githubConfig, branch: e.target.value })}
+                    />
+                    <TextField
+                        margin="dense"
+                        label="儲存路徑 (Path)"
+                        fullWidth
+                        value={githubConfig.path}
+                        onChange={(e) => setGithubConfig({ ...githubConfig, path: e.target.value })}
                     />
                 </DialogContent>
                 <DialogActions>

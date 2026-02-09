@@ -1540,15 +1540,58 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                     <>
                                         <div>
                                             <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>圖片網址 (Original)</label>
-                                            <input type="text" value={messages[activeMsgIndex].original_content_url || ''} onChange={(e) => {
-                                                const newMsgs = [...messages];
-                                                newMsgs[activeMsgIndex] = {
-                                                    ...newMsgs[activeMsgIndex],
-                                                    original_content_url: e.target.value,
-                                                    preview_image_url: e.target.value
-                                                };
-                                                setMessages(newMsgs);
-                                            }} style={{ width: '100%', padding: '8px', background: '#222', border: 'none', color: '#fff' }} />
+                                            <div style={{ display: 'flex', gap: '5px' }}>
+                                                <input type="text" value={messages[activeMsgIndex].original_content_url || ''} onChange={(e) => {
+                                                    const newMsgs = [...messages];
+                                                    newMsgs[activeMsgIndex] = {
+                                                        ...newMsgs[activeMsgIndex],
+                                                        original_content_url: e.target.value,
+                                                        preview_image_url: e.target.value
+                                                    };
+                                                    setMessages(newMsgs);
+                                                }} style={{ flex: 1, padding: '8px', background: '#222', border: 'none', color: '#fff' }} />
+                                                <label style={{
+                                                    padding: '8px 12px',
+                                                    background: 'var(--primary-yellow)',
+                                                    color: '#000',
+                                                    borderRadius: '4px',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '5px',
+                                                    fontSize: '13px',
+                                                    fontWeight: 'bold'
+                                                }}>
+                                                    上傳圖片
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        style={{ display: 'none' }}
+                                                        onChange={async (e) => {
+                                                            const file = e.target.files[0];
+                                                            if (!file) return;
+
+                                                            const formData = new FormData();
+                                                            formData.append('file', file);
+
+                                                            try {
+                                                                const res = await api.post('/upload/github', formData, {
+                                                                    headers: { 'Content-Type': 'multipart/form-data' }
+                                                                });
+                                                                const newMsgs = [...messages];
+                                                                newMsgs[activeMsgIndex] = {
+                                                                    ...newMsgs[activeMsgIndex],
+                                                                    original_content_url: res.data.url,
+                                                                    preview_image_url: res.data.url
+                                                                };
+                                                                setMessages(newMsgs);
+                                                            } catch (err) {
+                                                                alert('上傳失敗: ' + (err.response?.data?.message || err.message));
+                                                            }
+                                                        }}
+                                                    />
+                                                </label>
+                                            </div>
                                             <p style={{ fontSize: '12px', color: '#666' }}>*Preview URL 自動同步</p>
                                         </div>
                                     </>

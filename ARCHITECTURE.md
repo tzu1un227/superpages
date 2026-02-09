@@ -89,7 +89,9 @@ This project is a web application with a Flask backend and a React frontend. It 
 ### Core Components
 1. **Backend Endpoint**: `/api/upload/github` in `backend/endpoints/upload.py`.
    - Uses GitHub API to upload images as base64-encoded content.
-   - Configurable via `.env` variables (`GITHUB_TOKEN`, `GITHUB_REPO`, `GITHUB_BRANCH`, `GITHUB_PATH`).
-2. **Frontend UI**: `FlexMessageEditor.jsx`.
-   - Real-time image upload button integrated into the image URL field.
-   - Automatically updates the UI with the return GitHub Raw URL.
+   - **Configuration Storage**: Settings are retrieved from `permission_settings` (OAConfig) in the `other_settings` field (JSON). This ensures configuration persistence across Docker container rebuilds.
+   - Configurable fields: `token`, `repo`, `branch`, `path`.
+2. **Frontend UI**:
+   - **FlexMessageEditor.jsx**: Integrated upload button for carousel/single bubbles.
+   - **Projects.jsx (RichMessageModal)**: Added upload button for native `ImageSendMessage` types.
+   - **AdminPage.js**: Provides management UI for GitHub settings within each OA configuration.
