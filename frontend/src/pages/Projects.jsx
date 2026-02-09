@@ -256,8 +256,8 @@ const ProjectsManagement = () => {
         try {
             const resp = await api.get(`/projects/${projectId}/stats`, {
                 params: {
-                    start_time: statsDateRange.start,
-                    end_time: statsDateRange.end
+                    start_date: statsDateRange.start,
+                    end_date: statsDateRange.end
                 }
             });
             setProjectStats(resp.data);

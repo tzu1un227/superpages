@@ -3,6 +3,7 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **Statistics Fix**: Corrected API parameter names in `Projects.jsx` (`start_time` -> `start_date`) to correctly fetch project statistics. [2026-02-09]
 - **URL Encoding Fix**: Implemented URL encoding for uploaded image filenames to ensure valid HTTPS URLs for LINE Bot API, determining compatibility with spaces and special characters. [2026-02-09]
 - **GitHub CDN Fix**: Switched image upload return URL from `raw.githubusercontent.com` to `cdn.jsdelivr.net` to resolve LINE Bot API 400 errors. [2026-02-09]
 - **Native Image Upload**: Added support for uploading images to GitHub directly from native "Image Message" types in the Advanced Message Editor.
