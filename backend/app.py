@@ -187,18 +187,8 @@ def init_db():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS scheduled_events (
-                event_id SERIAL PRIMARY KEY,
-                target_user_id VARCHAR(255),
-                message_content TEXT,
-                message_type VARCHAR(50) DEFAULT 'Sensor',
-                interval_hours FLOAT,
-                last_executed_at TIMESTAMP,
-                is_enabled BOOLEAN DEFAULT TRUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
+        # projects table and others are assumed to exist or created via other migrations/scripts
+        # scheduled_events is REMOVED
         conn.commit()
         cur.close()
         conn.close()
@@ -207,53 +197,7 @@ def init_db():
 
 init_db()
 
-def scheduled_event_processor():
-    while True:
-        try:
-            conn = get_db_connection()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            now = datetime.now()
-            # Fetch enabled events that are due for next execution
-            # Due if never executed OR (last_executed + interval <= now)
-            cur.execute("""
-                SELECT * FROM scheduled_events 
-                WHERE is_enabled = TRUE 
-                AND (last_executed_at IS NULL OR (last_executed_at + (interval_hours || ' hours')::interval <= %s))
-            """, (now,))
-            events = cur.fetchall()
-            
-            for event in events:
-                try:
-                    # Reuse trigger logic
-                    sio = socketio.Client()
-                    namespace = f"/{BOT_NAME}"
-                    data = {
-                        "user": event['target_user_id'],
-                        "message": event['message_content'],
-                        "type": event['message_type'],
-                        "api_index": 0
-                    }
-                    print(f"Recurring Trigger: Emitting to {namespace}: {data}")
-                    sio.connect(WS_URL, namespaces=[namespace], wait_timeout=3)
-                    sio.emit(f'{BOT_NAME}_message', data, namespace=namespace)
-                    time.sleep(0.5)
-                    sio.disconnect()
-                    
-                    # Update last execution time
-                    cur.execute("UPDATE scheduled_events SET last_executed_at = %s WHERE event_id = %s", (now, event['event_id']))
-                    conn.commit()
-                except Exception as trigger_err:
-                    print(f"Error processing scheduled event {event['event_id']}: {trigger_err}")
-            
-            cur.close()
-            conn.close()
-        except Exception as e:
-            print(f"Error in scheduled_event_processor: {e}")
-        
-        time.sleep(10) # Check every 10 seconds
-
-# Start background thread
-threading.Thread(target=scheduled_event_processor, daemon=True).start()
+# scheduled_event_processor REMOVED
 
 def project_stats_processor():
     """
@@ -784,16 +728,29 @@ def cron_scheduler_processor():
     """
     Background thread to execute project steps based on cron_table schedule.
     """
+    with app.app_context():
+        print(f"Cron Scheduler started with app context. Check interval: 10s")
+
     while True:
         try:
+            # Re-create app context for each iteration to ensure freshness and avoid stale sessions?
+            # Actually, app_context is needed for OAConfig.query.
             with app.app_context():
-                # Get all OAs/Apps to process
-                oas = OAConfig.query.all()
+                try:
+                    # Get all OAs/Apps to process
+                    # We wrap this in try-except block to prevent DB connection errors from crashing the thread
+                    oas = OAConfig.query.all()
+                except Exception as query_err:
+                    print(f"Error querying OAConfig: {query_err}")
+                    time.sleep(10)
+                    continue
+
                 for oa in oas:
                     app_id = oa.id
                     db_url = oa.db_url
                     if not db_url: continue
 
+                    conn = None
                     try:
                         conn = psycopg2.connect(db_url)
                         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -801,11 +758,9 @@ def cron_scheduler_processor():
                         now = datetime.now()
                         
                         # Fetch due tasks
-                        # We need to know which table 'projects' and 'cron_table' are in. 
-                        # Assuming they are in the App DB (db_url).
-                        
+                        # We join cron_table with projects to ensure we only run active projects
                         cur.execute("""
-                            SELECT c.user_id, c.project_id, c.step_id, p.is_recurring 
+                            SELECT c.user_id, c.project_id, c.step_id, p.is_recurring, p.is_enabled 
                             FROM cron_table c
                             JOIN projects p ON c.project_id = p.project_id
                             WHERE c.status = 'active' 
@@ -829,7 +784,7 @@ def cron_scheduler_processor():
                                 content = schedule['message_content']
                                 # Send Message logic
                                 namespace = f"/{BOT_NAME}"
-                                target_ws_url = oa.other_settings.get('socket_url', WS_URL) if oa.other_settings else WS_URL
+                                target_ws_url = oa.other_settings.get('socket_url', WS_URL) if oa.other_settings and isinstance(oa.other_settings, dict) else WS_URL
                                 
                                 data = {
                                     "user": user_id,
@@ -839,15 +794,17 @@ def cron_scheduler_processor():
                                 }
                                 
                                 try:
-                                    # We use a short-lived socket connection for each trigger (or batch if optimized later)
+                                    # We use a short-lived socket connection for each trigger
+                                    # Optimization: Reuse connection if possible, but for now safety first
                                     sio = socketio.Client()
-                                    sio.connect(target_ws_url, namespaces=[namespace], wait_timeout=3)
+                                    sio.connect(target_ws_url, namespaces=[namespace], wait_timeout=5)
                                     sio.emit(f'{BOT_NAME}_message', data, namespace=namespace)
                                     time.sleep(0.2)
                                     sio.disconnect()
                                     print(f"Cron Trigger: Project {project_id} Step {step_id} -> User {user_id}")
                                     
                                     # Update Stats (Trigger Count)
+                                    # Note: increment_project_stat handles its own DB connection
                                     increment_project_stat(project_id, 'tc', app_id)
                                     
                                 except Exception as socket_err:
@@ -866,21 +823,28 @@ def cron_scheduler_processor():
                             else:
                                 # No next step -> Check recurrence for Loop or Complete
                                 if is_recurring:
-                                    # Loop back to Step 0? OR Step 1? 
-                                    # Usually Loop means restart.
-                                    # Get Step 0 interval
+                                    # Loop back to Step 0
+                                    # Get Step 0 interval to determine when it runs again
                                     cur.execute("SELECT interval_hours FROM project_schedules WHERE project_id = %s AND step_id = 0", (project_id,))
                                     s0 = cur.fetchone()
                                     base_interval = s0['interval_hours'] if s0 else 0
+                                    
+                                    # Recurrence Logic: 
+                                    # If base_interval is 0, it might run immediately? 
+                                    # Usually we want at least some delay if it's a loop, to avoid infinite loop in 1 second.
+                                    # Let's enforce min 1 minute if 0? Or just trust user.
+                                    
                                     next_run = now + timedelta(hours=float(base_interval))
                                     
                                     # Reset to Step 0
                                     cur.execute("UPDATE cron_table SET step_id = 0, scheduled_at = %s WHERE user_id = %s AND project_id = %s", (next_run, user_id, project_id))
+                                    print(f"Recurring Project {project_id}: User {user_id} looping back to Step 0 at {next_run}")
                                 else:
                                     # Complete
                                     cur.execute("UPDATE cron_table SET status = 'completed', scheduled_at = NULL WHERE user_id = %s AND project_id = %s", (user_id, project_id))
                                     # Update 'cc' stat (Completion Count)
                                     increment_project_stat(project_id, 'cc', app_id)
+                                    print(f"Project {project_id}: User {user_id} completed.")
                                     
                             conn.commit()
 
@@ -888,6 +852,12 @@ def cron_scheduler_processor():
                         conn.close()
                     except Exception as db_err:
                         print(f"Error in cron_scheduler_processor for app {app_id}: {db_err}")
+                        if conn:
+                            try:
+                                conn.rollback()
+                                conn.close()
+                            except:
+                                pass
                         
         except Exception as e:
             print(f"Critical Error in cron_scheduler_processor: {e}")
@@ -1225,49 +1195,7 @@ def trigger_socket_event():
         print(f"Socket.IO Trigger Error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# Scheduled Events CRUD
-@app.route('/api/scheduled-events', methods=['GET'])
-def get_scheduled_events():
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT * FROM scheduled_events ORDER BY created_at DESC")
-        events = cur.fetchall()
-        cur.close()
-        conn.close()
-        return json_response(events)
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@app.route('/api/scheduled-events', methods=['POST'])
-def create_scheduled_event():
-    data = request.json
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO scheduled_events (target_user_id, message_content, message_type, interval_hours) VALUES (%s, %s, %s, %s)",
-            (data['target_user_id'], data['message_content'], data.get('message_type', 'Sensor'), data['interval_hours'])
-        )
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({"status": "success"})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@app.route('/api/scheduled-events/<int:id>', methods=['DELETE'])
-def delete_scheduled_event(id):
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("DELETE FROM scheduled_events WHERE event_id = %s", (id,))
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({"status": "success"})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+# Scheduled Events CRUD - REMOVED
 
 # Ticket Table Status
 @app.route('/api/tickets', methods=['GET'])

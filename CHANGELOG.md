@@ -27,5 +27,8 @@ All notable changes to this project will be documented in this file.
 - **Improved Message Center**: Tags (both in display and dropdown menu) are now displayed without surrounding brackets or quotes (e.g., `['tag']` becomes `tag`), ensuring cleaner UI.
 - **Improved Lottery Management**: "Registered Users" list now fetches from `person_table` and displays only the user's name, providing a cleaner view for lottery purposes.
 - **Improved Message Center**: `sys_reply` messages can now display images, videos, audio, and simplified Flex messages (instead of raw JSON text), providing a better preview of bot responses.
+- **Scheduler Refactor**: Replaced `scheduled_events` with `cron_table` based scheduling. All scheduled tasks are now handled within Projects, supporting multi-step and recurring workflows. [2026-02-09]
+- **Backend Stability**: Fixed "Working outside of application context" errors in background threads by ensuring strict context usage in `cron_scheduler_processor`.
+- **Backend Cleanup**: Removed deprecated `scheduled_events` table and endpoints.
 - **Backend**: `/api/history/<user_id>` fetches chat history from `history:{app_id}` table.
 - Initial creation of CHANGELOG.md and ARCHITECTURE.md.

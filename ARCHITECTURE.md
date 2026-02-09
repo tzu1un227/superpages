@@ -3,34 +3,42 @@
 ## System Overview
 This project is a web application with a Flask backend and a React frontend. It manages users, projects, and scheduled events, integrating with a Socket.IO server for real-time communication.
 
-## Scheduled Event Management (定時觸發事件)
+## Scheduled Event Management (定時觸發事件 - Refactored)
+
+All scheduling is now managed via **Projects** using the `cron_table`. The legacy `scheduled_events` table and processor have been removed.
 
 ### Core Components
-1.  **Backend Processor**: `scheduled_event_processor` in `backend/app.py`.
+1.  **Backend Processor**: `cron_scheduler_processor` in `backend/app.py`.
     -   Type: Background Daemon Thread.
     -   Interval: Checks database every 10 seconds.
-2.  **Database**: `scheduled_events` table (PostgreSQL).
-    -   Stores event definitions, target users, message content, and execution status.
-3.  **Frontend**: `ScheduledEvents.jsx` (Route: `/scheduled-events`).
-    -   Provides UI for CRUD operations via `/api/scheduled-events`.
-4.  **Communication**: Socket.IO Client.
-    -   Connects to an external WebSocket server (default: `https://irl-svr.ee.yzu.edu.tw:5013`) to trigger events.
+2.  **Database**: 
+    -   `projects`: Defines the project configuration (`is_enabled`, `is_recurring`, etc.).
+    -   `project_schedules`: Defines the steps and messages for each project.
+    -   `cron_table`: Tracks the current state (`step_id`, `scheduled_at`, `status`) for each user participating in a project.
+3.  **Frontend**: `Projects.jsx` (Route: `/projects`).
+    -   Provides UI for creating projects, defining schedules, and monitoring status.
 
 ### Execution Logic
 1.  **Polling**: The processor wakes up every 10 seconds.
-2.  **Selection**: Queries `scheduled_events` for rows where:
-    -   `is_enabled` is TRUE.
-    -   `last_executed_at` is NULL (never executed) OR (`last_executed_at` + `interval_hours` <= Current Time).
+2.  **Selection**: Queries `cron_table` joined with `projects` for rows where:
+    -   `status` is 'active'.
+    -   `scheduled_at` <= Current Time.
+    -   Project is enabled (`is_enabled = TRUE`).
 3.  **Trigger**:
-    -   Connects to the Socket.IO server.
-    -   Emits a message event (`websoc_message`) to the namespace `/{BOT_NAME}`.
-    -   Payload includes: `user` (target_id), `message`, `type`, and `api_index`.
-4.  **Update**: Sets `last_executed_at` to the current timestamp to schedule the next run.
+    -   Fetches the message content from `project_schedules` for the current `step_id`.
+    -   Connects to the Socket.IO server (`WS_URL` or OA-specific URL).
+    -   Emits a message event to the target user.
+4.  **Advancement**:
+    -   Calculates the next execution time based on the *next* step's `interval_hours`.
+    -   Updates `cron_table` with the new `step_id` and `scheduled_at`.
+    -   If no next step exists:
+        -   If `is_recurring` is TRUE: Resets to Step 0 (Loop).
+        -   If `is_recurring` is FALSE: Sets `status` to 'completed'.
 
-### Project Schedules (Different from Scheduled Events)
--   Managed via `/api/schedules`.
--   Stored in `project_schedules` table.
--   *Note: No active background execution loop was found in `app.py` for this table. It may be used by external scripts or is a passive configuration.*
+### Projects and Schedules
+-   **Structure**: A Project consists of multiple Steps (0, 1, 2...).
+-   **Step 0**: The initial trigger or first delay.
+-   **Recurrence**: Projects marked as `is_recurring` will automatically restart from Step 0 for a user after the last step is delivered.
 
 ### Rich Message Handling
 -   **QA Integration**: Messages can be stored as complex structures (Flex, Image, etc.) in the `qa_bank` table.
