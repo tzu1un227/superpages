@@ -36,6 +36,7 @@ This project is a web application with a Flask backend and a React frontend. It 
 -   **QA Integration**: Messages can be stored as complex structures (Flex, Image, etc.) in the `qa_bank` table.
 -   **Reference Protocol**: In `project_schedules` or other text fields, these are referenced using the `QA|` prefix followed by the unique tag (e.g., `QA|cron_project_step`).
 -   **Editor Behavior**: The frontend detects this prefix to open the advanced visual editor instead of a plain text input.
+-   **Image Upload**: The Flex Message Editor includes an upload button that allows users to upload images directly to a configured GitHub repository. The backend handles the GitHub API integration and returns the raw image URL.
 
 ### Lottery Management (抽獎管理)
 
@@ -82,3 +83,13 @@ This project is a web application with a Flask backend and a React frontend. It 
 - Uses `recharts` for LineCharts (Trend Analysis) and BarCharts (Keyword Ranking).
 - Supports filtering by category (Message, Follow, User), tag selection, and group unit (Day/Week/Month/Year).
 - Data export supported via CSV downloads in the global Statistics page.
+
+## Image Upload Integration (圖片上傳整合)
+
+### Core Components
+1. **Backend Endpoint**: `/api/upload/github` in `backend/endpoints/upload.py`.
+   - Uses GitHub API to upload images as base64-encoded content.
+   - Configurable via `.env` variables (`GITHUB_TOKEN`, `GITHUB_REPO`, `GITHUB_BRANCH`, `GITHUB_PATH`).
+2. **Frontend UI**: `FlexMessageEditor.jsx`.
+   - Real-time image upload button integrated into the image URL field.
+   - Automatically updates the UI with the return GitHub Raw URL.

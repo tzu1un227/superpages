@@ -39,6 +39,10 @@ db.init_app(app)
 from endpoints.admin import admin_bp
 app.register_blueprint(admin_bp, url_prefix='/api/admin')
 
+# Register Upload Blueprint
+from endpoints.upload import upload_bp
+app.register_blueprint(upload_bp, url_prefix='/api/upload')
+
 with app.app_context():
     db.create_all()
 

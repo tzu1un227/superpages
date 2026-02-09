@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Plus, X, Image as ImageIcon, Link as LinkIcon, MessageSquare } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, X, Image as ImageIcon, Link as LinkIcon, MessageSquare, Upload } from 'lucide-react';
+import api from '../api';
 
 const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
     // Modes
@@ -436,11 +437,50 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                         {/* Image Field */}
                         <div>
                             <label style={{ display: 'block', color: '#aaa', fontSize: '13px', marginBottom: '5px' }}>圖片網址 (800x400px)</label>
-                            <input
-                                type="text" value={currentCard.imageUrl}
-                                onChange={e => updateCurrentCard('imageUrl', e.target.value)}
-                                style={{ width: '100%', padding: '8px', background: '#333', border: '1px solid #444', borderRadius: '4px', color: '#fff' }}
-                            />
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                                <input
+                                    type="text" value={currentCard.imageUrl}
+                                    onChange={e => updateCurrentCard('imageUrl', e.target.value)}
+                                    style={{ flex: 1, padding: '8px', background: '#333', border: '1px solid #444', borderRadius: '4px', color: '#fff' }}
+                                />
+                                <label style={{
+                                    padding: '8px 12px',
+                                    background: 'var(--primary-yellow)',
+                                    color: '#000',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                    fontSize: '13px',
+                                    fontWeight: 'bold'
+                                }}>
+                                    <Upload size={16} />
+                                    上傳
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        style={{ display: 'none' }}
+                                        onChange={async (e) => {
+                                            const file = e.target.files[0];
+                                            if (!file) return;
+
+                                            const formData = new FormData();
+                                            formData.append('file', file);
+
+                                            try {
+                                                // Show some loading status if possible, or just wait
+                                                const res = await api.post('/upload/github', formData, {
+                                                    headers: { 'Content-Type': 'multipart/form-data' }
+                                                });
+                                                updateCurrentCard('imageUrl', res.data.url);
+                                            } catch (err) {
+                                                alert('上傳失敗: ' + (err.response?.data?.message || err.message));
+                                            }
+                                        }}
+                                    />
+                                </label>
+                            </div>
                         </div>
 
                         {/* Image Action */}
