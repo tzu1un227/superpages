@@ -89,6 +89,7 @@ This project is a web application with a Flask backend and a React frontend. It 
 ### Core Components
 1. **Backend Endpoint**: `/api/upload/github` in `backend/endpoints/upload.py`.
    - Uses GitHub API to upload images as base64-encoded content.
+   - **CDN Integration**: Returns `jsDelivr` CDN URLs (`https://cdn.jsdelivr.net/gh/...`) instead of raw GitHub URLs to ensure compatibility with LINE Bot API (avoids 400 errors).
    - **Configuration Storage**: Settings are retrieved from `permission_settings` (OAConfig) in the `other_settings` field (JSON). This ensures configuration persistence across Docker container rebuilds.
    - Configurable fields: `token`, `repo`, `branch`, `path`.
 2. **Frontend UI**:

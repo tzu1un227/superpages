@@ -61,10 +61,17 @@ def upload_to_github():
         
         if response.status_code in [201, 200]:
             data = response.json()
-            raw_url = data['content']['download_url']
+            # raw_url = data['content']['download_url']
+            # Convert to jsDelivr URL for better LINE compatibility
+            # Format: https://cdn.jsdelivr.net/gh/user/repo@branch/path/file
+            
+            # Remove leading slash from path if present to avoid double slashes
+            clean_path = path.lstrip('/')
+            cdn_url = f"https://cdn.jsdelivr.net/gh/{repo}@{branch}/{clean_path}{filename}"
+            
             return jsonify({
                 'message': 'Upload successful',
-                'url': raw_url,
+                'url': cdn_url,
                 'path': data['content']['path']
             })
         else:

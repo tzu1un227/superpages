@@ -3,6 +3,7 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **GitHub CDN Fix**: Switched image upload return URL from `raw.githubusercontent.com` to `cdn.jsdelivr.net` to resolve LINE Bot API 400 errors. [2026-02-09]
 - **Native Image Upload**: Added support for uploading images to GitHub directly from native "Image Message" types in the Advanced Message Editor.
 - **Persistent GitHub Configuration**: Migrated GitHub upload settings from `.env` to the database (OA Config). Added management UI in the Admin Page to allow per-OA configuration, ensuring settings persist in Docker environments.
 - **Image Upload to GitHub**: Added ability to upload images directly to GitHub from the Flex Message Editor in Schedule Settings.
