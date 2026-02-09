@@ -67,7 +67,15 @@ def upload_to_github():
             
             # Remove leading slash from path if present to avoid double slashes
             clean_path = path.lstrip('/')
-            cdn_url = f"https://cdn.jsdelivr.net/gh/{repo}@{branch}/{clean_path}{filename}"
+            
+            # URL encode the filename to handle spaces and special characters
+            from urllib.parse import quote
+            encoded_filename = quote(filename)
+            encoded_path = quote(clean_path)
+            
+            # Construct jsDelivr URL with encoded components
+            # Note: jsDelivr expects the path to be encoded if it contains special chars
+            cdn_url = f"https://cdn.jsdelivr.net/gh/{repo}@{branch}/{encoded_path}{encoded_filename}"
             
             return jsonify({
                 'message': 'Upload successful',
