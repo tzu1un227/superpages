@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Plus, X, Image as ImageIcon, Link as LinkIcon, MessageSquare, Upload } from 'lucide-react';
 import api from '../api';
+import JourneyPreview from './JourneyPreview';
 
 const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
     // Modes
@@ -364,8 +365,8 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
             </div>
 
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-                {/* Form - Full Width */}
-                <div style={{ width: '100%', padding: '20px', overflowY: 'auto' }}>
+                {/* Editor Panel - 60% */}
+                <div style={{ flex: '6', padding: '20px', overflowY: 'auto', borderRight: '1px solid #444' }}>
 
                     {/* Carousel Nav */}
                     {mode === 'carousel' && (
@@ -456,7 +457,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                                     fontWeight: 'bold'
                                 }}>
                                     <Upload size={16} />
-                                    上傳
+                                    上傳 (Max 1MB)
                                     <input
                                         type="file"
                                         accept="image/*"
@@ -464,6 +465,11 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                                         onChange={async (e) => {
                                             const file = e.target.files[0];
                                             if (!file) return;
+
+                                            if (file.size > 1 * 1024 * 1024) {
+                                                alert('圖片大小不得超過 1MB');
+                                                return;
+                                            }
 
                                             const formData = new FormData();
                                             formData.append('file', file);
@@ -574,6 +580,28 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                                 </div>
                             </>
                         )}
+                    </div>
+                </div>
+
+                {/* Preview Panel - 40% */}
+                <div style={{ flex: '4', backgroundColor: '#1a1a1a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderLeft: '1px solid #444', padding: '10px' }}>
+                    <div style={{ marginBottom: '10px', color: '#666', fontSize: '12px' }}>即時預覽</div>
+                    <div style={{
+                        width: '320px',
+                        height: '600px',
+                        border: '8px solid #333',
+                        borderRadius: '24px',
+                        overflow: 'hidden',
+                        backgroundColor: '#000',
+                        display: 'flex',
+                        flexDirection: 'column'
+                    }}>
+                        <div style={{ backgroundColor: '#2b2b2b', padding: '10px 15px', color: '#fff', fontSize: '14px', fontWeight: 'bold' }}>
+                            Preview
+                        </div>
+                        <div style={{ flex: 1, backgroundColor: '#8CAEC5', overflowY: 'auto' }}>
+                            <JourneyPreview steps={previewWrapper} />
+                        </div>
                     </div>
                 </div>
             </div>

@@ -310,6 +310,22 @@ def project_stats_processor():
                                     m_row = cur.fetchone()
                                     if m_row and m_row['max'] == step_id:
                                         increment_project_stat(pj_id, 'cc', app_id, entry['timestamp'].strftime('%Y-%m-%d'))
+                                        
+                                        # Handle Project Status / Recurrence
+                                        # Check if project is recurring
+                                        cur.execute("SELECT is_recurring FROM projects WHERE project_id = %s", (pj_id,))
+                                        p_row = cur.fetchone()
+                                        is_recurring = p_row['is_recurring'] if p_row else False
+                                        
+                                        user_id = entry.get('user_id') # Ensure user_id is available in entry
+                                        if user_id:
+                                            if is_recurring:
+                                                # Restart user
+                                                cur.execute("UPDATE cron_table SET step_id = 0, status = 'active' WHERE project_id = %s AND user_id = %s", (pj_id, user_id))
+                                            else:
+                                                # Mark as completed
+                                                cur.execute("UPDATE cron_table SET status = 'completed' WHERE project_id = %s AND user_id = %s", (pj_id, user_id))
+                                        
                             except Exception as pe:
                                 print(f"Error parsing history entry for stats: {pe}")
                         
@@ -520,9 +536,13 @@ def create_project():
 
         conn = get_db_connection()
         cur = conn.cursor()
+        
+        # Handle is_recurring, default False
+        is_recurring = data.get('is_recurring', False)
+        
         cur.execute(
-            "INSERT INTO projects (project_name, start_date, end_date, is_enabled, anchor_config, dormancy_config) VALUES (%s, %s, %s, %s, %s, %s) RETURNING project_id",
-            (data['project_name'], data['start_date'], data['end_date'], data['is_enabled'], anchor_config, dormancy_config)
+            "INSERT INTO projects (project_name, start_date, end_date, is_enabled, anchor_config, dormancy_config, is_recurring) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING project_id",
+            (data['project_name'], data['start_date'], data['end_date'], data['is_enabled'], anchor_config, dormancy_config, is_recurring)
         )
         project_id = cur.fetchone()[0]
         conn.commit()
@@ -548,9 +568,12 @@ def update_project(id):
 
         conn = get_db_connection()
         cur = conn.cursor()
+        
+        is_recurring = data.get('is_recurring', False)
+        
         cur.execute(
-            "UPDATE projects SET project_name=%s, start_date=%s, end_date=%s, is_enabled=%s, anchor_config=%s, dormancy_config=%s WHERE project_id=%s",
-            (data['project_name'], data['start_date'], data['end_date'], data['is_enabled'], anchor_config, dormancy_config, id)
+            "UPDATE projects SET project_name=%s, start_date=%s, end_date=%s, is_enabled=%s, anchor_config=%s, dormancy_config=%s, is_recurring=%s WHERE project_id=%s",
+            (data['project_name'], data['start_date'], data['end_date'], data['is_enabled'], anchor_config, dormancy_config, is_recurring, id)
         )
         conn.commit()
         cur.close()
@@ -716,8 +739,9 @@ def get_project_users(id):
         app_id = get_current_app_id()
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        # Select status as well
         cur.execute(f"""
-            SELECT DISTINCT c.user_id, p.value as user_name 
+            SELECT DISTINCT c.user_id, c.status, p.value as user_name 
             FROM cron_table c
             LEFT JOIN "Private_var:{app_id}" p ON c.user_id = p.user_id AND p.name = 'name'
             WHERE c.project_id = %s
@@ -738,6 +762,23 @@ def delete_project_user(id, user_id):
         conn.commit()
         cur.close()
         conn.close()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/projects/<int:id>/users/<string:user_id>/restart', methods=['POST'])
+def restart_project_user(id, user_id):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        # Reset step to 0 and status to active
+        cur.execute("UPDATE cron_table SET step_id = 0, status = 'active' WHERE project_id = %s AND user_id = %s", (id, user_id))
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        # Optionally trigger immediate first step? 
+        # For now, let the driver pick it up based on anchor/schedule.
         return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500

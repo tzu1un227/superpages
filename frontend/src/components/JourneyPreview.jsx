@@ -199,6 +199,33 @@ const JourneyPreview = ({ steps = [] }) => {
             );
         }
 
+        // Handle Video
+        if (msg.OTYPE === 'VideoSendMessage') {
+            return (
+                <div key={idx} style={{ ...styles.imageBubble, position: 'relative' }}>
+                    <video
+                        src={msg.original_content_url}
+                        poster={msg.preview_image_url}
+                        controls
+                        style={{ width: '100%', borderRadius: '10px' }}
+                    />
+                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none' }}>
+                        {/* Play icon overlay if needed, but native controls are fine */}
+                    </div>
+                </div>
+            );
+        }
+
+        // Handle Audio
+        if (msg.OTYPE === 'AudioSendMessage') {
+            return (
+                <div key={idx} style={{ ...styles.textBubble, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span>🔊 語音訊息</span>
+                    <audio controls src={msg.original_content_url} style={{ height: '30px', maxWidth: '150px' }} />
+                </div>
+            );
+        }
+
         // Handle Flex
         if (msg.OTYPE === 'FlexSendMessage') {
             // Check if contents are parsed

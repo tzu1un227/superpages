@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import api from '../api';
-import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type, BarChart2, Download, Upload, Play, ExternalLink, TrendingUp, CheckCircle2, Circle, ChevronLeft, ChevronRight, BarChart3 } from 'lucide-react';
+import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type, BarChart2, Download, Upload, Play, ExternalLink, TrendingUp, CheckCircle2, Circle, ChevronLeft, ChevronRight, BarChart3, RotateCcw } from 'lucide-react';
 import FlexMessageEditor from '../components/FlexMessageEditor';
 import JourneyPreview from '../components/JourneyPreview';
 import { downloadCSV } from '../utils/csvUtils';
@@ -63,7 +63,8 @@ const ProjectsManagement = () => {
                             if (m.Line) m = m.Line;
 
                             // Format delay info only for the first message of a step
-                            const stepLabel = `Step ${s.step_id} (間隔 ${s.interval_hours} hr)`;
+                            const intervalLabel = formatInterval(s.interval_hours);
+                            const stepLabel = `Step ${s.step_id} (間隔 ${intervalLabel})`;
                             const delay = i === 0 ? stepLabel : '';
                             steps.push({ ...m, delay });
                         }
@@ -72,7 +73,8 @@ const ProjectsManagement = () => {
                         steps.push({ OTYPE: 'TextSendMessage', text: `[無法讀取訊息內容: ${tag}]`, delay: `Step ${s.step_id}` });
                     }
                 } else if (content) {
-                    steps.push({ OTYPE: 'TextSendMessage', text: content, delay: `Step ${s.step_id} (間隔 ${s.interval_hours} hr)` });
+                    const intervalLabel = formatInterval(s.interval_hours);
+                    steps.push({ OTYPE: 'TextSendMessage', text: content, delay: `Step ${s.step_id} (間隔 ${intervalLabel})` });
                 }
             }
             setPreviewSteps(steps);
@@ -88,9 +90,15 @@ const ProjectsManagement = () => {
         const days = Math.floor(h / 24);
         const remainingHours = h % 24;
         const hours = Math.floor(remainingHours);
-        // Deal with floating point precision for minutes (e.g. 0.5 hours = 30 mins)
         const minutes = Math.round((remainingHours - hours) * 60);
-        return { days, hours, minutes };
+
+        let label = '';
+        if (days > 0) label += `${days} 天 `;
+        if (hours > 0) label += `${hours} 小時 `;
+        if (minutes > 0) label += `${minutes} 分`;
+        if (!label) label = '0 小時';
+
+        return label.trim();
     };
 
     const [projects, setProjects] = useState([]);
@@ -104,6 +112,7 @@ const ProjectsManagement = () => {
         start_date: '',
         end_date: '',
         is_enabled: true,
+        is_recurring: false, // Default to false (Project behavior)
         anchor_config: { type: 'immediate', day: 1, time: '09:00' },
         dormancy_config: { enabled: false, start: '23:00', end: '08:00' }
     });
@@ -352,6 +361,17 @@ const ProjectsManagement = () => {
         }
     };
 
+    const handleRestartUser = async (userId) => {
+        if (!window.confirm(`確定要重新啟動用戶 ${userId} 的專案進度嗎？(將重置回第一步)`)) return;
+        try {
+            await api.post(`/projects/${selectedProjectId}/users/${userId}/restart`);
+            fetchProjectUsers(selectedProjectId);
+            alert('已重置用戶進度');
+        } catch (err) {
+            alert('重置失敗: ' + (err.response?.data?.message || err.message));
+        }
+    };
+
     // Project Preview State
 
 
@@ -406,6 +426,7 @@ setPreviewSteps(steps);
         // Ensure configs exist
         setEditProjectFormData({
             ...project,
+            is_recurring: project.is_recurring || false,
             anchor_config: project.anchor_config || { type: 'immediate', day: 1, time: '09:00' },
             dormancy_config: project.dormancy_config || { enabled: false, start: '23:00', end: '08:00' }
         });
@@ -758,19 +779,20 @@ setPreviewSteps(steps);
                                                 <input type="datetime-local" value={newProject.end_date} onChange={(e) => setNewProject({ ...newProject, end_date: e.target.value })} style={{ width: '100%' }} />
                                             </div>
                                         </div>
-                                        <div>
-                                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#B0B0B0' }}>
-                                                <input type="checkbox" checked={newProject.is_enabled} onChange={(e) => setNewProject({ ...newProject, is_enabled: e.target.checked })} /> 啟用專案
-                                            </label>
-                                        </div>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#B0B0B0' }}>
+                                            <input type="checkbox" checked={newProject.is_enabled} onChange={(e) => setNewProject({ ...newProject, is_enabled: e.target.checked })} /> 啟用專案
+                                        </label>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#B0B0B0' }}>
+                                            <input type="checkbox" checked={newProject.is_recurring} onChange={(e) => setNewProject({ ...newProject, is_recurring: e.target.checked })} /> 重複執行 (定時任務)
+                                        </label>
                                     </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: '1 1 480px', minWidth: '300px' }}>
-                                        {renderConfigInputs(newProject, setNewProject, false)}
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '10px', alignSelf: 'flex-end', flex: '0 0 auto', marginLeft: 'auto' }}>
-                                        <button className="primary" onClick={handleCreateProject} style={{ minWidth: '80px' }}>儲存</button>
-                                        <button onClick={() => setShowAddProjectForm(false)} style={{ background: '#444', minWidth: '80px' }}>取消</button>
-                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: '1 1 480px', minWidth: '300px' }}>
+                                    {renderConfigInputs(newProject, setNewProject, false)}
+                                </div>
+                                <div style={{ display: 'flex', gap: '10px', alignSelf: 'flex-end', flex: '0 0 auto', marginLeft: 'auto' }}>
+                                    <button className="primary" onClick={handleCreateProject} style={{ minWidth: '80px' }}>儲存</button>
+                                    <button onClick={() => setShowAddProjectForm(false)} style={{ background: '#444', minWidth: '80px' }}>取消</button>
                                 </div>
                             </div>
                         )}
@@ -927,8 +949,12 @@ setPreviewSteps(steps);
                         {selectedProjectId && (
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '25px' }}>
                                 <div style={{ background: '#1a1a1a', padding: '15px', borderRadius: '8px', border: '1px solid #333' }}>
-                                    <div style={{ color: '#888', fontSize: '12px' }}>觸發客戶數</div>
-                                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--primary-yellow)' }}>{projectStats.tc || 0}</div>
+                                    <div style={{ color: '#888', fontSize: '12px' }}>觸發人數 (Unique)</div>
+                                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--primary-yellow)' }}>{projectStats.unique_users || 0}</div>
+                                </div>
+                                <div style={{ background: '#1a1a1a', padding: '15px', borderRadius: '8px', border: '1px solid #333' }}>
+                                    <div style={{ color: '#888', fontSize: '12px' }}>總觸發次數 (Total)</div>
+                                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#fff' }}>{projectStats.tc || 0}</div>
                                 </div>
                                 <div style={{ background: '#1a1a1a', padding: '15px', borderRadius: '8px', border: '1px solid #333' }}>
                                     <div style={{ color: '#888', fontSize: '12px' }}>完成率</div>
@@ -1244,7 +1270,8 @@ setPreviewSteps(steps);
                                     <tr>
                                         <th>姓名</th>
                                         <th>所屬專案</th>
-                                        <th>加入狀態</th>
+                                        <th>狀態</th>
+                                        <th>操作</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1255,8 +1282,27 @@ setPreviewSteps(steps);
                                                 {projects.find(p => p.project_id == selectedProjectId)?.project_name || `ID: ${selectedProjectId}`}
                                             </td>
                                             <td>
+                                                {/* Status Display */}
+                                                {(() => {
+                                                    const s = u.status || 'unknown';
+                                                    let color = '#666';
+                                                    let text = s;
+                                                    if (s === 'active') { color = '#4CAF50'; text = '進行中'; }
+                                                    if (s === 'completed') { color = '#2196F3'; text = '已完成'; }
+                                                    if (s === 'paused') { color = '#FF9800'; text = '暫停'; }
+                                                    return <span style={{ color, fontWeight: 'bold' }}>● {text}</span>
+                                                })()}
+                                                <div style={{ fontSize: '10px', color: '#888' }}>Step: {u.step_id}</div>
+                                            </td>
+                                            <td>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                    <span style={{ color: '#4CAF50' }}>● 已在排程中</span>
+                                                    <button
+                                                        onClick={() => handleRestartUser(u.user_id)}
+                                                        style={{ padding: '4px 8px', background: '#333', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', color: 'var(--primary-yellow)', fontSize: '12px' }}
+                                                        title="重置並重新開始"
+                                                    >
+                                                        <RotateCcw size={14} style={{ marginRight: '4px' }} /> 重啟
+                                                    </button>
                                                     <button
                                                         onClick={() => handleRemoveUser(u.user_id)}
                                                         style={{ padding: '4px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#FF4D4D' }}
