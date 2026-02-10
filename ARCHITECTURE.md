@@ -43,6 +43,7 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 ### Rich Message Handling
 -   **QA Integration**: Messages can be stored as complex structures (Flex, Image, etc.) in the `qa_bank` table.
 -   **Reference Protocol**: In `project_schedules` or other text fields, these are referenced using the `QA|` prefix followed by the unique tag (e.g., `QA|cron_project_step`).
+-   **Data Storage**: Rich messages (Multiple bubbles/Image/Text) are stored in the `QA_bank` table using the `msg_rpy` column, which uses the `json[]` (JSON Array) type in PostgreSQL for consistent parsing of complex message sequences.
 -   **Editor Behavior**: The frontend detects this prefix to open the advanced visual editor instead of a plain text input.
 -   **Image Upload**: The Flex Message Editor includes an upload button that allows users to upload images directly to a configured GitHub repository. The backend handles the GitHub API integration and returns the raw image URL.
 

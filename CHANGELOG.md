@@ -3,8 +3,12 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **穩定性修復 (Frontend Stability)**: 修正專案管理頁面進入「排程設定」時可能導致的黑畫面當機。對所有 `.map()` 呼叫加入陣列檢查，防止非陣列資料導致錯誤。
+- **穩定性修復 (Frontend Fix)**: 修正 `formatInterval` 回傳格式，確保解構賦值的正確性。
+- **穩定性修復 (Frontend Fix)**: 修正排程列表在解析 `message_content` 時，若缺少分隔符號可能導致的 `pop()` 呼叫錯誤。
+- **後端穩定性 (Backend Stability)**: 修正儲存問答銀行 (QA) 時可能發生的 500 錯誤。改進資料庫 `msg_rpy` 欄位處理邏輯，支援 Postgres 的 `json[]` 陣列格式。
+- **後端改進 (Backend Improvement)**: 改進 `get_schedules` 邏輯，當訊息預覽無法讀取或發生錯誤時提供預設提示文字。
 - **Statistics Fix**: Corrected API parameter names in `Projects.jsx` (`start_time` -> `start_date`) to correctly fetch project statistics. [2026-02-09]
-- **URL Encoding Fix**: Implemented URL encoding for uploaded image filenames to ensure valid HTTPS URLs for LINE Bot API, determining compatibility with spaces and special characters. [2026-02-09]
 - **GitHub CDN Fix**: Switched image upload return URL from `raw.githubusercontent.com` to `cdn.jsdelivr.net` to resolve LINE Bot API 400 errors. [2026-02-09]
 - **Native Image Upload**: Added support for uploading images to GitHub directly from native "Image Message" types in the Advanced Message Editor.
 - **Persistent GitHub Configuration**: Migrated GitHub upload settings from `.env` to the database (OA Config). Added management UI in the Admin Page to allow per-OA configuration, ensuring settings persist in Docker environments.

@@ -870,7 +870,8 @@ def get_schedules():
                             s['message_preview'] = "[語音]"
                 except Exception as e:
                     print(f"Error fetching preview for {tag}: {e}")
-
+                    s['message_preview'] = "[無法讀取內容]"
+        
         cur.close()
         conn.close()
         print(f"Successfully fetched {len(schedules)} schedules")

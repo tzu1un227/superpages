@@ -98,7 +98,7 @@ const ProjectsManagement = () => {
         if (minutes > 0) label += `${minutes} 分`;
         if (!label) label = '0 小時';
 
-        return label.trim();
+        return { days, hours, minutes, label: label.trim() };
     };
 
     const [projects, setProjects] = useState([]);
@@ -189,7 +189,7 @@ const ProjectsManagement = () => {
             // Filter schedules for the selected project
             const projectSchedules = schedules.filter(s => s.project_id == effectiveProjectId);
 
-            if (projectSchedules.length > 0) {
+            if (Array.isArray(projectSchedules) && projectSchedules.length > 0) {
                 const maxStep = Math.max(...projectSchedules.map(s => parseInt(s.step_id) || 0));
                 setNewSchedule(prev => {
                     // Start from max + 1
@@ -809,7 +809,7 @@ setPreviewSteps(steps);
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {projects.map((p) => (
+                                    {Array.isArray(projects) && projects.map((p) => (
                                         <tr key={p.project_id}>
                                             <td
                                                 onClick={() => {
@@ -897,7 +897,7 @@ setPreviewSteps(steps);
                                         style={{ background: 'transparent', border: 'none', padding: '5px' }}
                                     >
                                         <option value="">請選擇專案...</option>
-                                        {projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
+                                        {Array.isArray(projects) && projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
                                     </select>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -987,7 +987,7 @@ setPreviewSteps(steps);
                                             style={{ width: '100%' }}
                                         >
                                             <option value="">選擇專案...</option>
-                                            {projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
+                                            {Array.isArray(projects) && projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
                                         </select>
                                     </div>
                                     <div>
@@ -1101,7 +1101,7 @@ setPreviewSteps(steps);
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {schedules.length > 0 ? schedules.map((s) => (
+                                    {Array.isArray(schedules) && schedules.length > 0 ? schedules.map((s) => (
                                         <tr key={s.schedule_id}>
                                             <td style={{ fontSize: '13px', color: '#B0B0B0' }}>
                                                 {projects.find(p => p.project_id === s.project_id)?.project_name || `ID: ${s.project_id}`}
@@ -1207,7 +1207,7 @@ setPreviewSteps(steps);
                                                             <>
                                                                 {/* <MessageSquare size={14} color="#4CAF50" title="Rich Message" /> */}
                                                                 <span>{s.message_preview}</span>
-                                                                <span style={{ fontSize: '10px', color: '#666' }}>({s.message_content.split('|')[1]?.split('_').pop()})</span>
+                                                                <span style={{ fontSize: '10px', color: '#666' }}>({s.message_content?.split('|')[1]?.split('_').pop() || 'Rich'})</span>
                                                             </>
                                                         ) : s.message_content && s.message_content.startsWith('QA|') ? (
                                                             <>
@@ -1255,7 +1255,7 @@ setPreviewSteps(steps);
                                         style={{ background: 'transparent', border: 'none', padding: '5px' }}
                                     >
                                         <option value="">請選擇專案...</option>
-                                        {projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
+                                        {Array.isArray(projects) && projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
                                     </select>
                                 </div>
                             </div>
@@ -1343,7 +1343,7 @@ setPreviewSteps(steps);
                 isOpen={isUserSelectModalOpen}
                 onClose={() => setIsUserSelectModalOpen(false)}
                 onSelect={onUserSelected}
-                existingUsers={projectUsers.map(u => u.user_id)}
+                existingUsers={Array.isArray(projectUsers) ? projectUsers.map(u => u.user_id) : []}
             />
             {/* Preview Modal */}
             {
@@ -1409,9 +1409,9 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
         setLoading(true);
         try {
             const res = await api.get(`/qa-bank/${tagName}`);
-            let msgs = res.data.msg_rpy || [];
-            // Parse strings if they are JSON strings (backend might return list of strings or list of dicts depending on implementation)
-            // Our backend returns list of strings (json dumped).
+            const msgsRaw = res.data.msg_rpy || [];
+            let msgs = Array.isArray(msgsRaw) ? msgsRaw : [msgsRaw];
+            // Parse strings if they are JSON strings
             msgs = msgs.map(m => {
                 let parsed = typeof m === 'string' ? JSON.parse(m) : m;
                 // Backend wraps content in {"Line": ...}, we need to unwrap it for the editor
@@ -1449,7 +1449,7 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
         setLoading(true);
         try {
             // Converts contents string to object if needed for Flex
-            const payloadMessages = messages.map(m => {
+            const payloadMessages = (Array.isArray(messages) ? messages : []).map(m => {
                 if (m.OTYPE === 'FlexSendMessage' && typeof m.contents === 'string') {
                     return { ...m, contents: JSON.parse(m.contents) };
                 }
@@ -1537,7 +1537,7 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                 <div style={{ flex: 1, display: 'flex', gap: '20px', overflow: 'hidden' }}>
                     {/* Left: Message List */}
                     <div style={{ width: '200px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
-                        {messages.map((m, i) => (
+                        {(Array.isArray(messages) ? messages : []).map((m, i) => (
                             <div key={i}
                                 onClick={() => setActiveMsgIndex(i)}
                                 style={{
@@ -1771,7 +1771,7 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
                 <div style={{ flex: 1, overflowY: 'auto', backgroundColor: '#333', borderRadius: '8px' }}>
                     {loading ? (
                         <div style={{ padding: '20px', textAlign: 'center', color: '#888' }}>載入中...</div>
-                    ) : filteredUsers.length > 0 ? (
+                    ) : (Array.isArray(filteredUsers) && filteredUsers.length > 0) ? (
                         filteredUsers.map((u) => (
                             <div
                                 key={u.user_id}
