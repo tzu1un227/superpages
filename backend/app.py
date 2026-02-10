@@ -683,12 +683,15 @@ def get_project_users(id):
         app_id = get_current_app_id()
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        # Select status as well
+        # Select from user_project_status to get all users including completed ones
+        # Join cron_table to get current step_id if active
         cur.execute(f"""
-            SELECT DISTINCT c.user_id, c.status, p.value as user_name 
-            FROM cron_table c
-            LEFT JOIN "Private_var:{app_id}" p ON c.user_id = p.user_id AND p.name = 'name'
-            WHERE c.project_id = %s
+            SELECT DISTINCT ups.user_id, LOWER(ups.status) as status, c.step_id, p.value as user_name 
+            FROM user_project_status ups
+            LEFT JOIN cron_table c ON ups.user_id = c.user_id AND ups.project_id = c.project_id
+            LEFT JOIN "Private_var:{app_id}" p ON ups.user_id = p.user_id AND p.name = 'name'
+            WHERE ups.project_id = %s
+            ORDER BY ups.status DESC, c.step_id ASC
         """, (id,))
         users = cur.fetchall()
         cur.close()
@@ -1109,7 +1112,7 @@ def get_scheduled_events():
                    true as is_enabled
             FROM cron_table c
             LEFT JOIN projects p ON c.project_id = p.project_id
-            WHERE c.push_time IS NOT NULL
+            WHERE c.push_time IS NOT NULL AND c.repeat_interval IS NOT NULL AND c.repeat_interval != '0'
             ORDER BY c.push_time ASC
         """)
         events = cur.fetchall()

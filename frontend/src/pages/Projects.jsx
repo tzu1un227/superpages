@@ -1292,7 +1292,9 @@ setPreviewSteps(steps);
                                                     if (s === 'paused') { color = '#FF9800'; text = '暫停'; }
                                                     return <span style={{ color, fontWeight: 'bold' }}>● {text}</span>
                                                 })()}
-                                                <div style={{ fontSize: '10px', color: '#888' }}>Step: {u.step_id}</div>
+                                                <div style={{ fontSize: '10px', color: '#888' }}>
+                                                    {u.step_id ? `Step: ${u.step_id}` : (u.status === 'completed' ? 'Done' : '')}
+                                                </div>
                                             </td>
                                             <td>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
