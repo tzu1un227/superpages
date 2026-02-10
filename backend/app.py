@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, g
 from flask_cors import CORS
 from config import Config
 import psycopg2
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import RealDictCursor, Json
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 import threading
@@ -1228,8 +1228,17 @@ def create_qa_entry():
         # Frontend sends type='Sensor', but DB table might not have this column if old schema.
         qa_type = data.get('type', 'Sensor') 
         
+        # Prepare msg_rpy for ARRAY of JSON (json[])
+        # If msg_rpy is list, convert elements to Json adapter
+        # If msg_rpy is dict, wrap in list
         import json
-        msg_rpy_json = json.dumps(msg_rpy) 
+        if isinstance(msg_rpy, list):
+            # Postgres ARRAY of JSON
+            # We use Json adapter for each element
+            msg_rpy_db = [Json(m) for m in msg_rpy]
+        else:
+            # If single object, wrap in list
+            msg_rpy_db = [Json(msg_rpy)]
         
         app_id = get_current_app_id()
         table_name = f"QA_bank:{app_id}"
@@ -1243,11 +1252,11 @@ def create_qa_entry():
             if cur.fetchone():
                 # Attempt update with type
                 sql = f'UPDATE "{table_name}" SET msg_rpy = %s, type = %s WHERE tag = %s'
-                cur.execute(sql, (msg_rpy_json, qa_type, tag))
+                cur.execute(sql, (msg_rpy_db, qa_type, tag))
             else:
                 # Attempt insert with type
                 sql = f'INSERT INTO "{table_name}" (tag, msg_rpy, type) VALUES (%s, %s, %s)'
-                cur.execute(sql, (tag, msg_rpy_json, qa_type))
+                cur.execute(sql, (tag, msg_rpy_db, qa_type))
                 
         except psycopg2.errors.UndefinedColumn:
              # Fallback if 'type' column is missing
@@ -1255,10 +1264,10 @@ def create_qa_entry():
              cur.execute(f'SELECT 1 FROM "{table_name}" WHERE tag = %s', (tag,))
              if cur.fetchone():
                  sql = f'UPDATE "{table_name}" SET msg_rpy = %s WHERE tag = %s'
-                 cur.execute(sql, (msg_rpy_json, tag))
+                 cur.execute(sql, (msg_rpy_db, tag))
              else:
                  sql = f'INSERT INTO "{table_name}" (tag, msg_rpy) VALUES (%s, %s)'
-                 cur.execute(sql, (tag, msg_rpy_json))
+                 cur.execute(sql, (tag, msg_rpy_db))
         except Exception as e:
              # Other db errors
              raise e
