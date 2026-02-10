@@ -1251,11 +1251,11 @@ def create_qa_entry():
             cur.execute(f'SELECT 1 FROM "{table_name}" WHERE tag = %s', (tag,))
             if cur.fetchone():
                 # Attempt update with type
-                sql = f'UPDATE "{table_name}" SET msg_rpy = %s, type = %s WHERE tag = %s'
+                sql = f'UPDATE "{table_name}" SET msg_rpy = %s::json[], type = %s WHERE tag = %s'
                 cur.execute(sql, (msg_rpy_db, qa_type, tag))
             else:
                 # Attempt insert with type
-                sql = f'INSERT INTO "{table_name}" (tag, msg_rpy, type) VALUES (%s, %s, %s)'
+                sql = f'INSERT INTO "{table_name}" (tag, msg_rpy, type) VALUES (%s, %s::json[], %s)'
                 cur.execute(sql, (tag, msg_rpy_db, qa_type))
                 
         except psycopg2.errors.UndefinedColumn:
@@ -1263,10 +1263,10 @@ def create_qa_entry():
              conn.rollback()
              cur.execute(f'SELECT 1 FROM "{table_name}" WHERE tag = %s', (tag,))
              if cur.fetchone():
-                 sql = f'UPDATE "{table_name}" SET msg_rpy = %s WHERE tag = %s'
+                 sql = f'UPDATE "{table_name}" SET msg_rpy = %s::json[] WHERE tag = %s'
                  cur.execute(sql, (msg_rpy_db, tag))
              else:
-                 sql = f'INSERT INTO "{table_name}" (tag, msg_rpy) VALUES (%s, %s)'
+                 sql = f'INSERT INTO "{table_name}" (tag, msg_rpy) VALUES (%s, %s::json[])'
                  cur.execute(sql, (tag, msg_rpy_db))
         except Exception as e:
              # Other db errors
