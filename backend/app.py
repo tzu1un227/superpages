@@ -7,6 +7,7 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal
 import threading
 import time
+import json
 
 app = Flask(__name__)
 CORS(app, origins=["https://irl-svr.ee.yzu.edu.tw:5014", "http://localhost:3000", "http://localhost:9016", "https://irl-svr.ee.yzu.edu.tw:5016"])
@@ -1225,20 +1226,15 @@ def create_qa_entry():
         
         tag = data['tag']
         msg_rpy = data['msg_rpy']
-        # Frontend sends type='Sensor', but DB table might not have this column if old schema.
-        qa_type = data.get('type', 'Sensor') 
         
-        # Prepare msg_rpy for ARRAY of JSON (json[])
-        # If msg_rpy is list, convert elements to Json adapter
-        # If msg_rpy is dict, wrap in list
         import json
+        # Since column is json[], we pass a list of JSON strings.
+        # psycopg2 will turn a Python list of strings into a Postgres text array literal ['...','...'],
+        # then we cast it to json[] in SQL.
         if isinstance(msg_rpy, list):
-            # Postgres ARRAY of JSON
-            # We use Json adapter for each element
-            msg_rpy_db = [Json(m) for m in msg_rpy]
+            msg_rpy_db = [json.dumps(m) for m in msg_rpy]
         else:
-            # If single object, wrap in list
-            msg_rpy_db = [Json(msg_rpy)]
+            msg_rpy_db = [json.dumps(msg_rpy)]
         
         app_id = get_current_app_id()
         table_name = f"QA_bank:{app_id}"
@@ -1246,31 +1242,14 @@ def create_qa_entry():
         conn = get_db_connection()
         cur = conn.cursor()
         
-        try:
-            # Check if exists
-            cur.execute(f'SELECT 1 FROM "{table_name}" WHERE tag = %s', (tag,))
-            if cur.fetchone():
-                # Attempt update with type
-                sql = f'UPDATE "{table_name}" SET msg_rpy = %s::json[], type = %s WHERE tag = %s'
-                cur.execute(sql, (msg_rpy_db, qa_type, tag))
-            else:
-                # Attempt insert with type
-                sql = f'INSERT INTO "{table_name}" (tag, msg_rpy, type) VALUES (%s, %s::json[], %s)'
-                cur.execute(sql, (tag, msg_rpy_db, qa_type))
-                
-        except psycopg2.errors.UndefinedColumn:
-             # Fallback if 'type' column is missing
-             conn.rollback()
-             cur.execute(f'SELECT 1 FROM "{table_name}" WHERE tag = %s', (tag,))
-             if cur.fetchone():
-                 sql = f'UPDATE "{table_name}" SET msg_rpy = %s::json[] WHERE tag = %s'
-                 cur.execute(sql, (msg_rpy_db, tag))
-             else:
-                 sql = f'INSERT INTO "{table_name}" (tag, msg_rpy) VALUES (%s, %s::json[])'
-                 cur.execute(sql, (tag, msg_rpy_db))
-        except Exception as e:
-             # Other db errors
-             raise e
+        # Check if exists to decide between INSERT or UPDATE
+        cur.execute(f'SELECT 1 FROM "{table_name}" WHERE tag = %s', (tag,))
+        if cur.fetchone():
+            sql = f'UPDATE "{table_name}" SET msg_rpy = %s::json[] WHERE tag = %s'
+            cur.execute(sql, (msg_rpy_db, tag))
+        else:
+            sql = f'INSERT INTO "{table_name}" (tag, msg_rpy) VALUES (%s, %s::json[])'
+            cur.execute(sql, (tag, msg_rpy_db))
             
         conn.commit()
         cur.close()
