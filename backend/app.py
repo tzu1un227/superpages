@@ -1198,20 +1198,8 @@ def trigger_socket_event():
         sio.connect(target_ws_url, namespaces=[namespace], wait_timeout=3)
         sio.emit(f'{BOT_NAME}_message', data, namespace=namespace)
         
-        # Track statistics if it's a project trigger
-        try:
-            message = data.get('message', '')
-            if message.startswith('iup|'):
-                project_id = int(message.split('|')[1])
-                oa_id = get_current_oa_id()
-                if oa_id:
-                    # tc: Unique/Start triggers, ttc: Total triggers (including restarts)
-                    increment_project_stat(project_id, 'tc', oa_id)
-                    increment_project_stat(project_id, 'ttc', oa_id)
-                else:
-                    print(f"WARNING: trigger_socket_event cannot increment stat - No OA ID in context")
-        except Exception as te:
-            print(f"Error tracking trigger stat: {te}")
+        # Statistics for 'iup|' (project triggers) are handled by the background processor
+        # in the main system (Line-Bot-Main) to avoid double counting.
 
         time_to_wait = 0.5 # Small delay to ensure message is sent
         import time

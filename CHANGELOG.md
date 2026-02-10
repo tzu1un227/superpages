@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
-- **統計數據修正 (Statistics Fix)**: 修復「重啟用戶進度」時未同步更新「總觸發次數」的問題。修正了後端 ID 辨別錯誤（OA 設定 ID 與資料庫名稱之混淆），並確保重啟動作能確實觸發 ttc 累加，讓完成率計算恢復正常。
+- **統計數據修正 (Statistics Fix)**: 修復「重啟用戶進度」時未同步更新「總觸發次數」的問題。修正了後端 ID 辨別錯誤（OA 設定 ID 與資料庫名稱之混淆），並移除冗餘的觸發計數邏輯，解決了手動加入用戶時數據重複累計 (Double Counting) 的問題，確保完成率計算準確。
 - **穩定性修復 (Frontend Stability)**: 修正專案管理頁面進入「排程設定」時可能導致的黑畫面當機。對所有 `.map()` 呼叫加入陣列檢查，防止非陣列資料導致錯誤。
 - **排程可見性修復 (Schedule Visibility)**: 修正「排程設定」看不到排程的問題。改進前端 `fetchSchedules` 的資料型態處理與錯誤捕捉，並在後端 `get_schedules` 加入更多防護與日誌記錄。
 - **穩定性修復 (Frontend Fix)**: 修正 `formatInterval` 回傳格式，確保解構賦值的正確性。
