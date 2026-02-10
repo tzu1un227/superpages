@@ -1225,6 +1225,8 @@ def create_qa_entry():
         
         tag = data['tag']
         msg_rpy = data['msg_rpy']
+        # Frontend sends type='Sensor', but DB table might not have this column if old schema.
+        qa_type = data.get('type', 'Sensor') 
         
         import json
         msg_rpy_json = json.dumps(msg_rpy) 
@@ -1235,20 +1237,38 @@ def create_qa_entry():
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Check if exists
-        cur.execute(f'SELECT 1 FROM "{table_name}" WHERE tag = %s', (tag,))
-        if cur.fetchone():
-            sql = f'UPDATE "{table_name}" SET msg_rpy = %s WHERE tag = %s'
-            cur.execute(sql, (msg_rpy_json, tag))
-        else:
-            sql = f'INSERT INTO "{table_name}" (tag, msg_rpy) VALUES (%s, %s)'
-            cur.execute(sql, (tag, msg_rpy_json))
+        try:
+            # Check if exists
+            cur.execute(f'SELECT 1 FROM "{table_name}" WHERE tag = %s', (tag,))
+            if cur.fetchone():
+                # Attempt update with type
+                sql = f'UPDATE "{table_name}" SET msg_rpy = %s, type = %s WHERE tag = %s'
+                cur.execute(sql, (msg_rpy_json, qa_type, tag))
+            else:
+                # Attempt insert with type
+                sql = f'INSERT INTO "{table_name}" (tag, msg_rpy, type) VALUES (%s, %s, %s)'
+                cur.execute(sql, (tag, msg_rpy_json, qa_type))
+                
+        except psycopg2.errors.UndefinedColumn:
+             # Fallback if 'type' column is missing
+             conn.rollback()
+             cur.execute(f'SELECT 1 FROM "{table_name}" WHERE tag = %s', (tag,))
+             if cur.fetchone():
+                 sql = f'UPDATE "{table_name}" SET msg_rpy = %s WHERE tag = %s'
+                 cur.execute(sql, (msg_rpy_json, tag))
+             else:
+                 sql = f'INSERT INTO "{table_name}" (tag, msg_rpy) VALUES (%s, %s)'
+                 cur.execute(sql, (tag, msg_rpy_json))
+        except Exception as e:
+             # Other db errors
+             raise e
             
         conn.commit()
         cur.close()
         conn.close()
         return jsonify({"status": "success"})
     except Exception as e:
+        print(f"QA Save Error: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/qa-bank/<string:tag>', methods=['GET'])
