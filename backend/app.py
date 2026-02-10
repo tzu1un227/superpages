@@ -588,11 +588,13 @@ def get_project_stats(id):
         rows = cur.fetchall()
         
         stats = {
-            "tc": 0,
+            "tc": 0,    # Will be used for TOTAL Triggers (ttc from DB)
+            "unique_users": 0, # Will be used for UNIQUE Triggers (tc from DB)
             "cc": 0,
             "ms": 0,
             "mss": 0,
-            "msf": 0
+            "msf": 0,
+            "ttc": 0 
         }
         
         # Parse and aggregate
@@ -603,16 +605,25 @@ def get_project_stats(id):
                 date_str = parts[3]
                 metric = parts[4]
                 if start_date <= date_str <= end_date:
-                    if metric in stats:
-                        try:
-                            stats[metric] += int(row['value'])
-                        except:
-                            pass
+                    try:
+                        val = int(row['value'])
+                        if metric == 'tc':
+                            stats['unique_users'] += val
+                        elif metric == 'ttc':
+                            stats['ttc'] += val
+                        elif metric in stats:
+                            stats[metric] += val
+                    except:
+                        pass
         
-        # Calculate completion rate
+        # Map ttc to tc for frontend compatibility if needed, OR just send ttc
+        # Frontend uses 'tc' for Total.
+        stats['tc'] = stats['ttc']
+        
+        # Calculate completion rate (Unique Done / Unique Start)
         stats['completion_rate'] = 0
-        if stats['tc'] > 0:
-            stats['completion_rate'] = round((stats['cc'] / stats['tc']) * 100, 2)
+        if stats['unique_users'] > 0:
+            stats['completion_rate'] = round((stats['cc'] / stats['unique_users']) * 100, 2)
             
         cur.close()
         conn.close()
