@@ -101,56 +101,61 @@ def get_db_connection():
     return conn
 
 def get_current_app_id():
-    """Extract App ID (DB Name) from the current connection URL or Configuration"""
-    if hasattr(g, 'current_app_name') and g.current_app_name:
-        return g.current_app_name.strip()
-        
+    """Returns the current database name (e.g. '5013')."""
     if hasattr(g, 'current_db_url') and g.current_db_url:
-        # Assuming format .../5009 or .../5009?ssl=true
         path_part = g.current_db_url.split('/')[-1]
         return path_part.split('?')[0].strip()
     return '5013' # Default
 
-def increment_project_stat(project_id, metric, app_id, date_str=None):
+def get_current_oa_id():
+    """Returns the numeric OA Config ID (from permission_settings)."""
+    if hasattr(g, 'current_oa_id') and g.current_oa_id:
+        return g.current_oa_id
+    return None
+
+def increment_project_stat(project_id, metric, oa_id, date_str=None):
     """
     Increments a project-specific metric in the Global_var table.
-    Metrics: tc (Trigger Count), cc (Completion Count), ms (Messages Sent), mss (Success), msf (Failure)
+    Metrics: tc (Unique Triggers), ttc (Total Triggers), cc (Unique Completions), tcc (Total Completions), ms/mss/msf (Messages)
     """
     if not date_str:
         date_str = datetime.now().strftime('%Y-%m-%d')
     variable_name = f"pj:{project_id}:stats:{date_str}:{metric}"
     
     try:
-        # We need a fresh connection since this might be called outside g context or in background
-        # If we have app_id, we can potentially find the DB URL from OAConfig
-        # But for now, let's assume Global_var is in the main DB or the one matching app_id
-        # Actually, the requirement said pj:{project_id}:stats:... in Global_var
-        
-        conn = psycopg2.connect(**DB_CONFIG) # For now assume default DB holds global stats? 
-        # No, the previous implementation used Global_var:{app_id}.
-        
-        # Determine correct DB for app_id
+        # Determine correct DB for this OA
         db_url = None
-        # In background thread we don't have app context / OAConfig easily without query
-        # But we can query the main DB for the db_url of the app_id
-        oa = OAConfig.query.get(app_id) # This works inside app.app_context()
+        current_app_id = str(oa_id) # The ID in permission_settings (e.g., 1 or 3)
+        
+        # We need to query the main DB for the db_url of the oa_id
+        # This is safe because Global_var follows the App context
+        oa = OAConfig.query.get(oa_id)
         if oa:
             db_url = oa.db_url
+            # Also get the logical app name (e.g., '5013') for the table prefix
+            # If not in other_settings, fallback to db name
+            logical_app_id = get_current_app_id() 
+            if oa.other_settings and 'app_name' in oa.other_settings:
+                if oa.other_settings['app_name']:
+                    logical_app_id = str(oa.other_settings['app_name'])
         
         if db_url:
+            print(f"DEBUG: increment_project_stat | Metric={metric} | OA_ID={oa_id} | Logical_App={logical_app_id} | DB={db_url.split('/')[-1].split('?')[0]}")
             target_conn = psycopg2.connect(db_url)
             cur = target_conn.cursor()
-            table_name = f"Global_var:{app_id}"
+            table_name = f"Global_var:{logical_app_id}"
             
-            # Manual Upsert logic (since Global_var might lack unique constraints)
+            # Upsert logic
             cur.execute(f"UPDATE \"{table_name}\" SET value = (COALESCE(value, '0')::int + 1)::text WHERE name = %s", (variable_name,))
             if cur.rowcount == 0:
                 cur.execute(f"INSERT INTO \"{table_name}\" (name, value) VALUES (%s, '1')", (variable_name,))
             target_conn.commit()
             cur.close()
             target_conn.close()
+        else:
+            print(f"WARNING: increment_project_stat failed - No DB URL found for OA_ID: {oa_id}")
     except Exception as e:
-        print(f"Error in increment_project_stat: {e}")
+        print(f"ERROR: increment_project_stat (PJ:{project_id}, Metric:{metric}, OA:{oa_id}): {e}")
 
 @app.before_request
 def load_oa_context():
@@ -849,10 +854,13 @@ def restart_project_user(id, user_id):
             else:
                 cur.execute("INSERT INTO user_project_status (user_id, project_id, status, updated_at) VALUES (%s, %s, 'active', NOW())", (user_id, id))
 
-            # 7. Update Stats
+            # 7. Update Stats - Increment Total Trigger Count (ttc)
             try:
-                app_id = get_current_app_id()
-                increment_project_stat(id, 'ttc', app_id)
+                oa_id = get_current_oa_id()
+                if oa_id:
+                    increment_project_stat(id, 'ttc', oa_id)
+                else:
+                    print(f"WARNING: restart_project_user cannot increment stat - No OA ID in context")
             except Exception as se:
                 print(f"Error incrementing restart stat: {se}")
 
@@ -1195,10 +1203,13 @@ def trigger_socket_event():
             message = data.get('message', '')
             if message.startswith('iup|'):
                 project_id = int(message.split('|')[1])
-                app_id = get_current_app_id()
-                # tc: Unique/Start triggers, ttc: Total triggers (including restarts)
-                increment_project_stat(project_id, 'tc', app_id)
-                increment_project_stat(project_id, 'ttc', app_id)
+                oa_id = get_current_oa_id()
+                if oa_id:
+                    # tc: Unique/Start triggers, ttc: Total triggers (including restarts)
+                    increment_project_stat(project_id, 'tc', oa_id)
+                    increment_project_stat(project_id, 'ttc', oa_id)
+                else:
+                    print(f"WARNING: trigger_socket_event cannot increment stat - No OA ID in context")
         except Exception as te:
             print(f"Error tracking trigger stat: {te}")
 
