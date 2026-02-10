@@ -590,7 +590,8 @@ def get_project_stats(id):
         stats = {
             "tc": 0,    # Will be used for TOTAL Triggers (ttc from DB)
             "unique_users": 0, # Will be used for UNIQUE Triggers (tc from DB)
-            "cc": 0,
+            "cc": 0,    # Unique Completions
+            "tcc": 0,   # Total Completions
             "ms": 0,
             "mss": 0,
             "msf": 0,
@@ -611,6 +612,8 @@ def get_project_stats(id):
                             stats['unique_users'] += val
                         elif metric == 'ttc':
                             stats['ttc'] += val
+                        elif metric == 'tcc':
+                            stats['tcc'] += val
                         elif metric in stats:
                             stats[metric] += val
                     except:
@@ -620,10 +623,13 @@ def get_project_stats(id):
         # Frontend uses 'tc' for Total.
         stats['tc'] = stats['ttc']
         
-        # Calculate completion rate (Unique Done / Unique Start)
+        # Calculate completion rate (User requested: Denominator = Total Trigger)
+        # Numerator = Total Completion (tcc) preferably, or Unique (cc) if tcc missing.
+        # We implemented tcc now.
         stats['completion_rate'] = 0
-        if stats['unique_users'] > 0:
-            stats['completion_rate'] = round((stats['cc'] / stats['unique_users']) * 100, 2)
+        if stats['tc'] > 0:
+            numerator = stats['tcc'] if stats['tcc'] > 0 else stats['cc']
+            stats['completion_rate'] = round((numerator / stats['tc']) * 100, 2)
             
         cur.close()
         conn.close()
@@ -1209,6 +1215,69 @@ def delete_scheduled_event(id):
         return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/qa-bank', methods=['POST'])
+def create_qa_entry():
+    try:
+        data = request.json
+        if not data or 'tag' not in data or 'msg_rpy' not in data:
+             return jsonify({"error": "Missing tag or msg_rpy"}), 400
+        
+        tag = data['tag']
+        msg_rpy = data['msg_rpy']
+        
+        import json
+        msg_rpy_json = json.dumps(msg_rpy) 
+        
+        app_id = get_current_app_id()
+        table_name = f"QA_bank:{app_id}"
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if exists
+        cur.execute(f'SELECT 1 FROM "{table_name}" WHERE tag = %s', (tag,))
+        if cur.fetchone():
+            sql = f'UPDATE "{table_name}" SET msg_rpy = %s WHERE tag = %s'
+            cur.execute(sql, (msg_rpy_json, tag))
+        else:
+            sql = f'INSERT INTO "{table_name}" (tag, msg_rpy) VALUES (%s, %s)'
+            cur.execute(sql, (tag, msg_rpy_json))
+            
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/qa-bank/<string:tag>', methods=['GET'])
+def get_qa_entry(tag):
+    try:
+        app_id = get_current_app_id()
+        table_name = f"QA_bank:{app_id}"
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cur.execute(f'SELECT msg_rpy FROM "{table_name}" WHERE tag = %s', (tag,))
+        row = cur.fetchone()
+        
+        cur.close()
+        conn.close()
+        
+        if row:
+            ms = row['msg_rpy']
+            try:
+                import json
+                if isinstance(ms, str):
+                    ms = json.loads(ms)
+            except:
+                pass
+            return jsonify({"tag": tag, "msg_rpy": ms})
+        else:
+            return jsonify({"error": "Not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # DISABLE conflicting scheduler (Line-Bot-Main/sensors/cronjobs.py handles this)
 # threading.Thread(target=cron_scheduler_processor, daemon=True).start()
