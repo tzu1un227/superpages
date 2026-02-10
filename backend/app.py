@@ -727,144 +727,10 @@ def restart_project_user(id, user_id):
 def cron_scheduler_processor():
     """
     Background thread to execute project steps based on cron_table schedule.
+    DISABLED: Logic moved to Line-Bot-Main/sensors/cronjobs.py
     """
-    with app.app_context():
-        print(f"Cron Scheduler started with app context. Check interval: 10s")
+    return
 
-    while True:
-        try:
-            # Re-create app context for each iteration to ensure freshness and avoid stale sessions?
-            # Actually, app_context is needed for OAConfig.query.
-            with app.app_context():
-                try:
-                    # Get all OAs/Apps to process
-                    # We wrap this in try-except block to prevent DB connection errors from crashing the thread
-                    oas = OAConfig.query.all()
-                except Exception as query_err:
-                    print(f"Error querying OAConfig: {query_err}")
-                    time.sleep(10)
-                    continue
-
-                for oa in oas:
-                    app_id = oa.id
-                    db_url = oa.db_url
-                    if not db_url: continue
-
-                    conn = None
-                    try:
-                        conn = psycopg2.connect(db_url)
-                        cur = conn.cursor(cursor_factory=RealDictCursor)
-                        
-                        now = datetime.now()
-                        
-                        # Fetch due tasks
-                        # We join cron_table with projects to ensure we only run active projects
-                        cur.execute("""
-                            SELECT c.user_id, c.project_id, c.step_id, p.is_recurring, p.is_enabled 
-                            FROM cron_table c
-                            JOIN projects p ON c.project_id = p.project_id
-                            WHERE c.status = 'active' 
-                            AND c.scheduled_at IS NOT NULL 
-                            AND c.scheduled_at <= %s
-                            AND p.is_enabled = TRUE
-                        """, (now,))
-                        due_tasks = cur.fetchall()
-                        
-                        for task in due_tasks:
-                            user_id = task['user_id']
-                            project_id = task['project_id']
-                            step_id = task['step_id']
-                            is_recurring = task['is_recurring']
-                            
-                            # 1. Fetch Message Content for current step
-                            cur.execute("SELECT message_content, interval_hours FROM project_schedules WHERE project_id = %s AND step_id = %s", (project_id, step_id))
-                            schedule = cur.fetchone()
-                            
-                            if schedule:
-                                content = schedule['message_content']
-                                # Send Message logic
-                                namespace = f"/{BOT_NAME}"
-                                target_ws_url = oa.other_settings.get('socket_url', WS_URL) if oa.other_settings and isinstance(oa.other_settings, dict) else WS_URL
-                                
-                                data = {
-                                    "user": user_id,
-                                    "message": content,
-                                    "type": "Sensor", # Default to Sensor/Text
-                                    "api_index": 0
-                                }
-                                
-                                try:
-                                    # We use a short-lived socket connection for each trigger
-                                    # Optimization: Reuse connection if possible, but for now safety first
-                                    sio = socketio.Client()
-                                    sio.connect(target_ws_url, namespaces=[namespace], wait_timeout=5)
-                                    sio.emit(f'{BOT_NAME}_message', data, namespace=namespace)
-                                    time.sleep(0.2)
-                                    sio.disconnect()
-                                    print(f"Cron Trigger: Project {project_id} Step {step_id} -> User {user_id}")
-                                    
-                                    # Update Stats (Trigger Count)
-                                    # Note: increment_project_stat handles its own DB connection
-                                    increment_project_stat(project_id, 'tc', app_id)
-                                    
-                                except Exception as socket_err:
-                                    print(f"Socket Emit Error for {user_id}: {socket_err}")
-                            
-                            # 2. Schedule Next Step
-                            next_step_id = step_id + 1
-                            cur.execute("SELECT interval_hours FROM project_schedules WHERE project_id = %s AND step_id = %s", (project_id, next_step_id))
-                            next_schedule = cur.fetchone()
-                            
-                            if next_schedule:
-                                # Next step exists
-                                delay_hours = next_schedule['interval_hours']
-                                next_run = now + timedelta(hours=float(delay_hours))
-                                cur.execute("UPDATE cron_table SET step_id = %s, scheduled_at = %s WHERE user_id = %s AND project_id = %s", (next_step_id, next_run, user_id, project_id))
-                            else:
-                                # No next step -> Check recurrence for Loop or Complete
-                                if is_recurring:
-                                    # Loop back to Step 0
-                                    # Get Step 0 interval to determine when it runs again
-                                    cur.execute("SELECT interval_hours FROM project_schedules WHERE project_id = %s AND step_id = 0", (project_id,))
-                                    s0 = cur.fetchone()
-                                    base_interval = s0['interval_hours'] if s0 else 0
-                                    
-                                    # Recurrence Logic: 
-                                    # If base_interval is 0, it might run immediately? 
-                                    # Usually we want at least some delay if it's a loop, to avoid infinite loop in 1 second.
-                                    # Let's enforce min 1 minute if 0? Or just trust user.
-                                    
-                                    next_run = now + timedelta(hours=float(base_interval))
-                                    
-                                    # Reset to Step 0
-                                    cur.execute("UPDATE cron_table SET step_id = 0, scheduled_at = %s WHERE user_id = %s AND project_id = %s", (next_run, user_id, project_id))
-                                    print(f"Recurring Project {project_id}: User {user_id} looping back to Step 0 at {next_run}")
-                                else:
-                                    # Complete
-                                    cur.execute("UPDATE cron_table SET status = 'completed', scheduled_at = NULL WHERE user_id = %s AND project_id = %s", (user_id, project_id))
-                                    # Update 'cc' stat (Completion Count)
-                                    increment_project_stat(project_id, 'cc', app_id)
-                                    print(f"Project {project_id}: User {user_id} completed.")
-                                    
-                            conn.commit()
-
-                        cur.close()
-                        conn.close()
-                    except Exception as db_err:
-                        print(f"Error in cron_scheduler_processor for app {app_id}: {db_err}")
-                        if conn:
-                            try:
-                                conn.rollback()
-                                conn.close()
-                            except:
-                                pass
-                        
-        except Exception as e:
-            print(f"Critical Error in cron_scheduler_processor: {e}")
-        
-        time.sleep(10)
-
-threading.Thread(target=cron_scheduler_processor, daemon=True).start()
 
 # Schedules CRUD
 @app.route('/api/schedules', methods=['GET'])
@@ -1196,6 +1062,36 @@ def trigger_socket_event():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # Scheduled Events CRUD
+@app.route('/api/scheduled-events', methods=['POST'])
+def create_scheduled_event():
+    data = request.json
+    try:
+        user_id = data.get('target_user_id')
+        message_content = data.get('message_content')
+        interval_hours = data.get('interval_hours')
+        
+        if not user_id or not message_content or not interval_hours:
+            return jsonify({"status": "error", "message": "Missing required fields"}), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Calculate initial push_time (NOW + interval)
+        push_time = datetime.now() + timedelta(hours=float(interval_hours))
+        
+        cur.execute(
+            "INSERT INTO cron_table (user_id, message_content, repeat_interval, push_time, status) VALUES (%s, %s, %s, %s, 'active') RETURNING task_id",
+            (user_id, message_content, str(interval_hours), push_time)
+        )
+        task_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"status": "success", "task_id": task_id})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# Scheduled Events CRUD
 @app.route('/api/scheduled-events', methods=['GET'])
 def get_scheduled_events():
     try:
@@ -1206,9 +1102,11 @@ def get_scheduled_events():
         # Join with projects and user info
         # Use push_time as the primary time column
         cur.execute(f"""
-            SELECT c.task_id, c.project_id, c.step_id, c.push_time as scheduled_at, c.message_content, 
+            SELECT c.task_id as event_id, c.project_id, c.step_id, c.push_time as scheduled_at, c.message_content, c.repeat_interval as interval_hours,
                    p.project_name,
-                   (SELECT value FROM "Private_var:{app_id}" WHERE user_id = c.user_id AND name = 'name' LIMIT 1) as user_name
+                   (SELECT value FROM "Private_var:{app_id}" WHERE user_id = c.user_id AND name = 'name' LIMIT 1) as user_name,
+                   c.user_id as target_user_id,
+                   true as is_enabled
             FROM cron_table c
             LEFT JOIN projects p ON c.project_id = p.project_id
             WHERE c.push_time IS NOT NULL
