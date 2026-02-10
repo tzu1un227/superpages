@@ -769,12 +769,14 @@ def restart_project_user(id, user_id):
                             (user_id, id, step_id, msg, push_time))
             
             # Update user_project_status
-            cur.execute("""
-                INSERT INTO user_project_status (user_id, project_id, status, updated_at) 
-                VALUES (%s, %s, 'active', NOW())
-                ON CONFLICT (user_id, project_id) 
-                DO UPDATE SET status = 'active', updated_at = NOW()
-            """, (user_id, id))
+            # Check if exists first to avoid ON CONFLICT error (missing constraint)
+            cur.execute("SELECT 1 FROM user_project_status WHERE user_id = %s AND project_id = %s", (user_id, id))
+            ups_exists = cur.fetchone()
+            
+            if ups_exists:
+                cur.execute("UPDATE user_project_status SET status = 'active', updated_at = NOW() WHERE user_id = %s AND project_id = %s", (user_id, id))
+            else:
+                cur.execute("INSERT INTO user_project_status (user_id, project_id, status, updated_at) VALUES (%s, %s, 'active', NOW())", (user_id, id))
             
             conn.commit()
             cur.close()
