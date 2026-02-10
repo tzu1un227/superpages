@@ -219,6 +219,15 @@ def project_stats_processor():
                         
                         # Get last processed time from Global_var
                         g_var_table = f"Global_var:{app_id}"
+                        
+                        # Ensure table exists
+                        cur.execute(f"""
+                            CREATE TABLE IF NOT EXISTS "{g_var_table}" (
+                                name VARCHAR(255) PRIMARY KEY,
+                                value TEXT
+                            )
+                        """)
+
                         cur.execute(f"SELECT value FROM \"{g_var_table}\" WHERE name = 'last_stats_process_time'")
                         row = cur.fetchone()
                         last_time = row['value'] if row else '2000-01-01 00:00:00'
@@ -683,10 +692,8 @@ def get_project_users(id):
         app_id = get_current_app_id()
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        # Select from user_project_status to get all users including completed ones
-        # Join cron_table to get current step_id if active
         cur.execute(f"""
-            SELECT DISTINCT ups.user_id, LOWER(ups.status) as status, c.step_id, p.value as user_name 
+            SELECT ups.user_id, LOWER(ups.status) as status, c.step_id, p.value as user_name 
             FROM user_project_status ups
             LEFT JOIN cron_table c ON ups.user_id = c.user_id AND ups.project_id = c.project_id
             LEFT JOIN "Private_var:{app_id}" p ON ups.user_id = p.user_id AND p.name = 'name'
