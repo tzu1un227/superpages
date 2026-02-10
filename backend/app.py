@@ -263,7 +263,9 @@ def project_stats_processor():
                                     cur.execute("SELECT MAX(step_id) FROM project_schedules WHERE project_id = %s", (pj_id,))
                                     m_row = cur.fetchone()
                                     if m_row and m_row['max'] == step_id:
+                                        # cc: Unique/Completion Users per day, tcc: Total Completions
                                         increment_project_stat(pj_id, 'cc', app_id, entry['timestamp'].strftime('%Y-%m-%d'))
+                                        increment_project_stat(pj_id, 'tcc', app_id, entry['timestamp'].strftime('%Y-%m-%d'))
                                         
                                         # Handle Project Status / Recurrence
                                         # Check if project is recurring
@@ -278,6 +280,7 @@ def project_stats_processor():
                                             if is_recurring:
                                                 # Restart user
                                                 cur.execute("UPDATE cron_table SET step_id = 0, status = 'active' WHERE project_id = %s AND user_id = %s", (pj_id, user_id))
+                                                increment_project_stat(pj_id, 'ttc', app_id, entry['timestamp'].strftime('%Y-%m-%d'))
                                                 ups_status = 'active'
                                             else:
                                                 # Mark as completed
@@ -788,15 +791,20 @@ def restart_project_user(id, user_id):
                             (user_id, id, step_id, msg, push_time))
             
             # Update user_project_status
-            # Check if exists first to avoid ON CONFLICT error (missing constraint)
             cur.execute("SELECT 1 FROM user_project_status WHERE user_id = %s AND project_id = %s", (user_id, id))
             ups_exists = cur.fetchone()
-            
             if ups_exists:
                 cur.execute("UPDATE user_project_status SET status = 'active', updated_at = NOW() WHERE user_id = %s AND project_id = %s", (user_id, id))
             else:
                 cur.execute("INSERT INTO user_project_status (user_id, project_id, status, updated_at) VALUES (%s, %s, 'active', NOW())", (user_id, id))
-            
+
+            # Update Project Stats - Increment Total Trigger Count (ttc)
+            try:
+                app_id = get_current_app_id()
+                increment_project_stat(id, 'ttc', app_id)
+            except Exception as se:
+                print(f"Error incrementing restart stat: {se}")
+
             conn.commit()
             cur.close()
             conn.close()
@@ -1137,7 +1145,9 @@ def trigger_socket_event():
             if message.startswith('iup|'):
                 project_id = int(message.split('|')[1])
                 app_id = get_current_app_id()
+                # tc: Unique/Start triggers, ttc: Total triggers (including restarts)
                 increment_project_stat(project_id, 'tc', app_id)
+                increment_project_stat(project_id, 'ttc', app_id)
         except Exception as te:
             print(f"Error tracking trigger stat: {te}")
 
