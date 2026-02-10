@@ -821,63 +821,68 @@ def cron_scheduler_processor():
 def get_schedules():
     try:
         project_id = request.args.get('project_id')
-        print(f"Fetching schedules for project_id: {project_id}")
+        print(f"Fetching schedules. project_id filter: {project_id}")
+        
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        
         if project_id and project_id != "":
             cur.execute("SELECT * FROM project_schedules WHERE project_id = %s ORDER BY schedule_id", (project_id,))
         else:
             cur.execute("SELECT * FROM project_schedules ORDER BY schedule_id")
+            
         schedules = cur.fetchall()
+        print(f"SQL found {len(schedules)} rows in project_schedules")
         
         # Enrich with message preview
         app_id = get_current_app_id()
         for s in schedules:
-            content = s['message_content']
+            content = s.get('message_content')
             s['message_preview'] = None
             if content and content.startswith('QA|'):
-                tag = content.split('|', 1)[1]
-                # Efficiently fetch just the first message text? 
-                # Or just fetch the whole row since we need to parse JSON anyway.
-                # Optimization: Could be done in a single batch query if performance matters, 
-                # but for simplicity and existing structure, we query one by one for now (or improve if slow).
-                # Actually, let's use a quick lookup if we can, but `get_qa_bank_by_tag` logic is reusable.
                 try:
+                    # Parse tag: "QA|tag_name" or "QA|123|tag_name"
+                    parts = content.split('|')
+                    tag = parts[-1]
+                    
                     cur.execute(f'SELECT msg_rpy FROM "QA_bank:{app_id}" WHERE tag = %s', (tag,))
                     res = cur.fetchone()
-                    if res and res['msg_rpy']:
-                        # msg_rpy is a list of JSON strings (as per save_qa_bank)
-                        # We want the first message's text/alt-text
-                        first_msg_str = res['msg_rpy'][0]
-                        # It might be a dict if driver converts it, or string if TEXT. 
-                        # Based on typical usage here:
-                        first_msg = first_msg_str if isinstance(first_msg_str, dict) else json.loads(first_msg_str)
-                        
-                        # Unwrap "Line" if present (based on save_qa_bank logic)
-                        if 'Line' in first_msg:
-                            first_msg = first_msg['Line']
+                    if res and res.get('msg_rpy'):
+                        msgs = res['msg_rpy']
+                        if msgs and len(msgs) > 0:
+                            first_msg_obj = msgs[0]
+                            # Handle if it's a JSON string
+                            if isinstance(first_msg_obj, str):
+                                try: first_msg_obj = json.loads(first_msg_obj)
+                                except: pass
                             
-                        # Extract Preview
-                        if first_msg.get('OTYPE') == 'TextSendMessage':
-                            s['message_preview'] = first_msg.get('text', '')
-                        elif first_msg.get('OTYPE') == 'FlexSendMessage':
-                            s['message_preview'] = f"[Flex] {first_msg.get('alt_text', 'Flex Message')}"
-                        elif first_msg.get('OTYPE') == 'ImageSendMessage':
-                            s['message_preview'] = "[圖片]"
-                        elif first_msg.get('OTYPE') == 'VideoSendMessage':
-                            s['message_preview'] = "[影片]"
-                        elif first_msg.get('OTYPE') == 'AudioSendMessage':
-                            s['message_preview'] = "[語音]"
+                            # Handle "Line" unwrap
+                            if isinstance(first_msg_obj, dict) and 'Line' in first_msg_obj:
+                                first_msg_obj = first_msg_obj['Line']
+                                
+                            if isinstance(first_msg_obj, dict):
+                                otype = first_msg_obj.get('OTYPE')
+                                if otype == 'TextSendMessage':
+                                    s['message_preview'] = first_msg_obj.get('text', '')
+                                elif otype == 'FlexSendMessage':
+                                    s['message_preview'] = f"[Flex] {first_msg_obj.get('alt_text', 'Flex Message')}"
+                                elif otype == 'ImageSendMessage':
+                                    s['message_preview'] = "[圖片]"
+                                elif otype == 'VideoSendMessage':
+                                    s['message_preview'] = "[影片]"
+                                elif otype == 'AudioSendMessage':
+                                    s['message_preview'] = "[語音]"
+                                else:
+                                    s['message_preview'] = f"[{otype}]"
                 except Exception as e:
-                    print(f"Error fetching preview for {tag}: {e}")
+                    print(f"Error fetching preview for {content}: {e}")
                     s['message_preview'] = "[無法讀取內容]"
         
         cur.close()
         conn.close()
-        print(f"Successfully fetched {len(schedules)} schedules")
         return json_response(schedules)
     except Exception as e:
-        print(f"Error in get_schedules: {e}")
+        print(f"CRITICAL Error in get_schedules: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/schedules', methods=['POST'])

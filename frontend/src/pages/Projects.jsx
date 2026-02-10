@@ -63,7 +63,7 @@ const ProjectsManagement = () => {
                             if (m.Line) m = m.Line;
 
                             // Format delay info only for the first message of a step
-                            const intervalLabel = formatInterval(s.interval_hours);
+                            const { label: intervalLabel } = formatInterval(s.interval_hours);
                             const stepLabel = `Step ${s.step_id} (間隔 ${intervalLabel})`;
                             const delay = i === 0 ? stepLabel : '';
                             steps.push({ ...m, delay });
@@ -73,7 +73,7 @@ const ProjectsManagement = () => {
                         steps.push({ OTYPE: 'TextSendMessage', text: `[無法讀取訊息內容: ${tag}]`, delay: `Step ${s.step_id}` });
                     }
                 } else if (content) {
-                    const intervalLabel = formatInterval(s.interval_hours);
+                    const { label: intervalLabel } = formatInterval(s.interval_hours);
                     steps.push({ OTYPE: 'TextSendMessage', text: content, delay: `Step ${s.step_id} (間隔 ${intervalLabel})` });
                 }
             }
@@ -232,7 +232,7 @@ const ProjectsManagement = () => {
         try {
             // Add timestamp to prevent caching
             const res = await api.get('/projects', { params: { _t: new Date().getTime() } });
-            setProjects(res.data);
+            setProjects(Array.isArray(res.data) ? res.data : []);
         } catch (err) {
             setError('無法取得專案列表');
         }
@@ -245,9 +245,11 @@ const ProjectsManagement = () => {
                 ? `/schedules?project_id=${selectedProjectId}`
                 : `/schedules`;
             const res = await api.get(url);
-            setSchedules(res.data);
+            console.log("Fetched schedules:", res.data); // Debugging
+            setSchedules(Array.isArray(res.data) ? res.data : []);
         } catch (err) {
-            setError('無法取得排程資料');
+            console.error("Fetch schedules error:", err);
+            setError('無法取得排程資料: ' + (err.response?.data?.error || err.message));
         }
     };
 
@@ -1104,7 +1106,11 @@ setPreviewSteps(steps);
                                     {Array.isArray(schedules) && schedules.length > 0 ? schedules.map((s) => (
                                         <tr key={s.schedule_id}>
                                             <td style={{ fontSize: '13px', color: '#B0B0B0' }}>
-                                                {projects.find(p => p.project_id === s.project_id)?.project_name || `ID: ${s.project_id}`}
+                                                {(() => {
+                                                    const pId = parseInt(s.project_id);
+                                                    const p = Array.isArray(projects) ? projects.find(pr => parseInt(pr.project_id) === pId) : null;
+                                                    return p ? p.project_name : `ID: ${s.project_id}`;
+                                                })()}
                                             </td>
                                             <td>
                                                 {editingScheduleId === s.schedule_id ? (
@@ -1207,7 +1213,7 @@ setPreviewSteps(steps);
                                                             <>
                                                                 {/* <MessageSquare size={14} color="#4CAF50" title="Rich Message" /> */}
                                                                 <span>{s.message_preview}</span>
-                                                                <span style={{ fontSize: '10px', color: '#666' }}>({s.message_content?.split('|')[1]?.split('_').pop() || 'Rich'})</span>
+                                                                <span style={{ fontSize: '10px', color: '#666' }}>({s.message_content?.split('|')?.[1]?.split('_')?.pop() || 'Rich'})</span>
                                                             </>
                                                         ) : s.message_content && s.message_content.startsWith('QA|') ? (
                                                             <>
