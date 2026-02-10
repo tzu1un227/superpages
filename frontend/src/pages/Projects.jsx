@@ -1287,8 +1287,8 @@ setPreviewSteps(steps);
                                                     const s = u.status || 'unknown';
                                                     let color = '#666';
                                                     let text = s;
-                                                    if (s === 'active') { color = '#4CAF50'; text = '進行中'; }
-                                                    if (s === 'completed') { color = '#2196F3'; text = '已完成'; }
+                                                    if (s === 'active' || s === 'Active') { color = '#4CAF50'; text = '進行中'; }
+                                                    if (s === 'completed' || s === 'Completed') { color = '#2196F3'; text = '已完成'; }
                                                     if (s === 'paused') { color = '#FF9800'; text = '暫停'; }
                                                     return <span style={{ color, fontWeight: 'bold' }}>● {text}</span>
                                                 })()}

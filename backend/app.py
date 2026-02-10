@@ -237,7 +237,7 @@ def project_stats_processor():
                         cur.execute(f"""
                             SELECT * FROM "{history_table}" 
                             WHERE timestamp > %s 
-                            AND (category = 'Message' AND content LIKE 'QA|cron_%%')
+                            AND ((category = 'Message' OR category = 'Sensor') AND content LIKE '%%QA|cron_%%')
                             ORDER BY timestamp ASC
                         """, (last_time,))
                         entries = cur.fetchall()
@@ -272,12 +272,27 @@ def project_stats_processor():
                                         
                                         user_id = entry.get('user_id') # Ensure user_id is available in entry
                                         if user_id:
+                                            # Update user_project_status as well
+                                            ups_status = 'active'
                                             if is_recurring:
                                                 # Restart user
                                                 cur.execute("UPDATE cron_table SET step_id = 0, status = 'active' WHERE project_id = %s AND user_id = %s", (pj_id, user_id))
+                                                ups_status = 'active'
                                             else:
                                                 # Mark as completed
                                                 cur.execute("UPDATE cron_table SET status = 'completed' WHERE project_id = %s AND user_id = %s", (pj_id, user_id))
+                                                ups_status = 'completed'
+                                            
+                                            # Sync to user_project_status
+                                            try:
+                                                cur.execute("""
+                                                    INSERT INTO user_project_status (user_id, project_id, status, updated_at) 
+                                                    VALUES (%s, %s, %s, NOW())
+                                                    ON CONFLICT (user_id, project_id) 
+                                                    DO UPDATE SET status = EXCLUDED.status, updated_at = NOW()
+                                                """, (user_id, pj_id, ups_status))
+                                            except Exception as upse:
+                                                print(f"Error syncing user_project_status: {upse}")
                                         
                             except Exception as pe:
                                 print(f"Error parsing history entry for stats: {pe}")
