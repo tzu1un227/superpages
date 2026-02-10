@@ -623,16 +623,25 @@ def get_project_stats(id):
                     except:
                         pass
         
-        # Map ttc to tc for frontend compatibility if needed, OR just send ttc
-        # Frontend uses 'tc' for Total.
-        stats['tc'] = stats['ttc']
+        # Denominator Logic: Use ttc (Total Trigger Count) as primary.
+        # During transition, we might have old users who only have 'tc' records.
+        # But 'tc' was also used for 'Total Triggers' in some versions.
+        # For Projects, we prioritize ttc. If ttc is 0 but tc is > 0, fallback to tc.
+        # However, if we have BOTH, we should probably take the max or sum them carefully?
+        # Usually ttc is the new accurate counter. 
+        stats['tc'] = stats['ttc'] if stats['ttc'] > 0 else stats['unique_users']
         
-        # Calculate completion rate (User requested: Denominator = Total Trigger)
-        # Numerator = Total Completion (tcc) preferably, or Unique (cc) if tcc missing.
-        # We implemented tcc now.
+        # Numerator Logic
+        # cc: Unique Completions (daily), tcc: Total Completions
+        numerator = stats['tcc'] if stats['tcc'] > 0 else stats['cc']
+        
+        # Safety: Total triggers should at least be equal to total completions
+        if stats['tc'] < numerator:
+            stats['tc'] = numerator
+            
+        # Calculate completion rate
         stats['completion_rate'] = 0
         if stats['tc'] > 0:
-            numerator = stats['tcc'] if stats['tcc'] > 0 else stats['cc']
             stats['completion_rate'] = round((numerator / stats['tc']) * 100, 2)
             
         cur.close()
@@ -728,13 +737,15 @@ def get_project_users(id):
         app_id = get_current_app_id()
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        # Use a subquery to get the minimum active step_id for each user to avoid duplicates
         cur.execute(f"""
-            SELECT ups.user_id, LOWER(ups.status) as status, c.step_id, p.value as user_name 
+            SELECT ups.user_id, LOWER(ups.status) as status, 
+                   (SELECT MIN(step_id) FROM cron_table WHERE user_id = ups.user_id AND project_id = ups.project_id AND status = 'active') as step_id, 
+                   p.value as user_name 
             FROM user_project_status ups
-            LEFT JOIN cron_table c ON ups.user_id = c.user_id AND ups.project_id = c.project_id
             LEFT JOIN "Private_var:{app_id}" p ON ups.user_id = p.user_id AND p.name = 'name'
             WHERE ups.project_id = %s
-            ORDER BY ups.status DESC, c.step_id ASC
+            ORDER BY ups.status DESC, step_id ASC
         """, (id,))
         users = cur.fetchall()
         cur.close()
