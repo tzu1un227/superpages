@@ -740,12 +740,50 @@ def restart_project_user(id, user_id):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        # Reset step to 0 and status to active, scheduled immediately
-        cur.execute("UPDATE cron_table SET step_id = 0, status = 'active', scheduled_at = NOW() WHERE project_id = %s AND user_id = %s", (id, user_id))
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({"status": "success"})
+        # Get first step of the project
+        cur.execute("SELECT step_id, interval_hours, message_content FROM project_schedules WHERE project_id = %s ORDER BY step_id ASC LIMIT 1", (id,))
+        first_step = cur.fetchone()
+        
+        if first_step:
+            step_id = first_step[0]
+            interval = float(first_step[1]) if first_step[1] else 0
+            msg = first_step[2]
+            
+            # Check if user exists in cron_table
+            cur.execute("SELECT task_id FROM cron_table WHERE project_id = %s AND user_id = %s", (id, user_id))
+            existing_task = cur.fetchone()
+            
+            push_time = datetime.now() + timedelta(hours=interval)
+            
+            if existing_task:
+                # Reset existing task
+                cur.execute("UPDATE cron_table SET step_id = %s, status = 'active', push_time = %s, message_content = %s WHERE task_id = %s", 
+                            (step_id, push_time, msg, existing_task[0]))
+            else:
+                # Insert new task
+                # Assuming repeat_interval is NULL for project steps unless specified in project settings?
+                # project_schedules usually don't have repeat_interval column in logic here, 
+                # but cron_table has it. Is it a repeating TASK or just a next step?
+                # Usually project steps are one-off.
+                cur.execute("INSERT INTO cron_table (user_id, project_id, step_id, message_content, push_time, status) VALUES (%s, %s, %s, %s, %s, 'active')",
+                            (user_id, id, step_id, msg, push_time))
+            
+            # Update user_project_status
+            cur.execute("""
+                INSERT INTO user_project_status (user_id, project_id, status, updated_at) 
+                VALUES (%s, %s, 'active', NOW())
+                ON CONFLICT (user_id, project_id) 
+                DO UPDATE SET status = 'active', updated_at = NOW()
+            """, (user_id, id))
+            
+            conn.commit()
+            cur.close()
+            conn.close()
+            return jsonify({"status": "success", "message": "Project restarted from step " + str(step_id)})
+        else:
+            cur.close()
+            conn.close()
+            return jsonify({"status": "error", "message": "No schedules found for this project"}), 404
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
