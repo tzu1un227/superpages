@@ -1195,29 +1195,39 @@ def trigger_socket_event():
         print(f"Socket.IO Trigger Error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# Scheduled Events CRUD - REMOVED
-
-# Ticket Table Status
-@app.route('/api/tickets', methods=['GET'])
-def get_tickets():
+# Scheduled Events CRUD
+@app.route('/api/scheduled-events', methods=['GET'])
+def get_scheduled_events():
     try:
+        app_id = get_current_app_id()
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute('SELECT id, name, "order", user_id FROM ticket_table ORDER BY id::integer')
-        tickets = cur.fetchall()
+        
+        # Join with projects and user info
+        # Use push_time as the primary time column
+        cur.execute(f"""
+            SELECT c.task_id, c.project_id, c.step_id, c.push_time as scheduled_at, c.message_content, 
+                   p.project_name,
+                   (SELECT value FROM "Private_var:{app_id}" WHERE user_id = c.user_id AND name = 'name' LIMIT 1) as user_name
+            FROM cron_table c
+            LEFT JOIN projects p ON c.project_id = p.project_id
+            WHERE c.push_time IS NOT NULL
+            ORDER BY c.push_time ASC
+        """)
+        events = cur.fetchall()
         cur.close()
         conn.close()
-        return json_response(tickets)
+        return json_response(events)
     except Exception as e:
-        print(f"Error in get_tickets: {e}")
+        print(f"Error in get_scheduled_events: {e}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/tickets/<int:id>', methods=['DELETE'])
-def delete_ticket(id):
+@app.route('/api/scheduled-events/<int:id>', methods=['DELETE'])
+def delete_scheduled_event(id):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("DELETE FROM ticket_table WHERE id = %s", (id,))
+        cur.execute("DELETE FROM cron_table WHERE task_id = %s", (id,))
         conn.commit()
         cur.close()
         conn.close()
@@ -1225,103 +1235,8 @@ def delete_ticket(id):
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route('/api/game-status', methods=['GET'])
-def get_game_status():
-    try:
-        app_id = get_current_app_id()
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        # Fetch SYS_STAT
-        cur.execute(f'SELECT value FROM "Global_var:{app_id}" WHERE name = \'SYS_STAT\'')
-        row = cur.fetchone()
-        status = row['value'] if row else "UNKNOWN"
-        
-        cur.close()
-        conn.close()
-        return jsonify({"status": status})
-    except Exception as e:
-        print(f"Error in get_game_status: {e}")
-        return jsonify({"error": str(e)}), 500
-
-# QA Bank CRUD
-@app.route('/api/qa-bank/<tag>', methods=['GET'])
-def get_qa_bank_by_tag(tag):
-    try:
-        app_id = get_current_app_id()
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        # Assuming appNAME is 5013, so table is "QA_bank:5013"
-        cur.execute(f'SELECT * FROM "QA_bank:{app_id}" WHERE tag = %s', (tag,))
-        result = cur.fetchone()
-        cur.close()
-        conn.close()
-        if result:
-            return json_response(result)
-        else:
-            return jsonify({"status": "not_found"}), 404
-    except Exception as e:
-        print(f"Error in get_qa_bank_by_tag: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/qa-bank', methods=['POST'])
-def save_qa_bank():
-    data = request.json
-    tag = data.get('tag')
-    msg_rpy = data.get('msg_rpy') # Should be list of dicts (JSON objects)
-    
-    if not tag:
-        return jsonify({"status": "error", "message": "Tag is required"}), 400
-
-    try:
-        import json
-        msg_rpy_json = json.dumps(msg_rpy) # Convert list to JSON string for ARRAY[JSON] ??
-        # Postgres ARRAY of JSON might need special handling.
-        # However, psycopg2 usually handles list of dicts -> ARRAY of JSON if type is specified?
-        # Or simpler: cast to text array if schema is ARRAY(TEXT) containing JSON strings?
-        # Inspector said "msg_rpy (ARRAY)". Migration said "ARRAY(postgresql.JSON(astext_type=sa.Text()))".
-        # Let's try passing list of strings (json dumped).
-        
-        # User Requirement: msg_rpy column needs to be formatted as {"{\"Line\": {\"OTYPE\": ...}}"}
-        # This implies each element in the array is a stringified JSON object with a root key "Line".
-        
-        msg_rpy_strings = []
-        if msg_rpy:
-            for m in msg_rpy:
-                wrapped_message = {"Line": m}
-                msg_rpy_strings.append(json.dumps(wrapped_message, ensure_ascii=False))
-        
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
-        # Check if exists
-        app_id = get_current_app_id()
-        cur.execute(f'SELECT id FROM "QA_bank:{app_id}" WHERE tag = %s', (tag,))
-        existing = cur.fetchone()
-        
-        if existing:
-            # Update
-            cur.execute(
-                f'UPDATE "QA_bank:{app_id}" SET msg_rpy = %s::json[] WHERE tag = %s',
-                (msg_rpy_strings, tag)
-            )
-        else:
-            # Insert
-            # Default columns: io='Output', ans=ARRAY[''], check=ARRAY[''], function=''
-            cur.execute(
-                f'''INSERT INTO "QA_bank:{app_id}" 
-                   (tag, msg_rpy, "io", "check", "function", ans) 
-                   VALUES (%s, %s::json[], 'Output', ARRAY[''], '', ARRAY[''])''',
-                (tag, msg_rpy_strings)
-            )
-            
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({"status": "success"})
-    except Exception as e:
-        print(f"Error in save_qa_bank: {e}")
-        return jsonify({"error": str(e)}), 500
-
+# DISABLE conflicting scheduler (Line-Bot-Main/sensors/cronjobs.py handles this)
+# threading.Thread(target=cron_scheduler_processor, daemon=True).start()
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
