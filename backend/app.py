@@ -761,44 +761,84 @@ def delete_project_user(id, user_id):
 def restart_project_user(id, user_id):
     try:
         conn = get_db_connection()
-        cur = conn.cursor()
-        # Get first step of the project
-        cur.execute("SELECT step_id, interval_hours, message_content FROM project_schedules WHERE project_id = %s ORDER BY step_id ASC LIMIT 1", (id,))
-        first_step = cur.fetchone()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
-        if first_step:
-            step_id = first_step[0]
-            interval = float(first_step[1]) if first_step[1] else 0
-            msg = first_step[2]
+        # 1. Fetch Project and Anchor Config
+        cur.execute("SELECT anchor_config FROM projects WHERE project_id = %s", (id,))
+        project = cur.fetchone()
+        if not project:
+            return jsonify({"status": "error", "message": "Project not found"}), 404
             
-            # Check if user exists in cron_table
-            cur.execute("SELECT task_id FROM cron_table WHERE project_id = %s AND user_id = %s", (id, user_id))
-            existing_task = cur.fetchone()
+        anchor_conf = project['anchor_config']
+        if isinstance(anchor_conf, str):
+            try: anchor_conf = json.loads(anchor_conf)
+            except: anchor_conf = {}
+
+        # 2. Calculate Base Start Time (Aligned with Anchor)
+        now = datetime.now()
+        base_start_time = now
+        
+        if anchor_conf and anchor_conf.get('time'):
+            try:
+                target_time = datetime.strptime(anchor_conf['time'], "%H:%M").time()
+                a_type = anchor_conf.get('type', 'daily')
+                day_param = anchor_conf.get('day', 1)
+                
+                today_date = now.date()
+                if a_type == 'daily':
+                    candidate = datetime.combine(today_date, target_time)
+                    if candidate <= now: candidate += timedelta(days=1)
+                    base_start_time = candidate
+                elif a_type == 'weekly':
+                    target_weekday = int(day_param) - 1
+                    current_weekday = today_date.weekday()
+                    days_ahead = target_weekday - current_weekday
+                    if days_ahead < 0: days_ahead += 7
+                    candidate = datetime.combine(today_date + timedelta(days=days_ahead), target_time)
+                    if candidate <= now: candidate += timedelta(days=7)
+                    base_start_time = candidate
+                elif a_type == 'monthly':
+                    target_day = int(day_param)
+                    try: candidate = datetime(today_date.year, today_date.month, target_day, target_time.hour, target_time.minute)
+                    except: candidate = datetime(today_date.year, today_date.month, 1, target_time.hour, target_time.minute)
+                    if candidate <= now:
+                        m_next = today_date.month + 1 if today_date.month < 12 else 1
+                        y_next = today_date.year if today_date.month < 12 else today_date.year + 1
+                        try: candidate = datetime(y_next, m_next, target_day, target_time.hour, target_time.minute)
+                        except: candidate = datetime(y_next, m_next, 1, target_time.hour, target_time.minute)
+                    base_start_time = candidate
+            except Exception as e:
+                print(f"Anchor error in restart_project_user: {e}")
+
+        # 3. Fetch All Steps
+        cur.execute("SELECT step_id, interval_hours, message_content FROM project_schedules WHERE project_id = %s ORDER BY step_id ASC", (id,))
+        steps = cur.fetchall()
+        
+        if steps:
+            # 4. Clear existing tasks for this user/project to avoid duplicates or incomplete state
+            cur.execute("DELETE FROM cron_table WHERE project_id = %s AND user_id = %s", (id, user_id))
             
-            push_time = datetime.now() + timedelta(hours=interval)
-            
-            if existing_task:
-                # Reset existing task
-                cur.execute("UPDATE cron_table SET step_id = %s, status = 'active', push_time = %s, message_content = %s WHERE task_id = %s", 
-                            (step_id, push_time, msg, existing_task[0]))
-            else:
-                # Insert new task
-                # Assuming repeat_interval is NULL for project steps unless specified in project settings?
-                # project_schedules usually don't have repeat_interval column in logic here, 
-                # but cron_table has it. Is it a repeating TASK or just a next step?
-                # Usually project steps are one-off.
+            # 5. Insert All Steps with Cumulative Delay
+            current_push_time = base_start_time
+            for step in steps:
+                s_id = step['step_id']
+                # cumulative interval: Step N push_time = Previous Step push_time + Step N interval
+                interval = float(step['interval_hours']) if step['interval_hours'] else 0
+                msg = step['message_content']
+                
+                current_push_time += timedelta(hours=interval)
+                
                 cur.execute("INSERT INTO cron_table (user_id, project_id, step_id, message_content, push_time, status) VALUES (%s, %s, %s, %s, %s, 'active')",
-                            (user_id, id, step_id, msg, push_time))
+                            (user_id, id, s_id, msg, current_push_time))
             
-            # Update user_project_status
+            # 6. Update user_project_status
             cur.execute("SELECT 1 FROM user_project_status WHERE user_id = %s AND project_id = %s", (user_id, id))
-            ups_exists = cur.fetchone()
-            if ups_exists:
+            if cur.fetchone():
                 cur.execute("UPDATE user_project_status SET status = 'active', updated_at = NOW() WHERE user_id = %s AND project_id = %s", (user_id, id))
             else:
                 cur.execute("INSERT INTO user_project_status (user_id, project_id, status, updated_at) VALUES (%s, %s, 'active', NOW())", (user_id, id))
 
-            # Update Project Stats - Increment Total Trigger Count (ttc)
+            # 7. Update Stats
             try:
                 app_id = get_current_app_id()
                 increment_project_stat(id, 'ttc', app_id)
@@ -808,7 +848,7 @@ def restart_project_user(id, user_id):
             conn.commit()
             cur.close()
             conn.close()
-            return jsonify({"status": "success", "message": "Project restarted from step " + str(step_id)})
+            return jsonify({"status": "success", "message": f"Project restarted with {len(steps)} steps scheduled."})
         else:
             cur.close()
             conn.close()
