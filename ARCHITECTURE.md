@@ -52,6 +52,7 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
  ### User Tagging (用戶標註)
  - **Flex Message Integration**: The Flex Message Editor allows users to associate multiple tags with button actions or image clicks.
  - **Protocol**: Tags are embedded in the `postback.data` payload using the `|set_tag|tag1|tag2|...` command suffix.
+ - **Event Splitting (Simulation)**: For simulation/websocket triggers, the Superpages backend splits combined data into two events (Message + Postback) to ensure correct rule matching and tagging simultaneously.
  - **Frontend Component**: `TagInput.jsx` provides a dedicated UI for multi-tag selection with autocomplete support fetching from `/api/tags`.
  
 ### Lottery Management (抽獎管理)

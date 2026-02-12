@@ -1213,7 +1213,36 @@ def trigger_socket_event():
 
         print(f"Connecting to Socket URL: {target_ws_url}")
         sio.connect(target_ws_url, namespaces=[namespace], wait_timeout=3)
-        sio.emit(f'{BOT_NAME}_message', data, namespace=namespace)
+        
+        # Check if we need to split the event (Postback with tags)
+        content = data.get('message', '')
+        msg_type = data.get('type', '')
+        
+        if msg_type == 'Postback' and '|set_tag|' in content:
+            try:
+                msg_content, tag_part = content.split('|set_tag|', 1)
+                
+                # First event: Message
+                data_msg = data.copy()
+                data_msg['message'] = msg_content
+                data_msg['type'] = 'Message'
+                print(f"Splitting: Emitting first event (Message): {data_msg}")
+                sio.emit(f'{BOT_NAME}_message', data_msg, namespace=namespace)
+                
+                # Small delay between events to ensure order and processing
+                time.sleep(0.1)
+                
+                # Second event: Postback (the tag command)
+                data_pb = data.copy()
+                data_pb['message'] = f"set_tag|{tag_part}"
+                print(f"Splitting: Emitting second event (Postback): {data_pb}")
+                sio.emit(f'{BOT_NAME}_message', data_pb, namespace=namespace)
+            except Exception as e:
+                print(f"Error splitting event in trigger: {e}")
+                # Fallback to original
+                sio.emit(f'{BOT_NAME}_message', data, namespace=namespace)
+        else:
+            sio.emit(f'{BOT_NAME}_message', data, namespace=namespace)
         
         # Statistics for 'iup|' (project triggers) are handled by the background processor
         # in the main system (Line-Bot-Main) to avoid double counting.
