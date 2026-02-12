@@ -3,6 +3,8 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **用戶標註功能 (User Tagging)**: 在 Flex 訊息編輯器中新增「標籤」欄位，支援按鈕與圖片行為中的用戶標註。開發了 `TagInput` 元件提供自動完成與多選功能。
+- **QA_bank 修正 (QA_bank Fix)**: 修正新增排程時 `QA_bank` 的 `io` 欄位未正確填入 `Output` 的問題。現在不論是新增、更新或匯入排程，系統均會確保相關標籤的 `io` 屬性正確設定為 `Output`，並初始化必要欄位。
 - **統計數據修正 (Statistics Fix)**: 修復「重啟用戶進度」時未同步更新「總觸發次數」的問題。修正了後端 ID 辨別錯誤（OA 設定 ID 與資料庫名稱之混淆），並移除冗餘的觸發計數邏輯，解決了手動加入用戶時數據重複累計 (Double Counting) 的問題，確保完成率計算準確。
 - **專案清理 (Codebase Cleanup)**: 清理了根目錄與後端目錄中超過 30 個開發期間產生的臨時偵錯、測試與遷移腳本，提升程式碼庫的可維護性。
 - **穩定性修復 (Frontend Stability)**: 修正專案管理頁面進入「排程設定」時可能導致的黑畫面當機。對所有 `.map()` 呼叫加入陣列檢查，防止非陣列資料導致錯誤。

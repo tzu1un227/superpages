@@ -711,7 +711,7 @@ def import_project_schedules(id):
                         check_q = f'SELECT id FROM "QA_bank:{app_id}" WHERE tag = %s'
                         cur.execute(check_q, (new_tag,))
                         if cur.fetchone():
-                             cur.execute(f'UPDATE "QA_bank:{app_id}" SET msg_rpy = %s::json[] WHERE tag = %s', (new_msg_rpy_strings, new_tag))
+                             cur.execute(f'UPDATE "QA_bank:{app_id}" SET msg_rpy = %s::json[], "io" = \'Output\' WHERE tag = %s', (new_msg_rpy_strings, new_tag))
                         else:
                              cur.execute(f'INSERT INTO "QA_bank:{app_id}" (tag, msg_rpy, "io", "check", "function", ans) VALUES (%s, %s::json[], \'Output\', ARRAY[\'\'], \'\', ARRAY[\'\'])', (new_tag, new_msg_rpy_strings))
                         
@@ -1311,10 +1311,12 @@ def create_qa_entry():
         # Check if exists to decide between INSERT or UPDATE
         cur.execute(f'SELECT 1 FROM "{table_name}" WHERE tag = %s', (tag,))
         if cur.fetchone():
-            sql = f'UPDATE "{table_name}" SET msg_rpy = %s::json[] WHERE tag = %s'
+            # Update msg_rpy and ensure IO is set to Output
+            sql = f'UPDATE "{table_name}" SET msg_rpy = %s::json[], "io" = \'Output\' WHERE tag = %s'
             cur.execute(sql, (msg_rpy_db, tag))
         else:
-            sql = f'INSERT INTO "{table_name}" (tag, msg_rpy) VALUES (%s, %s::json[])'
+            # Insert new entry with IO=Output, and empty check/function/ans
+            sql = f'INSERT INTO "{table_name}" (tag, msg_rpy, "io", "check", "function", ans) VALUES (%s, %s::json[], \'Output\', ARRAY[\'\'], \'\', ARRAY[\'\'])'
             cur.execute(sql, (tag, msg_rpy_db))
             
         conn.commit()

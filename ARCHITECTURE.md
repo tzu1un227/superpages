@@ -49,6 +49,11 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 -   **Editor Behavior**: The frontend detects this prefix to open the advanced visual editor instead of a plain text input.
 -   **Image Upload**: The Flex Message Editor includes an upload button that allows users to upload images directly to a configured GitHub repository. The backend handles the GitHub API integration and returns the raw image URL.
 
+ ### User Tagging (用戶標註)
+ - **Flex Message Integration**: The Flex Message Editor allows users to associate multiple tags with button actions or image clicks.
+ - **Protocol**: Tags are embedded in the `postback.data` payload using the `|set_tag|tag1|tag2|...` command suffix.
+ - **Frontend Component**: `TagInput.jsx` provides a dedicated UI for multi-tag selection with autocomplete support fetching from `/api/tags`.
+ 
 ### Lottery Management (抽獎管理)
 
 #### Components

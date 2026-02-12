@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Plus, X, Image as ImageIcon, Link as LinkIcon, MessageSquare, Upload } from 'lucide-react';
 import api from '../api';
 import JourneyPreview from './JourneyPreview';
+import TagInput from './TagInput';
 
 const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
     // Modes
@@ -21,10 +22,11 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
     const defaultCard = {
         template: 'option',
         imageUrl: '',
-        imageAction: { type: 'none', value: '' },
+        imageAction: { type: 'none', value: '', tags: [] },
         title: '',
         description: '',
-        buttons: []
+        buttons: [],
+        tags: [] // For legacy or top-level if needed, but per-button is better
     };
 
     const [cards, setCards] = useState([{ ...defaultCard }]);
@@ -122,152 +124,125 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
         const body = bubble.body || {};
         const footer = bubble.footer || {};
 
-        // Detect Template Type
-        // We now use an explicit marker if available, or fall back to structural cues
-        let template = bubble._template || 'option';
-
-        // Final fallback if _template is missing:
-        if (!bubble._template) {
-            const hasButtons = footer.contents && footer.contents.length > 0;
-            const hasTitle = body.contents?.some(c => c.size === 'xl');
-            if (body.paddingAll === '0px' && !hasButtons && !hasTitle) {
-                template = 'image';
-            }
-        }
-
-        const card = {
-            template,
-            imageUrl: hero.url || '',
-            imageAction: { type: 'none', value: '' },
-            title: '',
-            description: '',
-            buttons: []
+        const extractTags = (payload) => {
+            if (!payload || !payload.includes('set_tag|')) return [];
+            const parts = payload.split('|');
+            const tagIdx = parts.indexOf('set_tag');
+            if (tagIdx === -1) return [];
+            // Everything after 'set_tag' is considered a tag until the end or next command
+            return parts.slice(tagIdx + 1);
         };
 
-        // Image Action
-        if (hero.action) {
-            card.imageAction.type = hero.action.type;
-            card.imageAction.value = hero.action.uri || hero.action.text || '';
-        }
+        const cleanPayload = (payload) => {
+            if (!payload || !payload.includes('set_tag|')) return payload;
+            return payload.split('set_tag|')[0].replace(/\|$/, '');
+        };
 
-        // Text
-        if (body.contents) {
-            const titleObj = body.contents.find(c => c.size === 'xl');
-            if (titleObj) card.title = titleObj.text;
-
-            const descObj = body.contents.find(c => (c.color === '#666666' || c.wrap === true) && c !== titleObj);
-            if (descObj) card.description = descObj.text;
-        }
-
-        // Buttons
-        if (footer.contents) {
-            card.buttons = footer.contents.map(b => ({
-                text: b.action.label || 'BTN',
-                action: b.action.type,
-                value: b.action.uri || b.action.text
-            }));
-        }
-
+        const card = {
+            template: (hero.type === 'image' && !body.contents) ? 'image' : 'option',
+            imageUrl: hero.url || '',
+            imageAction: {
+                type: hero.action?.type || 'none',
+                value: cleanPayload(hero.action?.uri || hero.action?.data || hero.action?.text || ''),
+                tags: extractTags(hero.action?.data || '')
+            },
+            title: body.contents?.find(c => c.size === 'xl' || c.weight === 'bold')?.text || '',
+            description: body.contents?.find(c => c.wrap && c.size === 'sm')?.text || '',
+            buttons: (footer.contents || []).filter(c => c.type === 'button').map(b => ({
+                text: b.action.label || b.action.text || '',
+                action: b.action.type === 'uri' ? 'uri' : 'message',
+                value: cleanPayload(b.action.uri || b.action.data || b.action.text || ''),
+                tags: extractTags(b.action.data || '')
+            }))
+        };
         return card;
     };
 
     // Helper: Generate Flex JSON from State
     const generateJson = () => {
-        const bubbles = cards.map(card => {
+        const buildAction = (type, val, tags = []) => {
+            if (type === 'none') return null;
+
+            // For tagging support, we must use postback if there are tags
+            // But if it's a URI, we can't easily combine it unless we use a middleman
+            // For now, we follow the Project logic: tags are sent via pipe in postback
+
+            const tagCmd = tags.length > 0 ? `|set_tag|${tags.join('|')}` : '';
+
+            if (type === 'uri') {
+                return { type: 'uri', label: 'action', uri: val + (tags.length > 0 ? `#tags=${tags.join(',')}` : '') };
+                // Note: URI tagging is limited if it doesn't trigger a bot event.
+                // If they want tagging on URI click, it usually needs to be a postback that then opens URI.
+            }
+
+            // Default to postback if message + tags
+            return {
+                type: 'postback',
+                label: 'action',
+                data: val + tagCmd,
+                displayText: val
+            };
+        };
+
+        const generateBubble = (card) => {
             const bubble = {
                 type: 'bubble',
-                _template: card.template, // Internal marker to ensure stable parsing
-                size: 'giga',
+                size: 'micro', // micro is better for multi-card
                 hero: {
                     type: 'image',
-                    url: card.imageUrl || 'https://via.placeholder.com/800x400?text=No+Image',
+                    url: card.imageUrl || 'https://via.placeholder.com/800x400',
                     size: 'full',
-                    aspectRatio: '2:1',
+                    aspectRatio: '20:13',
                     aspectMode: 'cover',
-                },
-                body: {
-                    type: 'box',
-                    layout: 'vertical',
-                    contents: []
+                    action: buildAction(card.imageAction.type, card.imageAction.value, card.imageAction.tags)
                 }
             };
 
-            // Image Action
-            if (card.imageAction.type !== 'none') {
-                bubble.hero.action = {
-                    type: card.imageAction.type,
-                    label: 'action'
-                };
-                if (card.imageAction.type === 'uri') bubble.hero.action.uri = card.imageAction.value;
-                if (card.imageAction.type === 'message') bubble.hero.action.text = card.imageAction.value;
-            }
-
-            // Template Specifics
             if (card.template === 'option') {
-                // Title
-                if (card.title) {
-                    bubble.body.contents.push({
-                        type: 'text',
-                        text: card.title,
-                        weight: 'bold',
-                        size: 'xl',
-                        wrap: true
-                    });
-                }
-                // Description
-                if (card.description) {
-                    bubble.body.contents.push({
-                        type: 'text',
-                        text: card.description,
-                        size: 'sm',
-                        color: '#666666',
-                        wrap: true,
-                        margin: 'md'
-                    });
-                }
-
-                // Buttons (Footer)
-                if (card.buttons.length > 0) {
+                bubble.size = 'kilo';
+                bubble.body = {
+                    type: 'box',
+                    layout: 'vertical',
+                    contents: [
+                        { type: 'text', text: card.title || '標題', weight: 'bold', size: 'xl' },
+                        { type: 'text', text: card.description || '內容描述...', size: 'sm', color: '#666666', wrap: true }
+                    ]
+                };
+                if (card.buttons && card.buttons.length > 0) {
                     bubble.footer = {
                         type: 'box',
                         layout: 'vertical',
                         spacing: 'sm',
-                        contents: card.buttons.map(btn => {
-                            const btnObj = {
-                                type: 'button',
-                                style: 'primary',
-                                height: 'sm',
-                                action: {
-                                    type: btn.action,
-                                    label: btn.text
-                                }
-                            };
-                            if (btn.action === 'uri') {
-                                btnObj.color = '#1E88E5'; // Blue
-                                btnObj.action.uri = btn.value;
-                            } else {
-                                btnObj.style = 'secondary';
-                                btnObj.action.text = btn.value;
-                            }
-                            return btnObj;
-                        })
+                        contents: card.buttons.map(btn => ({
+                            type: 'button',
+                            style: 'link',
+                            height: 'sm',
+                            action: buildAction(btn.action === 'uri' ? 'uri' : 'message', btn.value, btn.tags || [])
+                        }))
                     };
+                    bubble.footer.contents.forEach((b, i) => {
+                        b.action.label = card.buttons[i].text || '按鈕';
+                    });
                 }
             } else {
                 // Image Card
-                bubble.body.paddingAll = '0px';
+                bubble.body = { type: 'box', layout: 'vertical', contents: [], paddingAll: '0px' };
             }
 
             return bubble;
-        });
+        };
 
-        if (mode === 'single') {
-            return bubbles[0];
-        } else {
+        const bubbles = cards.map(c => generateBubble(c));
+
+        if (mode === 'carousel') {
             return {
                 type: 'carousel',
                 contents: bubbles
             };
+        } else {
+            const bubble = bubbles[0];
+            if (bubble) bubble.size = 'mega';
+            return bubble;
         }
     };
 
@@ -504,13 +479,22 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                                 </select>
                             </div>
                             {currentCard.imageAction.type !== 'none' && (
-                                <input
-                                    type="text"
-                                    placeholder={currentCard.imageAction.type === 'uri' ? 'https://...' : '回傳文字'}
-                                    value={currentCard.imageAction.value}
-                                    onChange={e => updateCurrentCard('imageAction', { ...currentCard.imageAction, value: e.target.value })}
-                                    style={{ width: '100%', padding: '8px', background: '#333', border: '1px solid #444', borderRadius: '4px', color: '#fff' }}
-                                />
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <input
+                                        type="text"
+                                        placeholder={currentCard.imageAction.type === 'uri' ? 'https://...' : '回傳文字'}
+                                        value={currentCard.imageAction.value}
+                                        onChange={e => updateCurrentCard('imageAction', { ...currentCard.imageAction, value: e.target.value })}
+                                        style={{ width: '100%', padding: '8px', background: '#333', border: '1px solid #444', borderRadius: '4px', color: '#fff' }}
+                                    />
+                                    <div style={{ marginTop: '5px' }}>
+                                        <label style={{ display: 'block', color: '#888', fontSize: '12px', marginBottom: '4px' }}>點擊時標註標籤 (可複選)</label>
+                                        <TagInput
+                                            tags={currentCard.imageAction.tags || []}
+                                            onChange={newTags => updateCurrentCard('imageAction', { ...currentCard.imageAction, tags: newTags })}
+                                        />
+                                    </div>
+                                </div>
                             )}
                         </div>
 
@@ -572,8 +556,15 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                                                     placeholder={btn.action === 'uri' ? 'http://...' : '回傳文字'}
                                                     value={btn.value}
                                                     onChange={e => updateCardButton(idx, 'value', e.target.value)}
-                                                    style={{ width: '100%', padding: '8px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '4px' }}
+                                                    style={{ width: '100%', padding: '8px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '4px', marginBottom: '8px' }}
                                                 />
+                                                <div style={{ marginTop: '5px' }}>
+                                                    <label style={{ display: 'block', color: '#888', fontSize: '11px', marginBottom: '4px' }}>點擊時標註標籤</label>
+                                                    <TagInput
+                                                        tags={btn.tags || []}
+                                                        onChange={newTags => updateCardButton(idx, 'tags', newTags)}
+                                                    />
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
