@@ -564,6 +564,12 @@ def delete_project(id):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+        
+        # Clean up QA_bank entries associated with this project's schedules
+        app_id = get_current_app_id()
+        # Find all tags that belong to this project specifically (cloned tags)
+        cur.execute(f'DELETE FROM "QA_bank:{app_id}" WHERE tag LIKE %s', (f"cron_{id}_%",))
+        
         cur.execute("DELETE FROM projects WHERE project_id=%s", (id,))
         conn.commit()
         cur.close()
@@ -998,6 +1004,17 @@ def delete_schedule(id):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+
+        # Check for QA tag to delete
+        cur.execute("SELECT message_content FROM project_schedules WHERE schedule_id=%s", (id,))
+        row = cur.fetchone()
+        if row and row[0] and row[0].startswith('QA|'):
+            tag = row[0].split('|')[-1]
+            # Only delete if it's a cloned tag for a project
+            if tag.startswith('cron_'):
+                app_id = get_current_app_id()
+                cur.execute(f'DELETE FROM "QA_bank:{app_id}" WHERE tag = %s', (tag,))
+
         cur.execute("DELETE FROM project_schedules WHERE schedule_id=%s", (id,))
         conn.commit()
         cur.close()
