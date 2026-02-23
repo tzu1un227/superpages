@@ -43,6 +43,7 @@ const StatCard = ({ title, value, icon: Component, color }) => (
 
 const Statistics = () => {
     const [globalData, setGlobalData] = useState({ follow: [], user: [], message: [] });
+    const [lineInsight, setLineInsight] = useState(null);
     const [keywordData, setKeywordData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [statsDateRange, setStatsDateRange] = useState({
@@ -57,8 +58,8 @@ const Statistics = () => {
 
     const categoryMap = {
         'message': { label: '總訊息量', key: 'message', color: '#2196F3' },
-        'follow': { label: '總客戶數', key: 'follow', color: '#FFD700' },
-        'user': { label: '有效好友數', key: 'user', color: '#4CAF50' }
+        'follow': { label: '新增好友數', key: 'follow', color: '#FFD700' },
+        'user': { label: '不重複活躍用戶', key: 'user', color: '#4CAF50' }
     };
 
     const colors = [
@@ -81,6 +82,7 @@ const Statistics = () => {
                 }
             });
             setGlobalData(resp.data);
+            setLineInsight(resp.data.line_insight);
 
             const kwResp = await api.get('/statistics/keywords', {
                 params: {
@@ -198,9 +200,20 @@ const Statistics = () => {
                 </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '40px' }}>
-                <StatCard title="總客戶數" value={getGlobalSum(globalData.follow)} icon={Users} color="#FFD700" />
-                <StatCard title="有效好友數" value={getGlobalSum(globalData.user)} icon={TrendingUp} color="#4CAF50" />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '40px' }}>
+                <StatCard
+                    title="總追蹤數 (真實總客)"
+                    value={lineInsight?.followers || 0}
+                    icon={Users}
+                    color="#FF5722"
+                />
+                <StatCard
+                    title="有效好友數 (Target Reach)"
+                    value={lineInsight?.targetedReaches || 0}
+                    icon={CheckCircle2}
+                    color="#4CAF50"
+                />
+                <StatCard title="新增好友數 (時段內)" value={getGlobalSum(globalData.follow)} icon={TrendingUp} color="#FFD700" />
                 <StatCard title="總訊息量" value={getGlobalSum(globalData.message)} icon={MessageSquare} color="#2196F3" />
             </div>
 

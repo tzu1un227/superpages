@@ -8,6 +8,7 @@ from decimal import Decimal
 import threading
 import time
 import json
+import requests
 
 app = Flask(__name__)
 CORS(app, origins=["https://irl-svr.ee.yzu.edu.tw:5014", "http://localhost:3000", "http://localhost:9016", "https://irl-svr.ee.yzu.edu.tw:5016"])
@@ -1042,6 +1043,24 @@ def get_statistics():
             )
             results[category] = cur.fetchall()
             
+        # Fetch LINE Insight Data (Real-time followers and targeted reaches)
+        results['line_insight'] = None
+        if hasattr(g, 'current_oa_config') and g.current_oa_config.other_settings:
+            line_token = g.current_oa_config.other_settings.get('line_token')
+            if line_token:
+                # LINE API provides statistics for specific dates, usually up to yesterday
+                yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y%m%d')
+                try:
+                    line_resp = requests.get(
+                        f"https://api.line.me/v2/bot/insight/followers?date={yesterday}",
+                        headers={"Authorization": f"Bearer {line_token}"},
+                        timeout=5
+                    )
+                    if line_resp.status_code == 200:
+                        results['line_insight'] = line_resp.json()
+                except Exception as ex:
+                    print(f"Error fetching LINE insight for OA {g.current_oa_id}: {ex}")
+
         cur.close()
         conn.close()
         return json_response(results)
