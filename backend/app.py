@@ -45,6 +45,10 @@ app.register_blueprint(admin_bp, url_prefix='/api/admin')
 from endpoints.upload import upload_bp
 app.register_blueprint(upload_bp, url_prefix='/api/upload')
 
+# Register RichMenu Blueprint
+from endpoints.richmenu import richmenu_bp
+app.register_blueprint(richmenu_bp, url_prefix='/api/richmenu')
+
 with app.app_context():
     db.create_all()
 
@@ -58,7 +62,8 @@ with app.app_context():
             {'name': 'Projects', 'description': '專案管理'},
             {'name': 'Broadcast', 'description': '群發訊息'},
             {'name': 'ScheduledEvents', 'description': '定時排程'},
-            {'name': 'PrizeStatus', 'description': '抽獎管理'}
+            {'name': 'PrizeStatus', 'description': '抽獎管理'},
+            {'name': 'RichMenu', 'description': '圖文選單'}
         ]
         
         for p in default_pages:

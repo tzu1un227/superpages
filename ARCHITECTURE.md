@@ -129,3 +129,13 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
    - **FlexMessageEditor.jsx**: Integrated upload button for carousel/single bubbles.
    - **Projects.jsx (RichMessageModal)**: Added upload button for native `ImageSendMessage` types.
    - **AdminPage.js**: Provides management UI for GitHub settings within each OA configuration.
+### Rich Menu Management (圖文選單管理)
+- **Frontend**: `RichMenu.jsx`.
+    - Provide a list view to manage existing rich menus and aliases.
+    - Features a visual editor for creating and modifying rich menu configurations.
+    - Uses a canvas-based interface to define clickable areas (bounds) on a background image (scaled for preview).
+    - Supports multiple action types: `message`, `uri`, `postback`, and `richmenuswitch` (for multi-page menus).
+- **Backend**: `endpoints/richmenu.py`.
+    - Directly proxies requests to the Line Messaging API to manage rich menus.
+    - Handles metadata creation, image upload, alias management, and setting default menus.
+    - Security: All requests are protected by `@token_required` and use the OA-specific `line_token` from `other_settings`.

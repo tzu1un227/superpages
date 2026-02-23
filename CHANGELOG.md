@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **Line 完整圖文選單設定工具 (Line Rich Menu Configuration Tool)** [2026-02-23]:
+    - **視覺化編輯器**：新增 `RichMenu.jsx` 頁面，支援上傳底圖並以 canvas 拖拉方式定義點擊區域（Bounds）。
+    - **動作類型支援**：支援傳送文字、跳轉網頁、Postback 以及切換選單 (RichMenuSwitch)。
+    - **後端端點整合**：新增 `richmenu.py` 封裝 Line Messaging API，處理 Metadata、圖片上傳、別名與預設選單設定。
+    - **導覽整合**：在側邊欄與 `App.jsx` 路由中新增「圖文選單」頁面。
 - **綜合數據重構與指標修正 (Statistics Refinement)** [2026-02-23]:
   - **精確統計邏輯修復**：修正「有效好友數」在長時段下的虛增問題。後端新增 `total_counts` 邏輯，確保統計卡片顯示的是全時段「不重複用戶總數」(Strictly Distinct)，而非每日活躍數的簡單累加。
   - **指標正名與 UI 簡化**：移除所有統計卡片標題中的括號及其內容。更名「總追蹤數」為「**總好友數**」，更名「不重複活躍用戶」為「**有效好友數**」（並統一趨勢分析下拉選單名稱）。

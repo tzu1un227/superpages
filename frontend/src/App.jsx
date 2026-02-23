@@ -9,9 +9,10 @@ import Broadcast from './pages/Broadcast';
 import ScheduledEvents from './pages/ScheduledEvents';
 import PrizeStatus from './pages/PrizeStatus';
 import Statistics from './pages/Statistics';
+import RichMenu from './pages/RichMenu';
 import AdminPage from './pages/AdminPage';
 import api from './api';
-import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send, Gift, Shield } from 'lucide-react';
+import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send, Gift, Shield, LayoutGrid } from 'lucide-react';
 
 const GOOGLE_CLIENT_ID = "909213734319-feblc4e1vhgu7e0r340e43h9aabc8iqf.apps.googleusercontent.com";
 
@@ -35,7 +36,8 @@ const PAGE_ROUTE_MAP = {
   'Broadcast': 'broadcast',
   'ScheduledEvents': 'scheduled-events',
   'PrizeStatus': 'prizes',
-  'Statistics': 'statistics'
+  'Statistics': 'statistics',
+  'RichMenu': 'richmenu'
 };
 
 const PAGE_ICON_MAP = {
@@ -44,7 +46,8 @@ const PAGE_ICON_MAP = {
   'Broadcast': Send,
   'ScheduledEvents': Clock,
   'PrizeStatus': Gift,
-  'Statistics': BarChart3
+  'Statistics': BarChart3,
+  'RichMenu': LayoutGrid
 };
 
 const MainLayout = () => {
@@ -145,6 +148,7 @@ const MainLayout = () => {
           <Route path="/oa/:oaId/scheduled-events" element={<ProtectedRoute><ScheduledEvents /></ProtectedRoute>} />
           <Route path="/oa/:oaId/prizes" element={<ProtectedRoute><PrizeStatus /></ProtectedRoute>} />
           <Route path="/oa/:oaId/statistics" element={<ProtectedRoute><Statistics /></ProtectedRoute>} />
+          <Route path="/oa/:oaId/richmenu" element={<ProtectedRoute><RichMenu /></ProtectedRoute>} />
 
           <Route path="/" element={
             isAuthenticated && myOAs.length > 0 ? (
