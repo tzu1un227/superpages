@@ -175,11 +175,49 @@ function RichMenu() {
         }
     };
 
+    const [dragInfo, setDragInfo] = useState(null); // { index, type: 'move'|'resize', startX, startY, initialBounds }
+
+    const scale = 0.2; // Preview scale constant
+
+    useEffect(() => {
+        const handleGlobalMouseMove = (e) => {
+            if (!dragInfo) return;
+
+            const dx = (e.clientX - dragInfo.startX) / scale;
+            const dy = (e.clientY - dragInfo.startY) / scale;
+
+            const newBounds = { ...dragInfo.initialBounds };
+
+            if (dragInfo.type === 'move') {
+                newBounds.x = Math.max(0, Math.min(emptyMenu.size.width - newBounds.width, Math.round(dragInfo.initialBounds.x + dx)));
+                newBounds.y = Math.max(0, Math.min(currentMenu.size.height - newBounds.height, Math.round(dragInfo.initialBounds.y + dy)));
+            } else if (dragInfo.type === 'resize') {
+                newBounds.width = Math.max(10, Math.min(emptyMenu.size.width - newBounds.x, Math.round(dragInfo.initialBounds.width + dx)));
+                newBounds.height = Math.max(10, Math.min(currentMenu.size.height - newBounds.y, Math.round(dragInfo.initialBounds.height + dy)));
+            }
+
+            updateAreaBounds(dragInfo.index, newBounds);
+        };
+
+        const handleGlobalMouseUp = () => {
+            setDragInfo(null);
+        };
+
+        if (dragInfo) {
+            window.addEventListener('mousemove', handleGlobalMouseMove);
+            window.addEventListener('mouseup', handleGlobalMouseUp);
+        }
+
+        return () => {
+            window.removeEventListener('mousemove', handleGlobalMouseMove);
+            window.removeEventListener('mouseup', handleGlobalMouseUp);
+        };
+    }, [dragInfo, currentMenu?.size.height]);
+
     // Canvas Logic for resizing/dragging boxes
     const AreaBox = ({ area, index, isSelected, onSelect }) => {
         const { bounds } = area;
-        // Scale bounds to fit preview
-        const scale = 0.2; // Preview scale
+
         const style = {
             position: 'absolute',
             left: `${bounds.x * scale}px`,
@@ -187,21 +225,50 @@ function RichMenu() {
             width: `${bounds.width * scale}px`,
             height: `${bounds.height * scale}px`,
             border: isSelected ? '3px solid #FFD700' : '2px solid rgba(255, 215, 0, 0.5)',
-            backgroundColor: isSelected ? 'rgba(255, 215, 0, 0.2)' : 'rgba(255, 215, 0, 0.1)',
+            backgroundColor: isSelected ? 'rgba(255, 215, 0, 0.4)' : 'rgba(255, 215, 0, 0.1)',
             cursor: 'move',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: 'white',
             fontSize: '12px',
-            zIndex: isSelected ? 10 : 1
+            zIndex: isSelected ? 10 : 1,
+            userSelect: 'none',
+            boxSizing: 'border-box'
+        };
+
+        const onMouseDown = (e, type) => {
+            e.stopPropagation();
+            onSelect(index);
+            setDragInfo({
+                index,
+                type,
+                startX: e.clientX,
+                startY: e.clientY,
+                initialBounds: { ...bounds }
+            });
         };
 
         return (
-            <div style={style} onClick={(e) => { e.stopPropagation(); onSelect(index); }}>
-                Area {index + 1}
+            <div
+                style={style}
+                onMouseDown={(e) => onMouseDown(e, 'move')}
+            >
+                {index + 1}
                 {isSelected && (
-                    <div style={{ position: 'absolute', bottom: -5, right: -5, width: 15, height: 15, backgroundColor: '#FFD700', cursor: 'nwse-resize' }} />
+                    <div
+                        onMouseDown={(e) => onMouseDown(e, 'resize')}
+                        style={{
+                            position: 'absolute',
+                            bottom: 0,
+                            right: 0,
+                            width: 15,
+                            height: 15,
+                            backgroundColor: '#FFD700',
+                            cursor: 'nwse-resize',
+                            zIndex: 11
+                        }}
+                    />
                 )}
             </div>
         );
@@ -222,18 +289,19 @@ function RichMenu() {
                     </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '30px', flex: 1 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '30px', flex: 1, minHeight: 0 }}>
                     {/* Visual Editor */}
                     <div className="card" style={{ overflow: 'auto', padding: '40px', backgroundColor: '#000', borderRadius: '12px', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
                         <div
                             style={{
                                 position: 'relative',
-                                width: `${currentMenu.size.width * 0.2}px`,
-                                height: `${currentMenu.size.height * 0.2}px`,
+                                width: `${currentMenu.size.width * scale}px`,
+                                height: `${currentMenu.size.height * scale}px`,
                                 backgroundColor: '#222',
                                 border: '1px solid #444',
                                 backgroundSize: 'cover',
-                                backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'none'
+                                backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'none',
+                                flexShrink: 0
                             }}
                             onClick={() => setSelectedAreaIndex(null)}
                         >
@@ -257,7 +325,7 @@ function RichMenu() {
                     </div>
 
                     {/* Properties Panel */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto', paddingRight: '5px' }}>
                         <div className="card">
                             <h3 style={{ marginBottom: '15px' }}>選單設定</h3>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -292,7 +360,7 @@ function RichMenu() {
                             </div>
                         </div>
 
-                        <div className="card" style={{ flex: 1 }}>
+                        <div className="card" style={{ flex: 1, minHeight: 'fit-content' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                                 <h3>區塊設定 ({currentMenu.areas.length})</h3>
                                 <button onClick={addArea} className="secondary" style={{ padding: '5px 10px' }}><Plus size={16} /></button>
@@ -309,7 +377,7 @@ function RichMenu() {
 
                                     <div>
                                         <label className="label">動作類型</label>
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                                             {ACTION_TYPES.map(type => (
                                                 <button
                                                     key={type.value}
@@ -318,7 +386,8 @@ function RichMenu() {
                                                         padding: '8px',
                                                         fontSize: '12px',
                                                         backgroundColor: currentMenu.areas[selectedAreaIndex].action.type === type.value ? 'rgba(255, 215, 0, 0.2)' : '#222',
-                                                        border: currentMenu.areas[selectedAreaIndex].action.type === type.value ? '1px solid #FFD700' : '1px solid #444'
+                                                        border: currentMenu.areas[selectedAreaIndex].action.type === type.value ? '1px solid #FFD700' : '1px solid #444',
+                                                        whiteSpace: 'nowrap'
                                                     }}
                                                 >
                                                     {type.label}
@@ -381,22 +450,22 @@ function RichMenu() {
                                         </div>
                                     )}
 
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '10px' }}>
                                         <div>
                                             <label className="label">X (px)</label>
-                                            <input type="number" value={currentMenu.areas[selectedAreaIndex].bounds.x} onChange={e => updateAreaBounds(selectedAreaIndex, { x: parseInt(e.target.value) })} />
+                                            <input type="number" style={{ width: '100%' }} value={currentMenu.areas[selectedAreaIndex].bounds.x} onChange={e => updateAreaBounds(selectedAreaIndex, { x: parseInt(e.target.value) || 0 })} />
                                         </div>
                                         <div>
                                             <label className="label">Y (px)</label>
-                                            <input type="number" value={currentMenu.areas[selectedAreaIndex].bounds.y} onChange={e => updateAreaBounds(selectedAreaIndex, { y: parseInt(e.target.value) })} />
+                                            <input type="number" style={{ width: '100%' }} value={currentMenu.areas[selectedAreaIndex].bounds.y} onChange={e => updateAreaBounds(selectedAreaIndex, { y: parseInt(e.target.value) || 0 })} />
                                         </div>
                                         <div>
                                             <label className="label">寬 (px)</label>
-                                            <input type="number" value={currentMenu.areas[selectedAreaIndex].bounds.width} onChange={e => updateAreaBounds(selectedAreaIndex, { width: parseInt(e.target.value) })} />
+                                            <input type="number" style={{ width: '100%' }} value={currentMenu.areas[selectedAreaIndex].bounds.width} onChange={e => updateAreaBounds(selectedAreaIndex, { width: parseInt(e.target.value) || 0 })} />
                                         </div>
                                         <div>
                                             <label className="label">高 (px)</label>
-                                            <input type="number" value={currentMenu.areas[selectedAreaIndex].bounds.height} onChange={e => updateAreaBounds(selectedAreaIndex, { height: parseInt(e.target.value) })} />
+                                            <input type="number" style={{ width: '100%' }} value={currentMenu.areas[selectedAreaIndex].bounds.height} onChange={e => updateAreaBounds(selectedAreaIndex, { height: parseInt(e.target.value) || 0 })} />
                                         </div>
                                     </div>
                                 </div>
