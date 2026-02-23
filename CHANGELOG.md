@@ -4,10 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 - **訊息中心搜尋功能修正 (Message Center Search Fix)** [2026-02-23]:
-  - **修正搜尋框**：原搜尋框為純 UI 外觀（未綁定任何 state），現已綁定 `searchQuery` state 並透過 debounce 呼叫 `/api/users?q=` 後端搜尋，支援依 `user_id`、使用者名稱或**對話內容**即時過濾用戶清單（三者皆符合即顯示聊天室）。
+  - **修正搜尋框**：原搜尋框為純 UI 外觀（未綁定任何 state），現已綁定 `searchQuery` state 並透過 debounce 呼叫 `/api/users?q=` 後端搜尋，支援依 `user_id`、使用者名稱或**對話內容（含官方帳號訊息）**即時過濾用戶清單。
   - **新增標籤篩選**：在用戶清單搜尋框下方顯示所有可用標籤按鈕，點選後以 `/api/users?tag=` 篩選聊天室，再次點選可取消。
   - **新增對話內容搜尋**：聊天室頂部新增訊息搜尋框，可搜尋當前用戶的對話內容；符合的關鍵字以黃色背景高亮顯示，並顯示符合筆數。
-  - **後端 `/api/users` 改進**：`q` 參數以 ILIKE 比對 user_id、name 及 history 表 content（EXISTS 子查詢）；新增 `tag` 參數；LIMIT 從 50 提升至 200。
+  - **後端 `/api/users` 深度搜尋**：`q` 參數除了比對 `user_id` 和姓名外，還會聯結 `QA_bank` 檢索官方帳號自動發送的訊息內容，確保無論是用戶訊息或系統自動回覆都能被搜尋到。
   - **用戶清單顯示優化**：同時顯示用戶名稱與 user_id，並在清單項目預覽前三個標籤。
 - **用戶標註功能 (User Tagging)**: 在 Flex 訊息編輯器中新增「標籤」欄位，支援按鈕與圖片行為中的用戶標註。開發了 `TagInput` 元件提供自動完成與多選功能。
 - **QA_bank 修正 (QA_bank Fix)**: 修正新增排程時 `QA_bank` 的 `io` 欄位未正確填入 `Output` 的問題。現在不論是新增、更新或匯入排程，系統均會確保相關標籤的 `io` 屬性正確設定為 `Output`，並初始化必要欄位。

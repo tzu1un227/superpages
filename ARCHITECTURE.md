@@ -94,8 +94,10 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - Messages from `yzuadmin`, or with category `Sensor`, `Response`, or `sys_reply` are displayed on the right (Admin/System side).
     - `sys_reply` messages are displayed with rich content (text/image/video/audio/flex).
 - **Backend**:
-  - `GET /api/users`: 新增 `q`（關鍵字，ILIKE 比對 user_id 與 name）和 `tag`（需有此標籤）查詢參數。LIMIT 從 50 提升至 200。
-  - `GET /api/history/<user_id>`: Fetches chat history from `history:{app_id}` table.
+  - `GET /api/users`: 新增 `q`（關鍵字）和 `tag`（標籤）查詢參數。
+    - **深度檢索邏輯**：`q` 參數會比對 `user_id`、姓名（Private_var），以及 `history` 表中的對話內容。
+    - **QA_bank 整合**：若 `history` 內容為 QA 標籤（如 `cron|QA|...`），會自動聯結 `QA_bank` 表搜尋其對應的訊息內容（`ans` 和 `msg_rpy`），確保自動化訊息也能被搜尋。
+  - `GET /history/<user_id>`: 獲取指定用戶的完整聊天紀錄。
 
 ## Data Analysis & Statistics (數據分析與統計)
 

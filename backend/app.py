@@ -1167,10 +1167,21 @@ def get_users_list():
             where_clauses.append(
                 f"(sub.user_id ILIKE %s"
                 f" OR COALESCE((SELECT value FROM \"Private_var:{app_id}\" WHERE user_id = sub.user_id AND name = 'name' LIMIT 1), '') ILIKE %s"
-                f" OR EXISTS (SELECT 1 FROM \"history:{app_id}\" WHERE user_id = sub.user_id AND content ILIKE %s))"
+                f" OR EXISTS ("
+                f"    SELECT 1 FROM \"history:{app_id}\" h "
+                f"    LEFT JOIN \"QA_bank:{app_id}\" q ON ("
+                f"        (h.content LIKE 'cron|QA|%%' AND q.tag = split_part(h.content, '|', 3))"
+                f"        OR (h.content LIKE 'QA|%%' AND q.tag = split_part(h.content, '|', 2))"
+                f"    )"
+                f"    WHERE h.user_id = sub.user_id "
+                f"    AND ("
+                f"        h.content ILIKE %s "
+                f"        OR q.ans::text ILIKE %s "
+                f"        OR q.msg_rpy::text ILIKE %s"
+                f"    )"
+                f"))"
             )
-            params.extend([f'%{q}%', f'%{q}%', f'%{q}%'])
-
+            params.extend([f'%{q}%', f'%{q}%', f'%{q}%', f'%{q}%', f'%{q}%'])
         if tag_filter:
             where_clauses.append(
                 f"EXISTS (SELECT 1 FROM \"Private_var:{app_id}\" WHERE user_id = sub.user_id AND name = 'tag' AND value ILIKE %s)"
