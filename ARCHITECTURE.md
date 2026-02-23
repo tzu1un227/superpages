@@ -81,10 +81,21 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 - **Frontend**: `MessageCenter.jsx`.
   - Displays list of users and their chat history.
   - Supports sending messages and managing tags.
+  - **用戶清單搜尋 (User List Search)**:
+    - 搜尋框綁定 `searchQuery` state，透過 debounce（300ms）後發送 API 請求，支援依 `user_id` 與使用者名稱搜尋。
+    - 搜尋框具備即時清除按鈕（X）。
+  - **標籤篩選 (Tag Filtering)**:
+    - 載入所有可用標籤並顯示為可點選的標籤按鈕列表（含「全部」選項）。
+    - 點選標籤後，以 `tag` query parameter 傳入 `/api/users`，僅回傳擁有該標籤的用戶。
+  - **對話內容搜尋 (Message Content Search)**:
+    - 聊天室上方有獨立搜尋框，可搜尋當前選用用戶的對話內容。
+    - 符合的關鍵字以黃色背景高亮顯示，並顯示符合筆數。
   - **Message Display**:
     - Messages from `yzuadmin`, or with category `Sensor`, `Response`, or `sys_reply` are displayed on the right (Admin/System side).
-    - `sys_reply` messages are displayed with raw content, without type indicators.
-- **Backend**: `/api/history/<user_id>` fetches chat history from `history:{app_id}` table.
+    - `sys_reply` messages are displayed with rich content (text/image/video/audio/flex).
+- **Backend**:
+  - `GET /api/users`: 新增 `q`（關鍵字，ILIKE 比對 user_id 與 name）和 `tag`（需有此標籤）查詢參數。LIMIT 從 50 提升至 200。
+  - `GET /api/history/<user_id>`: Fetches chat history from `history:{app_id}` table.
 
 ## Data Analysis & Statistics (數據分析與統計)
 

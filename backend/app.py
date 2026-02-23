@@ -1151,30 +1151,52 @@ def get_users_list():
     try:
         app_id = get_current_app_id()
         print(f"DEBUG: get_users_list | app_id={app_id} | db_url={getattr(g, 'current_db_url', 'None')}")
-        
+
+        # Search / filter params
+        q = request.args.get('q', '').strip()
+        tag_filter = request.args.get('tag', '').strip()
+
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        # Fetch unique user IDs with their latest activity or tags if available
-        # Based on requirement to show user list in Message Center
+
+        # Build dynamic WHERE clauses
+        where_clauses = []
+        params = []
+
+        if q:
+            where_clauses.append(
+                f"(sub.user_id ILIKE %s OR COALESCE((SELECT value FROM \"Private_var:{app_id}\" WHERE user_id = sub.user_id AND name = 'name' LIMIT 1), '') ILIKE %s)"
+            )
+            params.extend([f'%{q}%', f'%{q}%'])
+
+        if tag_filter:
+            where_clauses.append(
+                f"EXISTS (SELECT 1 FROM \"Private_var:{app_id}\" WHERE user_id = sub.user_id AND name = 'tag' AND value ILIKE %s)"
+            )
+            params.append(f'%{tag_filter}%')
+
+        where_sql = ('WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
+
         cur.execute(f"""
-            SELECT sub.user_id, 
-                   sub.last_message, 
+            SELECT sub.user_id,
+                   sub.last_message,
                    sub.last_time,
                    (SELECT string_agg(value, '|') FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'tag') as tags,
                    (SELECT value FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'name' LIMIT 1) as name
             FROM (
-                SELECT DISTINCT ON (user_id) user_id, 
-                       content as last_message, 
+                SELECT DISTINCT ON (user_id) user_id,
+                       content as last_message,
                        timestamp as last_time
                 FROM "history:{app_id}"
                 ORDER BY user_id, timestamp DESC
             ) sub
+            {where_sql}
             ORDER BY sub.last_time DESC NULLS LAST
-            LIMIT 50
-        """)
+            LIMIT 200
+        """, params)
         users = cur.fetchall()
         print(f"DEBUG: get_users_list found {len(users)} users for app_id {app_id}")
-        
+
         cur.close()
         conn.close()
         return json_response(users)

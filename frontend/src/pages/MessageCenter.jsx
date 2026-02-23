@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import api from '../api';
-import { Send, User, Search, Tag } from 'lucide-react';
+import { Send, User, Search, Tag, X } from 'lucide-react';
 
 function MessageCenter() {
     const location = useLocation();
@@ -12,24 +12,49 @@ function MessageCenter() {
     const [tagInput, setTagInput] = useState('');
     const [loading, setLoading] = useState(false);
 
+    // --- 搜尋與篩選狀態 ---
+    const [searchQuery, setSearchQuery] = useState('');          // 用戶清單搜尋（user_id / 名稱）
+    const [selectedTagFilter, setSelectedTagFilter] = useState(''); // 標籤篩選
+    const [messageSearch, setMessageSearch] = useState('');       // 對話內容搜尋
+
+    // 用來對 searchQuery 做 debounce，避免每一個字都打 API
+    const searchTimer = useRef(null);
+
     useEffect(() => {
         setUsers([]);
         setSelectedUser(null);
         setMessages([]);
+        setSearchQuery('');
+        setSelectedTagFilter('');
+        setMessageSearch('');
         fetchUsers();
     }, [location.pathname]);
 
     useEffect(() => {
         if (selectedUser) {
             fetchHistory(selectedUser);
+            setMessageSearch(''); // 切換用戶時清除對話搜尋
         }
     }, [selectedUser]);
 
-    const fetchUsers = async () => {
+    // 當搜尋條件改變，debounce 後重新抓取用戶
+    useEffect(() => {
+        if (searchTimer.current) clearTimeout(searchTimer.current);
+        searchTimer.current = setTimeout(() => {
+            fetchUsers(searchQuery, selectedTagFilter);
+        }, 300);
+        return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+    }, [searchQuery, selectedTagFilter]);
+
+    const fetchUsers = async (q = '', tag = '') => {
         try {
-            const resp = await api.get('/users');
+            const params = {};
+            if (q) params.q = q;
+            if (tag) params.tag = tag;
+            const resp = await api.get('/users', { params });
             setUsers(resp.data);
-            if (resp.data.length > 0 && !selectedUser) {
+            // 若目前選中的用戶不在新清單中，自動選第一個
+            if (resp.data.length > 0 && !resp.data.find(u => u.user_id === selectedUser)) {
                 setSelectedUser(resp.data[0].user_id);
             }
         } catch (err) {
@@ -51,9 +76,7 @@ function MessageCenter() {
     const fetchAvailableTags = async () => {
         try {
             const resp = await api.get('/tags');
-            // Clean up brackets and quotes
-            const cleanedTags = (resp.data || []).map(t => String(t).replace(/^[\["']+|[\]"']+$/g, ''));
-            // Unique tags again after cleaning
+            const cleanedTags = (resp.data || []).map(t => String(t).replace(/^[\[\"']+|[\]\"']+$/g, ''));
             setAvailableTags([...new Set(cleanedTags)]);
         } catch (err) {
             console.error('Error fetching tags:', err);
@@ -74,7 +97,6 @@ function MessageCenter() {
                 type: 'Sensor',
                 api_index: 0
             });
-            // Optimistically add to messages
             setMessages([...messages, { content: input, timestamp: new Date(), category: 'Message', user_id: 'yzuadmin' }]);
             setInput('');
         } catch (err) {
@@ -95,7 +117,10 @@ function MessageCenter() {
             });
             alert(`已新增標籤: ${tagInput}`);
             setTagInput('');
-            setTimeout(fetchUsers, 1000); // Small delay for server to update
+            setTimeout(() => {
+                fetchUsers(searchQuery, selectedTagFilter);
+                fetchAvailableTags();
+            }, 1000);
         } catch (err) {
             alert('新增標籤失敗');
         }
@@ -112,20 +137,19 @@ function MessageCenter() {
                 api_index: 0
             });
             alert(`已刪除標籤: ${tagName}`);
-            setTimeout(fetchUsers, 1000); // Small delay for server to update
+            setTimeout(() => fetchUsers(searchQuery, selectedTagFilter), 1000);
         } catch (err) {
             alert('刪除標籤失敗');
         }
     };
 
-    const getCurrentUserTags = () => {
-        const user = users.find(u => u.user_id === selectedUser);
+    const getCurrentUserTags = (userObj) => {
+        const user = userObj || users.find(u => u.user_id === selectedUser);
         if (!user || !user.tags) return [];
 
         let tagsInput = user.tags;
         let tagList = [];
 
-        // If backend combined multiple rows with '|'
         const rawParts = typeof tagsInput === 'string' ? tagsInput.split('|') : [tagsInput];
 
         rawParts.forEach(part => {
@@ -137,10 +161,10 @@ function MessageCenter() {
                     if (Array.isArray(parsed)) tagList.push(...parsed);
                     else tagList.push(parsed);
                 } catch (e) {
-                    trimmed.slice(1, -1).split(',').forEach(s => tagList.push(s.trim().replace(/^["']|["']$/g, '')));
+                    trimmed.slice(1, -1).split(',').forEach(s => tagList.push(s.trim().replace(/^[\"']|[\"']$/g, '')));
                 }
             } else if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-                trimmed.slice(1, -1).split(',').forEach(s => tagList.push(s.trim().replace(/^["']|["']$/g, '')));
+                trimmed.slice(1, -1).split(',').forEach(s => tagList.push(s.trim().replace(/^[\"']|[\"']$/g, '')));
             } else if (trimmed.includes(',')) {
                 trimmed.split(',').forEach(s => tagList.push(s.trim()));
             } else {
@@ -148,49 +172,136 @@ function MessageCenter() {
             }
         });
 
-        // Unique and filter empty
         const uniqueTags = [...new Set(tagList.map(t => String(t).trim()).filter(t => t && t !== 'null' && t !== 'undefined'))];
-
-        // Clean up brackets and quotes from display
-        return uniqueTags.map(t => t.replace(/^[\["']+|[\]"']+$/g, ''));
+        return uniqueTags.map(t => t.replace(/^[\[\"']+|[\]\"']+$/g, ''));
     };
+
+    // 過濾後的訊息（對話內容搜尋）
+    const filteredMessages = messages.filter(m => {
+        // 過濾系統指令
+        if (m.category === 'Sensor') {
+            const c = m.content || '';
+            if (c.startsWith('cron|') || c.startsWith('set_tag|') || c.startsWith('del_tag|')) return false;
+        }
+        // 對話內容搜尋
+        if (messageSearch.trim()) {
+            return (m.content || '').toLowerCase().includes(messageSearch.toLowerCase());
+        }
+        return true;
+    });
 
     return (
         <div style={{ display: 'flex', height: 'calc(100vh - 120px)', gap: '20px' }}>
             {/* User Sidebar */}
             <div className="card" style={{ width: '300px', display: 'flex', flexDirection: 'column', padding: '15px' }}>
-                <div style={{ position: 'relative', marginBottom: '20px' }}>
+                {/* 搜尋框 */}
+                <div style={{ position: 'relative', marginBottom: '10px' }}>
                     <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
                     <input
-                        placeholder="搜尋用戶 ID..."
-                        style={{ width: '100%', paddingLeft: '35px' }}
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        placeholder="搜尋用戶 ID 或名稱..."
+                        style={{ width: '100%', paddingLeft: '35px', paddingRight: searchQuery ? '32px' : '12px', boxSizing: 'border-box' }}
                     />
-                </div>
-                <div style={{ flex: 1, overflowY: 'auto' }}>
-                    {users.map(u => (
-                        <div
-                            key={u.user_id}
-                            onClick={() => setSelectedUser(u.user_id)}
-                            style={{
-                                padding: '12px',
-                                borderRadius: '8px',
-                                cursor: 'pointer',
-                                marginBottom: '8px',
-                                backgroundColor: selectedUser === u.user_id ? 'rgba(255, 215, 0, 0.1)' : 'transparent',
-                                border: selectedUser === u.user_id ? '1px solid var(--primary-yellow)' : '1px solid transparent'
-                            }}
+                    {searchQuery && (
+                        <button
+                            onClick={() => setSearchQuery('')}
+                            style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
                         >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <div style={{ backgroundColor: '#333', padding: '8px', borderRadius: '50%' }}>
-                                    <User size={18} />
-                                </div>
-                                <div style={{ flex: 1, overflow: 'hidden' }}>
-                                    <p style={{ fontWeight: '600', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name || u.user_id}</p>
-                                    <p style={{ fontSize: '12px', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.last_message || '尚無訊息'}</p>
+                            <X size={14} />
+                        </button>
+                    )}
+                </div>
+
+                {/* 標籤篩選區 */}
+                {availableTags.length > 0 && (
+                    <div style={{ marginBottom: '12px' }}>
+                        <div style={{ fontSize: '11px', color: '#888', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Tag size={11} /> 標籤篩選
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                            <span
+                                onClick={() => setSelectedTagFilter('')}
+                                style={{
+                                    padding: '3px 10px',
+                                    borderRadius: '12px',
+                                    fontSize: '11px',
+                                    cursor: 'pointer',
+                                    backgroundColor: !selectedTagFilter ? 'var(--primary-yellow)' : 'transparent',
+                                    color: !selectedTagFilter ? 'black' : '#aaa',
+                                    border: `1px solid ${!selectedTagFilter ? 'var(--primary-yellow)' : '#555'}`,
+                                    transition: 'all 0.15s'
+                                }}
+                            >全部</span>
+                            {availableTags.map((tag, idx) => (
+                                <span
+                                    key={idx}
+                                    onClick={() => setSelectedTagFilter(tag === selectedTagFilter ? '' : tag)}
+                                    style={{
+                                        padding: '3px 10px',
+                                        borderRadius: '12px',
+                                        fontSize: '11px',
+                                        cursor: 'pointer',
+                                        backgroundColor: selectedTagFilter === tag ? 'rgba(255, 215, 0, 0.15)' : 'transparent',
+                                        color: selectedTagFilter === tag ? 'var(--primary-yellow)' : '#aaa',
+                                        border: `1px solid ${selectedTagFilter === tag ? 'var(--primary-yellow)' : '#555'}`,
+                                        transition: 'all 0.15s'
+                                    }}
+                                >{tag}</span>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* 用戶清單 */}
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                    {users.length === 0 && (
+                        <div style={{ color: '#555', fontSize: '13px', textAlign: 'center', marginTop: '20px' }}>
+                            {searchQuery || selectedTagFilter ? '找不到符合的用戶' : '尚無用戶'}
+                        </div>
+                    )}
+                    {users.map(u => {
+                        const userTags = getCurrentUserTags(u);
+                        return (
+                            <div
+                                key={u.user_id}
+                                onClick={() => setSelectedUser(u.user_id)}
+                                style={{
+                                    padding: '12px',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    marginBottom: '8px',
+                                    backgroundColor: selectedUser === u.user_id ? 'rgba(255, 215, 0, 0.1)' : 'transparent',
+                                    border: selectedUser === u.user_id ? '1px solid var(--primary-yellow)' : '1px solid transparent'
+                                }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div style={{ backgroundColor: '#333', padding: '8px', borderRadius: '50%', flexShrink: 0 }}>
+                                        <User size={18} />
+                                    </div>
+                                    <div style={{ flex: 1, overflow: 'hidden' }}>
+                                        <p style={{ fontWeight: '600', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name || u.user_id}</p>
+                                        {u.name && (
+                                            <p style={{ fontSize: '11px', color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.user_id}</p>
+                                        )}
+                                        <p style={{ fontSize: '12px', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.last_message || '尚無訊息'}</p>
+                                        {userTags.length > 0 && (
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', marginTop: '4px' }}>
+                                                {userTags.slice(0, 3).map((t, i) => (
+                                                    <span key={i} style={{ fontSize: '10px', color: '#FFD700', backgroundColor: 'rgba(255,215,0,0.1)', padding: '1px 6px', borderRadius: '8px', border: '1px solid rgba(255,215,0,0.2)' }}>
+                                                        {t}
+                                                    </span>
+                                                ))}
+                                                {userTags.length > 3 && (
+                                                    <span style={{ fontSize: '10px', color: '#666' }}>+{userTags.length - 3}</span>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
 
@@ -198,9 +309,13 @@ function MessageCenter() {
             <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0' }}>
                 {selectedUser ? (
                     <>
+                        {/* 聊天室 Header：用戶名 + 標籤 + 新增標籤 */}
                         <div style={{ padding: '20px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                             <div>
                                 <h3 style={{ fontSize: '18px', marginBottom: '5px' }}>{users.find(u => u.user_id === selectedUser)?.name || selectedUser}</h3>
+                                {users.find(u => u.user_id === selectedUser)?.name && (
+                                    <p style={{ fontSize: '12px', color: '#555', marginBottom: '5px' }}>{selectedUser}</p>
+                                )}
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '10px' }}>
                                     {getCurrentUserTags().map((t, i) => (
                                         <span key={i} style={{
@@ -217,24 +332,13 @@ function MessageCenter() {
                                             {t}
                                             <button
                                                 onClick={() => handleDeleteTag(t)}
-                                                style={{
-                                                    background: 'none',
-                                                    border: 'none',
-                                                    color: '#ff4d4f',
-                                                    padding: '0',
-                                                    cursor: 'pointer',
-                                                    fontSize: '14px',
-                                                    display: 'flex',
-                                                    alignItems: 'center'
-                                                }}
-                                            >
-                                                ×
-                                            </button>
+                                                style={{ background: 'none', border: 'none', color: '#ff4d4f', padding: '0', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center' }}
+                                            >×</button>
                                         </span>
                                     ))}
                                 </div>
                             </div>
-                            <div style={{ display: 'flex', gap: '8px' }}>
+                            <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
                                 <input
                                     list="available-tags"
                                     value={tagInput}
@@ -248,26 +352,43 @@ function MessageCenter() {
                                     ))}
                                 </datalist>
                                 <button
-                                    onClick={() => {
-                                        handleAddTag();
-                                        // Refresh tags list shortly after adding, in case it's a new tag
-                                        setTimeout(fetchAvailableTags, 1500);
-                                    }}
+                                    onClick={handleAddTag}
                                     style={{ padding: '6px 15px', fontSize: '12px', backgroundColor: 'var(--primary-yellow)', color: 'black' }}
                                 >
                                     新增
                                 </button>
                             </div>
                         </div>
+
+                        {/* 對話內容搜尋框 */}
+                        <div style={{ padding: '10px 20px', borderBottom: '1px solid #222', backgroundColor: '#1a1a1a' }}>
+                            <div style={{ position: 'relative' }}>
+                                <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#555' }} />
+                                <input
+                                    value={messageSearch}
+                                    onChange={e => setMessageSearch(e.target.value)}
+                                    placeholder="搜尋對話內容..."
+                                    style={{ width: '100%', paddingLeft: '30px', paddingRight: messageSearch ? '30px' : '10px', fontSize: '13px', padding: '6px 10px 6px 30px', boxSizing: 'border-box', backgroundColor: '#252525', border: '1px solid #333', borderRadius: '6px', color: 'inherit' }}
+                                />
+                                {messageSearch && (
+                                    <button
+                                        onClick={() => setMessageSearch('')}
+                                        style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
+                            {messageSearch && (
+                                <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
+                                    找到 {filteredMessages.length} 筆符合的訊息
+                                </div>
+                            )}
+                        </div>
+
+                        {/* 訊息列表 */}
                         <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                            {messages.filter(m => {
-                                // Filter out system commands from view
-                                if (m.category === 'Sensor') {
-                                    const c = m.content || '';
-                                    if (c.startsWith('cron|') || c.startsWith('set_tag|') || c.startsWith('del_tag|')) return false;
-                                }
-                                return true;
-                            }).map((m, i) => {
+                            {filteredMessages.map((m, i) => {
                                 const isAdmin = m.user_id === 'yzuadmin' || m.category === 'Sensor' || m.category === 'Response' || m.category === 'sys_reply';
                                 let displayContent = m.content;
                                 if (isAdmin && displayContent.startsWith('MSG|')) {
@@ -277,13 +398,9 @@ function MessageCenter() {
                                     try {
                                         const parsed = JSON.parse(m.content);
 
-                                        // Handle Text
                                         if (parsed.type === 'text' && parsed.text) {
                                             displayContent = parsed.text;
-                                        }
-
-                                        // Handle Image
-                                        else if (parsed.type === 'image') {
+                                        } else if (parsed.type === 'image') {
                                             displayContent = (
                                                 <img
                                                     src={parsed.previewImageUrl || parsed.originalContentUrl}
@@ -292,10 +409,7 @@ function MessageCenter() {
                                                     onClick={() => window.open(parsed.originalContentUrl, '_blank')}
                                                 />
                                             );
-                                        }
-
-                                        // Handle Video
-                                        else if (parsed.type === 'video') {
+                                        } else if (parsed.type === 'video') {
                                             displayContent = (
                                                 <div style={{ maxWidth: '200px' }}>
                                                     <video
@@ -306,24 +420,16 @@ function MessageCenter() {
                                                     />
                                                 </div>
                                             );
-                                        }
-
-                                        // Handle Audio
-                                        else if (parsed.type === 'audio') {
+                                        } else if (parsed.type === 'audio') {
                                             displayContent = (
                                                 <audio controls src={parsed.originalContentUrl} style={{ maxWidth: '200px' }} />
                                             );
-                                        }
-
-                                        // Handle Flex
-                                        else if (parsed.type === 'flex' && parsed.contents) {
+                                        } else if (parsed.type === 'flex' && parsed.contents) {
                                             const renderFlexBubble = (bubble) => {
                                                 const hero = bubble.hero || {};
                                                 const body = bubble.body || {};
-                                                // Simple extraction of title and image
                                                 const title = body.contents?.find(c => c.size === 'xl' || c.weight === 'bold')?.text || bubble.altText || 'Flex Message';
                                                 const imageUrl = hero.url;
-
                                                 return (
                                                     <div style={{ backgroundColor: '#fff', color: '#000', borderRadius: '8px', overflow: 'hidden', width: '200px', fontSize: '12px' }}>
                                                         {imageUrl && <img src={imageUrl} style={{ width: '100%', height: '100px', objectFit: 'cover' }} />}
@@ -347,11 +453,21 @@ function MessageCenter() {
                                                 displayContent = renderFlexBubble(parsed.contents);
                                             }
                                         }
-
                                     } catch (e) {
                                         // keeping original content if not JSON
                                     }
                                 }
+
+                                // 搜尋關鍵字高亮
+                                const highlightText = (text) => {
+                                    if (!messageSearch || typeof text !== 'string') return text;
+                                    const parts = text.split(new RegExp(`(${messageSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
+                                    return parts.map((part, idx) =>
+                                        part.toLowerCase() === messageSearch.toLowerCase()
+                                            ? <mark key={idx} style={{ backgroundColor: 'rgba(255,215,0,0.4)', color: 'inherit', borderRadius: '2px', padding: '0 1px' }}>{part}</mark>
+                                            : part
+                                    );
+                                };
 
                                 return (
                                     <div key={i} style={{
@@ -362,12 +478,16 @@ function MessageCenter() {
                                         backgroundColor: isAdmin ? 'var(--primary-yellow)' : '#333',
                                         color: isAdmin ? 'black' : 'white',
                                     }}>
-                                        <p style={{ fontSize: '14px' }}>{displayContent}</p>
+                                        <p style={{ fontSize: '14px' }}>
+                                            {typeof displayContent === 'string' ? highlightText(displayContent) : displayContent}
+                                        </p>
                                         <p style={{ fontSize: '10px', marginTop: '5px', opacity: 0.6 }}>{new Date(m.timestamp).toLocaleTimeString()}</p>
                                     </div>
                                 );
                             })}
                         </div>
+
+                        {/* 訊息輸入框 */}
                         <div style={{ padding: '20px', borderTop: '1px solid #333', display: 'flex', gap: '15px' }}>
                             <input
                                 value={input}
