@@ -117,39 +117,116 @@ function RichMenu() {
             return;
         }
 
+        if (currentMenu.chatBarText.length > 14) {
+            alert('聊天欄標題長度不能超過 14 個字');
+            return;
+        }
+
+        if (currentMenu.areas.length === 0) {
+            alert('請至少新增一個點擊區塊');
+            return;
+        }
+
+        // Validate Actions
+        for (let i = 0; i < currentMenu.areas.length; i++) {
+            const area = currentMenu.areas[i];
+            if (area.action.type === 'message' && !area.action.text) {
+                alert(`區塊 ${i + 1} 的文字訊息不能為空`);
+                return;
+            }
+            if (area.action.type === 'uri' && !area.action.uri) {
+                alert(`區塊 ${i + 1} 的網址不能為空`);
+                return;
+            }
+            if (area.action.type === 'postback' && !area.action.data) {
+                alert(`區塊 ${i + 1} 的 Postback Data 不能為空`);
+                return;
+            }
+            if (area.action.type === 'richmenuswitch') {
+                if (!area.action.richMenuAliasId) {
+                    alert(`區塊 ${i + 1} 的切換目標別名不能為空`);
+                    return;
+                }
+                if (!area.action.data) {
+                    alert(`區塊 ${i + 1} 的 Data 不能為空（Line 規範切換選單必須帶入 Data）`);
+                    return;
+                }
+            }
+        }
+
         setLoading(true);
         try {
             // 1. Create Metadata
             const metaData = {
-                size: currentMenu.size,
-                selected: currentMenu.selected,
-                name: currentMenu.name,
-                chatBarText: currentMenu.chatBarText,
-                areas: currentMenu.areas
+                size: {
+                    width: Math.round(currentMenu.size.width),
+                    height: Math.round(currentMenu.size.height)
+                },
+                selected: currentMenu.selected || false,
+                name: currentMenu.name.substring(0, 300),
+                chatBarText: currentMenu.chatBarText.substring(0, 14),
+                areas: currentMenu.areas.map(a => ({
+                    bounds: {
+                        x: Math.round(a.bounds.x),
+                        y: Math.round(a.bounds.y),
+                        width: Math.round(a.bounds.width),
+                        height: Math.round(a.bounds.height)
+                    },
+                    action: { ...a.action }
+                }))
             };
-            const createRes = await api.post('/richmenu/', metaData);
-            const richMenuId = createRes.data.richMenuId;
 
-            // 2. Upload Image if exists
+            let richMenuId = currentMenu.richMenuId;
+            if (!richMenuId) {
+                console.log('Creating new rich menu metadata:', metaData);
+                const createRes = await api.post('/richmenu/', metaData);
+                richMenuId = createRes.data.richMenuId;
+            }
+
+            // 2. Upload Image if provided
             if (currentMenu.imageFile) {
+                console.log('Uploading image for:', richMenuId);
                 const formData = new FormData();
                 formData.append('image', currentMenu.imageFile);
                 await api.post(`/richmenu/${richMenuId}/image`, formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
+            } else if (!currentMenu.richMenuId) {
+                alert('建立新選單時必須上傳底圖！');
+                setLoading(false);
+                return;
             }
 
-            // 3. Create Alias if name is provided (simplified as alias = name)
-            await api.post('/richmenu/alias', {
-                richMenuAliasId: currentMenu.name.replace(/\s+/g, '_').toLowerCase(),
-                richMenuId: richMenuId
-            });
+            // 3. Create Alias (Sanitize: only a-z0-9_-)
+            const safeAlias = currentMenu.name.toLowerCase()
+                .replace(/[^a-z0-9_-]/g, '_')
+                .substring(0, 32);
 
-            alert('圖文選單已成功建立並綁定別名！');
+            if (safeAlias) {
+                try {
+                    console.log('Creating alias:', safeAlias, 'for', richMenuId);
+                    await api.post('/richmenu/alias', {
+                        richMenuAliasId: safeAlias,
+                        richMenuId: richMenuId
+                    });
+                } catch (aliasErr) {
+                    console.warn('Alias creation failed (it might already exist):', aliasErr);
+                }
+            }
+
+            alert('圖文選單已成功同步至 Line！');
             setView('list');
         } catch (err) {
-            console.error('Save failed:', err);
-            alert('儲存失敗: ' + (err.response?.data?.error || err.message));
+            console.error('Save failed details:', err.response?.data);
+            const errorInfo = err.response?.data;
+            let msg = '儲存失敗';
+            if (errorInfo?.message) {
+                msg += ': ' + errorInfo.message;
+            }
+            if (errorInfo?.details) {
+                msg += '\n詳情: ' + JSON.stringify(errorInfo.details);
+            }
+            alert(msg);
         } finally {
             setLoading(false);
         }
