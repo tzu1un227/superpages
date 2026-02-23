@@ -220,12 +220,21 @@ function RichMenu() {
             console.error('Save failed details:', err.response?.data);
             const errorInfo = err.response?.data;
             let msg = '儲存失敗';
+
             if (errorInfo?.message) {
-                msg += ': ' + errorInfo.message;
+                msg += `: ${errorInfo.message}`;
             }
+
+            if (errorInfo?.line_error) {
+                msg += `\nLine API 錯誤: ${typeof errorInfo.line_error === 'object' ? JSON.stringify(errorInfo.line_error) : errorInfo.line_error}`;
+            } else if (errorInfo?.error) {
+                msg += `\n詳情: ${errorInfo.error}`;
+            }
+
             if (errorInfo?.details) {
-                msg += '\n詳情: ' + JSON.stringify(errorInfo.details);
+                msg += `\n欄位詳情: ${JSON.stringify(errorInfo.details)}`;
             }
+
             alert(msg);
         } finally {
             setLoading(false);

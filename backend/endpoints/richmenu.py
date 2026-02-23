@@ -76,7 +76,13 @@ def upload_rich_menu_image(richMenuId):
         return jsonify({'message': 'No image provided'}), 400
     
     file = request.files['image']
-    content_type = file.content_type or 'image/png'
+    # Line only supports image/jpeg and image/png
+    content_type = file.content_type
+    if content_type not in ['image/jpeg', 'image/png']:
+        if file.filename.lower().endswith('.jpg') or file.filename.lower().endswith('.jpeg'):
+            content_type = 'image/jpeg'
+        else:
+            content_type = 'image/png'
     
     headers = {
         'Authorization': f'Bearer {token}',
@@ -84,15 +90,21 @@ def upload_rich_menu_image(richMenuId):
     }
     
     try:
+        image_data = file.read()
+        print(f"Uploading image to Line: {richMenuId}, Size: {len(image_data)} bytes, Content-Type: {content_type}")
+        
         resp = requests.post(
             f'https://api.line.me/v2/bot/richmenu/{richMenuId}/content',
             headers=headers,
-            data=file.read()
+            data=image_data
         )
         if resp.status_code == 200:
             return jsonify({'status': 'success'})
-        return jsonify({'message': 'Upload failed', 'error': resp.text}), resp.status_code
+        
+        print(f"Line Image Upload Failed: {resp.status_code} - {resp.text}")
+        return jsonify({'message': 'Upload failed', 'line_error': resp.json() if resp.text.startswith('{') else resp.text}), resp.status_code
     except Exception as e:
+        print(f"Error in upload_rich_menu_image: {e}")
         return jsonify({'message': 'Error', 'error': str(e)}), 500
 
 @richmenu_bp.route('/<richMenuId>', methods=['DELETE'])
