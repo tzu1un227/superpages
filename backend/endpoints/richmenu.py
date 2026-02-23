@@ -201,3 +201,20 @@ def set_default_rich_menu(richMenuId):
         return jsonify({'message': 'Set default failed', 'error': resp.text}), resp.status_code
     except Exception as e:
         return jsonify({'message': 'Error', 'error': str(e)}), 500
+
+@richmenu_bp.route('/unlink-all', methods=['DELETE'])
+@token_required
+def unlink_all_rich_menus():
+    token = get_line_token()
+    if not token:
+        return jsonify({'message': 'Line token not configured'}), 400
+    
+    headers = {'Authorization': f'Bearer {token}'}
+    
+    try:
+        resp = requests.delete('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
+        if resp.status_code == 200:
+            return jsonify({'status': 'success'})
+        return jsonify({'message': 'Unlink all failed', 'error': resp.text}), resp.status_code
+    except Exception as e:
+        return jsonify({'message': 'Error', 'error': str(e)}), 500

@@ -5,7 +5,7 @@ import {
     Plus, Trash2, Save, Image as ImageIcon, Settings,
     MousePointer2, Move, Maximize, Check, X, AlertCircle,
     ChevronDown, ChevronUp, ExternalLink, MessageSquare,
-    CreditCard, Repeat, Eye
+    CreditCard, Repeat, Eye, Link2Off
 } from 'lucide-react';
 
 const ACTION_TYPES = [
@@ -24,7 +24,6 @@ function RichMenu() {
     const [selectedAreaIndex, setSelectedAreaIndex] = useState(null);
     const [backgroundImage, setBackgroundImage] = useState(null);
     const [viewOnly, setViewOnly] = useState(false);
-    const canvasRef = useRef(null);
 
     // Initial menu state
     const emptyMenu = {
@@ -42,6 +41,15 @@ function RichMenu() {
             fetchMenus();
         }
     }, [view, oaId]);
+
+    // Clean up object URLs to prevent memory leaks
+    useEffect(() => {
+        return () => {
+            if (backgroundImage && backgroundImage.startsWith('blob:')) {
+                URL.revokeObjectURL(backgroundImage);
+            }
+        };
+    }, [backgroundImage]);
 
     const fetchMenus = async () => {
         setLoading(true);
@@ -62,14 +70,28 @@ function RichMenu() {
         setView('edit');
     };
 
-    const handleEditMenu = (menu) => {
-        setCurrentMenu({ ...menu });
-        setViewOnly(true);
+    const fetchImageWithAuth = async (richMenuId) => {
+        try {
+            const response = await api.get(`/richmenu/${richMenuId}/image`, { responseType: 'blob' });
+            return URL.createObjectURL(response.data);
+        } catch (err) {
+            console.error('Failed to fetch image with auth:', err);
+            return null;
+        }
+    };
 
-        // Fetch background image from our proxy
-        const imageUrl = `${api.defaults.baseURL}/richmenu/${menu.richMenuId}/image`;
-        setBackgroundImage(imageUrl);
-        setView('edit');
+    const handleEditMenu = async (menu) => {
+        setLoading(true);
+        try {
+            setCurrentMenu({ ...menu });
+            setViewOnly(true);
+            const imageUrl = await fetchImageWithAuth(menu.richMenuId);
+            setBackgroundImage(imageUrl);
+            setView('edit');
+            setSelectedAreaIndex(null);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const addArea = () => {
@@ -206,9 +228,22 @@ function RichMenu() {
         try {
             await api.post(`/richmenu/set-default/${id}`);
             fetchMenus();
-            alert('已設為預設選單。請注意：現有用戶可能需要重新開啟 Line 或等待一段時間才會更新。');
+            alert('已設為預設選單！若手機未更新，請嘗試點擊「取消所有用戶個別選單」按鈕。');
         } catch (err) {
             alert('設定失敗');
+        }
+    };
+
+    const unlinkAll = async () => {
+        if (!window.confirm('這將取消所有用戶目前被單獨綁定的選單，強制他們看到目前的「全域預設選單」。確定要執行嗎？')) return;
+        setLoading(true);
+        try {
+            await api.delete('/richmenu/unlink-all');
+            alert('已取消所有個別綁定，預設選單現在應對所有用戶生效。');
+        } catch (err) {
+            alert('取消綁定失敗');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -252,15 +287,15 @@ function RichMenu() {
             height: `${bounds.height * scale}px`,
             border: isSelected ? '3px solid #FFD700' : '2px solid rgba(255, 215, 0, 0.5)',
             backgroundColor: isSelected ? 'rgba(255, 215, 0, 0.4)' : 'rgba(255, 215, 0, 0.1)',
-            cursor: viewOnly ? 'default' : 'move',
+            cursor: viewOnly ? 'pointer' : 'move',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: 'white', fontSize: '12px', zIndex: isSelected ? 10 : 1,
             userSelect: 'none', boxSizing: 'border-box'
         };
         const onMouseDown = (e, type) => {
-            if (viewOnly) return;
             e.stopPropagation();
             onSelect(index);
+            if (viewOnly) return;
             setDragInfo({ index, type, startX: e.clientX, startY: e.clientY, initialBounds: { ...bounds } });
         };
         return (
@@ -271,6 +306,17 @@ function RichMenu() {
                 )}
             </div>
         );
+    };
+
+    // Helper component for previews in list
+    const RichMenuPreview = ({ menuId }) => {
+        const [url, setUrl] = useState(null);
+        useEffect(() => {
+            fetchImageWithAuth(menuId).then(setUrl);
+            return () => { if (url) URL.revokeObjectURL(url); };
+        }, [menuId]);
+
+        return url ? <img src={url} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <ImageIcon size={24} style={{ opacity: 0.3 }} />;
     };
 
     if (view === 'edit') {
@@ -296,7 +342,7 @@ function RichMenu() {
                             position: 'relative', width: `${currentMenu.size.width * scale}px`, height: `${currentMenu.size.height * scale}px`,
                             backgroundColor: '#222', border: '1px solid #444', backgroundSize: 'cover',
                             backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'none', flexShrink: 0
-                        }}>
+                        }} onClick={() => setSelectedAreaIndex(null)}>
                             {!backgroundImage && !viewOnly && (
                                 <div style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: '#666' }}>
                                     <ImageIcon size={48} /><p>請上傳底圖 (2500x1686)</p>
@@ -366,7 +412,7 @@ function RichMenu() {
                                         </div>
                                     )}
 
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '10px' }}>
                                         <div><label className="label">X (px)</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].bounds.x} onChange={e => updateAreaBounds(selectedAreaIndex, { x: parseInt(e.target.value) || 0 })} /></div>
                                         <div><label className="label">Y (px)</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].bounds.y} onChange={e => updateAreaBounds(selectedAreaIndex, { y: parseInt(e.target.value) || 0 })} /></div>
                                         <div><label className="label">寬 (px)</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].bounds.width} onChange={e => updateAreaBounds(selectedAreaIndex, { width: parseInt(e.target.value) || 0 })} /></div>
@@ -387,7 +433,10 @@ function RichMenu() {
         <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
                 <div><h1 style={{ fontSize: '32px', marginBottom: '10px' }}>圖文選單</h1><p style={{ color: '#B0B0B0' }}>管理並設計 OA 的圖文選單按鈕與功能</p></div>
-                <button onClick={handleCreateNew} className="primary"><Plus size={20} /> 新增選單</button>
+                <div style={{ display: 'flex', gap: '15px' }}>
+                    <button onClick={unlinkAll} className="secondary" style={{ borderColor: '#ff4d4d', color: '#ff4d4d' }}><Link2Off size={20} /> 取消所有個別綁定</button>
+                    <button onClick={handleCreateNew} className="primary"><Plus size={20} /> 新增選單</button>
+                </div>
             </div>
             {loading ? <div style={{ padding: '50px', textAlign: 'center' }}>載入中...</div> : menus.length === 0 ? (
                 <div className="card" style={{ padding: '50px', textAlign: 'center' }}><AlertCircle size={48} style={{ color: '#666', marginBottom: '15px' }} /><p style={{ color: '#888' }}>目前還沒有任何圖文選單</p><button onClick={handleCreateNew} className="secondary" style={{ marginTop: '20px' }}>立即建立第一個選單</button></div>
@@ -398,7 +447,7 @@ function RichMenu() {
                             {menu.status === 'default' && <div style={{ position: 'absolute', top: '15px', right: '15px', backgroundColor: '#FFD700', color: '#000', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>預設中</div>}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                 <div style={{ height: '120px', backgroundColor: '#222', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: '#666', overflow: 'hidden' }}>
-                                    <img src={`${api.defaults.baseURL}/richmenu/${menu.richMenuId}/image`} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    <RichMenuPreview menuId={menu.richMenuId} />
                                 </div>
                                 <div><h4 style={{ marginBottom: '5px' }}>{menu.name}</h4><p style={{ fontSize: '13px', color: '#888' }}>別名: {menu.aliases?.join(', ') || '無'}</p><p style={{ fontSize: '13px', color: '#888' }}>尺寸: {menu.size.width}x{menu.size.height}</p></div>
                                 <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
