@@ -42,7 +42,7 @@ const StatCard = ({ title, value, icon: Component, color }) => (
 );
 
 const Statistics = () => {
-    const [globalData, setGlobalData] = useState({ follow: [], user: [], message: [] });
+    const [globalData, setGlobalData] = useState({ follow: [], user: [], message: [], total_counts: {} });
     const [lineInsight, setLineInsight] = useState(null);
     const [keywordData, setKeywordData] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -209,12 +209,12 @@ const Statistics = () => {
                 />
                 <StatCard
                     title="有效好友數"
-                    value={getGlobalSum(globalData.user)}
+                    value={globalData.total_counts?.user || 0}
                     icon={TrendingUp}
                     color="#4CAF50"
                 />
-                <StatCard title="新增好友數" value={getGlobalSum(globalData.follow)} icon={TrendingUp} color="#FFD700" />
-                <StatCard title="總訊息量" value={getGlobalSum(globalData.message)} icon={MessageSquare} color="#2196F3" />
+                <StatCard title="新增好友數" value={globalData.total_counts?.follow || 0} icon={TrendingUp} color="#FFD700" />
+                <StatCard title="總訊息量" value={globalData.total_counts?.message || 0} icon={MessageSquare} color="#2196F3" />
             </div>
 
             <div className="card" style={{ marginBottom: '40px', padding: '25px', background: 'var(--secondary-black)', borderRadius: '16px', border: '1px solid #333' }}>

@@ -1043,6 +1043,28 @@ def get_statistics():
             )
             results[category] = cur.fetchall()
             
+        # Add a special 'totals' section for card display (to avoid double-counting active users over time)
+        results['total_counts'] = {}
+        for category in ['follow', 'user', 'message']:
+            if category == 'user':
+                # For users, we want strictly DISTINCT user_ids over the ENTIRE duration
+                cur.execute(
+                    "SELECT COUNT(DISTINCT user_id) as total FROM static_view WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category IN ('Follow', 'Message')",
+                    (start_time, end_time)
+                )
+            elif category == 'follow':
+                cur.execute(
+                    "SELECT COUNT(*) as total FROM static_view WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category = 'Follow'",
+                    (start_time, end_time)
+                )
+            else: # message
+                cur.execute(
+                    "SELECT COUNT(*) as total FROM static_view WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category = 'Message'",
+                    (start_time, end_time)
+                )
+            row = cur.fetchone()
+            results['total_counts'][category] = row['total'] if row else 0
+            
         # Fetch LINE Insight Data (Real-time followers and targeted reaches)
         results['line_insight'] = None
         if hasattr(g, 'current_oa_config') and g.current_oa_config.other_settings:

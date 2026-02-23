@@ -4,9 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 - **綜合數據重構與指標修正 (Statistics Refinement)** [2026-02-23]:
-  - **指標正名與 UI 優化**：移除所有統計卡片標題中的括號說明。更名「總追蹤數」為「**總好友數**」，更名「不重複活躍用戶」為「**有效好友數**」（並統一趨勢分析下拉選單名稱）。
-  - **數據來源調整**：明確「有效好友數」卡片顯示資料庫中的活躍用戶數（DB `user`），而非 LINE API 的 `targetedReaches`，以確保數據即時性。
-  - **LINE API 擷取優化**：後端 `get_statistics` 加入日期回退 (Fallback) 邏輯，若昨天資料未就緒則自動嘗試前天，並修正 `line_token` 資料庫存取問題。
+  - **精確統計邏輯修復**：修正「有效好友數」在長時段下的虛增問題。後端新增 `total_counts` 邏輯，確保統計卡片顯示的是全時段「不重複用戶總數」(Strictly Distinct)，而非每日活躍數的簡單累加。
+  - **指標正名與 UI 簡化**：移除所有統計卡片標題中的括號及其內容。更名「總追蹤數」為「**總好友數**」，更名「不重複活躍用戶」為「**有效好友數**」（並統一趨勢分析下拉選單名稱）。
+  - **LINE API 擷取優化**：後端 `get_statistics` 加入日期回退 (Fallback) 邏輯，若昨天資料未就緒則自動嘗試前天。
 - **訊息中心搜尋功能修正 (Message Center Search Fix)** [2026-02-23]:
   - **修正搜尋框**：原搜尋框為純 UI 外觀（未綁定任何 state），現已綁定 `searchQuery` state 並透過 debounce 呼叫 `/api/users?q=` 後端搜尋，支援依 `user_id`、使用者名稱或**對話內容（含官方帳號訊息及 Unicode 編碼文本）**即時過濾用戶清單。
   - **新增標籤篩選**：在用戶清單搜尋框下方顯示所有可用標籤按鈕，點選後以 `/api/users?tag=` 篩選聊天室，再次點選可取消。
@@ -31,7 +31,6 @@ All notable changes to this project will be documented in this file.
 - **Persistent GitHub Configuration**: Migrated GitHub upload settings from `.env` to the database (OA Config). Added management UI in the Admin Page to allow per-OA configuration, ensuring settings persist in Docker environments.
 - **Image Upload to GitHub**: Added ability to upload images directly to GitHub from the Flex Message Editor in Schedule Settings.
 - **Statistics Integration**: Consolidated standalone statistics functionality into the `Projects.jsx` page. Global statistics (Trends, Keywords) are now visible by default in the "stats" tab when no project is selected, alongside project-specific metrics. Removed the redundant `Statistics.jsx` page and associated route from `App.jsx`.
-- **Project Import Isolation Fix**: Resolved issue where different projects shared the same message tags. Each project now gets unique cloned tags during import.
 - **Flex Message Editor Stability**: Fixed oscillating template states and UI flickers using semantic normalization and initialization guards.
 - **Flex Message Editor Fix**: Improved auto-save reliability to prevent infinite loops.
 - **Improved Project Page UI**: Replaced CSS Grid with Flexbox in "Add Project" form to prevent overlapping of fields at high zoom levels (150%+), ensuring a responsive layout.

@@ -107,9 +107,10 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
    - Displays project-specific metrics: 觸發客戶數 (tc), 完成率 (completion_rate), 成功/失敗數 (mss/msf).
    - Metrics are filtered by the selected project and the specified date range.
 2. **Global Account Analysis**: Located within `Statistics.jsx`.
-   - **Trend Analysis**: Fetches data from `/api/statistics` (Global metrics: 總訊息量, 新增好友數 [資料庫 follow 事件], 有效好友數 [資料庫活躍用戶]).
-   - **Keyword Ranking**: Fetches data from `/api/statistics/keywords` (Top keyword rankings).
-   - **LINE Insight Integration**: The backend fetches "Total Followers" (總好友數) from the LINE Messaging API. It includes a 2-day fallback logic to handle potential data processing delays.
+    - **Trend Analysis**: Fetches grouped data from `/api/statistics`. (Global metrics: 總訊息量, 新增好友數 [資料庫 follow 次數], 有效好友數 [該時段內每日活躍人次])。
+    - **Total Calculation**: The backend now also returns `total_counts` for the selected period. The "Effective Friend Count" card displays a strictly distinct user count for the entire duration, avoiding double-counting of recurring active users.
+    - **Keyword Ranking**: Fetches data from `/api/statistics/keywords` (Top keyword rankings).
+    - **LINE Insight Integration**: The backend fetches "Total Followers" (總好友數) from the LINE Messaging API with a 2-day fallback logic.
 
 ### Visualization
 - Uses `recharts` for LineCharts (Trend Analysis) and BarCharts (Keyword Ranking).
