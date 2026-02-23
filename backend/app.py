@@ -1165,9 +1165,11 @@ def get_users_list():
 
         if q:
             where_clauses.append(
-                f"(sub.user_id ILIKE %s OR COALESCE((SELECT value FROM \"Private_var:{app_id}\" WHERE user_id = sub.user_id AND name = 'name' LIMIT 1), '') ILIKE %s)"
+                f"(sub.user_id ILIKE %s"
+                f" OR COALESCE((SELECT value FROM \"Private_var:{app_id}\" WHERE user_id = sub.user_id AND name = 'name' LIMIT 1), '') ILIKE %s"
+                f" OR EXISTS (SELECT 1 FROM \"history:{app_id}\" WHERE user_id = sub.user_id AND content ILIKE %s))"
             )
-            params.extend([f'%{q}%', f'%{q}%'])
+            params.extend([f'%{q}%', f'%{q}%', f'%{q}%'])
 
         if tag_filter:
             where_clauses.append(
