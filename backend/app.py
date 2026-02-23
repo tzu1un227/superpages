@@ -1049,17 +1049,25 @@ def get_statistics():
             line_token = g.current_oa_config.other_settings.get('line_token')
             if line_token:
                 # LINE API provides statistics for specific dates, usually up to yesterday
-                yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y%m%d')
-                try:
-                    line_resp = requests.get(
-                        f"https://api.line.me/v2/bot/insight/followers?date={yesterday}",
-                        headers={"Authorization": f"Bearer {line_token}"},
-                        timeout=5
-                    )
-                    if line_resp.status_code == 200:
-                        results['line_insight'] = line_resp.json()
-                except Exception as ex:
-                    print(f"Error fetching LINE insight for OA {g.current_oa_id}: {ex}")
+                # Try yesterday first, if followers is 0 (or API error), try day before (LINE lag)
+                for day_offset in [1, 2]:
+                    target_date = (datetime.now() - timedelta(days=day_offset)).strftime('%Y%m%d')
+                    try:
+                        line_resp = requests.get(
+                            f"https://api.line.me/v2/bot/insight/followers?date={target_date}",
+                            headers={"Authorization": f"Bearer {line_token}"},
+                            timeout=5
+                        )
+                        if line_resp.status_code == 200:
+                            data = line_resp.json()
+                            if data.get('status') == 'ready' and data.get('followers', 0) > 0:
+                                results['line_insight'] = data
+                                break # Success
+                            elif data.get('status') == 'ready':
+                                # If still 0, record it but try one more day
+                                results['line_insight'] = data
+                    except Exception as ex:
+                        print(f"Error fetching LINE insight for OA {g.current_oa_id} on {target_date}: {ex}")
 
         cur.close()
         conn.close()

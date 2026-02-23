@@ -3,11 +3,10 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
-- **綜合數據重構 (Statistics Reconstruction)** [2026-02-23]:
-  - **指標更名**：將原有的「總客戶數」更名為「新增好友數」，更準確反映資料庫中 `follow` 事件的意義（即選定時段內的新加入用戶）。
-  - **集成 LINE Insight API**：新增從 LINE 官方 API 獲取「總追蹤數」 (Total Followers) 與「有效好友數」 (Target Reach) 的功能。
-  - **後端 API 升級**：`/api/statistics` 現在會根據 OA 設定中的 `line_token` 自動向 LINE 請求昨天的即時統計數據並整合回傳。
-  - **前端 UI 更新**：在綜合數據頁面新增兩張數據卡片，分別顯示真實的總客戶數與目標推播數，並優化卡片佈局。
+- **綜合數據重構與指標修正 (Statistics Refinement)** [2026-02-23]:
+  - **指標正名與 UI 優化**：移除所有統計卡片標題中的括號說明。更名「總追蹤數」為「**總好友數**」，更名「不重複活躍用戶」為「**有效好友數**」（並統一趨勢分析下拉選單名稱）。
+  - **數據來源調整**：明確「有效好友數」卡片顯示資料庫中的活躍用戶數（DB `user`），而非 LINE API 的 `targetedReaches`，以確保數據即時性。
+  - **LINE API 擷取優化**：後端 `get_statistics` 加入日期回退 (Fallback) 邏輯，若昨天資料未就緒則自動嘗試前天，並修正 `line_token` 資料庫存取問題。
 - **訊息中心搜尋功能修正 (Message Center Search Fix)** [2026-02-23]:
   - **修正搜尋框**：原搜尋框為純 UI 外觀（未綁定任何 state），現已綁定 `searchQuery` state 並透過 debounce 呼叫 `/api/users?q=` 後端搜尋，支援依 `user_id`、使用者名稱或**對話內容（含官方帳號訊息及 Unicode 編碼文本）**即時過濾用戶清單。
   - **新增標籤篩選**：在用戶清單搜尋框下方顯示所有可用標籤按鈕，點選後以 `/api/users?tag=` 篩選聊天室，再次點選可取消。
