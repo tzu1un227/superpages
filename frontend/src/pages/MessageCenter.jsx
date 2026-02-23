@@ -176,16 +176,48 @@ function MessageCenter() {
         return uniqueTags.map(t => t.replace(/^[\[\"']+|[\]\"']+$/g, ''));
     };
 
+    // 輔助函式：提取訊息的可搜尋文本（解決 JSON Unicode 編碼問題）
+    const getSearchableText = (m) => {
+        let content = m.content || '';
+        if (typeof content !== 'string') return '';
+
+        // 如果是 sys_reply 類別，通常是 JSON
+        if (m.category === 'sys_reply') {
+            try {
+                const parsed = JSON.parse(content);
+                if (parsed.type === 'text') return parsed.text || '';
+                if (parsed.altText) return parsed.altText;
+                // 如果是 Flex 訊息，嘗試抓取 body 內容
+                if (parsed.type === 'flex' && parsed.contents) {
+                    const bubble = parsed.contents.type === 'carousel' ? parsed.contents.contents[0] : parsed.contents;
+                    const body = bubble?.body?.contents || [];
+                    return body.map(c => c.text || '').join(' ') || (parsed.altText || '');
+                }
+            } catch (e) {
+                // 解析失敗則回傳原文
+            }
+        }
+
+        // 移除 MSG| 前綴
+        if (content.startsWith('MSG|')) return content.substring(4);
+
+        return content;
+    };
+
     // 過濾後的訊息（對話內容搜尋）
     const filteredMessages = messages.filter(m => {
-        // 過濾系統指令
+        // 過濾系統指令（不顯示在聊天室中）
         if (m.category === 'Sensor') {
             const c = m.content || '';
             if (c.startsWith('cron|') || c.startsWith('set_tag|') || c.startsWith('del_tag|')) return false;
         }
+
         // 對話內容搜尋
         if (messageSearch.trim()) {
-            return (m.content || '').toLowerCase().includes(messageSearch.toLowerCase());
+            const text = getSearchableText(m);
+            const search = messageSearch.toLowerCase();
+            // 同時比對「解析後的純文字」與「原始 JSON 字串（含 \uXXXX）」
+            return text.toLowerCase().includes(search) || (m.content || '').toLowerCase().includes(search);
         }
         return true;
     });
