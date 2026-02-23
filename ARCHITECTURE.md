@@ -96,7 +96,8 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 - **Backend**:
   - `GET /api/users`: 新增 `q`（關鍵字）和 `tag`（標籤）查詢參數。
     - **深度檢索邏輯**：`q` 參數會比對 `user_id`、姓名（Private_var），以及 `history` 表中的對話內容。
-    - **QA_bank 整合**：若 `history` 內容為 QA 標籤（如 `cron|QA|...`），會自動聯結 `QA_bank` 表搜尋其對應的訊息內容（`ans` 和 `msg_rpy`），確保自動化訊息也能被搜尋。
+    - **Unicode 轉義處理**：自動將搜尋關鍵字轉義為 `\uXXXX` 序列（並進行雙重轉義比對），確保能搜尋到 JSON 格式中儲存的 Unicode 編碼中文字內容。
+    - **QA_bank 整合**：若 `history` 內容為 QA 標籤（如 `cron|QA|...`），會自動聯結 `QA_bank` 表搜尋其對應的訊息內容（`ans` 和 `msg_rpy`），同時支援 Unicode 轉義比對。
   - `GET /history/<user_id>`: 獲取指定用戶的完整聊天紀錄。
 
 ## Data Analysis & Statistics (數據分析與統計)
