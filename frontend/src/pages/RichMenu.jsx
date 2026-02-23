@@ -5,7 +5,7 @@ import {
     Plus, Trash2, Save, Image as ImageIcon, Settings,
     MousePointer2, Move, Maximize, Check, X, AlertCircle,
     ChevronDown, ChevronUp, ExternalLink, MessageSquare,
-    CreditCard, Repeat, Eye, Link2Off
+    CreditCard, Repeat, Eye
 } from 'lucide-react';
 
 const ACTION_TYPES = [
@@ -228,22 +228,9 @@ function RichMenu() {
         try {
             await api.post(`/richmenu/set-default/${id}`);
             fetchMenus();
-            alert('已設為預設選單！若手機未更新，請嘗試點擊「取消所有用戶個別選單」按鈕。');
+            alert('已成功設為預設選單！');
         } catch (err) {
-            alert('設定失敗');
-        }
-    };
-
-    const unlinkAll = async () => {
-        if (!window.confirm('這將取消所有用戶目前被單獨綁定的選單，強制他們看到目前的「全域預設選單」。確定要執行嗎？')) return;
-        setLoading(true);
-        try {
-            await api.delete('/richmenu/unlink-all');
-            alert('已取消所有個別綁定，預設選單現在應對所有用戶生效。');
-        } catch (err) {
-            alert('取消綁定失敗');
-        } finally {
-            setLoading(false);
+            alert('設定失敗: ' + (err.response?.data?.line_error || err.message));
         }
     };
 
@@ -312,8 +299,14 @@ function RichMenu() {
     const RichMenuPreview = ({ menuId }) => {
         const [url, setUrl] = useState(null);
         useEffect(() => {
-            fetchImageWithAuth(menuId).then(setUrl);
-            return () => { if (url) URL.revokeObjectURL(url); };
+            let active = true;
+            fetchImageWithAuth(menuId).then(blobUrl => {
+                if (active) setUrl(blobUrl);
+            });
+            return () => {
+                active = false;
+                if (url) URL.revokeObjectURL(url);
+            };
         }, [menuId]);
 
         return url ? <img src={url} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <ImageIcon size={24} style={{ opacity: 0.3 }} />;
@@ -434,7 +427,6 @@ function RichMenu() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
                 <div><h1 style={{ fontSize: '32px', marginBottom: '10px' }}>圖文選單</h1><p style={{ color: '#B0B0B0' }}>管理並設計 OA 的圖文選單按鈕與功能</p></div>
                 <div style={{ display: 'flex', gap: '15px' }}>
-                    <button onClick={unlinkAll} className="secondary" style={{ borderColor: '#ff4d4d', color: '#ff4d4d' }}><Link2Off size={20} /> 取消所有個別綁定</button>
                     <button onClick={handleCreateNew} className="primary"><Plus size={20} /> 新增選單</button>
                 </div>
             </div>
