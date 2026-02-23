@@ -94,7 +94,7 @@ def upload_rich_menu_image(richMenuId):
         print(f"Uploading image to Line: {richMenuId}, Size: {len(image_data)} bytes, Content-Type: {content_type}")
         
         resp = requests.post(
-            f'https://api.line.me/v2/bot/richmenu/{richMenuId}/content',
+            f'https://api-data.line.me/v2/bot/richmenu/{richMenuId}/content',
             headers=headers,
             data=image_data
         )
