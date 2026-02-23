@@ -378,7 +378,7 @@ function RichMenu() {
                                             {ACTION_TYPES.map(type => (
                                                 <button key={type.value} disabled={viewOnly} onClick={() => updateAreaAction(selectedAreaIndex, { type: type.value })}
                                                     style={{
-                                                        padding: '8px', fontSize: '12px', whiteSpace: 'nowrap',
+                                                        padding: '8px', fontSize: '12px', whiteSpace: 'nowrap', color: 'white',
                                                         backgroundColor: currentMenu.areas[selectedAreaIndex].action.type === type.value ? 'rgba(255, 215, 0, 0.2)' : '#222',
                                                         border: currentMenu.areas[selectedAreaIndex].action.type === type.value ? '1px solid #FFD700' : '1px solid #444'
                                                     }}>{type.label}</button>

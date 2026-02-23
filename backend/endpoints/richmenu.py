@@ -137,13 +137,27 @@ def delete_rich_menu(richMenuId):
     if not token:
         return jsonify({'message': 'Line token not configured'}), 400
     
-    headers = {'Authorization': f'Bearer {token}'}
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json'
+    }
     
     try:
+        # First, find and delete all associated aliases
+        alias_resp = requests.get('https://api.line.me/v2/bot/richmenu/alias/list', headers=headers)
+        if alias_resp.status_code == 200:
+            aliases = alias_resp.json().get('aliases', [])
+            for alias in aliases:
+                if alias.get('richMenuId') == richMenuId:
+                    alias_id = alias.get('richMenuAliasId')
+                    print(f"Deleting associated alias: {alias_id}")
+                    requests.delete(f'https://api.line.me/v2/bot/richmenu/alias/{alias_id}', headers=headers)
+        
+        # Then delete the rich menu
         resp = requests.delete(f'https://api.line.me/v2/bot/richmenu/{richMenuId}', headers=headers)
         if resp.status_code == 200:
             return jsonify({'status': 'success'})
-        return jsonify({'message': 'Delete failed', 'error': resp.text}), resp.status_code
+        return jsonify({'message': 'Delete failed', 'line_error': resp.text}), resp.status_code
     except Exception as e:
         return jsonify({'message': 'Error', 'error': str(e)}), 500
 
