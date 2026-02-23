@@ -65,6 +65,29 @@ def create_rich_menu():
     except Exception as e:
         return jsonify({'message': 'Error', 'error': str(e)}), 500
 
+@richmenu_bp.route('/<richMenuId>/image', methods=['GET'])
+@token_required
+def get_rich_menu_image(richMenuId):
+    token = get_line_token()
+    if not token:
+        return jsonify({'message': 'Line token not configured'}), 400
+    
+    headers = {'Authorization': f'Bearer {token}'}
+    
+    try:
+        resp = requests.get(
+            f'https://api-data.line.me/v2/bot/richmenu/{richMenuId}/content',
+            headers=headers,
+            stream=True
+        )
+        if resp.status_code == 200:
+            from flask import Response
+            return Response(resp.content, mimetype=resp.headers.get('Content-Type', 'image/png'))
+        
+        return jsonify({'message': 'Failed to fetch image', 'error': resp.text}), resp.status_code
+    except Exception as e:
+        return jsonify({'message': 'Error', 'error': str(e)}), 500
+
 @richmenu_bp.route('/<richMenuId>/image', methods=['POST'])
 @token_required
 def upload_rich_menu_image(richMenuId):
