@@ -154,10 +154,20 @@ function Broadcast() {
                 });
             }
 
+            // Map IDs back to full user objects from availableUsers if possible
+            let selectedUsers = [];
+            if (bc.target_type === 'ids' && bc.target_value) {
+                const idList = bc.target_value.split(',');
+                selectedUsers = idList.map(id => {
+                    const found = availableUsers.find(u => u.user_id === id.trim?.() || u.user_id === id);
+                    return found || { user_id: id, name: id }; // Fallback to ID as name if not found
+                });
+            }
+
             setFormData({
                 ...bc,
                 messages: messages,
-                selectedUsers: bc.target_type === 'ids' ? bc.target_value.split(',').map(id => ({ user_id: id })) : []
+                selectedUsers: selectedUsers
             });
             setStep(1);
             setView('create');
@@ -238,7 +248,9 @@ function Broadcast() {
                 ...formData,
                 message_tag: msgTag,
                 target_value: formData.target_type === 'ids' ? formData.selectedUsers.map(u => u.user_id).join(',') : formData.target_value,
-                status: formData.send_type === 'scheduled' ? 'scheduled' : 'sent'
+                // Do NOT set status: 'sent' here. Let /execute handle it.
+                // If it's sent, the backend execute endpoint will return 400 'already sent'.
+                status: formData.send_type === 'scheduled' ? 'scheduled' : (formData.status || 'draft')
             };
 
             let bcId = formData.id;

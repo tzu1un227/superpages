@@ -86,6 +86,7 @@ def list_broadcasts():
             'name': b.name,
             'target_type': b.target_type,
             'target_value': b.target_value,
+            'message_tag': b.message_tag,
             'status': b.status,
             'scheduled_at': b.scheduled_at.isoformat() if b.scheduled_at else None,
             'created_at': b.created_at.isoformat()
