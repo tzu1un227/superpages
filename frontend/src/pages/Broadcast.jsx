@@ -159,36 +159,62 @@ function Broadcast() {
         setView('create');
     };
 
+    const fetchMessagesByTag = async (tag) => {
+        try {
+            const res = await api.get(`/qa-bank/${tag}`);
+            let fetchedMessages = res.data.msg_rpy || [];
+            // Normalize messages: ensure they are objects, parse if stringified JSON
+            return fetchedMessages.map(m => {
+                if (typeof m === 'string') {
+                    try { return JSON.parse(m); } catch { return { OTYPE: 'TextSendMessage', text: m }; } // Fallback to text if not valid JSON
+                }
+                return m;
+            });
+        } catch (err) {
+            console.error('Error fetching messages by tag:', err);
+            return [{ OTYPE: 'TextSendMessage', text: '' }];
+        }
+    };
+
     const handleEdit = async (bc) => {
         setLoading(true);
         try {
-            // If the broadcast has a message_tag, fetch full message data from QA_bank
-            let messages = [{ OTYPE: 'TextSendMessage', text: '' }];
-            if (bc.message_tag) {
-                const res = await api.get(`/qa-bank/${bc.message_tag}`);
-                messages = res.data.msg_rpy || [];
-                // Normalize messages
-                messages = messages.map(m => {
-                    if (typeof m === 'string') {
-                        try { return JSON.parse(m); } catch { return m; }
-                    }
-                    return m;
-                });
-            }
+            const messages = bc.message_tag ? await fetchMessagesByTag(bc.message_tag) : [
+                { OTYPE: 'TextSendMessage', text: '' }
+            ];
 
-            // Map IDs back to full user objects from availableUsers if possible
+            // Backward compatibility and snake_case mapping
+            const mappedMessages = messages.map(msg => {
+                if (msg.OTYPE === 'ImageSendMessage' || msg.OTYPE === 'VideoSendMessage') {
+                    return {
+                        ...msg,
+                        original_content_url: msg.original_content_url || msg.originalUrl || '',
+                        preview_image_url: msg.preview_image_url || msg.previewUrl || ''
+                    };
+                }
+                if (msg.OTYPE === 'FlexSendMessage') {
+                    return {
+                        ...msg,
+                        alt_text: msg.alt_text || '您有一則新訊息',
+                        contents: msg.contents || (msg.text ? JSON.parse(msg.text) : {})
+                    };
+                }
+                return msg;
+            });
+
+            // Map IDs back to full user objects from availableUsers
             let selectedUsers = [];
             if (bc.target_type === 'ids' && bc.target_value) {
                 const idList = bc.target_value.split(',');
                 selectedUsers = idList.map(id => {
                     const found = availableUsers.find(u => u.user_id === id.trim?.() || u.user_id === id);
-                    return found || { user_id: id, name: id }; // Fallback to ID as name if not found
+                    return found || { user_id: id, name: id };
                 });
             }
 
             setFormData({
                 ...bc,
-                messages: messages,
+                messages: mappedMessages,
                 selectedUsers: selectedUsers,
                 send_type: bc.send_type || 'immediate'
             });
@@ -492,7 +518,14 @@ function Broadcast() {
                                     onClick={() => {
                                         const newMsgs = [...formData.messages];
                                         const baseContent = (type.id === 'FlexSendMessage') ? { type: 'bubble', contents: [] } : '';
-                                        newMsgs[idx] = { OTYPE: type.id, text: '', originalUrl: '', previewUrl: '', contents: baseContent };
+                                        newMsgs[idx] = {
+                                            OTYPE: type.id,
+                                            text: '',
+                                            original_content_url: '',
+                                            preview_image_url: '',
+                                            alt_text: '您有一則新訊息',
+                                            contents: baseContent
+                                        };
                                         setFormData({ ...formData, messages: newMsgs });
                                     }}
                                 >
@@ -518,10 +551,10 @@ function Broadcast() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                 <label className="label">圖片連結</label>
                                 <div style={{ display: 'flex', gap: '10px' }}>
-                                    <input type="text" value={msg.originalUrl} onChange={e => {
+                                    <input type="text" value={msg.original_content_url || ''} onChange={e => {
                                         const msgs = [...formData.messages];
-                                        msgs[idx].originalUrl = e.target.value;
-                                        msgs[idx].previewUrl = e.target.value;
+                                        msgs[idx].original_content_url = e.target.value;
+                                        msgs[idx].preview_image_url = e.target.value;
                                         setFormData({ ...formData, messages: msgs });
                                     }} placeholder="https://..." style={{ flex: 1 }} />
                                     <label style={{
@@ -549,8 +582,8 @@ function Broadcast() {
                                                 try {
                                                     const res = await api.post('/upload/github', uploadData);
                                                     const msgs = [...formData.messages];
-                                                    msgs[idx].originalUrl = res.data.url;
-                                                    msgs[idx].previewUrl = res.data.url;
+                                                    msgs[idx].original_content_url = res.data.url;
+                                                    msgs[idx].preview_image_url = res.data.url;
                                                     setFormData({ ...formData, messages: msgs });
                                                 } catch (err) {
                                                     alert('上傳失敗');
@@ -566,17 +599,17 @@ function Broadcast() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                 <div>
                                     <label className="label">影片連結 (.mp4)</label>
-                                    <input type="text" value={msg.originalUrl} onChange={e => {
+                                    <input type="text" value={msg.original_content_url || ''} onChange={e => {
                                         const msgs = [...formData.messages];
-                                        msgs[idx].originalUrl = e.target.value;
+                                        msgs[idx].original_content_url = e.target.value;
                                         setFormData({ ...formData, messages: msgs });
                                     }} placeholder="https://..." style={{ width: '100%' }} />
                                 </div>
                                 <div>
                                     <label className="label">預覽圖連結 (.jpg)</label>
-                                    <input type="text" value={msg.previewUrl} onChange={e => {
+                                    <input type="text" value={msg.preview_image_url || ''} onChange={e => {
                                         const msgs = [...formData.messages];
-                                        msgs[idx].previewUrl = e.target.value;
+                                        msgs[idx].preview_image_url = e.target.value;
                                         setFormData({ ...formData, messages: msgs });
                                     }} placeholder="https://..." style={{ width: '100%' }} />
                                 </div>
@@ -774,7 +807,11 @@ function Broadcast() {
                             steps={formData.messages.map(m => {
                                 if (m.OTYPE === 'TextSendMessage') return { OTYPE: m.OTYPE, text: m.text };
                                 if (m.OTYPE === 'FlexSendMessage') return { OTYPE: 'FlexSendMessage', contents: m.contents };
-                                return { OTYPE: m.OTYPE, originalUrl: m.originalUrl, previewUrl: m.previewUrl };
+                                return {
+                                    OTYPE: m.OTYPE,
+                                    originalUrl: m.original_content_url || m.originalUrl,
+                                    previewUrl: m.preview_image_url || m.previewUrl
+                                };
                             })}
                         />
                     </Box>
