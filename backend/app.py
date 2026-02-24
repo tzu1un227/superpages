@@ -1060,20 +1060,6 @@ def get_statistics():
             )
             results[category] = cur.fetchall()
             
-        # Custom logic for Follow/Unfollow totals: only count the LATEST status per user in the period
-        cur.execute("""
-            SELECT category, COUNT(*) as count 
-            FROM (
-                SELECT DISTINCT ON (user_id) category 
-                FROM static_view 
-                WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s 
-                  AND category IN ('Follow', 'Unfollow') 
-                ORDER BY user_id, \"timestamp\" DESC
-            ) as latest_status
-            GROUP BY category
-        """, (start_time, end_time))
-        net_counts = {row['category'].lower(): row['count'] for row in cur.fetchall()}
-
         # Add a special 'totals' section for card display
         results['total_counts'] = {}
         for category in ['follow', 'unfollow', 'user', 'message']:
@@ -1085,9 +1071,29 @@ def get_statistics():
                 )
                 row = cur.fetchone()
                 results['total_counts'][category] = row['total'] if row else 0
-            elif category in ['follow', 'unfollow']:
-                # Use the pre-calculated net (latest status) counts
-                results['total_counts'][category] = net_counts.get(category, 0)
+            elif category == 'follow':
+                # Added Friends: Count any user who followed in the period
+                cur.execute(
+                    "SELECT COUNT(DISTINCT user_id) as total FROM static_view WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category = 'Follow'",
+                    (start_time, end_time)
+                )
+                row = cur.fetchone()
+                results['total_counts'][category] = row['total'] if row else 0
+            elif category == 'unfollow':
+                # Unfollow: Only count those who ENDED in the Unfollow state in this period
+                cur.execute("""
+                    SELECT COUNT(*) as total 
+                    FROM (
+                        SELECT DISTINCT ON (user_id) category 
+                        FROM static_view 
+                        WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s 
+                          AND category IN ('Follow', 'Unfollow') 
+                        ORDER BY user_id, \"timestamp\" DESC
+                    ) as latest_status
+                    WHERE category = 'Unfollow'
+                """, (start_time, end_time))
+                row = cur.fetchone()
+                results['total_counts'][category] = row['total'] if row else 0
             else: # message
                 cur.execute(
                     "SELECT COUNT(*) as total FROM static_view WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category = 'Message'",
