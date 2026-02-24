@@ -1047,7 +1047,7 @@ def get_statistics():
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
         results = {}
-        for category in ['follow', 'user', 'message']:
+        for category in ['follow', 'unfollow', 'user', 'message']:
             cur.execute(
                 "SELECT * FROM get_events_count_by_category_and_tag(%s, %s, %s, %s)",
                 (start_time, end_time, category, group_unit)
@@ -1056,7 +1056,7 @@ def get_statistics():
             
         # Add a special 'totals' section for card display (to avoid double-counting active users over time)
         results['total_counts'] = {}
-        for category in ['follow', 'user', 'message']:
+        for category in ['follow', 'unfollow', 'user', 'message']:
             if category == 'user':
                 # For users, we want strictly DISTINCT user_ids over the ENTIRE duration
                 cur.execute(
@@ -1066,6 +1066,11 @@ def get_statistics():
             elif category == 'follow':
                 cur.execute(
                     "SELECT COUNT(*) as total FROM static_view WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category = 'Follow'",
+                    (start_time, end_time)
+                )
+            elif category == 'unfollow':
+                cur.execute(
+                    "SELECT COUNT(*) as total FROM static_view WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category = 'Unfollow'",
                     (start_time, end_time)
                 )
             else: # message

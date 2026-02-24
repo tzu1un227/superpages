@@ -80,6 +80,33 @@ def list_broadcasts():
         
     broadcasts = query.order_by(Broadcast.created_at.desc()).all()
     
+    # --- Status Reconciliation ---
+    # Since the bot engine deletes cron_table entries after execution, 
+    # we check if scheduled broadcasts have passed their time and are gone from cron_table.
+    now = datetime.now()
+    oa = OAConfig.query.get(oa_id)
+    if oa and oa.db_url:
+        try:
+            # We only check broadcasts that are 'scheduled' and whose time has passed
+            to_check = [b for b in broadcasts if b.status == 'scheduled' and b.scheduled_at and b.scheduled_at <= now]
+            if to_check:
+                conn = get_db_connection(oa.db_url)
+                cur = conn.cursor()
+                updated_any = False
+                for bc in to_check:
+                    # The bot engine uses "QA|{tag}" for broadcast tasks
+                    cur.execute("SELECT 1 FROM cron_table WHERE message_content = %s LIMIT 1", (f"QA|{bc.message_tag}",))
+                    if not cur.fetchone():
+                        bc.status = 'sent'
+                        updated_any = True
+                cur.close()
+                conn.close()
+                if updated_any:
+                    db.session.commit()
+        except Exception as e:
+            print(f"Reconciliation error: {e}")
+    # --- End Status Reconciliation ---
+    
     return jsonify({
         'broadcasts': [{
             'id': b.id,

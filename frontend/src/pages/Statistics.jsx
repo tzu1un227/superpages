@@ -59,6 +59,7 @@ const Statistics = () => {
     const categoryMap = {
         'message': { label: '總訊息量', key: 'message', color: '#2196F3' },
         'follow': { label: '新增好友數', key: 'follow', color: '#FFD700' },
+        'unfollow': { label: '封鎖/解除數', key: 'unfollow', color: '#F44336' },
         'user': { label: '有效好友數', key: 'user', color: '#4CAF50' }
     };
 
@@ -207,13 +208,9 @@ const Statistics = () => {
                     icon={Users}
                     color="#FF5722"
                 />
-                <StatCard
-                    title="有效好友數"
-                    value={globalData.total_counts?.user || 0}
-                    icon={TrendingUp}
-                    color="#4CAF50"
-                />
+                <StatCard title="有效好友數" value={globalData.total_counts?.user || 0} icon={TrendingUp} color="#4CAF50" />
                 <StatCard title="新增好友數" value={globalData.total_counts?.follow || 0} icon={TrendingUp} color="#FFD700" />
+                <StatCard title="封鎖/解除數" value={globalData.total_counts?.unfollow || 0} icon={Users} color="#F44336" />
                 <StatCard title="總訊息量" value={globalData.total_counts?.message || 0} icon={MessageSquare} color="#2196F3" />
             </div>
 

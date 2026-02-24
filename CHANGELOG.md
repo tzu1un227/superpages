@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **群發發送錯誤修復 與 已發送任務預覽 (Broadcast Fixes & Preview)** [2026-02-24]:
+  - **LINE 400 錯誤修復**：修正圖片/影片訊息欄位名稱為 `original_content_url`，確保與機器人引擎相容。
+  - **已發送任務預覽**：支援以唯讀模式查看已發送廣播的完整訊息與受眾內容。
+  - **狀態自動對照**：新增後端校對邏輯，預約發送完成後會自動將狀態從「預約中」更新為「已成功發送」。
+  - **草稿相容性**：修正 `handleEdit` 錯誤，支援舊版 `originalUrl` 欄位的向下相容。
+- **封鎖/解除好友追蹤 (Unfollow Tracking)** [2026-02-24]:
+  - **事件追蹤**：機器人引擎新增 `UnfollowEvent` 監聽，並記錄於歷史數據中。
+  - **綜合數據集成**：統計頁面新增「封鎖/解除數」指標卡片與趨勢分析圖表，提升好友留存分析能力。
 - **Line 完整圖文選單設定工具 (Line Rich Menu Configuration Tool)** [2026-02-23]:
     - **視覺化編輯器**：新增 `RichMenu.jsx` 頁面，支援上傳底圖並以 canvas 拖拉方式定義點擊區域（Bounds）。
     - **動作類型支援**：支援傳送文字、跳轉網頁、Postback 以及切換選單 (RichMenuSwitch)。
