@@ -318,7 +318,19 @@ function Broadcast() {
                         value={formData.target_value}
                         onChange={(e, val) => setFormData({ ...formData, target_value: val })}
                         onInputChange={(e, val) => setFormData({ ...formData, target_value: val })}
-                        renderInput={(params) => <TextField {...params} placeholder="選擇或搜尋標籤..." />}
+                        renderInput={(params) => (
+                            <TextField
+                                {...params}
+                                placeholder="選擇或搜尋標籤..."
+                                sx={{
+                                    '& .MuiInputBase-input': { color: '#fff' },
+                                    '& .MuiOutlinedInput-root': {
+                                        '& fieldset': { borderColor: '#444' },
+                                        '&:hover fieldset': { borderColor: '#666' },
+                                    }
+                                }}
+                            />
+                        )}
                     />
                 )}
 
@@ -329,10 +341,27 @@ function Broadcast() {
                         getOptionLabel={(opt) => opt.name || opt.user_id}
                         value={formData.selectedUsers}
                         onChange={(e, val) => setFormData({ ...formData, selectedUsers: val })}
-                        renderInput={(params) => <TextField {...params} placeholder="搜尋並選擇用戶..." />}
+                        renderInput={(params) => (
+                            <TextField
+                                {...params}
+                                placeholder="搜尋並選擇用戶..."
+                                sx={{
+                                    '& .MuiInputBase-input': { color: '#fff' },
+                                    '& .MuiOutlinedInput-root': {
+                                        '& fieldset': { borderColor: '#444' },
+                                        '&:hover fieldset': { borderColor: '#666' },
+                                    }
+                                }}
+                            />
+                        )}
                         renderTags={(value, getTagProps) =>
                             value.map((option, index) => (
-                                <Chip variant="outlined" label={option.name || option.user_id} {...getTagProps({ index })} />
+                                <Chip
+                                    variant="outlined"
+                                    label={option.name || option.user_id}
+                                    {...getTagProps({ index })}
+                                    sx={{ color: '#fff', borderColor: '#555' }}
+                                />
                             ))
                         }
                     />
@@ -453,12 +482,48 @@ function Broadcast() {
                         {msg.OTYPE === 'ImageSendMessage' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                 <label className="label">圖片連結</label>
-                                <input type="text" value={msg.originalUrl} onChange={e => {
-                                    const msgs = [...formData.messages];
-                                    msgs[idx].originalUrl = e.target.value;
-                                    msgs[idx].previewUrl = e.target.value;
-                                    setFormData({ ...formData, messages: msgs });
-                                }} placeholder="https://..." style={{ width: '100%' }} />
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <input type="text" value={msg.originalUrl} onChange={e => {
+                                        const msgs = [...formData.messages];
+                                        msgs[idx].originalUrl = e.target.value;
+                                        msgs[idx].previewUrl = e.target.value;
+                                        setFormData({ ...formData, messages: msgs });
+                                    }} placeholder="https://..." style={{ flex: 1 }} />
+                                    <label style={{
+                                        padding: '8px 12px',
+                                        background: 'var(--primary-yellow)',
+                                        color: '#000',
+                                        borderRadius: '4px',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '5px',
+                                        fontSize: '13px',
+                                        fontWeight: 'bold'
+                                    }}>
+                                        <Plus size={16} /> 上傳
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            style={{ display: 'none' }}
+                                            onChange={async (e) => {
+                                                const file = e.target.files[0];
+                                                if (!file) return;
+                                                const uploadData = new FormData();
+                                                uploadData.append('file', file);
+                                                try {
+                                                    const res = await api.post('/upload/github', uploadData);
+                                                    const msgs = [...formData.messages];
+                                                    msgs[idx].originalUrl = res.data.url;
+                                                    msgs[idx].previewUrl = res.data.url;
+                                                    setFormData({ ...formData, messages: msgs });
+                                                } catch (err) {
+                                                    alert('上傳失敗');
+                                                }
+                                            }}
+                                        />
+                                    </label>
+                                </div>
                             </div>
                         )}
 

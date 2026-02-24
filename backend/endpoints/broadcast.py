@@ -18,7 +18,7 @@ def get_audience_count():
     target_type = data.get('target_type', 'all')
     target_value = data.get('target_value', '')
     
-    oa_id = g.oa_id
+    oa_id = g.current_oa_id
     oa = OAConfig.query.get(oa_id)
     if not oa or not oa.db_url:
         return jsonify({'error': 'OA configuration error'}), 400
@@ -30,7 +30,7 @@ def get_audience_count():
         # Get total followers (friends)
         # Assuming app_id can be extracted from db_url or we need another way to get it
         # Based on app.py, get_current_app_id() returns the DB name.
-        app_id = oa.db_url.split('/')[-1]
+        app_id = oa.db_url.split('/')[-1].split('?')[0].strip()
         
         # Count target users
         count = 0
@@ -65,7 +65,7 @@ def get_audience_count():
 @broadcast_bp.route('/', methods=['GET'])
 @token_required
 def list_broadcasts():
-    oa_id = g.oa_id
+    oa_id = g.current_oa_id
     status = request.args.get('status')
     
     query = Broadcast.query.filter_by(oa_id=oa_id)
@@ -90,10 +90,10 @@ def list_broadcasts():
 @token_required
 def create_broadcast():
     data = request.json
-    oa_id = g.oa_id
+    oa_id = g.current_oa_id
     
     new_bc = Broadcast(
-        oa_id=oa_id,
+        oa_id=g.current_oa_id,
         name=data.get('name', '未命名廣播'),
         target_type=data.get('target_type', 'all'),
         target_value=data.get('target_value', ''),
@@ -167,7 +167,10 @@ def execute_broadcast(id):
         return jsonify({'error': 'Broadcast already sent'}), 400
         
     oa = OAConfig.query.get(bc.oa_id)
-    app_id = oa.db_url.split('/')[-1]
+    if not oa or not oa.db_url:
+        return jsonify({'error': 'OA configuration error (missing db_url)'}), 400
+        
+    app_id = oa.db_url.split('/')[-1].split('?')[0].strip()
     
     try:
         conn = get_db_connection(oa.db_url)
@@ -190,7 +193,7 @@ def execute_broadcast(id):
         
         for uid in user_ids:
             cur.execute(
-                "INSERT INTO cron_table (user_id, message_content, push_time, status) VALUES (%s, %s, %s, 'active')",
+                "INSERT INTO cron_table (user_id, message_content, push_time) VALUES (%s, %s, %s)",
                 (uid, msg_content, push_time)
             )
             

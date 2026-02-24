@@ -1455,11 +1455,11 @@ def create_qa_entry():
         cur.execute(f'SELECT 1 FROM "{table_name}" WHERE tag = %s', (tag,))
         if cur.fetchone():
             # Update msg_rpy and ensure IO is set to Output
-            sql = f'UPDATE "{table_name}" SET msg_rpy = %s::json[], "io" = \'Output\' WHERE tag = %s'
+            sql = f'UPDATE "{table_name}" SET msg_rpy = %s::json[], "IO" = \'Output\' WHERE tag = %s'
             cur.execute(sql, (msg_rpy_db, tag))
         else:
             # Insert new entry with IO=Output, and empty check/function/ans
-            sql = f'INSERT INTO "{table_name}" (tag, msg_rpy, "io", "check", "function", ans) VALUES (%s, %s::json[], \'Output\', ARRAY[\'\'], \'\', ARRAY[\'\'])'
+            sql = f'INSERT INTO "{table_name}" (tag, msg_rpy, "IO", "check", "function", ans) VALUES (%s, %s::json[], \'Output\', ARRAY[\'\'], \'\', ARRAY[\'\'])'
             cur.execute(sql, (tag, msg_rpy_db))
             
         conn.commit()
