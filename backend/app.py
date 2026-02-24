@@ -1043,6 +1043,12 @@ def get_statistics():
         end_time = request.args.get('end_time', datetime.now().isoformat())
         group_unit = request.args.get('group_unit', 'day')
 
+        # Handle date-only strings from frontend (e.g. YYYY-MM-DD)
+        if len(start_time) == 10:
+            start_time += " 00:00:00"
+        if len(end_time) == 10:
+            end_time += " 23:59:59"
+
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
