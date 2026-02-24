@@ -96,7 +96,9 @@ const MainLayout = () => {
                     const fullPath = `/oa/${oa.id}/${routePath}`;
                     const isActive = location.pathname.startsWith(fullPath);
 
-                    const displayName = page.name === 'PrizeStatus' ? '抽獎管理' : page.description;
+                    const displayName = page.name === 'PrizeStatus' ? '抽獎管理' :
+                      page.name === 'Projects' ? '自動旅程' :
+                        page.description;
 
                     return (
                       <li key={page.id} style={{ marginBottom: '5px' }}>

@@ -14,7 +14,7 @@ app = Flask(__name__)
 CORS(app, origins=["https://irl-svr.ee.yzu.edu.tw:5014", "http://localhost:3000", "http://localhost:9016", "https://irl-svr.ee.yzu.edu.tw:5016"])
 
 # Auth and DB imports
-from models import db, User, Page, OAConfig
+from models import db, User, Page, OAConfig, Broadcast
 from auth import generate_token, token_required, admin_required
 import os
 from google.oauth2 import id_token
@@ -49,6 +49,10 @@ app.register_blueprint(upload_bp, url_prefix='/api/upload')
 from endpoints.richmenu import richmenu_bp
 app.register_blueprint(richmenu_bp, url_prefix='/api/richmenu')
 
+# Register Broadcast Blueprint
+from endpoints.broadcast import broadcast_bp
+app.register_blueprint(broadcast_bp, url_prefix='/api/broadcast')
+
 with app.app_context():
     db.create_all()
 
@@ -59,7 +63,7 @@ with app.app_context():
         default_pages = [
             {'name': 'Statistics', 'description': '綜合數據'},
             {'name': 'MessageCenter', 'description': '訊息中心'},
-            {'name': 'Projects', 'description': '專案管理'},
+            {'name': 'Projects', 'description': '自動旅程'},
             {'name': 'Broadcast', 'description': '群發訊息'},
             {'name': 'ScheduledEvents', 'description': '定時排程'},
             {'name': 'PrizeStatus', 'description': '抽獎管理'},

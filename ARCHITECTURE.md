@@ -139,3 +139,14 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - Directly proxies requests to the Line Messaging API to manage rich menus.
     - Handles metadata creation, image upload, alias management, and setting default menus.
     - Security: All requests are protected by `@token_required` and use the OA-specific `line_token` from `other_settings`.
+
+### Broadcast Center (群發訊息中心)
+- **Frontend**: `Broadcast.jsx`.
+    - 3-step wizard for creating broadcats.
+    - `Step 1`: Audience selection (All, Tag, ID list) with real-time estimation.
+    - `Step 2`: Message composition (up to 5 bubbles, supporting Text, Image, Video, Flex).
+    - `Step 3`: Delivery scheduling (Immediate or Scheduled).
+- **Backend**: `endpoints/broadcast.py`.
+    - Manages `broadcasts` table.
+    - Integrates with `QA_bank` for message storage and `cron_table` for scheduling.
+    - Audience count logic uses `Private_var` for tag/all logic and calculates coverage ratio.
