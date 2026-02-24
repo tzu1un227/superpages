@@ -76,11 +76,33 @@ function Broadcast() {
             const res = await api.get('/tags');
             const uniqueTags = new Set();
             res.data.forEach(t => {
-                if (typeof t === 'string' && t.startsWith('[')) {
-                    try { JSON.parse(t).forEach(pt => uniqueTags.add(pt)); } catch { uniqueTags.add(t); }
-                } else { uniqueTags.add(t); }
+                if (typeof t === 'string') {
+                    // Handle potential list formats like ['tag1'] or ["tag1", "tag2"]
+                    if (t.startsWith('[') && t.endsWith(']')) {
+                        try {
+                            // Try JSON parse first
+                            const parsed = JSON.parse(t.replace(/'/g, '"'));
+                            if (Array.isArray(parsed)) {
+                                parsed.forEach(pt => uniqueTags.add(pt.toString().trim()));
+                            } else {
+                                uniqueTags.add(t.replace(/[\[\]'"]/g, '').trim());
+                            }
+                        } catch {
+                            // Fallback: strip brackets and quotes, then split by comma
+                            t.replace(/[\[\]'"]/g, '').split(',').forEach(pt => {
+                                if (pt.trim()) uniqueTags.add(pt.trim());
+                            });
+                        }
+                    } else {
+                        uniqueTags.add(t.trim());
+                    }
+                } else if (Array.isArray(t)) {
+                    t.forEach(pt => uniqueTags.add(pt.toString().trim()));
+                } else if (t) {
+                    uniqueTags.add(t.toString().trim());
+                }
             });
-            setAvailableTags(Array.from(uniqueTags).sort());
+            setAvailableTags(Array.from(uniqueTags).filter(t => t !== '').sort());
         } catch (err) { console.error('Error fetching tags:', err); }
     };
 
