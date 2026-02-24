@@ -1456,13 +1456,12 @@ def create_qa_entry():
         # Check if exists to decide between INSERT or UPDATE
         cur.execute(f'SELECT 1 FROM "{table_name}" WHERE tag = %s', (tag,))
         if cur.fetchone():
-            # Update msg_rpy and ensure IO is set to Output
-            sql = f'UPDATE "{table_name}" SET msg_rpy = %s::json[], "IO" = \'Output\' WHERE tag = %s'
+            # Update msg_rpy and ensure io is set to Output
+            sql = f'UPDATE "{table_name}" SET msg_rpy = %s::json[], "io" = \'Output\' WHERE tag = %s'
             cur.execute(sql, (msg_rpy_db, tag))
         else:
-            # Insert new entry with IO=Output, and empty check/function/ans
-            # We use "IO" and "check" (quoted) to match dbModel.py case or keywords
-            sql = f'INSERT INTO "{table_name}" (tag, msg_rpy, "IO", "check", "function", ans, type) VALUES (%s, %s::json[], \'Output\', ARRAY[\'\'], \'\', ARRAY[\'\'], \'Message\')'
+            # Insert new entry with io=Output, and empty check/function/ans
+            sql = f'INSERT INTO "{table_name}" (tag, msg_rpy, "io", "check", "function", ans, type) VALUES (%s, %s::json[], \'Output\', ARRAY[\'\'], \'\', ARRAY[\'\'], \'Message\')'
             cur.execute(sql, (tag, msg_rpy_db))
             
         conn.commit()
