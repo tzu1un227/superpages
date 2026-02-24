@@ -87,6 +87,7 @@ def list_broadcasts():
             'target_type': b.target_type,
             'target_value': b.target_value,
             'message_tag': b.message_tag,
+            'send_type': b.send_type,
             'status': b.status,
             'scheduled_at': b.scheduled_at.isoformat() if b.scheduled_at else None,
             'created_at': b.created_at.isoformat()
@@ -104,6 +105,8 @@ def create_broadcast():
         name=data.get('name', '未命名廣播'),
         target_type=data.get('target_type', 'all'),
         target_value=data.get('target_value', ''),
+        message_tag=data.get('message_tag'),
+        send_type=data.get('send_type', 'immediate'),
         status=data.get('status', 'draft'),
         scheduled_at=datetime.fromisoformat(data['scheduled_at']) if data.get('scheduled_at') else None
     )
@@ -133,6 +136,7 @@ def update_broadcast(id):
     bc.name = data.get('name', bc.name)
     bc.target_type = data.get('target_type', bc.target_type)
     bc.target_value = data.get('target_value', bc.target_value)
+    bc.send_type = data.get('send_type', bc.send_type)
     bc.status = data.get('status', bc.status)
     if data.get('scheduled_at'):
         bc.scheduled_at = datetime.fromisoformat(data['scheduled_at'])

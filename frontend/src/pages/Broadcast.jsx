@@ -167,7 +167,8 @@ function Broadcast() {
             setFormData({
                 ...bc,
                 messages: messages,
-                selectedUsers: selectedUsers
+                selectedUsers: selectedUsers,
+                send_type: bc.send_type || 'immediate'
             });
             setStep(1);
             setView('create');
@@ -194,10 +195,10 @@ function Broadcast() {
     const saveDraft = async () => {
         setLoading(true);
         try {
-            // First save QA bank entry if messages exist
+            // Reuse existing tag if available, or create a unique one for new broadcasts
             let msgTag = formData.message_tag;
             if (!msgTag) {
-                msgTag = `bc_draft_${Date.now()}`;
+                msgTag = `bc_${Date.now()}`;
             }
 
             await api.post('/qa-bank', {
@@ -235,8 +236,8 @@ function Broadcast() {
 
         setLoading(true);
         try {
-            // 1. Save messages to QA_bank
-            const msgTag = formData.message_tag || `bc_msg_${Date.now()}`;
+            // 1. Save messages to QA_bank (reuse tag)
+            const msgTag = formData.message_tag || `bc_${Date.now()}`;
             await api.post('/qa-bank', {
                 tag: msgTag,
                 msg_rpy: formData.messages,
