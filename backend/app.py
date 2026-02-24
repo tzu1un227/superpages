@@ -111,7 +111,9 @@ def get_db_connection():
     return conn
 
 def get_current_app_id():
-    """Returns the current database name (e.g. '5013')."""
+    """Returns the current logical app name/id (e.g. '5013')."""
+    if hasattr(g, 'current_app_name') and g.current_app_name:
+        return g.current_app_name
     if hasattr(g, 'current_db_url') and g.current_db_url:
         path_part = g.current_db_url.split('/')[-1]
         return path_part.split('?')[0].strip()
@@ -1459,7 +1461,8 @@ def create_qa_entry():
             cur.execute(sql, (msg_rpy_db, tag))
         else:
             # Insert new entry with IO=Output, and empty check/function/ans
-            sql = f'INSERT INTO "{table_name}" (tag, msg_rpy, "IO", "check", "function", ans) VALUES (%s, %s::json[], \'Output\', ARRAY[\'\'], \'\', ARRAY[\'\'])'
+            # We use "IO" and "check" (quoted) to match dbModel.py case or keywords
+            sql = f'INSERT INTO "{table_name}" (tag, msg_rpy, "IO", "check", "function", ans, type) VALUES (%s, %s::json[], \'Output\', ARRAY[\'\'], \'\', ARRAY[\'\'], \'Message\')'
             cur.execute(sql, (tag, msg_rpy_db))
             
         conn.commit()

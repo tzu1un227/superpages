@@ -11,6 +11,12 @@ broadcast_bp = Blueprint('broadcast', __name__)
 def get_db_connection(db_url):
     return psycopg2.connect(db_url)
 
+def get_logical_app_id(oa):
+    if oa.other_settings and 'app_name' in oa.other_settings:
+        if oa.other_settings['app_name']:
+            return str(oa.other_settings['app_name'])
+    return oa.db_url.split('/')[-1].split('?')[0].strip()
+
 @broadcast_bp.route('/audience-count', methods=['POST'])
 @token_required
 def get_audience_count():
@@ -30,7 +36,7 @@ def get_audience_count():
         # Get total followers (friends)
         # Assuming app_id can be extracted from db_url or we need another way to get it
         # Based on app.py, get_current_app_id() returns the DB name.
-        app_id = oa.db_url.split('/')[-1].split('?')[0].strip()
+        app_id = get_logical_app_id(oa)
         
         # Count target users
         count = 0
@@ -170,7 +176,7 @@ def execute_broadcast(id):
     if not oa or not oa.db_url:
         return jsonify({'error': 'OA configuration error (missing db_url)'}), 400
         
-    app_id = oa.db_url.split('/')[-1].split('?')[0].strip()
+    app_id = get_logical_app_id(oa)
     
     try:
         conn = get_db_connection(oa.db_url)
