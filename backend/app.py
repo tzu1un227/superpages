@@ -1050,7 +1050,7 @@ def get_statistics():
         for category in ['follow', 'unfollow', 'user', 'message']:
             cur.execute(
                 "SELECT * FROM get_events_count_by_category_and_tag(%s, %s, %s, %s)",
-                (start_time, end_time, category, group_unit)
+                (start_time, end_time, category.capitalize(), group_unit)
             )
             results[category] = cur.fetchall()
             
