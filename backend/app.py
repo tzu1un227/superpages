@@ -1071,12 +1071,12 @@ def get_statistics():
                 )
             elif category == 'follow':
                 cur.execute(
-                    "SELECT COUNT(*) as total FROM static_view WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category = 'Follow'",
+                    "SELECT COUNT(DISTINCT user_id) as total FROM static_view WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category = 'Follow'",
                     (start_time, end_time)
                 )
             elif category == 'unfollow':
                 cur.execute(
-                    "SELECT COUNT(*) as total FROM static_view WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category = 'Unfollow'",
+                    "SELECT COUNT(DISTINCT user_id) as total FROM static_view WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category = 'Unfollow'",
                     (start_time, end_time)
                 )
             else: # message
