@@ -252,10 +252,17 @@ function Broadcast() {
             // Validation: Prevent empty text messages
             for (let i = 0; i < formData.messages.length; i++) {
                 const msg = formData.messages[i];
-                if (msg.OTYPE === 'TextSendMessage' && (!msg.text || !msg.text.trim())) {
-                    alert(`第 ${i + 1} 則訊息內容不能為空`);
-                    setLoading(false);
-                    return;
+                if (msg.OTYPE === 'TextSendMessage') {
+                    if (!msg.text || !msg.text.trim()) {
+                        alert(`第 ${i + 1} 則訊息內容不能為空`);
+                        setLoading(false);
+                        return;
+                    }
+                    if (msg.text.length > 3000) {
+                        alert(`第 ${i + 1} 則文字訊息內容不能超過 3000 字`);
+                        setLoading(false);
+                        return;
+                    }
                 }
             }
 
@@ -295,9 +302,15 @@ function Broadcast() {
         // Validation: Prevent empty text messages
         for (let i = 0; i < formData.messages.length; i++) {
             const msg = formData.messages[i];
-            if (msg.OTYPE === 'TextSendMessage' && (!msg.text || !msg.text.trim())) {
-                alert(`第 ${i + 1} 則訊息內容不能為空`);
-                return;
+            if (msg.OTYPE === 'TextSendMessage') {
+                if (!msg.text || !msg.text.trim()) {
+                    alert(`第 ${i + 1} 則訊息內容不能為空`);
+                    return;
+                }
+                if (msg.text.length > 3000) {
+                    alert(`第 ${i + 1} 則文字訊息內容不能超過 3000 字`);
+                    return;
+                }
             }
         }
 
@@ -561,6 +574,7 @@ function Broadcast() {
                                     newMsgs[idx].text = e.target.value;
                                     setFormData({ ...formData, messages: newMsgs });
                                 }}
+                                maxLength={3000}
                                 style={{ width: '100%', minHeight: '120px', backgroundColor: '#111' }}
                                 placeholder="請輸入訊息內容..."
                             />

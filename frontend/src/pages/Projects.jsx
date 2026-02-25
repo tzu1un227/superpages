@@ -1481,7 +1481,10 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
         // Let's validate required fields.
         for (let i = 0; i < messages.length; i++) {
             const m = messages[i];
-            if (m.OTYPE === 'TextSendMessage' && !m.text) { alert(`第 ${i + 1} 則訊息內容不能為空`); return; }
+            if (m.OTYPE === 'TextSendMessage') {
+                if (!m.text) { alert(`第 ${i + 1} 則訊息內容不能為空`); return; }
+                if (m.text.length > 3000) { alert(`第 ${i + 1} 則文字訊息內容不能超過 3000 字`); return; }
+            }
             if (m.OTYPE === 'FlexSendMessage') {
                 if (!m.contents) { alert(`第 ${i + 1} 則 Flex 內容不能為空`); return; }
                 if (typeof m.contents === 'string') {
@@ -1627,6 +1630,7 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                             value={messages[activeMsgIndex].text}
                                             onChange={(e) => updateMessage(activeMsgIndex, 'text', e.target.value)}
                                             rows={8}
+                                            maxLength={3000}
                                             style={{ width: '100%', padding: '10px', background: '#222', border: 'none', color: '#fff' }}
                                         />
                                     </div>
