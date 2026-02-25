@@ -301,7 +301,7 @@ function MessageCenter() {
                 <div style={{ flex: 1, overflowY: 'auto' }}>
                     {users.length === 0 && (
                         <div style={{ color: '#555', fontSize: '13px', textAlign: 'center', marginTop: '20px' }}>
-                            {searchQuery || selectedTagFilter ? '找不到符合的用戶' : '尚無用戶'}
+                            {searchQuery || selectedTagFilters.length > 0 ? '找不到符合的用戶' : '尚無用戶'}
                         </div>
                     )}
                     {users.map(u => {
