@@ -146,19 +146,43 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
             template: (hero.type === 'image' && (!body.contents || body.contents.length === 0)) ? 'image' : 'option',
             imageUrl: hero.url || '',
             imageAction: {
-                type: hero.action?.type || 'none',
-                value: cleanPayload(hero.action?.uri || hero.action?.data || hero.action?.text || ''),
-                tags: extractTags(hero.action?.data || '')
+                type: 'none',
+                value: '',
+                tags: []
             },
             title: body.contents?.find(c => c.size === 'xl' || c.weight === 'bold')?.text || '',
             description: body.contents?.find(c => c.wrap && c.size === 'sm')?.text || '',
-            buttons: (footer.contents || []).filter(c => c.type === 'button').map(b => ({
-                text: b.action.label || b.action.text || '',
-                action: b.action.type === 'uri' ? 'uri' : 'message',
-                value: cleanPayload(b.action.uri || b.action.data || b.action.text || ''),
-                tags: extractTags(b.action.data || '')
-            }))
+            buttons: (footer.contents || []).filter(c => c.type === 'button').map(b => {
+                const rawVal = b.action.uri || b.action.data || b.action.text || '';
+                const cleanVal = cleanPayload(rawVal);
+                const tags = extractTags(rawVal);
+
+                // Determine if it was a URI or Message
+                // If it's a URI scheme or was originally a URI type
+                const isUri = b.action.type === 'uri' || (cleanVal && (cleanVal.startsWith('http') || cleanVal.startsWith('line://')));
+
+                return {
+                    text: b.action.label || b.action.text || '',
+                    action: isUri ? 'uri' : 'message',
+                    value: cleanVal,
+                    tags: tags
+                };
+            })
         };
+
+        // Parse Hero Action
+        if (hero.action) {
+            const rawVal = hero.action.uri || hero.action.data || hero.action.text || '';
+            const cleanVal = cleanPayload(rawVal);
+            const tags = extractTags(rawVal);
+            const isUri = hero.action.type === 'uri' || (cleanVal && (cleanVal.startsWith('http') || cleanVal.startsWith('line://')));
+
+            card.imageAction = {
+                type: isUri ? 'uri' : 'message',
+                value: cleanVal,
+                tags: tags
+            };
+        }
         return card;
     };
 
@@ -178,7 +202,17 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                 const hasValidScheme = val && (val.startsWith('http://') || val.startsWith('https://') || val.startsWith('line://'));
                 if (!val || !hasValidScheme) return null;
 
-                return { type: 'uri', label: 'action', uri: val + (tags.length > 0 ? `#tags=${tags.join(',')}` : '') };
+                // If there are tags, we MUST use postback to trigger the bot to set tags.
+                if (tags.length > 0) {
+                    return {
+                        type: 'postback',
+                        label: 'action',
+                        data: val + tagCmd,
+                        displayText: val
+                    };
+                }
+
+                return { type: 'uri', label: 'action', uri: val };
             }
 
             // Default to postback if message + tags
