@@ -129,17 +129,29 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
         const footer = bubble.footer || {};
 
         const extractTags = (payload) => {
-            if (!payload || !payload.includes('set_tag|')) return [];
-            const parts = payload.split('|');
-            const tagIdx = parts.indexOf('set_tag');
-            if (tagIdx === -1) return [];
-            // Everything after 'set_tag' is considered a tag until the end or next command
-            return parts.slice(tagIdx + 1);
+            if (!payload) return [];
+            // Handle postback/message format: |set_tag|tag1|tag2
+            if (payload.includes('set_tag|')) {
+                const parts = payload.split('|');
+                const tagIdx = parts.indexOf('set_tag');
+                if (tagIdx !== -1) return parts.slice(tagIdx + 1);
+            }
+            // Handle URI fragment format: #tags=tag1,tag2
+            const match = payload.match(/#tags=([^#?&]*)/);
+            if (match && match[1]) {
+                return match[1].split(',').filter(t => t);
+            }
+            return [];
         };
 
         const cleanPayload = (payload) => {
-            if (!payload || !payload.includes('set_tag|')) return payload;
-            return payload.split('set_tag|')[0].replace(/\|$/, '');
+            if (!payload) return payload;
+            // Clean postback format
+            if (payload.includes('set_tag|')) {
+                return payload.split('set_tag|')[0].replace(/\|$/, '');
+            }
+            // Clean URI fragment format
+            return payload.split('#tags=')[0];
         };
 
         const card = {
@@ -202,17 +214,9 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                 const hasValidScheme = val && (val.startsWith('http://') || val.startsWith('https://') || val.startsWith('line://'));
                 if (!val || !hasValidScheme) return null;
 
-                // If there are tags, we MUST use postback to trigger the bot to set tags.
-                if (tags.length > 0) {
-                    return {
-                        type: 'postback',
-                        label: 'action',
-                        data: val + tagCmd,
-                        displayText: val
-                    };
-                }
-
-                return { type: 'uri', label: 'action', uri: val };
+                // Add tags as fragment if present
+                const tagFragment = tags.length > 0 ? `#tags=${tags.join(',')}` : '';
+                return { type: 'uri', label: 'action', uri: val + tagFragment };
             }
 
             // Default to postback if message + tags
