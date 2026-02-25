@@ -1193,7 +1193,39 @@ def get_tags():
             WHERE name = 'tag'
             ORDER BY value
         """)
-        tags = [row['value'] for row in cur.fetchall()]
+        raw_tags = [row['value'] for row in cur.fetchall()]
+        
+        # Clean and split tags that might be stored as stringified arrays
+        tags_set = set()
+        for t in raw_tags:
+            if not t: continue
+            # Handle ['tag1', 'tag2']
+            if t.startswith('[') and t.endswith(']'):
+                try:
+                    import ast
+                    # Using literal_eval to safely parse ['a', 'b'] or ["a", "b"]
+                    parsed = ast.literal_eval(t)
+                    if isinstance(parsed, list):
+                        for item in parsed:
+                            if item: tags_set.add(str(item).strip())
+                    else:
+                        tags_set.add(str(parsed).strip())
+                except:
+                    # Fallback to simple split if eval fails
+                    items = t[1:-1].split(',')
+                    for item in items:
+                        cleaned = item.strip().strip("'").strip('"')
+                        if cleaned: tags_set.add(cleaned)
+            elif '|' in t:
+                for item in t.split('|'):
+                    if item.strip(): tags_set.add(item.strip())
+            elif ',' in t:
+                for item in t.split(','):
+                    if item.strip(): tags_set.add(item.strip())
+            else:
+                tags_set.add(t.strip())
+        
+        tags = sorted(list(tags_set))
         cur.close()
         conn.close()
         return json_response(tags)

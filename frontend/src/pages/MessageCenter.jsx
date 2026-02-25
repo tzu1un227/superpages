@@ -76,8 +76,9 @@ function MessageCenter() {
     const fetchAvailableTags = async () => {
         try {
             const resp = await api.get('/tags');
-            const cleanedTags = (resp.data || []).map(t => String(t).replace(/^[\[\"']+|[\]\"']+$/g, ''));
-            setAvailableTags([...new Set(cleanedTags)]);
+            // 後端已經處理過一部分，但保險起見前端再做一次清理
+            const tags = resp.data || [];
+            setAvailableTags(tags);
         } catch (err) {
             console.error('Error fetching tags:', err);
         }
@@ -150,36 +151,35 @@ function MessageCenter() {
         let tagsInput = user.tags;
         let tagList = [];
 
-        // 處理分割符，可能同時存在 | 或直接是 JSON 字串
+        // 處理分割符 |
         const rawParts = typeof tagsInput === 'string' ? tagsInput.split('|') : [tagsInput];
 
         rawParts.forEach(part => {
             if (!part) return;
             let trimmed = String(part).trim();
 
-            // 更強大的 JSON 與 陣列字串解析
-            if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
-                try {
-                    // 嘗試正規 JSON 解析 (需雙引號)
-                    const parsed = JSON.parse(trimmed.replace(/'/g, '"'));
-                    if (Array.isArray(parsed)) tagList.push(...parsed);
-                    else tagList.push(parsed);
-                } catch (e) {
-                    // fallback: 手動分割，移除括號與引號
-                    trimmed.slice(1, -1).split(',').forEach(s => {
-                        const s_trimmed = s.trim().replace(/^['"]|['"]$/g, '');
-                        if (s_trimmed) tagList.push(s_trimmed);
-                    });
-                }
+            // 處理 ['A', 'B'] 這種字串
+            if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+                // 移除前後方括號，然後依照逗號分割
+                const inner = trimmed.substring(1, trimmed.length - 1);
+                // 處理逗號分割並移除引號
+                inner.split(',').forEach(s => {
+                    const s_clean = s.trim().replace(/^['"]|['"]$/g, '');
+                    if (s_clean) tagList.push(s_clean);
+                });
             } else if (trimmed.includes(',')) {
-                trimmed.split(',').forEach(s => tagList.push(s.trim()));
+                trimmed.split(',').forEach(s => {
+                    const s_clean = s.trim().replace(/^['"]|['"]$/g, '');
+                    if (s_clean) tagList.push(s_clean);
+                });
             } else {
-                tagList.push(trimmed);
+                tagList.push(trimmed.replace(/^['"]|['"]$/g, ''));
             }
         });
 
+        // 最終清理與去重
         const uniqueTags = [...new Set(tagList.map(t => String(t).trim()).filter(t => t && t !== 'null' && t !== 'undefined' && t !== '[]' && t !== '{}'))];
-        return uniqueTags.map(t => t.replace(/^[\["'%]+|[\]"'%]+$/g, ''));
+        return uniqueTags;
     };
 
     // 輔助函式：提取訊息的可搜尋文本（解決 JSON Unicode 編碼問題）
