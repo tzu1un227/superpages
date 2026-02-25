@@ -97,7 +97,7 @@ const MainLayout = () => {
                     const isActive = location.pathname.startsWith(fullPath);
 
                     const displayName = page.name === 'PrizeStatus' ? '抽獎管理' :
-                      page.name === 'Projects' ? '自動旅程' :
+                      page.name === 'Projects' ? '旅程管理' :
                         page.description;
 
                     return (

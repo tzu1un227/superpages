@@ -114,6 +114,10 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
         const incomingJson = typeof initialContent === 'string' ? JSON.parse(initialContent || '{}') : initialContent;
 
         if (normalize(currentJson) !== normalize(incomingJson)) {
+            const size = JSON.stringify(currentJson).length;
+            if (size > 9000) {
+                console.warn(`Flex payload size warning: ${size} characters. LINE limit is ~10KB.`);
+            }
             onSave(JSON.stringify(currentJson));
         }
     }, [cards, mode, hasInitialized]);
@@ -300,6 +304,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
     // Computed json for preview
     const previewJson = generateJson();
     const previewWrapper = [{ OTYPE: 'FlexSendMessage', contents: previewJson }];
+    const payloadSize = JSON.stringify(previewJson).length;
 
     const currentCard = cards[currentCardIndex];
 
@@ -577,7 +582,12 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                 {/* Preview Panel - 40% */}
                 {/* Preview Panel - Bottom */}
                 <div style={{ flex: '1', backgroundColor: '#1a1a1a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px', overflowY: 'auto' }}>
-                    <div style={{ marginBottom: '10px', color: '#666', fontSize: '12px' }}>即時預覽</div>
+                    <div style={{ marginBottom: '10px', color: '#666', fontSize: '12px', display: 'flex', gap: '20px' }}>
+                        <span>即時預覽</span>
+                        <span style={{ color: payloadSize > 9000 ? '#FF4D4D' : '#666', fontWeight: payloadSize > 9000 ? 'bold' : 'normal' }}>
+                            Payload Size: {payloadSize} / 10000 {payloadSize > 9000 && '(接近上限，建議縮減內容)'}
+                        </span>
+                    </div>
                     <div style={{
                         width: '320px',
                         height: '600px',

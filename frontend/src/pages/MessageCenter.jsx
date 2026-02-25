@@ -66,10 +66,25 @@ function MessageCenter() {
         try {
             const resp = await api.get(`/history/${userId}`);
             setMessages(resp.data);
+            // Mark as read when opening chat
+            api.post(`/users/${userId}/read`).catch(e => console.error("Failed to mark as read", e));
+            // Trigger auto-scroll after data is set
+            setTimeout(scrollToBottom, 100);
         } catch (err) {
             console.error('Error fetching history:', err);
         }
     };
+
+    const messagesEndRef = useRef(null);
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
+    useEffect(() => {
+        if (messages.length > 0) {
+            scrollToBottom();
+        }
+    }, [messages]);
 
     const [availableTags, setAvailableTags] = useState([]);
 
@@ -213,9 +228,11 @@ function MessageCenter() {
     // 過濾後的訊息（對話內容搜尋）
     const filteredMessages = messages.filter(m => {
         // 過濾系統指令（不顯示在聊天室中）
-        if (m.category === 'Sensor') {
+        if (m.category === 'Sensor' || m.category === 'Postback') {
             const c = m.content || '';
-            if (c.startsWith('cron|') || c.startsWith('set_tag|') || c.startsWith('del_tag|')) return false;
+            // Allow some Sensor messages if they are specifically marked as displayable, 
+            // but per user request, we hide them.
+            return false;
         }
 
         // 對話內容搜尋
@@ -306,6 +323,7 @@ function MessageCenter() {
                     )}
                     {users.map(u => {
                         const userTags = getCurrentUserTags(u);
+                        const unreadCount = parseInt(u.unread_count || '0');
                         return (
                             <div
                                 key={u.user_id}
@@ -316,9 +334,28 @@ function MessageCenter() {
                                     cursor: 'pointer',
                                     marginBottom: '8px',
                                     backgroundColor: selectedUser === u.user_id ? 'rgba(255, 215, 0, 0.1)' : 'transparent',
-                                    border: selectedUser === u.user_id ? '1px solid var(--primary-yellow)' : '1px solid transparent'
+                                    border: selectedUser === u.user_id ? '1px solid var(--primary-yellow)' : '1px solid transparent',
+                                    position: 'relative'
                                 }}
                             >
+                                {unreadCount > 0 && selectedUser !== u.user_id && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        right: '12px',
+                                        top: '12px',
+                                        backgroundColor: '#ff4d4f',
+                                        color: 'white',
+                                        borderRadius: '10px',
+                                        padding: '1px 6px',
+                                        fontSize: '10px',
+                                        fontWeight: 'bold',
+                                        minWidth: '18px',
+                                        textAlign: 'center',
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                    }}>
+                                        {unreadCount > 99 ? '99+' : unreadCount}
+                                    </div>
+                                )}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     <div style={{ backgroundColor: '#333', padding: '8px', borderRadius: '50%', flexShrink: 0 }}>
                                         <User size={18} />
@@ -432,103 +469,97 @@ function MessageCenter() {
 
                         {/* 訊息列表 */}
                         <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                            {filteredMessages.map((m, i) => {
-                                const isAdmin = m.user_id === 'yzuadmin' || m.category === 'Sensor' || m.category === 'Response' || m.category === 'sys_reply';
-                                let displayContent = m.content;
-                                if (isAdmin && displayContent.startsWith('MSG|')) {
-                                    displayContent = displayContent.substring(4);
-                                }
-                                if (m.category === 'sys_reply') {
-                                    try {
-                                        const parsed = JSON.parse(m.content);
+                            {(() => {
+                                let lastDate = null;
+                                return filteredMessages.map((m, i) => {
+                                    const mDate = new Date(m.timestamp).toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' });
+                                    const showDateHeader = mDate !== lastDate;
+                                    lastDate = mDate;
 
-                                        if (parsed.type === 'text' && parsed.text) {
-                                            displayContent = parsed.text;
-                                        } else if (parsed.type === 'image') {
-                                            displayContent = (
-                                                <img
-                                                    src={parsed.previewImageUrl || parsed.originalContentUrl}
-                                                    alt="Image"
-                                                    style={{ maxWidth: '200px', borderRadius: '8px', cursor: 'pointer' }}
-                                                    onClick={() => window.open(parsed.originalContentUrl, '_blank')}
-                                                />
-                                            );
-                                        } else if (parsed.type === 'video') {
-                                            displayContent = (
-                                                <div style={{ maxWidth: '200px' }}>
-                                                    <video
-                                                        src={parsed.originalContentUrl}
-                                                        controls
-                                                        poster={parsed.previewImageUrl}
-                                                        style={{ width: '100%', borderRadius: '8px' }}
-                                                    />
-                                                </div>
-                                            );
-                                        } else if (parsed.type === 'audio') {
-                                            displayContent = (
-                                                <audio controls src={parsed.originalContentUrl} style={{ maxWidth: '200px' }} />
-                                            );
-                                        } else if (parsed.type === 'flex' && parsed.contents) {
-                                            const renderFlexBubble = (bubble) => {
-                                                const hero = bubble.hero || {};
-                                                const body = bubble.body || {};
-                                                const title = body.contents?.find(c => c.size === 'xl' || c.weight === 'bold')?.text || bubble.altText || 'Flex Message';
-                                                const imageUrl = hero.url;
-                                                return (
-                                                    <div style={{ backgroundColor: '#fff', color: '#000', borderRadius: '8px', overflow: 'hidden', width: '200px', fontSize: '12px' }}>
-                                                        {imageUrl && <img src={imageUrl} style={{ width: '100%', height: '100px', objectFit: 'cover' }} />}
-                                                        <div style={{ padding: '8px' }}>
-                                                            {title && <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{title}</div>}
-                                                            <div style={{ color: '#666' }}>[Flex 訊息]</div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            };
-
-                                            if (parsed.contents.type === 'carousel') {
-                                                displayContent = (
-                                                    <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '5px', maxWidth: '300px' }}>
-                                                        {parsed.contents.contents.map((b, idx) => (
-                                                            <div key={idx} style={{ flexShrink: 0 }}>{renderFlexBubble(b)}</div>
-                                                        ))}
-                                                    </div>
-                                                );
-                                            } else {
-                                                displayContent = renderFlexBubble(parsed.contents);
-                                            }
-                                        }
-                                    } catch (e) {
-                                        // keeping original content if not JSON
+                                    const isAdmin = m.user_id === 'yzuadmin' || m.category === 'Response' || m.category === 'sys_reply';
+                                    let displayContent = m.content;
+                                    if (isAdmin && typeof displayContent === 'string' && displayContent.startsWith('MSG|')) {
+                                        displayContent = displayContent.substring(4);
                                     }
-                                }
 
-                                // 搜尋關鍵字高亮
-                                const highlightText = (text) => {
-                                    if (!messageSearch || typeof text !== 'string') return text;
-                                    const parts = text.split(new RegExp(`(${messageSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
-                                    return parts.map((part, idx) =>
-                                        part.toLowerCase() === messageSearch.toLowerCase()
-                                            ? <mark key={idx} style={{ backgroundColor: 'rgba(255,215,0,0.4)', color: 'inherit', borderRadius: '2px', padding: '0 1px' }}>{part}</mark>
-                                            : part
+                                    // ... inline components logic ...
+                                    const renderMessageContent = () => {
+                                        if (m.category === 'sys_reply') {
+                                            try {
+                                                const parsed = JSON.parse(m.content);
+                                                if (parsed.type === 'text' && parsed.text) return highlightText(parsed.text);
+                                                if (parsed.type === 'image') return (
+                                                    <img src={parsed.previewImageUrl || parsed.originalContentUrl} style={{ maxWidth: '200px', borderRadius: '8px', cursor: 'pointer' }} onClick={() => window.open(parsed.originalContentUrl, '_blank')} />
+                                                );
+                                                if (parsed.type === 'video') return (
+                                                    <div style={{ maxWidth: '200px' }}>
+                                                        <video src={parsed.originalContentUrl} controls poster={parsed.previewImageUrl} style={{ width: '100%', borderRadius: '8px' }} />
+                                                    </div>
+                                                );
+                                                if (parsed.type === 'audio') return (
+                                                    <audio controls src={parsed.originalContentUrl} style={{ maxWidth: '200px' }} />
+                                                );
+                                                if (parsed.type === 'flex' && parsed.contents) {
+                                                    const renderFlexBubble = (bubble) => {
+                                                        const hero = bubble.hero || {};
+                                                        const body = bubble.body || {};
+                                                        const title = body.contents?.find(c => c.size === 'xl' || c.weight === 'bold')?.text || bubble.altText || 'Flex Message';
+                                                        const imageUrl = hero.url;
+                                                        return (
+                                                            <div style={{ backgroundColor: '#fff', color: '#000', borderRadius: '8px', overflow: 'hidden', width: '200px', fontSize: '12px' }}>
+                                                                {imageUrl && <img src={imageUrl} style={{ width: '100%', height: '100px', objectFit: 'cover' }} />}
+                                                                <div style={{ padding: '8px' }}>
+                                                                    {title && <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{title}</div>}
+                                                                    <div style={{ color: '#666' }}>[Flex 訊息]</div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    };
+
+                                                    if (parsed.contents.type === 'carousel') {
+                                                        return (
+                                                            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '5px', maxWidth: '300px' }}>
+                                                                {parsed.contents.contents.map((b, idx) => (
+                                                                    <div key={idx} style={{ flexShrink: 0 }}>{renderFlexBubble(b)}</div>
+                                                                ))}
+                                                            </div>
+                                                        );
+                                                    } else {
+                                                        return renderFlexBubble(parsed.contents);
+                                                    }
+                                                }
+                                                return `[${parsed.type}]`;
+                                            } catch (e) { return highlightText(m.content); }
+                                        }
+                                        return highlightText(displayContent);
+                                    };
+
+                                    return (
+                                        <React.Fragment key={i}>
+                                            {showDateHeader && (
+                                                <div style={{ textAlign: 'center', margin: '20px 0', position: 'relative' }}>
+                                                    <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: '1px', backgroundColor: '#333', zIndex: 0 }}></div>
+                                                    <span style={{ backgroundColor: '#1a1a1a', padding: '4px 15px', color: '#888', fontSize: '12px', position: 'relative', zIndex: 1, borderRadius: '12px' }}>{mDate}</span>
+                                                </div>
+                                            )}
+                                            <div id={`msg-${i}`} style={{
+                                                alignSelf: isAdmin ? 'flex-end' : 'flex-start',
+                                                maxWidth: '70%',
+                                                padding: '12px 16px',
+                                                borderRadius: '16px',
+                                                backgroundColor: isAdmin ? 'var(--primary-yellow)' : '#333',
+                                                color: isAdmin ? 'black' : 'white',
+                                            }}>
+                                                <div style={{ fontSize: '14px' }}>
+                                                    {renderMessageContent()}
+                                                </div>
+                                                <p style={{ fontSize: '10px', marginTop: '5px', opacity: 0.6 }}>{new Date(m.timestamp).toLocaleTimeString()}</p>
+                                            </div>
+                                        </React.Fragment>
                                     );
-                                };
-
-                                return (
-                                    <div key={i} style={{
-                                        alignSelf: isAdmin ? 'flex-end' : 'flex-start',
-                                        maxWidth: '70%',
-                                        padding: '12px 16px',
-                                        borderRadius: '16px',
-                                        backgroundColor: isAdmin ? 'var(--primary-yellow)' : '#333',
-                                        color: isAdmin ? 'black' : 'white',
-                                    }}>
-                                        <p style={{ fontSize: '14px' }}>
-                                            {typeof displayContent === 'string' ? highlightText(displayContent) : displayContent}
-                                        </p>
-                                        <p style={{ fontSize: '10px', marginTop: '5px', opacity: 0.6 }}>{new Date(m.timestamp).toLocaleTimeString()}</p>
-                                    </div>
-                                );
-                            })}
+                                });
+                            })()}
+                            <div ref={messagesEndRef} />
                         </div>
 
                         {/* 訊息輸入框 */}

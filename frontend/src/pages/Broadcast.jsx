@@ -249,6 +249,16 @@ function Broadcast() {
                 msgTag = `bc_${Date.now()}`;
             }
 
+            // Validation: Prevent empty text messages
+            for (let i = 0; i < formData.messages.length; i++) {
+                const msg = formData.messages[i];
+                if (msg.OTYPE === 'TextSendMessage' && (!msg.text || !msg.text.trim())) {
+                    alert(`第 ${i + 1} 則訊息內容不能為空`);
+                    setLoading(false);
+                    return;
+                }
+            }
+
             await api.post('/qa-bank', {
                 tag: msgTag,
                 msg_rpy: formData.messages,
@@ -280,6 +290,15 @@ function Broadcast() {
         if (formData.send_type === 'scheduled' && !formData.scheduled_at) {
             alert('請選擇預約時間');
             return;
+        }
+
+        // Validation: Prevent empty text messages
+        for (let i = 0; i < formData.messages.length; i++) {
+            const msg = formData.messages[i];
+            if (msg.OTYPE === 'TextSendMessage' && (!msg.text || !msg.text.trim())) {
+                alert(`第 ${i + 1} 則訊息內容不能為空`);
+                return;
+            }
         }
 
         setLoading(true);
@@ -633,7 +652,13 @@ function Broadcast() {
                 {formData.messages.length < 5 && (
                     <button
                         className="secondary"
-                        style={{ borderStyle: 'dashed', padding: '20px', backgroundColor: 'transparent' }}
+                        style={{
+                            borderStyle: 'dashed',
+                            padding: '20px',
+                            backgroundColor: '#fff',
+                            color: '#000',
+                            fontWeight: 'bold'
+                        }}
                         onClick={() => {
                             setFormData({ ...formData, messages: [...formData.messages, { OTYPE: 'TextSendMessage', text: '' }] });
                         }}

@@ -169,6 +169,15 @@ const ProjectsManagement = () => {
     }, [location.pathname]);
 
     useEffect(() => {
+        if (selectedProjectId) {
+            const project = projects.find(p => p.project_id == selectedProjectId);
+            if (project) {
+                setStatsDateRange({
+                    start: project.start_date.split('T')[0],
+                    end: project.end_date.split('T')[0]
+                });
+            }
+        }
         if (activeTab === 'schedules') {
             fetchSchedules();
             if (selectedProjectId) {
@@ -178,7 +187,7 @@ const ProjectsManagement = () => {
         if (activeTab === 'users' && selectedProjectId) {
             fetchProjectUsers(selectedProjectId);
         }
-    }, [selectedProjectId, activeTab, statsDateRange]);
+    }, [selectedProjectId, activeTab, statsDateRange.start, statsDateRange.end, projects]);
 
     // Auto-fill Step ID
     useEffect(() => {
@@ -332,6 +341,12 @@ const ProjectsManagement = () => {
     const handleAddUserToProject = () => {
         if (!selectedProjectId) {
             alert('請先選擇一個專案');
+            return;
+        }
+        // Restrict user addition if no schedules are created for the selected project
+        const projectSchedules = schedules.filter(s => s.project_id == selectedProjectId);
+        if (projectSchedules.length === 0) {
+            alert('此專案尚未設定任何排程步驟，請先新增排程後再加入用戶。');
             return;
         }
         setIsUserSelectModalOpen(true);
@@ -522,6 +537,16 @@ setPreviewSteps(steps);
         try {
             let finalMessageContent = editScheduleFormData.message_content;
 
+            // Validation: Non-empty and max 3000 chars for text messages
+            if (!finalMessageContent || !finalMessageContent.trim()) {
+                setError('訊息內容不能為空');
+                return;
+            }
+            if (finalMessageContent.length > 3000) {
+                setError('訊息內容不能超過 3000 字');
+                return;
+            }
+
             // Auto convert plain text to QA tag if needed
             if (finalMessageContent && !finalMessageContent.startsWith('QA|')) {
                 finalMessageContent = await saveAsRichMessage(
@@ -563,6 +588,16 @@ setPreviewSteps(steps);
             const scheduleToCreate = { ...newSchedule, project_id: selectedProjectId || newSchedule.project_id };
             if (!scheduleToCreate.project_id) {
                 setError('請先選擇或輸入專案 ID');
+                return;
+            }
+
+            // Validation: Non-empty and max 3000 chars for text messages
+            if (!scheduleToCreate.message_content || !scheduleToCreate.message_content.trim()) {
+                setError('訊息內容不能為空');
+                return;
+            }
+            if (scheduleToCreate.message_content.length > 3000) {
+                setError('訊息內容不能超過 3000 字');
                 return;
             }
 
@@ -959,9 +994,9 @@ setPreviewSteps(steps);
                                     <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#fff' }}>{projectStats.tc || 0}</div>
                                 </div>
                                 <div style={{ background: '#1a1a1a', padding: '15px', borderRadius: '8px', border: '1px solid #333' }}>
-                                    <div style={{ color: '#888', fontSize: '12px' }}>完成率</div>
-                                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#4CAF50' }}>{projectStats.completion_rate || 0}%</div>
-                                    <div style={{ fontSize: '10px', color: '#555' }}>共 {projectStats.cc || 0} 人完成</div>
+                                    <div style={{ color: '#888', fontSize: '12px' }}>總完成次數 (Total Completions)</div>
+                                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#4CAF50' }}>{projectStats.tcc || 0}</div>
+                                    <div style={{ fontSize: '10px', color: '#555' }}>完成率: {projectStats.completion_rate || 0}%</div>
                                 </div>
                                 <div style={{ background: '#1a1a1a', padding: '15px', borderRadius: '8px', border: '1px solid #333' }}>
                                     <div style={{ color: '#888', fontSize: '12px' }}>總發送數</div>

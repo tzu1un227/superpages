@@ -1326,8 +1326,9 @@ def get_users_list():
             SELECT sub.user_id,
                    sub.last_message,
                    sub.last_time,
-                   (SELECT string_agg(value, '|') FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'tag') as tags,
-                   (SELECT value FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'name' LIMIT 1) as name
+                    (SELECT string_agg(value, '|') FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'tag') as tags,
+                    (SELECT value FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'name' LIMIT 1) as name,
+                    (SELECT value FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'unread_count' LIMIT 1) as unread_count
             FROM (
                 SELECT DISTINCT ON (user_id) user_id,
                        content as last_message,
@@ -1567,6 +1568,23 @@ def get_qa_entry(tag):
             return jsonify({"tag": tag, "msg_rpy": ms})
         else:
             return jsonify({"error": "Not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/users/<string:user_id>/read', methods=['POST'])
+def mark_user_as_read(user_id):
+    try:
+        app_id = get_current_app_id()
+        conn = get_db_connection()
+        cur = conn.cursor()
+        # Reset unread_count to 0
+        cur.execute(f'UPDATE "Private_var:{app_id}" SET value = \'0\' WHERE user_id = %s AND name = \'unread_count\'', (user_id,))
+        if cur.rowcount == 0:
+            cur.execute(f'INSERT INTO "Private_var:{app_id}" (user_id, name, value) VALUES (%s, \'unread_count\', \'0\')', (user_id, 'unread_count', '0'))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
