@@ -199,12 +199,17 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                     url: card.imageUrl || 'https://via.placeholder.com/800x400',
                     size: 'full',
                     aspectRatio: '20:13',
-                    aspectMode: 'cover',
-                    action: buildAction(card.imageAction.type, card.imageAction.value, card.imageAction.tags)
+                    aspectMode: 'cover'
                 }
             };
 
+            const heroAction = buildAction(card.imageAction.type, card.imageAction.value, card.imageAction.tags);
+            if (heroAction) {
+                bubble.hero.action = heroAction;
+            }
+
             if (card.template === 'option') {
+                // In carousel mode, force all to kilo. In single mode, mega is set later.
                 bubble.size = 'kilo';
                 bubble.body = {
                     type: 'box',
@@ -219,20 +224,36 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                         type: 'box',
                         layout: 'vertical',
                         spacing: 'sm',
-                        contents: card.buttons.map(btn => ({
-                            type: 'button',
-                            style: 'link',
-                            height: 'sm',
-                            action: buildAction(btn.action === 'uri' ? 'uri' : 'message', btn.value, btn.tags || [])
-                        }))
+                        contents: card.buttons.map(btn => {
+                            const btnAction = buildAction(btn.action === 'uri' ? 'uri' : 'message', btn.value, btn.tags || []);
+                            if (!btnAction) return null;
+                            return {
+                                type: 'button',
+                                style: 'link',
+                                height: 'sm',
+                                action: btnAction
+                            };
+                        }).filter(b => b !== null)
                     };
-                    bubble.footer.contents.forEach((b, i) => {
-                        b.action.label = card.buttons[i].text || '按鈕';
-                    });
+
+                    if (bubble.footer.contents.length > 0) {
+                        bubble.footer.contents.forEach((b, i) => {
+                            // Map back labels - search in non-null buttons
+                            const originalButtons = card.buttons.filter(ob => {
+                                const act = buildAction(ob.action === 'uri' ? 'uri' : 'message', ob.value, ob.tags || []);
+                                return !!act;
+                            });
+                            b.action.label = originalButtons[i]?.text || '按鈕';
+                        });
+                    } else {
+                        delete bubble.footer;
+                    }
                 }
             } else {
                 // Image Card
                 bubble.body = { type: 'box', layout: 'vertical', contents: [], paddingAll: '0px' };
+                // Also force kilo for image cards in carousel
+                if (mode === 'carousel') bubble.size = 'kilo';
             }
 
             return bubble;
