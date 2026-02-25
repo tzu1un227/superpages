@@ -245,6 +245,21 @@ function MessageCenter() {
         return true;
     });
 
+    // 輔助函式：高亮搜尋文本
+    const highlightText = (text) => {
+        if (!messageSearch.trim() || !text) return text;
+        const parts = String(text).split(new RegExp(`(${messageSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
+        return (
+            <span>
+                {parts.map((part, i) => (
+                    part.toLowerCase() === messageSearch.toLowerCase() ?
+                        <mark key={i} style={{ backgroundColor: 'rgba(255, 215, 0, 0.6)', color: 'black', padding: '0 2px', borderRadius: '2px' }}>{part}</mark> :
+                        part
+                ))}
+            </span>
+        );
+    };
+
     return (
         <div style={{ display: 'flex', height: 'calc(100vh - 120px)', gap: '20px' }}>
             {/* User Sidebar */}

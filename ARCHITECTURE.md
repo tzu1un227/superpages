@@ -89,7 +89,7 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - 點選標籤後，以 `tag` query parameter 傳入 `/api/users`，僅回傳擁有該標籤的用戶。
   - **對話內容搜尋 (Message Content Search)**:
     - 聊天室上方有獨立搜尋框，可搜尋當前選用用戶的對話內容。
-    - 符合的關鍵字以黃色背景高亮顯示，並顯示符合筆數。
+    - 符合的關鍵字以黃色背景高亮顯示（透過 `highlightText` 函式），並顯示符合筆數。
   - **Message Display**:
     - Messages from `yzuadmin`, or with category `Sensor`, `Response`, or `sys_reply` are displayed on the right (Admin/System side).
     - `sys_reply` messages are displayed with rich content (text/image/video/audio/flex).
@@ -104,7 +104,7 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 
 ### Core Components
 1. **Integrated Project Metrics**: Located within `Projects.jsx` -> `activeTab === 'schedules'`.
-   - Displays project-specific metrics: 觸發客戶數 (tc), 完成率 (completion_rate), 成功/失敗數 (mss/msf).
+    - 顯示專案特定指標：完成率 (completion_rate) 優先顯示於上方，其次為總完成次數 (tcc)、觸發客戶數 (tc)、成功/失敗數 (mss/msf)。
    - Metrics are filtered by the selected project and the specified date range.
 2. **Global Account Analysis**: Located within `Statistics.jsx`.
     - **Trend Analysis**: Fetches grouped data from `/api/statistics`. (Global metrics: 總訊息量, 新增好友數 [資料庫 Follow], 封鎖/解除數 [資料庫 Unfollow], 有效好友數 [該時段內每日活躍人次])。

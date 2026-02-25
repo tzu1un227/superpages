@@ -143,7 +143,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
         };
 
         const card = {
-            template: (hero.type === 'image' && !body.contents) ? 'image' : 'option',
+            template: (hero.type === 'image' && (!body.contents || body.contents.length === 0)) ? 'image' : 'option',
             imageUrl: hero.url || '',
             imageAction: {
                 type: hero.action?.type || 'none',

@@ -255,7 +255,8 @@ const ProjectsManagement = () => {
                 : `/schedules`;
             const res = await api.get(url);
             console.log("Fetched schedules:", res.data); // Debugging
-            setSchedules(Array.isArray(res.data) ? res.data : []);
+            const sortedData = Array.isArray(res.data) ? res.data.sort((a, b) => (parseInt(a.step_id) || 0) - (parseInt(b.step_id) || 0)) : [];
+            setSchedules(sortedData);
         } catch (err) {
             console.error("Fetch schedules error:", err);
             setError('無法取得排程資料: ' + (err.response?.data?.error || err.message));
@@ -738,8 +739,8 @@ setPreviewSteps(steps);
     return (
         <div>
             <div style={{ marginBottom: '40px' }}>
-                <h1 style={{ fontSize: '32px', marginBottom: '10px' }}>專案與排程管理</h1>
-                <p style={{ color: '#B0B0B0' }}>管理自動化推播專案及其對應的執行排程</p>
+                <h1 style={{ fontSize: '32px', marginBottom: '10px' }}>自動旅程管理</h1>
+                <p style={{ color: '#B0B0B0' }}>管理自動化推播旅程及其對應的執行排程</p>
             </div>
 
             {error && (
@@ -760,7 +761,7 @@ setPreviewSteps(steps);
                         display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '8px 8px 0 0'
                     }}
                 >
-                    <LayoutDashboard size={18} /> 專案管理
+                    <LayoutDashboard size={18} /> 旅程管理
                 </button>
                 <button
                     onClick={() => setActiveTab('schedules')}
@@ -994,9 +995,9 @@ setPreviewSteps(steps);
                                     <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#fff' }}>{projectStats.tc || 0}</div>
                                 </div>
                                 <div style={{ background: '#1a1a1a', padding: '15px', borderRadius: '8px', border: '1px solid #333' }}>
-                                    <div style={{ color: '#888', fontSize: '12px' }}>總完成次數 (Total Completions)</div>
-                                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#4CAF50' }}>{projectStats.tcc || 0}</div>
-                                    <div style={{ fontSize: '10px', color: '#555' }}>完成率: {projectStats.completion_rate || 0}%</div>
+                                    <div style={{ color: '#888', fontSize: '12px' }}>完成率</div>
+                                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#4CAF50' }}>{projectStats.completion_rate || 0}%</div>
+                                    <div style={{ fontSize: '10px', color: '#555' }}>總完成次數: {projectStats.tcc || 0}</div>
                                 </div>
                                 <div style={{ background: '#1a1a1a', padding: '15px', borderRadius: '8px', border: '1px solid #333' }}>
                                     <div style={{ color: '#888', fontSize: '12px' }}>總發送數</div>
@@ -1102,6 +1103,7 @@ setPreviewSteps(steps);
                                                     : newSchedule.message_content
                                                 }
                                                 onChange={e => setNewSchedule({ ...newSchedule, message_content: e.target.value })}
+                                                maxLength={3000}
                                                 style={{ width: '100%' }}
                                             />
                                             <button
@@ -1228,6 +1230,7 @@ setPreviewSteps(steps);
                                                                 : editScheduleFormData.message_content
                                                             }
                                                             onChange={e => setEditScheduleFormData({ ...editScheduleFormData, message_content: e.target.value })}
+                                                            maxLength={3000}
                                                             style={{ width: '100%' }}
                                                         />
                                                         <button

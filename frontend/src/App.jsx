@@ -97,7 +97,7 @@ const MainLayout = () => {
                     const isActive = location.pathname.startsWith(fullPath);
 
                     const displayName = page.name === 'PrizeStatus' ? '抽獎管理' :
-                      page.name === 'Projects' ? '旅程管理' :
+                      page.name === 'Projects' ? '自動旅程' :
                         page.description;
 
                     return (
@@ -143,6 +143,7 @@ const MainLayout = () => {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
+          <Route path="/dashboard" element={<Navigate to="/" />} />
 
           <Route path="/oa/:oaId/messages" element={<ProtectedRoute><MessageCenter /></ProtectedRoute>} />
           <Route path="/oa/:oaId/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
