@@ -1096,16 +1096,20 @@ setPreviewSteps(steps);
                                     <div>
                                         <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>訊息內容</label>
                                         <div style={{ display: 'flex', gap: '5px' }}>
-                                            <input
-                                                type="text"
-                                                value={(newSchedule.message_content && newSchedule.message_content.startsWith('QA|') && newSchedule.message_preview)
-                                                    ? newSchedule.message_preview
-                                                    : newSchedule.message_content
-                                                }
-                                                onChange={e => setNewSchedule({ ...newSchedule, message_content: e.target.value })}
-                                                maxLength={3000}
-                                                style={{ width: '100%' }}
-                                            />
+                                            <div style={{ flex: 1 }}>
+                                                <input
+                                                    type="text"
+                                                    value={(newSchedule.message_content && newSchedule.message_content.startsWith('QA|') && newSchedule.message_preview)
+                                                        ? newSchedule.message_preview
+                                                        : newSchedule.message_content
+                                                    }
+                                                    onChange={e => setNewSchedule({ ...newSchedule, message_content: e.target.value })}
+                                                    style={{ width: '100%' }}
+                                                />
+                                                <div style={{ fontSize: '11px', color: (newSchedule.message_content || '').length > 3000 ? '#ff4d4d' : '#888', textAlign: 'right', marginTop: '2px' }}>
+                                                    {(newSchedule.message_content || '').length} / 3000
+                                                </div>
+                                            </div>
                                             <button
                                                 onClick={() => openRichEditor(
                                                     newSchedule.message_content,
@@ -1223,16 +1227,20 @@ setPreviewSteps(steps);
                                             <td style={{ maxWidth: '300px' }}>
                                                 {editingScheduleId === s.schedule_id ? (
                                                     <div style={{ display: 'flex', gap: '5px' }}>
-                                                        <input
-                                                            type="text"
-                                                            value={(editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.message_preview)
-                                                                ? editScheduleFormData.message_preview
-                                                                : editScheduleFormData.message_content
-                                                            }
-                                                            onChange={e => setEditScheduleFormData({ ...editScheduleFormData, message_content: e.target.value })}
-                                                            maxLength={3000}
-                                                            style={{ width: '100%' }}
-                                                        />
+                                                        <div style={{ flex: 1 }}>
+                                                            <input
+                                                                type="text"
+                                                                value={(editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.message_preview)
+                                                                    ? editScheduleFormData.message_preview
+                                                                    : editScheduleFormData.message_content
+                                                                }
+                                                                onChange={e => setEditScheduleFormData({ ...editScheduleFormData, message_content: e.target.value })}
+                                                                style={{ width: '100%' }}
+                                                            />
+                                                            <div style={{ fontSize: '10px', color: (editScheduleFormData.message_content || '').length > 3000 ? '#ff4d4d' : '#888', textAlign: 'right', marginTop: '2px' }}>
+                                                                {(editScheduleFormData.message_content || '').length} / 3000
+                                                            </div>
+                                                        </div>
                                                         <button
                                                             onClick={() => openRichEditor(
                                                                 editScheduleFormData.message_content,
@@ -1630,9 +1638,11 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                             value={messages[activeMsgIndex].text}
                                             onChange={(e) => updateMessage(activeMsgIndex, 'text', e.target.value)}
                                             rows={8}
-                                            maxLength={3000}
                                             style={{ width: '100%', padding: '10px', background: '#222', border: 'none', color: '#fff' }}
                                         />
+                                        <div style={{ fontSize: '12px', color: (messages[activeMsgIndex].text || '').length > 3000 ? '#ff4d4d' : '#888', textAlign: 'right', marginTop: '5px' }}>
+                                            {(messages[activeMsgIndex].text || '').length} / 3000
+                                        </div>
                                     </div>
                                 )}
 

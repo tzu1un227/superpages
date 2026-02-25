@@ -74,6 +74,8 @@ function AdminPage() {
     const [dbUrl, setDbUrl] = useState('');
     const [socketUrl, setSocketUrl] = useState('');
     const [appName, setAppName] = useState('');
+    const [lineToken, setLineToken] = useState('');
+    const [lineSecret, setLineSecret] = useState('');
     const [githubConfig, setGithubConfig] = useState({
         token: '',
         repo: '',
@@ -179,6 +181,8 @@ function AdminPage() {
                 other_settings: {
                     socket_url: socketUrl,
                     app_name: appName,
+                    line_token: lineToken,
+                    line_secret: lineSecret,
                     github_config: githubConfig
                 }
             };
@@ -202,6 +206,8 @@ function AdminPage() {
         setDbUrl('');
         setSocketUrl('');
         setAppName('');
+        setLineToken('');
+        setLineSecret('');
         setGithubConfig({
             token: '',
             repo: '',
@@ -217,6 +223,8 @@ function AdminPage() {
         setDbUrl(oa.db_url);
         setSocketUrl(oa.other_settings?.socket_url || '');
         setAppName(oa.other_settings?.app_name || '');
+        setLineToken(oa.other_settings?.line_token || '');
+        setLineSecret(oa.other_settings?.line_secret || '');
         if (oa.other_settings && oa.other_settings.github_config) {
             setGithubConfig(oa.other_settings.github_config);
         } else {
@@ -546,6 +554,34 @@ function AdminPage() {
                         value={appName}
                         onChange={(e) => setAppName(e.target.value)}
                         placeholder="e.g. 5013 (Optional, defaults to DB name)"
+                        sx={{
+                            input: { color: 'white' },
+                            label: { color: '#B0B0B0' },
+                            '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#555' }, '&:hover fieldset': { borderColor: '#888' }, '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' } }
+                        }}
+                    />
+
+                    <Typography variant="h6" sx={{ mt: 2, mb: 1, fontSize: '1rem', color: 'var(--primary-yellow)' }}>LINE Messaging API 設定</Typography>
+                    <TextField
+                        margin="dense"
+                        label="LINE Channel Access Token"
+                        fullWidth
+                        type="password"
+                        value={lineToken}
+                        onChange={(e) => setLineToken(e.target.value)}
+                        sx={{
+                            input: { color: 'white' },
+                            label: { color: '#B0B0B0' },
+                            '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#555' }, '&:hover fieldset': { borderColor: '#888' }, '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' } }
+                        }}
+                    />
+                    <TextField
+                        margin="dense"
+                        label="LINE Channel Secret"
+                        fullWidth
+                        type="password"
+                        value={lineSecret}
+                        onChange={(e) => setLineSecret(e.target.value)}
                         sx={{
                             input: { color: 'white' },
                             label: { color: '#B0B0B0' },

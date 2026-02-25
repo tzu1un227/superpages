@@ -426,6 +426,10 @@ function RichMenu() {
         <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
                 <div><h1 style={{ fontSize: '32px', marginBottom: '10px' }}>圖文選單</h1><p style={{ color: '#B0B0B0' }}>管理並設計 OA 的圖文選單按鈕與功能</p></div>
+                <div style={{ padding: '10px 15px', backgroundColor: 'rgba(255, 215, 0, 0.1)', border: '1px solid rgba(255, 215, 0, 0.3)', borderRadius: '8px', fontSize: '13px', color: '#FFD700', maxWidth: '500px' }}>
+                    <AlertCircle size={16} style={{ verticalAlign: 'middle', marginRight: '8px' }} />
+                    系統僅能顯示與管理透過此介面或 API 建立的選單。原先於 LINE 官方後台 GUI 建立的選單無法讀取。
+                </div>
                 <div style={{ display: 'flex', gap: '15px' }}>
                     <button onClick={handleCreateNew} className="primary"><Plus size={20} /> 新增選單</button>
                 </div>

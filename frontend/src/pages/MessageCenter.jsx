@@ -225,25 +225,33 @@ function MessageCenter() {
         return content;
     };
 
-    // 過濾後的訊息（對話內容搜尋）
-    const filteredMessages = messages.filter(m => {
-        // 過濾系統指令（不顯示在聊天室中）
-        if (m.category === 'Sensor' || m.category === 'Postback') {
-            const c = m.content || '';
-            // Allow some Sensor messages if they are specifically marked as displayable, 
-            // but per user request, we hide them.
-            return false;
-        }
-
-        // 對話內容搜尋
-        if (messageSearch.trim()) {
-            const text = getSearchableText(m);
-            const search = messageSearch.toLowerCase();
-            // 同時比對「解析後的純文字」與「原始 JSON 字串（含 \uXXXX）」
-            return text.toLowerCase().includes(search) || (m.content || '').toLowerCase().includes(search);
-        }
+    // 聊天室中實際顯示的訊息（過濾掉系統指令，但不因搜尋而隱藏）
+    const displayedMessages = messages.filter(m => {
+        if (m.category === 'Sensor' || m.category === 'Postback') return false;
         return true;
     });
+
+    // 搜尋結果列表
+    const searchResults = messageSearch.trim() ? displayedMessages.filter(m => {
+        const text = getSearchableText(m);
+        const search = messageSearch.toLowerCase();
+        return text.toLowerCase().includes(search) || (m.content || '').toLowerCase().includes(search);
+    }) : [];
+
+    // 跳轉到訊息
+    const jumpToMessage = (index) => {
+        const element = document.getElementById(`msg-${index}`);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // 閃爍效果
+            element.style.transition = 'background-color 0.3s';
+            const originalBg = element.style.backgroundColor;
+            element.style.backgroundColor = 'rgba(255, 215, 0, 0.5)';
+            setTimeout(() => {
+                element.style.backgroundColor = originalBg;
+            }, 1000);
+        }
+    };
 
     // 輔助函式：高亮搜尋文本
     const highlightText = (text) => {
@@ -457,7 +465,7 @@ function MessageCenter() {
                         </div>
 
                         {/* 對話內容搜尋框 */}
-                        <div style={{ padding: '10px 20px', borderBottom: '1px solid #222', backgroundColor: '#1a1a1a' }}>
+                        <div style={{ padding: '10px 20px', borderBottom: '1px solid #222', backgroundColor: '#1a1a1a', position: 'relative' }}>
                             <div style={{ position: 'relative' }}>
                                 <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#555' }} />
                                 <input
@@ -476,9 +484,55 @@ function MessageCenter() {
                                 )}
                             </div>
                             {messageSearch && (
-                                <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
-                                    找到 {filteredMessages.length} 筆符合的訊息
-                                </div>
+                                <>
+                                    <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
+                                        找到 {searchResults.length} 筆符合的訊息
+                                    </div>
+                                    {searchResults.length > 0 && (
+                                        <div style={{
+                                            position: 'absolute',
+                                            top: '100%',
+                                            left: '20px',
+                                            right: '20px',
+                                            maxHeight: '200px',
+                                            overflowY: 'auto',
+                                            backgroundColor: '#222',
+                                            border: '1px solid #333',
+                                            borderRadius: '0 0 8px 8px',
+                                            zIndex: 50,
+                                            boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+                                        }}>
+                                            {searchResults.map((m, idx) => {
+                                                const globalIndex = messages.indexOf(m);
+                                                return (
+                                                    <div
+                                                        key={idx}
+                                                        onClick={() => jumpToMessage(globalIndex)}
+                                                        style={{
+                                                            padding: '8px 12px',
+                                                            borderBottom: '1px solid #333',
+                                                            cursor: 'pointer',
+                                                            fontSize: '12px',
+                                                            transition: 'background-color 0.1s'
+                                                        }}
+                                                        onMouseEnter={e => e.currentTarget.style.backgroundColor = '#333'}
+                                                        onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                                    >
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                                                            <span style={{ color: m.user_id === 'yzuadmin' ? 'var(--primary-yellow)' : '#aaa' }}>
+                                                                {m.user_id === 'yzuadmin' ? '管理者' : '用戶'}
+                                                            </span>
+                                                            <span style={{ color: '#555', fontSize: '10px' }}>{new Date(m.timestamp).toLocaleString()}</span>
+                                                        </div>
+                                                        <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#eee' }}>
+                                                            {getSearchableText(m)}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
 
@@ -486,7 +540,7 @@ function MessageCenter() {
                         <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
                             {(() => {
                                 let lastDate = null;
-                                return filteredMessages.map((m, i) => {
+                                return displayedMessages.map((m, i) => {
                                     const mDate = new Date(m.timestamp).toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' });
                                     const showDateHeader = mDate !== lastDate;
                                     lastDate = mDate;
@@ -496,6 +550,9 @@ function MessageCenter() {
                                     if (isAdmin && typeof displayContent === 'string' && displayContent.startsWith('MSG|')) {
                                         displayContent = displayContent.substring(4);
                                     }
+
+                                    const globalIndex = messages.indexOf(m);
+                                    // ...
 
                                     // ... inline components logic ...
                                     const renderMessageContent = () => {
@@ -557,7 +614,7 @@ function MessageCenter() {
                                                     <span style={{ backgroundColor: '#1a1a1a', padding: '4px 15px', color: '#888', fontSize: '12px', position: 'relative', zIndex: 1, borderRadius: '12px' }}>{mDate}</span>
                                                 </div>
                                             )}
-                                            <div id={`msg-${i}`} style={{
+                                            <div id={`msg-${globalIndex}`} style={{
                                                 alignSelf: isAdmin ? 'flex-end' : 'flex-start',
                                                 maxWidth: '70%',
                                                 padding: '12px 16px',

@@ -567,17 +567,21 @@ function Broadcast() {
                         </div>
 
                         {msg.OTYPE === 'TextSendMessage' && (
-                            <textarea
-                                value={msg.text}
-                                onChange={e => {
-                                    const newMsgs = [...formData.messages];
-                                    newMsgs[idx].text = e.target.value;
-                                    setFormData({ ...formData, messages: newMsgs });
-                                }}
-                                maxLength={3000}
-                                style={{ width: '100%', minHeight: '120px', backgroundColor: '#111' }}
-                                placeholder="請輸入訊息內容..."
-                            />
+                            <>
+                                <textarea
+                                    value={msg.text}
+                                    onChange={e => {
+                                        const newMsgs = [...formData.messages];
+                                        newMsgs[idx].text = e.target.value;
+                                        setFormData({ ...formData, messages: newMsgs });
+                                    }}
+                                    style={{ width: '100%', minHeight: '120px', backgroundColor: '#111' }}
+                                    placeholder="請輸入訊息內容..."
+                                />
+                                <div style={{ fontSize: '11px', color: (msg.text || '').length > 3000 ? '#ff4d4d' : '#666', textAlign: 'right', marginTop: '5px' }}>
+                                    {(msg.text || '').length} / 3000
+                                </div>
+                            </>
                         )}
 
                         {msg.OTYPE === 'ImageSendMessage' && (
