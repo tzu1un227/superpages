@@ -227,16 +227,22 @@ def project_stats_processor():
                 # Get all OAs to poll their history
                 oas = OAConfig.query.all()
                 for oa in oas:
-                    app_id = oa.id
+                    oa_id = oa.id
                     db_url = oa.db_url
                     if not db_url: continue
+                    
+                    # Resolve logical app id (e.g. 5013)
+                    logical_app_id = db_url.split('/')[-1].split('?')[0].strip()
+                    if oa.other_settings and 'app_name' in oa.other_settings:
+                        if oa.other_settings['app_name']:
+                            logical_app_id = str(oa.other_settings['app_name'])
                     
                     try:
                         conn = psycopg2.connect(db_url)
                         cur = conn.cursor(cursor_factory=RealDictCursor)
                         
                         # Get last processed time from Global_var
-                        g_var_table = f"Global_var:{app_id}"
+                        g_var_table = f"Global_var:{logical_app_id}"
                         
                         # Ensure table exists
                         cur.execute(f"""
@@ -251,7 +257,7 @@ def project_stats_processor():
                         last_time = row['value'] if row else '2000-01-01 00:00:00'
                         
                         # Fetch new history entries
-                        history_table = f"history:{app_id}"
+                        history_table = f"history:{logical_app_id}"
                         cur.execute(f"""
                             SELECT * FROM "{history_table}" 
                             WHERE timestamp > %s 
@@ -273,16 +279,16 @@ def project_stats_processor():
                                     step_id = int(parts[2])
                                     
                                     # Increment messages sent and success (since it's in history)
-                                    increment_project_stat(pj_id, 'ms', app_id, entry['timestamp'].strftime('%Y-%m-%d'))
-                                    increment_project_stat(pj_id, 'mss', app_id, entry['timestamp'].strftime('%Y-%m-%d'))
+                                    increment_project_stat(pj_id, 'ms', oa_id, entry['timestamp'].strftime('%Y-%m-%d'))
+                                    increment_project_stat(pj_id, 'mss', oa_id, entry['timestamp'].strftime('%Y-%m-%d'))
                                     
                                     # Check if it's the last step
                                     cur.execute("SELECT MAX(step_id) FROM project_schedules WHERE project_id = %s", (pj_id,))
                                     m_row = cur.fetchone()
                                     if m_row and m_row['max'] == step_id:
                                         # cc: Unique/Completion Users per day, tcc: Total Completions
-                                        increment_project_stat(pj_id, 'cc', app_id, entry['timestamp'].strftime('%Y-%m-%d'))
-                                        increment_project_stat(pj_id, 'tcc', app_id, entry['timestamp'].strftime('%Y-%m-%d'))
+                                        increment_project_stat(pj_id, 'cc', oa_id, entry['timestamp'].strftime('%Y-%m-%d'))
+                                        increment_project_stat(pj_id, 'tcc', oa_id, entry['timestamp'].strftime('%Y-%m-%d'))
                                         
                                         # Handle Project Status / Recurrence
                                         # Check if project is recurring
@@ -297,7 +303,7 @@ def project_stats_processor():
                                             if is_recurring:
                                                 # Restart user
                                                 cur.execute("UPDATE cron_table SET step_id = 0, status = 'active' WHERE project_id = %s AND user_id = %s", (pj_id, user_id))
-                                                increment_project_stat(pj_id, 'ttc', app_id, entry['timestamp'].strftime('%Y-%m-%d'))
+                                                increment_project_stat(pj_id, 'ttc', oa_id, entry['timestamp'].strftime('%Y-%m-%d'))
                                                 ups_status = 'active'
                                             else:
                                                 # Mark as completed
@@ -1268,13 +1274,20 @@ def get_registered_users():
 def get_users_list():
     try:
         app_id = get_current_app_id()
-        print(f"DEBUG: get_users_list | app_id={app_id} | db_url={getattr(g, 'current_db_url', 'None')}")
-
-        # Search / filter params
+        q = request.args.get('q', '').strip()
         tag_filters = request.args.getlist('tag')
         # Also support comma-separated list if provided as a single string
         if len(tag_filters) == 1 and ',' in tag_filters[0]:
             tag_filters = [t.strip() for t in tag_filters[0].split(',') if t.strip()]
+
+        print(f"DEBUG: get_users_list | app_id={app_id} | q={q} | tags={tag_filters}")
+
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Build dynamic WHERE clauses
+        where_clauses = []
+        params = []
 
         if q:
             # Handle Unicode escapes for Chinese characters in JSON strings
@@ -1309,7 +1322,7 @@ def get_users_list():
 
         where_sql = ('WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
 
-        cur.execute(f"""
+        query = f"""
             SELECT sub.user_id,
                    sub.last_message,
                    sub.last_time,
@@ -1325,7 +1338,9 @@ def get_users_list():
             {where_sql}
             ORDER BY sub.last_time DESC NULLS LAST
             LIMIT 200
-        """, params)
+        """
+        print(f"DEBUG SQL: {cur.mogrify(query, params).decode('utf-8')}")
+        cur.execute(query, params)
         users = cur.fetchall()
         print(f"DEBUG: get_users_list found {len(users)} users for app_id {app_id}")
 
