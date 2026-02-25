@@ -174,9 +174,11 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
             const tagCmd = tags.length > 0 ? `|set_tag|${tags.join('|')}` : '';
 
             if (type === 'uri') {
+                // Validate URI scheme
+                const hasValidScheme = val && (val.startsWith('http://') || val.startsWith('https://') || val.startsWith('line://'));
+                if (!val || !hasValidScheme) return null;
+
                 return { type: 'uri', label: 'action', uri: val + (tags.length > 0 ? `#tags=${tags.join(',')}` : '') };
-                // Note: URI tagging is limited if it doesn't trigger a bot event.
-                // If they want tagging on URI click, it usually needs to be a postback that then opens URI.
             }
 
             // Default to postback if message + tags
@@ -191,7 +193,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
         const generateBubble = (card) => {
             const bubble = {
                 type: 'bubble',
-                size: 'micro', // micro is better for multi-card
+                size: mode === 'carousel' ? 'kilo' : 'micro',
                 hero: {
                     type: 'image',
                     url: card.imageUrl || 'https://via.placeholder.com/800x400',

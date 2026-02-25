@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.
   - **文字長度提示型限制**：
     - **視覺計數器**：自動旅程與群發訊息輸入框下方新增字數統計（如：`0 / 3000`）。
     - **動態提示**：超過 3000 字時計數器變為紅色，且發送時會跳出提示攔截。
+  - **Flex 輪播訊息 (Carousel) 錯誤修復**：
+    - **統一尺寸**：強制輪播中所有卡片使用 `kilo` 尺寸，解決 LINE API 不允許混合尺寸導致的 400 錯誤。
+    - **URI 驗證**：在產生 JSON 前驗證連結格式（必須包含 http/https/line），避免無效連結導致發送失敗。
   - **圖文選單 (Rich Menu) 管理優化**：
     - **配置欄位**：管理員權限設定新增「LINE Channel Access Token」與「Channel Secret」欄位。
     - **限制說明**：圖文選單頁面新增提示，說明系統僅能讀取 API 建立之選單，無法讀取 LINE 後台 GUI 建立之選單。
