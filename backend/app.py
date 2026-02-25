@@ -1239,15 +1239,10 @@ def get_users_list():
         print(f"DEBUG: get_users_list | app_id={app_id} | db_url={getattr(g, 'current_db_url', 'None')}")
 
         # Search / filter params
-        q = request.args.get('q', '').strip()
-        tag_filter = request.args.get('tag', '').strip()
-
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Build dynamic WHERE clauses
-        where_clauses = []
-        params = []
+        tag_filters = request.args.getlist('tag')
+        # Also support comma-separated list if provided as a single string
+        if len(tag_filters) == 1 and ',' in tag_filters[0]:
+            tag_filters = [t.strip() for t in tag_filters[0].split(',') if t.strip()]
 
         if q:
             # Handle Unicode escapes for Chinese characters in JSON strings
@@ -1272,11 +1267,13 @@ def get_users_list():
                 f"))"
             )
             params.extend([f'%{q}%', f'%{q}%', f'%{q}%', f'%{q_escaped}%', f'%{q}%', f'%{q_escaped}%', f'%{q}%', f'%{q_escaped}%'])
-        if tag_filter:
-            where_clauses.append(
-                f"EXISTS (SELECT 1 FROM \"Private_var:{app_id}\" WHERE user_id = sub.user_id AND name = 'tag' AND value ILIKE %s)"
-            )
-            params.append(f'%{tag_filter}%')
+        
+        for t_filter in tag_filters:
+            if t_filter.strip():
+                where_clauses.append(
+                    f"EXISTS (SELECT 1 FROM \"Private_var:{app_id}\" WHERE user_id = sub.user_id AND name = 'tag' AND value ILIKE %s)"
+                )
+                params.append(f'%{t_filter.strip()}%')
 
         where_sql = ('WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
 

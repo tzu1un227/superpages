@@ -14,7 +14,7 @@ function MessageCenter() {
 
     // --- 搜尋與篩選狀態 ---
     const [searchQuery, setSearchQuery] = useState('');          // 用戶清單搜尋（user_id / 名稱）
-    const [selectedTagFilter, setSelectedTagFilter] = useState(''); // 標籤篩選
+    const [selectedTagFilters, setSelectedTagFilters] = useState([]); // 標籤篩選
     const [messageSearch, setMessageSearch] = useState('');       // 對話內容搜尋
 
     // 用來對 searchQuery 做 debounce，避免每一個字都打 API
@@ -25,7 +25,7 @@ function MessageCenter() {
         setSelectedUser(null);
         setMessages([]);
         setSearchQuery('');
-        setSelectedTagFilter('');
+        setSelectedTagFilters([]);
         setMessageSearch('');
         fetchUsers();
     }, [location.pathname]);
@@ -41,16 +41,16 @@ function MessageCenter() {
     useEffect(() => {
         if (searchTimer.current) clearTimeout(searchTimer.current);
         searchTimer.current = setTimeout(() => {
-            fetchUsers(searchQuery, selectedTagFilter);
+            fetchUsers(searchQuery, selectedTagFilters);
         }, 300);
         return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
-    }, [searchQuery, selectedTagFilter]);
+    }, [searchQuery, selectedTagFilters]);
 
-    const fetchUsers = async (q = '', tag = '') => {
+    const fetchUsers = async (q = '', tags = []) => {
         try {
             const params = {};
             if (q) params.q = q;
-            if (tag) params.tag = tag;
+            if (tags.length > 0) params.tag = tags.join(',');
             const resp = await api.get('/users', { params });
             setUsers(resp.data);
             // 若目前選中的用戶不在新清單中，自動選第一個
@@ -118,7 +118,7 @@ function MessageCenter() {
             alert(`已新增標籤: ${tagInput}`);
             setTagInput('');
             setTimeout(() => {
-                fetchUsers(searchQuery, selectedTagFilter);
+                fetchUsers(searchQuery, selectedTagFilters);
                 fetchAvailableTags();
             }, 1000);
         } catch (err) {
@@ -137,7 +137,7 @@ function MessageCenter() {
                 api_index: 0
             });
             alert(`已刪除標籤: ${tagName}`);
-            setTimeout(() => fetchUsers(searchQuery, selectedTagFilter), 1000);
+            setTimeout(() => fetchUsers(searchQuery, selectedTagFilters), 1000);
         } catch (err) {
             alert('刪除標籤失敗');
         }
@@ -150,21 +150,27 @@ function MessageCenter() {
         let tagsInput = user.tags;
         let tagList = [];
 
+        // 處理分割符，可能同時存在 | 或直接是 JSON 字串
         const rawParts = typeof tagsInput === 'string' ? tagsInput.split('|') : [tagsInput];
 
         rawParts.forEach(part => {
             if (!part) return;
-            const trimmed = String(part).trim();
-            if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+            let trimmed = String(part).trim();
+
+            // 更強大的 JSON 與 陣列字串解析
+            if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
                 try {
-                    const parsed = JSON.parse(trimmed);
+                    // 嘗試正規 JSON 解析 (需雙引號)
+                    const parsed = JSON.parse(trimmed.replace(/'/g, '"'));
                     if (Array.isArray(parsed)) tagList.push(...parsed);
                     else tagList.push(parsed);
                 } catch (e) {
-                    trimmed.slice(1, -1).split(',').forEach(s => tagList.push(s.trim().replace(/^[\"']|[\"']$/g, '')));
+                    // fallback: 手動分割，移除括號與引號
+                    trimmed.slice(1, -1).split(',').forEach(s => {
+                        const s_trimmed = s.trim().replace(/^['"]|['"]$/g, '');
+                        if (s_trimmed) tagList.push(s_trimmed);
+                    });
                 }
-            } else if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-                trimmed.slice(1, -1).split(',').forEach(s => tagList.push(s.trim().replace(/^[\"']|[\"']$/g, '')));
             } else if (trimmed.includes(',')) {
                 trimmed.split(',').forEach(s => tagList.push(s.trim()));
             } else {
@@ -172,8 +178,8 @@ function MessageCenter() {
             }
         });
 
-        const uniqueTags = [...new Set(tagList.map(t => String(t).trim()).filter(t => t && t !== 'null' && t !== 'undefined'))];
-        return uniqueTags.map(t => t.replace(/^[\[\"']+|[\]\"']+$/g, ''));
+        const uniqueTags = [...new Set(tagList.map(t => String(t).trim()).filter(t => t && t !== 'null' && t !== 'undefined' && t !== '[]' && t !== '{}'))];
+        return uniqueTags.map(t => t.replace(/^[\["'%]+|[\]"'%]+$/g, ''));
     };
 
     // 輔助函式：提取訊息的可搜尋文本（解決 JSON Unicode 編碼問題）
@@ -253,30 +259,36 @@ function MessageCenter() {
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
                             <span
-                                onClick={() => setSelectedTagFilter('')}
+                                onClick={() => setSelectedTagFilters([])}
                                 style={{
                                     padding: '3px 10px',
                                     borderRadius: '12px',
                                     fontSize: '11px',
                                     cursor: 'pointer',
-                                    backgroundColor: !selectedTagFilter ? 'var(--primary-yellow)' : 'transparent',
-                                    color: !selectedTagFilter ? 'black' : '#aaa',
-                                    border: `1px solid ${!selectedTagFilter ? 'var(--primary-yellow)' : '#555'}`,
+                                    backgroundColor: selectedTagFilters.length === 0 ? 'var(--primary-yellow)' : 'transparent',
+                                    color: selectedTagFilters.length === 0 ? 'black' : '#aaa',
+                                    border: `1px solid ${selectedTagFilters.length === 0 ? 'var(--primary-yellow)' : '#555'}`,
                                     transition: 'all 0.15s'
                                 }}
                             >全部</span>
                             {availableTags.map((tag, idx) => (
                                 <span
                                     key={idx}
-                                    onClick={() => setSelectedTagFilter(tag === selectedTagFilter ? '' : tag)}
+                                    onClick={() => {
+                                        if (selectedTagFilters.includes(tag)) {
+                                            setSelectedTagFilters(selectedTagFilters.filter(t => t !== tag));
+                                        } else {
+                                            setSelectedTagFilters([...selectedTagFilters, tag]);
+                                        }
+                                    }}
                                     style={{
                                         padding: '3px 10px',
                                         borderRadius: '12px',
                                         fontSize: '11px',
                                         cursor: 'pointer',
-                                        backgroundColor: selectedTagFilter === tag ? 'rgba(255, 215, 0, 0.15)' : 'transparent',
-                                        color: selectedTagFilter === tag ? 'var(--primary-yellow)' : '#aaa',
-                                        border: `1px solid ${selectedTagFilter === tag ? 'var(--primary-yellow)' : '#555'}`,
+                                        backgroundColor: selectedTagFilters.includes(tag) ? 'rgba(255, 215, 0, 0.15)' : 'transparent',
+                                        color: selectedTagFilters.includes(tag) ? 'var(--primary-yellow)' : '#aaa',
+                                        border: `1px solid ${selectedTagFilters.includes(tag) ? 'var(--primary-yellow)' : '#555'}`,
                                         transition: 'all 0.15s'
                                     }}
                                 >{tag}</span>
