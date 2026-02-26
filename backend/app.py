@@ -422,41 +422,30 @@ def url_redirect():
     if tags and user_id:
         try:
             print(f"DEBUG /api/redirect: tags={tags}, userId={user_id}, url={url}")
-            # Create a socket client to notify the bot engine at WS_URL
-            sio = socketio.Client()
-            namespace = f"/{BOT_NAME}"
             
-            @sio.on('connect', namespace=namespace)
-            def on_connect():
-                print(f"DEBUG /api/redirect: Connected to {namespace}")
-
-            print(f"DEBUG /api/redirect: Connecting to Socket URL: {WS_URL}/{BOT_NAME}")
-            try:
-                # We connect with a small timeout just in case the bot engine is down
-                sio.connect(WS_URL, namespaces=[namespace], wait_timeout=3)
+            tag_list = tags.split(',')
+            for tag in tag_list:
+                tag = tag.strip()
+                if not tag: continue
                 
-                tag_list = tags.split(',')
-                for tag in tag_list:
-                    tag = tag.strip()
-                    if not tag: continue
-                    
-                    payload = {
-                        'user': user_id,
-                        'message': f'set_tag|{tag}',
-                        'type': 'Sensor',
-                        'api_index': 0 
-                    }
-                    print(f"DEBUG /api/redirect: Emitting {BOT_NAME}_message: {payload}")
-                    # Emit to the Line bot engine
-                    sio.emit(f'{BOT_NAME}_message', payload, namespace=namespace)
+                payload = {
+                    'user': user_id,
+                    'message': f'set_tag|{tag}',
+                    'type': 'Sensor',
+                    'api_index': 0 
+                }
                 
-                # Give it a brief moment to actually send out the packet over network before closing
-                import time
-                time.sleep(0.5)
-                sio.disconnect()
-                print(f"DEBUG /api/redirect: Disconnected")
-            except Exception as socket_err:
-                print(f"Failed to send socket messages for tags to {WS_URL}: {socket_err}")
+                try:
+                    # Forward the event to the existing trigger API to handle the websocket complexity
+                    requests.post(
+                        "http://localhost:5016/api/trigger",
+                        json=payload,
+                        headers={"Content-Type": "application/json"},
+                        timeout=5
+                    )
+                    print(f"DEBUG /api/redirect: Forwarded tag {tag} via /api/trigger")
+                except Exception as req_err:
+                    print(f"DEBUG /api/redirect: Failed to trigger for tag {tag}: {req_err}")
                 
         except Exception as e:
             print(f"Error handling redirect tags: {e}")
