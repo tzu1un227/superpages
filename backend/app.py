@@ -421,16 +421,18 @@ def url_redirect():
         
     if tags and user_id:
         try:
-            # We don't have X-OA-ID in a simple redirect link out of the box. 
-            # We will try to fetch the default or handle logic gracefully.
-            # In Line-Bot-Main, 'tag' is stored in Private_var as name='tag', value='tag_name'
-            # Here we just parse logical_app_id='Line-Bot' assuming default or query from DB.
-            # For simplicity, we just insert into history or Private_var. 
+            print(f"DEBUG /api/redirect: tags={tags}, userId={user_id}, url={url}")
             # Create a socket client to notify the bot engine at WS_URL
             sio = socketio.Client()
+            namespace = f"/{BOT_NAME}"
+            
+            @sio.on('connect', namespace=namespace)
+            def on_connect():
+                print(f"DEBUG /api/redirect: Connected to {namespace}")
+
+            print(f"DEBUG /api/redirect: Connecting to Socket URL: {WS_URL}/{BOT_NAME}")
             try:
                 # We connect with a small timeout just in case the bot engine is down
-                namespace = f"/{BOT_NAME}"
                 sio.connect(WS_URL, namespaces=[namespace], wait_timeout=3)
                 
                 tag_list = tags.split(',')
@@ -438,17 +440,21 @@ def url_redirect():
                     tag = tag.strip()
                     if not tag: continue
                     
-                    # Emit to the Line bot engine
-                    sio.emit(f'{BOT_NAME}_message', {
+                    payload = {
                         'user': user_id,
                         'message': f'set_tag|{tag}',
                         'type': 'Sensor',
-                        'api_index': -1 # Assuming -1 for primary bot, or pass dynamic index if required
-                    }, namespace=namespace)
+                        'api_index': 0 
+                    }
+                    print(f"DEBUG /api/redirect: Emitting {BOT_NAME}_message: {payload}")
+                    # Emit to the Line bot engine
+                    sio.emit(f'{BOT_NAME}_message', payload, namespace=namespace)
                 
                 # Give it a brief moment to actually send out the packet over network before closing
+                import time
                 time.sleep(0.5)
                 sio.disconnect()
+                print(f"DEBUG /api/redirect: Disconnected")
             except Exception as socket_err:
                 print(f"Failed to send socket messages for tags to {WS_URL}: {socket_err}")
                 
