@@ -436,14 +436,9 @@ def url_redirect():
                 }
                 
                 try:
-                    # Forward the event to the existing trigger API to handle the websocket complexity
-                    requests.post(
-                        "http://localhost:5016/api/trigger",
-                        json=payload,
-                        headers={"Content-Type": "application/json"},
-                        timeout=5
-                    )
-                    print(f"DEBUG /api/redirect: Forwarded tag {tag} via /api/trigger")
+                    # Forward the event using the internal helper function
+                    send_socket_event(payload)
+                    print(f"DEBUG /api/redirect: Forwarded tag {tag} via send_socket_event")
                 except Exception as req_err:
                     print(f"DEBUG /api/redirect: Failed to trigger for tag {tag}: {req_err}")
                 
@@ -1396,77 +1391,81 @@ def get_users_list():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/trigger', methods=['POST'])
-def trigger_socket_event():
-    data = request.json
-    # Expected data: { "user": "target_id", "message": "content", "type": "Sensor" }
-    # Plus potential "api_index"
-    try:
-        sio = socketio.Client()
-        namespace = f"/{BOT_NAME}"
+def send_socket_event(data):
+    """
+    Helper function to send a socket event to the bot engine.
+    data: dict with 'user', 'message', 'type', and optionally 'api_index'
+    """
+    sio = socketio.Client()
+    namespace = f"/{BOT_NAME}"
+    
+    # Ensure api_index is explicitly included as 0 if not provided
+    if 'api_index' not in data:
+        data['api_index'] = 0
+    
+    print(f"Emitting {BOT_NAME}_message to {namespace}: {data}")
         
-        # Ensure api_index is explicitly included as 0 if not provided
-        if 'api_index' not in data:
-            data['api_index'] = 0
-        
-        print(f"Emitting {BOT_NAME}_message to {namespace}: {data}")
+    @sio.on('connect', namespace=namespace)
+    def on_connect():
+        print(f"Connected to {namespace}")
+
+    # Determine Socket URL
+    target_ws_url = WS_URL
+    if hasattr(g, 'current_oa_id') and g.current_oa_id:
+        try:
+            oa = OAConfig.query.get(g.current_oa_id)
+            if oa and oa.other_settings and 'socket_url' in oa.other_settings:
+                if oa.other_settings['socket_url']:
+                    target_ws_url = oa.other_settings['socket_url']
+        except Exception as e:
+            print(f"Error fetching OA socket config: {e}")
+
+    print(f"Connecting to Socket URL: {target_ws_url}")
+    sio.connect(target_ws_url, namespaces=[namespace], wait_timeout=3)
+    
+    # Check if we need to split the event (Postback with tags)
+    content = data.get('message', '')
+    msg_type = data.get('type', '')
+    
+    if msg_type == 'Postback' and '|set_tag|' in content:
+        try:
+            msg_content, tag_part = content.split('|set_tag|', 1)
             
-        @sio.on('connect', namespace=namespace)
-        def on_connect():
-            print(f"Connected to {namespace}")
-
-        # Determine Socket URL
-        target_ws_url = WS_URL
-        if hasattr(g, 'current_oa_id') and g.current_oa_id:
-            try:
-                oa = OAConfig.query.get(g.current_oa_id)
-                if oa and oa.other_settings and 'socket_url' in oa.other_settings:
-                    if oa.other_settings['socket_url']:
-                        target_ws_url = oa.other_settings['socket_url']
-            except Exception as e:
-                print(f"Error fetching OA socket config: {e}")
-
-        print(f"Connecting to Socket URL: {target_ws_url}")
-        sio.connect(target_ws_url, namespaces=[namespace], wait_timeout=3)
-        
-        # Check if we need to split the event (Postback with tags)
-        content = data.get('message', '')
-        msg_type = data.get('type', '')
-        
-        if msg_type == 'Postback' and '|set_tag|' in content:
-            try:
-                msg_content, tag_part = content.split('|set_tag|', 1)
-                
-                # First event: Message
-                data_msg = data.copy()
-                data_msg['message'] = msg_content
-                data_msg['type'] = 'Message'
-                print(f"Splitting: Emitting first event (Message): {data_msg}")
-                sio.emit(f'{BOT_NAME}_message', data_msg, namespace=namespace)
-                
-                # Small delay between events to ensure order and processing
-                time.sleep(0.1)
-                
-                # Second event: Postback (the tag command)
-                data_pb = data.copy()
-                data_pb['message'] = f"set_tag|{tag_part}"
-                print(f"Splitting: Emitting second event (Postback): {data_pb}")
-                sio.emit(f'{BOT_NAME}_message', data_pb, namespace=namespace)
-            except Exception as e:
-                print(f"Error splitting event in trigger: {e}")
-                # Fallback to original
-                sio.emit(f'{BOT_NAME}_message', data, namespace=namespace)
-        else:
+            # First event: Message
+            data_msg = data.copy()
+            data_msg['message'] = msg_content
+            data_msg['type'] = 'Message'
+            print(f"Splitting: Emitting first event (Message): {data_msg}")
+            sio.emit(f'{BOT_NAME}_message', data_msg, namespace=namespace)
+            
+            # Small delay between events to ensure order and processing
+            time.sleep(0.1)
+            
+            # Second event: Postback (the tag command)
+            data_pb = data.copy()
+            data_pb['message'] = f"set_tag|{tag_part}"
+            print(f"Splitting: Emitting second event (Postback): {data_pb}")
+            sio.emit(f'{BOT_NAME}_message', data_pb, namespace=namespace)
+        except Exception as e:
+            print(f"Error splitting event in trigger: {e}")
+            # Fallback to original
             sio.emit(f'{BOT_NAME}_message', data, namespace=namespace)
-        
-        # Statistics for 'iup|' (project triggers) are handled by the background processor
-        # in the main system (Line-Bot-Main) to avoid double counting.
+    else:
+        sio.emit(f'{BOT_NAME}_message', data, namespace=namespace)
+    
+    # Statistics for 'iup|' (project triggers) are handled by the background processor
+    # in the main system (Line-Bot-Main) to avoid double counting.
 
-        time_to_wait = 0.5 # Small delay to ensure message is sent
-        import time
-        time.sleep(time_to_wait)
-        sio.disconnect()
-        
+    time_to_wait = 0.5 # Small delay to ensure message is sent
+    import time
+    time.sleep(time_to_wait)
+    sio.disconnect()
+
+@app.route('/api/trigger', methods=['POST'])
+def trigger_socket_event_route():
+    data = request.json
+    try:
+        send_socket_event(data)
         return jsonify({"status": "success"})
     except Exception as e:
         print(f"Socket.IO Trigger Error: {e}")
