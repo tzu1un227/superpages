@@ -224,7 +224,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
 
                 // Add tags using redirect if present
                 if (tags.length > 0) {
-                    const redirectUrl = `https://irl-svr.ee.yzu.edu.tw:5013/api/redirect?url=${encodeURIComponent(val)}&tags=${encodeURIComponent(tags.join(','))}&userId=<%m.user_id%>`;
+                    const redirectUrl = `https://irl-svr.ee.yzu.edu.tw:5016/api/redirect?url=${encodeURIComponent(val)}&tags=${encodeURIComponent(tags.join(','))}&userId=<%m.user_id%>`;
                     return { type: 'uri', label: 'action', uri: redirectUrl };
                 }
                 return { type: 'uri', label: 'action', uri: val };

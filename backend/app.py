@@ -424,44 +424,31 @@ def url_redirect():
             # In Line-Bot-Main, 'tag' is stored in Private_var as name='tag', value='tag_name'
             # Here we just parse logical_app_id='Line-Bot' assuming default or query from DB.
             # For simplicity, we just insert into history or Private_var. 
-            app_id = get_current_app_id()
-            conn = get_db_connection()
-            cur = conn.cursor()
-            
-            tag_list = tags.split(',')
-            for tag in tag_list:
-                tag = tag.strip()
-                if not tag: continue
-                # Insert into Private_var to mark user has this tag
-                table_name = f"Private_var:{app_id}"
+            # Create a socket client to notify the bot engine at WS_URL
+            sio = socketio.Client()
+            try:
+                # We connect with a small timeout just in case the bot engine is down
+                sio.connect(f"{WS_URL}/{BOT_NAME}", wait_timeout=3)
                 
-                # Using PostgreSQL UPSERT (ON CONFLICT DO UPDATE isn't available without primary key or unique constraint)
-                # But Private_var has user_id, name as composite primary key.
-                # In dbModel.py, it's: PrimaryKeyConstraint('user_id', 'name')
-                
-                # Check if exists first
-                cur.execute(f'SELECT value FROM "{table_name}" WHERE user_id = %s AND name = %s', (user_id, 'tag'))
-                existing = cur.fetchone()
-                
-                if existing:
-                    # Append tag if not present (simple append or just insert new row if name is tag)
-                    # wait, LINE bot usually stores one tag per row? No, usually one row `name='tag', value='tag1'` doesn't allow multiple unless it's a list. Wait. 
-                    pass
+                tag_list = tags.split(',')
+                for tag in tag_list:
+                    tag = tag.strip()
+                    if not tag: continue
                     
-                # The safest for analytics is adding to History
-                history_table = f"history:{app_id}"
-                # Create history table if not exists, but assuming it exists
-                content_log = f"Set Tag: {tag}"
-                cur.execute(f"""
-                    INSERT INTO "{history_table}" (user_id, timestamp, category, content, state_old, state_new)
-                    VALUES (%s, NOW(), %s, %s, %s, %s)
-                """, (user_id, 'RedirectTag', content_log, '?', '?'))
+                    # Emit to the Line bot engine
+                    sio.emit(f'{BOT_NAME}_message', {
+                        'user': user_id,
+                        'message': f'set_tag|{tag}',
+                        'type': 'Message',
+                        'api_index': -1 # Assuming -1 for primary bot, or pass dynamic index if required
+                    })
                 
-            conn.commit()
-            cur.close()
-            conn.close()
+                sio.disconnect()
+            except Exception as socket_err:
+                print(f"Failed to send socket messages for tags to {WS_URL}: {socket_err}")
+                
         except Exception as e:
-            print(f"Error recording redirect tags: {e}")
+            print(f"Error handling redirect tags: {e}")
             
     return redirect(url, code=302)
 
