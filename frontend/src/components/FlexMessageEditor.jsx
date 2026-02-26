@@ -136,7 +136,14 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                 const tagIdx = parts.indexOf('set_tag');
                 if (tagIdx !== -1) return parts.slice(tagIdx + 1);
             }
-            // Handle URI fragment format: #tags=tag1,tag2
+            // Handle redirect format: /api/redirect?tags=tag1,tag2
+            if (payload.includes('/api/redirect?')) {
+                const tagsMatch = payload.match(/[?&]tags=([^&]*)/);
+                if (tagsMatch && tagsMatch[1]) {
+                    return decodeURIComponent(tagsMatch[1]).split(',').filter(t => t);
+                }
+            }
+            // Handle old URI fragment format: #tags=tag1,tag2
             const match = payload.match(/#tags=([^#?&]*)/);
             if (match && match[1]) {
                 return match[1].split(',').filter(t => t);
@@ -149,6 +156,13 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
             // Clean postback format
             if (payload.includes('set_tag|')) {
                 return payload.split('set_tag|')[0].replace(/\|$/, '');
+            }
+            // Clean redirect format
+            if (payload.includes('/api/redirect?')) {
+                const urlMatch = payload.match(/[?&]url=([^&]*)/);
+                if (urlMatch && urlMatch[1]) {
+                    return decodeURIComponent(urlMatch[1]);
+                }
             }
             // Clean URI fragment format
             return payload.split('#tags=')[0];
@@ -208,9 +222,12 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                 const hasValidScheme = val && (val.startsWith('http://') || val.startsWith('https://') || val.startsWith('line://'));
                 if (!val || !hasValidScheme) return null;
 
-                // Add tags as fragment if present
-                const tagFragment = tags.length > 0 ? `#tags=${tags.join(',')}` : '';
-                return { type: 'uri', label: 'action', uri: val + tagFragment };
+                // Add tags using redirect if present
+                if (tags.length > 0) {
+                    const redirectUrl = `https://irl-svr.ee.yzu.edu.tw:5013/api/redirect?url=${encodeURIComponent(val)}&tags=${encodeURIComponent(tags.join(','))}&userId=<%m.user_id%>`;
+                    return { type: 'uri', label: 'action', uri: redirectUrl };
+                }
+                return { type: 'uri', label: 'action', uri: val };
             }
 
             // Default to postback if message + tags

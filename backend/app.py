@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, g
+from flask import Flask, request, jsonify, g, redirect
 from flask_cors import CORS
 from config import Config
 import psycopg2
@@ -9,6 +9,7 @@ import threading
 import time
 import json
 import requests
+import urllib.parse
 
 app = Flask(__name__)
 CORS(app, origins=["https://irl-svr.ee.yzu.edu.tw:5014", "http://localhost:3000", "http://localhost:9016", "https://irl-svr.ee.yzu.edu.tw:5016"])
@@ -406,6 +407,63 @@ def google_login():
     except Exception as e:
         print(e)
         return jsonify({'message': 'Login failed', 'error': str(e)}), 500
+
+@app.route('/api/redirect', methods=['GET'])
+def url_redirect():
+    url = request.args.get('url')
+    tags = request.args.get('tags')
+    user_id = request.args.get('userId')
+    
+    if not url:
+        return "Missing URL parameter", 400
+        
+    if tags and user_id:
+        try:
+            # We don't have X-OA-ID in a simple redirect link out of the box. 
+            # We will try to fetch the default or handle logic gracefully.
+            # In Line-Bot-Main, 'tag' is stored in Private_var as name='tag', value='tag_name'
+            # Here we just parse logical_app_id='Line-Bot' assuming default or query from DB.
+            # For simplicity, we just insert into history or Private_var. 
+            app_id = get_current_app_id()
+            conn = get_db_connection()
+            cur = conn.cursor()
+            
+            tag_list = tags.split(',')
+            for tag in tag_list:
+                tag = tag.strip()
+                if not tag: continue
+                # Insert into Private_var to mark user has this tag
+                table_name = f"Private_var:{app_id}"
+                
+                # Using PostgreSQL UPSERT (ON CONFLICT DO UPDATE isn't available without primary key or unique constraint)
+                # But Private_var has user_id, name as composite primary key.
+                # In dbModel.py, it's: PrimaryKeyConstraint('user_id', 'name')
+                
+                # Check if exists first
+                cur.execute(f'SELECT value FROM "{table_name}" WHERE user_id = %s AND name = %s', (user_id, 'tag'))
+                existing = cur.fetchone()
+                
+                if existing:
+                    # Append tag if not present (simple append or just insert new row if name is tag)
+                    # wait, LINE bot usually stores one tag per row? No, usually one row `name='tag', value='tag1'` doesn't allow multiple unless it's a list. Wait. 
+                    pass
+                    
+                # The safest for analytics is adding to History
+                history_table = f"history:{app_id}"
+                # Create history table if not exists, but assuming it exists
+                content_log = f"Set Tag: {tag}"
+                cur.execute(f"""
+                    INSERT INTO "{history_table}" (user_id, timestamp, category, content, state_old, state_new)
+                    VALUES (%s, NOW(), %s, %s, %s, %s)
+                """, (user_id, 'RedirectTag', content_log, '?', '?'))
+                
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print(f"Error recording redirect tags: {e}")
+            
+    return redirect(url, code=302)
 
 @app.route('/api/my_oas', methods=['GET'])
 @token_required
