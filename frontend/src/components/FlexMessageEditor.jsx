@@ -203,12 +203,6 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
         const buildAction = (type, val, tags = []) => {
             if (type === 'none') return null;
 
-            // For tagging support, we must use postback if there are tags
-            // But if it's a URI, we can't easily combine it unless we use a middleman
-            // For now, we follow the Project logic: tags are sent via pipe in postback
-
-            const tagCmd = tags.length > 0 ? `|set_tag|${tags.join('|')}` : '';
-
             if (type === 'uri') {
                 // Validate URI scheme
                 const hasValidScheme = val && (val.startsWith('http://') || val.startsWith('https://') || val.startsWith('line://'));
@@ -220,6 +214,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
             }
 
             // Default to postback if message + tags
+            const tagCmd = tags.length > 0 ? `|set_tag|${tags.join('|')}` : '';
             return {
                 type: 'postback',
                 label: 'action',
