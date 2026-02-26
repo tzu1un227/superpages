@@ -428,7 +428,8 @@ def url_redirect():
             sio = socketio.Client()
             try:
                 # We connect with a small timeout just in case the bot engine is down
-                sio.connect(f"{WS_URL}/{BOT_NAME}", wait_timeout=3)
+                namespace = f"/{BOT_NAME}"
+                sio.connect(WS_URL, namespaces=[namespace], wait_timeout=3)
                 
                 tag_list = tags.split(',')
                 for tag in tag_list:
@@ -441,7 +442,7 @@ def url_redirect():
                         'message': f'set_tag|{tag}',
                         'type': 'Message',
                         'api_index': -1 # Assuming -1 for primary bot, or pass dynamic index if required
-                    })
+                    }, namespace=namespace)
                 
                 sio.disconnect()
             except Exception as socket_err:
