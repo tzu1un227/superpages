@@ -324,6 +324,8 @@ def project_stats_processor():
                                         
                             except Exception as pe:
                                 print(f"Error parsing history entry for stats: {pe}")
+                                # Rollback the current transaction state so the next iteration doesn't hit "current transaction is aborted"
+                                conn.rollback()
                         
                         # Update last processed time
                         cur.execute(f"UPDATE \"{g_var_table}\" SET value = %s WHERE name = 'last_stats_process_time'", (str(max_timestamp),))
@@ -334,7 +336,7 @@ def project_stats_processor():
                         cur.close()
                         conn.close()
                     except Exception as db_err:
-                        print(f"Error processing stats for app {app_id}: {db_err}")
+                        print(f"Error processing stats for app {logical_app_id}: {db_err}")
                         
         except Exception as e:
             print(f"Error in project_stats_processor: {e}")
@@ -440,7 +442,7 @@ def url_redirect():
                     sio.emit(f'{BOT_NAME}_message', {
                         'user': user_id,
                         'message': f'set_tag|{tag}',
-                        'type': 'Message',
+                        'type': 'Sensor',
                         'api_index': -1 # Assuming -1 for primary bot, or pass dynamic index if required
                     }, namespace=namespace)
                 
