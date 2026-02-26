@@ -444,6 +444,8 @@ def url_redirect():
                         'api_index': -1 # Assuming -1 for primary bot, or pass dynamic index if required
                     }, namespace=namespace)
                 
+                # Give it a brief moment to actually send out the packet over network before closing
+                time.sleep(0.5)
                 sio.disconnect()
             except Exception as socket_err:
                 print(f"Failed to send socket messages for tags to {WS_URL}: {socket_err}")
