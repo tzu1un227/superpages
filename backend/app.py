@@ -981,6 +981,7 @@ def get_schedules():
                     if res and res.get('msg_rpy'):
                         msgs = res['msg_rpy']
                         if msgs and len(msgs) > 0:
+                            s['is_multiple_messages'] = len(msgs) > 1
                             first_msg_obj = msgs[0]
                             # Handle if it's a JSON string
                             if isinstance(first_msg_obj, str):

@@ -1110,9 +1110,9 @@ setPreviewSteps(steps);
                                                         : newSchedule.message_content
                                                     }
                                                     onChange={e => setNewSchedule({ ...newSchedule, message_content: e.target.value })}
-                                                    disabled={newSchedule.message_content && newSchedule.message_content.startsWith('QA|')}
-                                                    style={{ width: '100%', backgroundColor: (newSchedule.message_content && newSchedule.message_content.startsWith('QA|')) ? '#444' : '#fff' }}
-                                                    placeholder={(newSchedule.message_content && newSchedule.message_content.startsWith('QA|')) ? '多媒體訊息請點擊右側編輯按鈕修改' : ''}
+                                                    disabled={newSchedule.message_content && newSchedule.message_content.startsWith('QA|') && newSchedule.is_multiple_messages}
+                                                    style={{ width: '100%', backgroundColor: (newSchedule.message_content && newSchedule.message_content.startsWith('QA|') && newSchedule.is_multiple_messages) ? '#444' : '#333', color: '#fff' }}
+                                                    placeholder={(newSchedule.message_content && newSchedule.message_content.startsWith('QA|') && newSchedule.is_multiple_messages) ? '多媒體訊息請點擊右側編輯按鈕修改' : ''}
                                                 />
                                                 <div style={{ fontSize: '11px', color: ((newSchedule.message_content && newSchedule.message_content.startsWith('QA|') && newSchedule.message_preview) ? newSchedule.message_preview : newSchedule.message_content || '').length > 3000 ? '#ff4d4d' : '#888', textAlign: 'right', marginTop: '2px' }}>
                                                     {((newSchedule.message_content && newSchedule.message_content.startsWith('QA|') && newSchedule.message_preview) ? newSchedule.message_preview : newSchedule.message_content || '').length} / 3000
@@ -1123,7 +1123,7 @@ setPreviewSteps(steps);
                                                     newSchedule.message_content,
                                                     selectedProjectId,
                                                     newSchedule.step_id,
-                                                    (val, preview) => setNewSchedule(prev => ({ ...prev, message_content: val, message_preview: preview }))
+                                                    (val, preview, isMultiple) => setNewSchedule(prev => ({ ...prev, message_content: val, message_preview: preview, is_multiple_messages: isMultiple }))
                                                 )}
                                                 title="編輯多媒體/Flex訊息"
                                                 style={{ padding: '8px', background: '#333', border: '1px solid #444', color: 'var(--primary-yellow)' }}
@@ -1243,9 +1243,9 @@ setPreviewSteps(steps);
                                                                     : editScheduleFormData.message_content
                                                                 }
                                                                 onChange={e => setEditScheduleFormData({ ...editScheduleFormData, message_content: e.target.value })}
-                                                                disabled={editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|')}
-                                                                style={{ width: '100%', backgroundColor: (editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|')) ? '#444' : '#fff' }}
-                                                                placeholder={(editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|')) ? '多媒體訊息請點擊右側編輯按鈕修改' : ''}
+                                                                disabled={editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.is_multiple_messages}
+                                                                style={{ width: '100%', backgroundColor: (editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.is_multiple_messages) ? '#444' : '#333', color: '#fff' }}
+                                                                placeholder={(editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.is_multiple_messages) ? '多媒體訊息請點擊右側編輯按鈕修改' : ''}
                                                             />
                                                             <div style={{ fontSize: '10px', color: ((editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.message_preview) ? editScheduleFormData.message_preview : editScheduleFormData.message_content || '').length > 3000 ? '#ff4d4d' : '#888', textAlign: 'right', marginTop: '2px' }}>
                                                                 {((editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.message_preview) ? editScheduleFormData.message_preview : editScheduleFormData.message_content || '').length} / 3000
@@ -1256,7 +1256,7 @@ setPreviewSteps(steps);
                                                                 editScheduleFormData.message_content,
                                                                 editScheduleFormData.project_id,
                                                                 editScheduleFormData.step_id,
-                                                                (val, preview) => setEditScheduleFormData(prev => ({ ...prev, message_content: val, message_preview: preview }))
+                                                                (val, preview, isMultiple) => setEditScheduleFormData(prev => ({ ...prev, message_content: val, message_preview: preview, is_multiple_messages: isMultiple }))
                                                             )}
                                                             style={{ padding: '5px', background: '#333', border: '1px solid #444', color: 'var(--primary-yellow)' }}
                                                         >
@@ -1533,7 +1533,7 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                 else if (firstMsg.OTYPE === 'FlexSendMessage') previewText = firstMsg.alt_text || 'Flex Message';
                 else previewText = `[${firstMsg.OTYPE.replace('SendMessage', '')}]`;
             }
-            onSave(tag, previewText);
+            onSave(tag, previewText, payloadMessages.length > 1);
             onClose();
         } catch (err) {
             alert('儲存失敗: ' + err.message);

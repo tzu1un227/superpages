@@ -91,6 +91,7 @@ function MessageCenter() {
     const [isAtBottom, setIsAtBottom] = useState(true);
     const [showNewMsgBtn, setShowNewMsgBtn] = useState(false);
     const prevMessagesLengthRef = useRef(0);
+    const userScrollPositionsRef = useRef({});
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -103,6 +104,10 @@ function MessageCenter() {
         const bottom = scrollHeight - scrollTop - clientHeight < 100;
         setIsAtBottom(bottom);
         if (bottom) setShowNewMsgBtn(false);
+
+        if (selectedUser && e.target) {
+            userScrollPositionsRef.current[selectedUser] = scrollTop;
+        }
     };
 
     useEffect(() => {
@@ -110,8 +115,22 @@ function MessageCenter() {
             const isInitialLoad = prevMessagesLengthRef.current === 0;
             const hasNewMessages = messages.length > prevMessagesLengthRef.current;
 
-            if (isInitialLoad || isAtBottom) {
-                setTimeout(scrollToBottom, 100);
+            if (isInitialLoad) {
+                const savedPos = userScrollPositionsRef.current[selectedUser];
+                if (savedPos !== undefined && chatContainerRef.current) {
+                    setTimeout(() => {
+                        if (chatContainerRef.current) {
+                            chatContainerRef.current.scrollTop = savedPos;
+                            // Check if at bottom
+                            const { scrollHeight, clientHeight } = chatContainerRef.current;
+                            setIsAtBottom(scrollHeight - savedPos - clientHeight < 100);
+                        }
+                    }, 50);
+                } else {
+                    setTimeout(scrollToBottom, 50);
+                }
+            } else if (isAtBottom) {
+                setTimeout(scrollToBottom, 50);
             } else if (hasNewMessages) {
                 setShowNewMsgBtn(true);
             }
