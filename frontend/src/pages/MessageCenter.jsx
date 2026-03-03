@@ -32,6 +32,7 @@ function MessageCenter() {
 
     useEffect(() => {
         if (selectedUser) {
+            setMessages([]); // 切換用戶時立即清空舊訊息，避免畫面殘留與捲軸誤判
             fetchHistory(selectedUser);
             setMessageSearch(''); // 切換用戶時清除對話搜尋
         }
@@ -105,8 +106,9 @@ function MessageCenter() {
         setIsAtBottom(bottom);
         if (bottom) setShowNewMsgBtn(false);
 
-        if (selectedUser && e.target) {
-            userScrollPositionsRef.current[selectedUser] = scrollTop;
+        if (selectedUser && e.target && messages.length > 0) {
+            // 記錄距離底部的距離，這樣圖片載入撐開高度時才不會讓畫面跳掉
+            userScrollPositionsRef.current[selectedUser] = scrollHeight - scrollTop;
         }
     };
 
@@ -120,17 +122,18 @@ function MessageCenter() {
                 if (savedPos !== undefined && chatContainerRef.current) {
                     setTimeout(() => {
                         if (chatContainerRef.current) {
-                            chatContainerRef.current.scrollTop = savedPos;
-                            // Check if at bottom
                             const { scrollHeight, clientHeight } = chatContainerRef.current;
-                            setIsAtBottom(scrollHeight - savedPos - clientHeight < 100);
+                            chatContainerRef.current.scrollTop = scrollHeight - savedPos;
+                            // Check if at bottom
+                            const newScrollTop = chatContainerRef.current.scrollTop;
+                            setIsAtBottom(scrollHeight - newScrollTop - clientHeight < 100);
                         }
-                    }, 50);
+                    }, 100);
                 } else {
-                    setTimeout(scrollToBottom, 50);
+                    setTimeout(scrollToBottom, 100);
                 }
             } else if (isAtBottom) {
-                setTimeout(scrollToBottom, 50);
+                setTimeout(scrollToBottom, 100);
             } else if (hasNewMessages) {
                 setShowNewMsgBtn(true);
             }
