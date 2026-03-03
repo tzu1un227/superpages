@@ -168,8 +168,11 @@ const ProjectsManagement = () => {
         fetchProjects();
     }, [location.pathname]);
 
+    const prevProjectIdRef = React.useRef('');
+
     useEffect(() => {
-        if (selectedProjectId) {
+        if (selectedProjectId && selectedProjectId !== prevProjectIdRef.current) {
+            prevProjectIdRef.current = selectedProjectId;
             const project = projects.find(p => p.project_id == selectedProjectId);
             if (project) {
                 setStatsDateRange({
@@ -178,6 +181,9 @@ const ProjectsManagement = () => {
                 });
             }
         }
+    }, [selectedProjectId, projects]);
+
+    useEffect(() => {
         if (activeTab === 'schedules') {
             fetchSchedules();
             if (selectedProjectId) {
@@ -187,7 +193,7 @@ const ProjectsManagement = () => {
         if (activeTab === 'users' && selectedProjectId) {
             fetchProjectUsers(selectedProjectId);
         }
-    }, [selectedProjectId, activeTab, statsDateRange.start, statsDateRange.end, projects]);
+    }, [selectedProjectId, activeTab, statsDateRange.start, statsDateRange.end]);
 
     // Auto-fill Step ID
     useEffect(() => {
@@ -1104,10 +1110,12 @@ setPreviewSteps(steps);
                                                         : newSchedule.message_content
                                                     }
                                                     onChange={e => setNewSchedule({ ...newSchedule, message_content: e.target.value })}
-                                                    style={{ width: '100%' }}
+                                                    disabled={newSchedule.message_content && newSchedule.message_content.startsWith('QA|')}
+                                                    style={{ width: '100%', backgroundColor: (newSchedule.message_content && newSchedule.message_content.startsWith('QA|')) ? '#444' : '#fff' }}
+                                                    placeholder={(newSchedule.message_content && newSchedule.message_content.startsWith('QA|')) ? '多媒體訊息請點擊右側編輯按鈕修改' : ''}
                                                 />
-                                                <div style={{ fontSize: '11px', color: (newSchedule.message_content || '').length > 3000 ? '#ff4d4d' : '#888', textAlign: 'right', marginTop: '2px' }}>
-                                                    {(newSchedule.message_content || '').length} / 3000
+                                                <div style={{ fontSize: '11px', color: ((newSchedule.message_content && newSchedule.message_content.startsWith('QA|') && newSchedule.message_preview) ? newSchedule.message_preview : newSchedule.message_content || '').length > 3000 ? '#ff4d4d' : '#888', textAlign: 'right', marginTop: '2px' }}>
+                                                    {((newSchedule.message_content && newSchedule.message_content.startsWith('QA|') && newSchedule.message_preview) ? newSchedule.message_preview : newSchedule.message_content || '').length} / 3000
                                                 </div>
                                             </div>
                                             <button
@@ -1235,10 +1243,12 @@ setPreviewSteps(steps);
                                                                     : editScheduleFormData.message_content
                                                                 }
                                                                 onChange={e => setEditScheduleFormData({ ...editScheduleFormData, message_content: e.target.value })}
-                                                                style={{ width: '100%' }}
+                                                                disabled={editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|')}
+                                                                style={{ width: '100%', backgroundColor: (editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|')) ? '#444' : '#fff' }}
+                                                                placeholder={(editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|')) ? '多媒體訊息請點擊右側編輯按鈕修改' : ''}
                                                             />
-                                                            <div style={{ fontSize: '10px', color: (editScheduleFormData.message_content || '').length > 3000 ? '#ff4d4d' : '#888', textAlign: 'right', marginTop: '2px' }}>
-                                                                {(editScheduleFormData.message_content || '').length} / 3000
+                                                            <div style={{ fontSize: '10px', color: ((editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.message_preview) ? editScheduleFormData.message_preview : editScheduleFormData.message_content || '').length > 3000 ? '#ff4d4d' : '#888', textAlign: 'right', marginTop: '2px' }}>
+                                                                {((editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.message_preview) ? editScheduleFormData.message_preview : editScheduleFormData.message_content || '').length} / 3000
                                                             </div>
                                                         </div>
                                                         <button
@@ -1742,6 +1752,7 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                         <>
                                             <div style={{ height: '600px', border: '1px solid #444', borderRadius: '8px', overflow: 'hidden' }}>
                                                 <FlexMessageEditor
+                                                    key={activeMsgIndex}
                                                     initialContent={messages[activeMsgIndex].contents}
                                                     onSave={(jsonString) => {
                                                         updateMessage(activeMsgIndex, 'contents', jsonString);
@@ -1799,7 +1810,7 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
     const filteredUsers = users.filter(u =>
         !existingUsers.includes(u.user_id) &&
         ((u.name && u.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            (u.user_id && u.user_id.toLowerCase().includes(searchTerm.toLowerCase())))
+            (u.tags && u.tags.toLowerCase().includes(searchTerm.toLowerCase())))
     );
 
     if (!isOpen) return null;
@@ -1819,7 +1830,7 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
                 <div style={{ marginBottom: '15px' }}>
                     <input
                         type="text"
-                        placeholder="搜尋姓名或是 User ID..."
+                        placeholder="搜尋姓名或標籤..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         style={{ width: '100%', padding: '10px', background: '#333', border: '1px solid #444', color: '#fff', borderRadius: '4px' }}
@@ -1859,7 +1870,7 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
                                     )}
                                     <div>
                                         <div style={{ fontWeight: 'bold', color: '#fff' }}>{u.name || '未命名'}</div>
-                                        <div style={{ fontSize: '12px', color: '#888' }}>{u.user_id}</div>
+                                        {u.tags && <div style={{ fontSize: '12px', color: '#888' }}>{String(u.tags).replace(/^\[|\]$/g, '').replace(/,/g, ', ')}</div>}
                                     </div>
                                 </div>
                                 <Plus size={16} color="var(--primary-yellow)" />

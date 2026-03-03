@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import api from '../api';
-import { Send, User, Search, Tag, X } from 'lucide-react';
+import { Send, User, Search, Tag, X, Image as ImageIcon, Mic, Video, Smile, ArrowDown } from 'lucide-react';
 
 function MessageCenter() {
     const location = useLocation();
@@ -62,29 +62,70 @@ function MessageCenter() {
         }
     };
 
-    const fetchHistory = async (userId) => {
+    const fetchHistory = async (userId, isPolling = false) => {
         try {
             const resp = await api.get(`/history/${userId}`);
             setMessages(resp.data);
-            // Mark as read when opening chat
-            api.post(`/users/${userId}/read`).catch(e => console.error("Failed to mark as read", e));
-            // Trigger auto-scroll after data is set
-            setTimeout(scrollToBottom, 100);
+            if (!isPolling) {
+                api.post(`/users/${userId}/read`).catch(e => console.error("Failed to mark as read", e));
+            }
         } catch (err) {
             console.error('Error fetching history:', err);
         }
     };
 
+    // 30 秒自動更新
+    useEffect(() => {
+        const interval = setInterval(() => {
+            fetchUsers(searchQuery, selectedTagFilters);
+            if (selectedUser) {
+                fetchHistory(selectedUser, true);
+            }
+        }, 30000);
+        return () => clearInterval(interval);
+    }, [selectedUser, searchQuery, selectedTagFilters]);
+
+    // 捲軸功能與新訊息偵測
     const messagesEndRef = useRef(null);
+    const chatContainerRef = useRef(null);
+    const [isAtBottom, setIsAtBottom] = useState(true);
+    const [showNewMsgBtn, setShowNewMsgBtn] = useState(false);
+    const prevMessagesLengthRef = useRef(0);
+
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        setIsAtBottom(true);
+        setShowNewMsgBtn(false);
+    };
+
+    const handleScroll = (e) => {
+        const { scrollTop, scrollHeight, clientHeight } = e.target;
+        const bottom = scrollHeight - scrollTop - clientHeight < 100;
+        setIsAtBottom(bottom);
+        if (bottom) setShowNewMsgBtn(false);
     };
 
     useEffect(() => {
         if (messages.length > 0) {
-            scrollToBottom();
+            const isInitialLoad = prevMessagesLengthRef.current === 0;
+            const hasNewMessages = messages.length > prevMessagesLengthRef.current;
+
+            if (isInitialLoad || isAtBottom) {
+                setTimeout(scrollToBottom, 100);
+            } else if (hasNewMessages) {
+                setShowNewMsgBtn(true);
+            }
+            prevMessagesLengthRef.current = messages.length;
+        } else {
+            prevMessagesLengthRef.current = 0;
         }
     }, [messages]);
+
+    useEffect(() => {
+        prevMessagesLengthRef.current = 0;
+        setIsAtBottom(true);
+        setShowNewMsgBtn(false);
+    }, [selectedUser]);
 
     const [availableTags, setAvailableTags] = useState([]);
 
@@ -410,7 +451,7 @@ function MessageCenter() {
             </div>
 
             {/* Chat Area */}
-            <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0' }}>
+            <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0', position: 'relative' }}>
                 {selectedUser ? (
                     <>
                         {/* 聊天室 Header：用戶名 + 標籤 + 新增標籤 */}
@@ -537,7 +578,11 @@ function MessageCenter() {
                         </div>
 
                         {/* 訊息列表 */}
-                        <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                        <div
+                            ref={chatContainerRef}
+                            onScroll={handleScroll}
+                            style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}
+                        >
                             {(() => {
                                 let lastDate = null;
                                 return displayedMessages.map((m, i) => {
@@ -556,6 +601,18 @@ function MessageCenter() {
 
                                     // ... inline components logic ...
                                     const renderMessageContent = () => {
+                                        if (m.category === 'Image') return <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'inherit' }}><ImageIcon size={16} /> [圖片訊息]</div>;
+                                        if (m.category === 'Audio') return <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'inherit' }}><Mic size={16} /> [語音訊息]</div>;
+                                        if (m.category === 'Video') return <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'inherit' }}><Video size={16} /> [影片訊息]</div>;
+                                        if (m.category === 'Sticker') {
+                                            try {
+                                                const match = m.content.match(/"?stickerId"?\s*[:=]\s*["']?(\d+)["']?/);
+                                                const stickerId = match ? match[1] : null;
+                                                if (stickerId) return <img src={`https://stickershop.line-scdn.net/stickershop/v1/sticker/${stickerId}/android/sticker.png`} style={{ width: '120px' }} alt="Sticker" />;
+                                            } catch (e) { }
+                                            return <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'inherit' }}><Smile size={16} /> [貼圖訊息]</div>;
+                                        }
+
                                         if (m.category === 'sys_reply') {
                                             try {
                                                 const parsed = JSON.parse(m.content);
@@ -633,6 +690,31 @@ function MessageCenter() {
                             })()}
                             <div ref={messagesEndRef} />
                         </div>
+
+                        {showNewMsgBtn && (
+                            <button
+                                onClick={scrollToBottom}
+                                style={{
+                                    position: 'absolute',
+                                    bottom: '90px',
+                                    right: '30px',
+                                    backgroundColor: 'var(--primary-yellow)',
+                                    color: '#000',
+                                    border: 'none',
+                                    borderRadius: '20px',
+                                    padding: '8px 15px',
+                                    fontSize: '12px',
+                                    boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
+                                    cursor: 'pointer',
+                                    zIndex: 10,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '5px'
+                                }}
+                            >
+                                <ArrowDown size={14} /> 有新訊息
+                            </button>
+                        )}
 
                         {/* 訊息輸入框 */}
                         <div style={{ padding: '20px', borderTop: '1px solid #333', display: 'flex', gap: '15px' }}>

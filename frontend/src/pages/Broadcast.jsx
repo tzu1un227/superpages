@@ -809,7 +809,24 @@ function Broadcast() {
                     <button className="secondary" disabled={step === 1} onClick={() => setStep(step - 1)} style={{ padding: '10px 25px' }}><ChevronLeft size={18} /> 上一步</button>
                     <div style={{ display: 'flex', gap: '15px' }}>
                         {step < 3 ? (
-                            <button className="primary" onClick={() => setStep(step + 1)} style={{ padding: '10px 40px' }}>下一步 <ChevronRight size={18} /></button>
+                            <button className="primary" onClick={() => {
+                                if (step === 2) {
+                                    for (let i = 0; i < formData.messages.length; i++) {
+                                        const msg = formData.messages[i];
+                                        if (msg.OTYPE === 'TextSendMessage') {
+                                            if (!msg.text || !msg.text.trim()) {
+                                                alert(`第 ${i + 1} 則文字訊息內容不能為空`);
+                                                return;
+                                            }
+                                            if (msg.text.length > 3000) {
+                                                alert(`第 ${i + 1} 則文字訊息內容不能超過 3000 字`);
+                                                return;
+                                            }
+                                        }
+                                    }
+                                }
+                                setStep(step + 1);
+                            }} style={{ padding: '10px 40px' }}>下一步 <ChevronRight size={18} /></button>
                         ) : !isViewOnly && (
                             <button className="primary" onClick={finishBroadcast} disabled={loading} style={{ padding: '10px 50px', backgroundColor: formData.send_type === 'immediate' ? '#4CAF50' : 'var(--primary-yellow)', color: '#000' }}>
                                 {formData.send_type === 'immediate' ? '立即發送群發' : '確認預約排程'}
