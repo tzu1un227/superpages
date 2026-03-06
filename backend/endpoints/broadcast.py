@@ -217,25 +217,32 @@ def execute_broadcast(id):
         
         # 1. Immediate send via WebSocket
         if bc.send_type == 'immediate':
+            # Get targets
+            user_ids = []
+            if bc.target_type == 'all':
+                cur.execute(f'SELECT DISTINCT user_id FROM "Private_var:{app_id}"')
+                user_ids = [r[0] for r in cur.fetchall()]
+            elif bc.target_type == 'tag':
+                cur.execute(f'SELECT DISTINCT user_id FROM "Private_var:{app_id}" WHERE name = \'tag\' AND value LIKE %s', (f'%{bc.target_value}%',))
+                user_ids = [r[0] for r in cur.fetchall()]
+            elif bc.target_type == 'ids':
+                user_ids = [i.strip() for i in bc.target_value.split(',') if i.strip()]
+            
+            # Use Python list string format as requested
+            ids_str = str(user_ids)
+            
             data = {
-                "user": "yzuadmin", # Admin identity for triggering sensor
+                "user": "yzuadmin", 
                 "type": "Sensor",
-                "message": ""
+                "message": f"bmcast|{ids_str}|{bc.message_tag}"
             }
             
-            if bc.target_type == 'all':
-                data["message"] = f"bmcast|ALL|QA|{bc.message_tag}"
-            elif bc.target_type == 'tag':
-                data["message"] = f"bmcast|TAG:{bc.target_value}|QA|{bc.message_tag}"
-            elif bc.target_type == 'ids':
-                data["message"] = f"bmcast|{bc.target_value}|QA|{bc.message_tag}"
-            
-            print(f"Triggering immediate broadcast via WebSocket: {data['message']}")
+            print(f"Triggering immediate broadcast (Format: {bc.target_type}) via WebSocket: {data['message']}")
             send_socket_event(data)
             
             bc.status = 'sent'
             db.session.commit()
-            return jsonify({'status': 'success', 'method': 'websocket'})
+            return jsonify({'status': 'success', 'method': 'websocket', 'targets': len(user_ids)})
 
         # 2. Scheduled send via cron_table
         # Get targets
