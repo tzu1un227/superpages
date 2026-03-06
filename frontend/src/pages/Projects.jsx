@@ -1837,6 +1837,31 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
         }
     };
 
+    const getCurrentUserTags = (tagsInput) => {
+        if (!tagsInput) return [];
+        let tagList = [];
+        const rawParts = typeof tagsInput === 'string' ? tagsInput.split('|') : [tagsInput];
+        rawParts.forEach(part => {
+            if (!part) return;
+            let trimmed = String(part).trim();
+            if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+                const inner = trimmed.substring(1, trimmed.length - 1);
+                inner.split(',').forEach(s => {
+                    const s_clean = s.trim().replace(/^['"]|['"]$/g, '');
+                    if (s_clean) tagList.push(s_clean);
+                });
+            } else if (trimmed.includes(',')) {
+                trimmed.split(',').forEach(s => {
+                    const s_clean = s.trim().replace(/^['"]|['"]$/g, '');
+                    if (s_clean) tagList.push(s_clean);
+                });
+            } else {
+                tagList.push(trimmed.replace(/^['"]|['"]$/g, ''));
+            }
+        });
+        return [...new Set(tagList.map(t => String(t).trim()).filter(t => t && t !== 'null' && t !== 'undefined' && t !== '[]' && t !== '{}'))];
+    };
+
     const filteredUsers = users.filter(u => {
         const matchesExisting = !existingUsers.includes(u.user_id);
         const matchesSearch = !searchTerm || (
@@ -1844,7 +1869,7 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
             (u.user_id && u.user_id.toLowerCase().includes(searchTerm.toLowerCase()))
         );
         const matchesTag = !tagSearch || (
-            String(u.tags || '').toLowerCase().includes(tagSearch.toLowerCase())
+            getCurrentUserTags(u.tags).some(t => t.toLowerCase().includes(tagSearch.toLowerCase()))
         );
         return matchesExisting && matchesSearch && matchesTag;
     });

@@ -228,6 +228,40 @@ function Broadcast() {
         }
     };
 
+    const handlePreviewSent = async (bc) => {
+        setLoading(true);
+        try {
+            const messages = bc.message_tag ? await fetchMessagesByTag(bc.message_tag) : [
+                { OTYPE: 'TextSendMessage', text: '[無法讀取內容]' }
+            ];
+
+            const mappedMessages = messages.map(msg => {
+                if (msg.OTYPE === 'ImageSendMessage' || msg.OTYPE === 'VideoSendMessage') {
+                    return {
+                        ...msg,
+                        original_content_url: msg.original_content_url || msg.originalUrl || '',
+                        preview_image_url: msg.preview_image_url || msg.previewUrl || ''
+                    };
+                }
+                if (msg.OTYPE === 'FlexSendMessage') {
+                    return {
+                        ...msg,
+                        alt_text: msg.alt_text || '您有一則新訊息',
+                        contents: msg.contents || (msg.text ? JSON.parse(msg.text) : {})
+                    };
+                }
+                return msg;
+            });
+
+            setFormData({ ...bc, messages: mappedMessages });
+            setIsPreviewOpen(true);
+        } catch (err) {
+            alert('無法載入預覽內容: ' + err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleDelete = async (id) => {
         if (!window.confirm('確定要刪除此群發記錄嗎？（若為預約中，排程也將一併移除）')) return;
         setLoading(true);
@@ -967,7 +1001,7 @@ function Broadcast() {
                                 </div>
                                 <div style={{ display: 'flex', gap: '5px' }}>
                                     {bc.status === 'sent' ? (
-                                        <Tooltip title="查看詳情"><IconButton onClick={() => handleEdit(bc)} sx={{ color: '#888' }}><Eye size={18} /></IconButton></Tooltip>
+                                        <Tooltip title="視覺預覽"><IconButton onClick={() => handlePreviewSent(bc)} sx={{ color: '#888' }}><Eye size={18} /></IconButton></Tooltip>
                                     ) : (
                                         <Tooltip title="繼續編輯"><IconButton onClick={() => handleEdit(bc)} sx={{ color: 'var(--primary-yellow)' }}><Edit2 size={18} /></IconButton></Tooltip>
                                     )}

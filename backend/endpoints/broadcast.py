@@ -231,7 +231,7 @@ def execute_broadcast(id):
         
         for uid in user_ids:
             cur.execute(
-                "INSERT INTO cron_table (user_id, message_content, push_time) VALUES (%s, %s, %s)",
+                "INSERT INTO cron_table (user_id, message_content, push_time, status) VALUES (%s, %s, %s, 'active')",
                 (uid, msg_content, push_time)
             )
             
