@@ -1315,12 +1315,14 @@ def get_registered_users():
                 ORDER BY id::integer
             """)
         else:
-            # Fetch users from Private_var with name and pic
+            # Fetch users from Private_var with name, pic, and tags
             cur.execute(f"""
-                SELECT t1.user_id, t1.value as name, t2.value as pic
+                SELECT t1.user_id, t1.value as name, t2.value as pic,
+                    (SELECT string_agg(value, '|') FROM "Private_var:{app_id}" WHERE user_id = t1.user_id AND name = 'tag') as tags
                 FROM "Private_var:{app_id}" t1
-                JOIN "Private_var:{app_id}" t2 ON t1.user_id = t2.user_id
-                WHERE t1.name = 'name' AND t2.name = 'pic'
+                LEFT JOIN "Private_var:{app_id}" t2 ON t1.user_id = t2.user_id AND t2.name = 'pic'
+                WHERE t1.name = 'name'
+                GROUP BY t1.user_id, t1.value, t2.value
             """)
             
         users = cur.fetchall()
@@ -1536,14 +1538,15 @@ def create_scheduled_event():
         message_content = data.get('message_content')
         interval_hours = data.get('interval_hours')
         
-        if not user_id or not message_content or not interval_hours:
+        if not user_id or not message_content or interval_hours is None or interval_hours == '':
             return jsonify({"status": "error", "message": "Missing required fields"}), 400
 
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Calculate initial push_time (NOW + interval)
-        push_time = datetime.now() + timedelta(hours=float(interval_hours))
+        # Calculate initial push_time in UTC (RDS timezone is UTC, using local time causes 8h delay)
+        from datetime import timezone as tz_zone
+        push_time = datetime.now(tz_zone.utc).replace(tzinfo=None) + timedelta(hours=float(interval_hours))
         
         cur.execute(
             "INSERT INTO cron_table (user_id, message_content, repeat_interval, push_time, status) VALUES (%s, %s, %s, %s, 'active') RETURNING task_id",

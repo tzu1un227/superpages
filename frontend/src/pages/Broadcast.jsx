@@ -49,6 +49,8 @@ function Broadcast() {
     const [isFlexEditorOpen, setIsFlexEditorOpen] = useState(false);
     const [editingMsgIndex, setEditingMsgIndex] = useState(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+    // Separate state for list-view preview
+    const [previewBcMessages, setPreviewBcMessages] = useState(null);
 
     // Data sources
     const [availableTags, setAvailableTags] = useState([]);
@@ -253,8 +255,14 @@ function Broadcast() {
                 return msg;
             });
 
-            setFormData({ ...bc, messages: mappedMessages });
-            setIsPreviewOpen(true);
+            if (view === 'create') {
+                // inside the create view, open inline preview
+                setFormData({ ...bc, messages: mappedMessages });
+                setIsPreviewOpen(true);
+            } else {
+                // in list view, open standalone preview dialog
+                setPreviewBcMessages(mappedMessages);
+            }
         } catch (err) {
             alert('無法載入預覽內容: ' + err.message);
         } finally {
@@ -1000,8 +1008,13 @@ function Broadcast() {
                                     </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: '5px' }}>
-                                    {bc.status === 'sent' ? (
-                                        <Tooltip title="視覺預覽"><IconButton onClick={() => handlePreviewSent(bc)} sx={{ color: '#888' }}><Eye size={18} /></IconButton></Tooltip>
+                                    {(bc.status === 'sent' || bc.status === 'scheduled') ? (
+                                        <>
+                                            <Tooltip title="視覺預覽"><IconButton onClick={() => handlePreviewSent(bc)} sx={{ color: '#888' }}><Eye size={18} /></IconButton></Tooltip>
+                                            {bc.status === 'scheduled' && (
+                                                <Tooltip title="繼續編輯"><IconButton onClick={() => handleEdit(bc)} sx={{ color: 'var(--primary-yellow)' }}><Edit2 size={18} /></IconButton></Tooltip>
+                                            )}
+                                        </>
                                     ) : (
                                         <Tooltip title="繼續編輯"><IconButton onClick={() => handleEdit(bc)} sx={{ color: 'var(--primary-yellow)' }}><Edit2 size={18} /></IconButton></Tooltip>
                                     )}
@@ -1081,6 +1094,33 @@ function Broadcast() {
                         </div>
                     )}
                 </div>
+            )}
+
+            {/* List-view preview modal */}
+            {previewBcMessages && (
+                <Modal open={Boolean(previewBcMessages)} onClose={() => setPreviewBcMessages(null)}>
+                    <Box sx={{
+                        position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                        width: 'auto', outline: 'none', backgroundColor: '#1a1a1a', borderRadius: '12px', padding: '20px',
+                        maxHeight: '90vh', overflowY: 'auto'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                            <span style={{ color: '#fff', fontSize: '18px', fontWeight: 'bold' }}>訊息內容預覽</span>
+                            <IconButton onClick={() => setPreviewBcMessages(null)} sx={{ color: '#888' }}><X size={18} /></IconButton>
+                        </div>
+                        <JourneyPreview
+                            steps={previewBcMessages.map(m => {
+                                if (m.OTYPE === 'TextSendMessage') return { OTYPE: m.OTYPE, text: m.text };
+                                if (m.OTYPE === 'FlexSendMessage') return { OTYPE: 'FlexSendMessage', contents: m.contents };
+                                return {
+                                    OTYPE: m.OTYPE,
+                                    originalUrl: m.original_content_url || m.originalUrl,
+                                    previewUrl: m.preview_image_url || m.previewUrl
+                                };
+                            })}
+                        />
+                    </Box>
+                </Modal>
             )}
         </div>
     );

@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, g
 from models import db, Broadcast, OAConfig
 from auth import token_required
-from datetime import datetime
+from datetime import datetime, timezone
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import json
@@ -226,7 +226,8 @@ def execute_broadcast(id):
             user_ids = [i.strip() for i in bc.target_value.split(',') if i.strip()]
             
         # 2. Insert into cron_table
-        push_time = bc.scheduled_at if bc.scheduled_at else datetime.now()
+        # Use UTC time for push_time since the RDS database stores/compares with UTC NOW()
+        push_time = bc.scheduled_at if bc.scheduled_at else datetime.now(timezone.utc).replace(tzinfo=None)
         msg_content = f"QA|{bc.message_tag}"
         
         for uid in user_ids:
