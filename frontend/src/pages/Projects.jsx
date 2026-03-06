@@ -348,7 +348,8 @@ const ProjectsManagement = () => {
             const res = await api.get(`/projects/${projectId}/users`);
             setProjectUsers(res.data);
         } catch (err) {
-            setError('無法取得專案用戶列表');
+            console.error('No project users found:', err);
+            setProjectUsers([]);
         }
     };
 
@@ -435,17 +436,13 @@ const ProjectsManagement = () => {
 
     const onUserSelected = async (userId) => {
         try {
-            await api.post('/trigger', {
-                user: userId,
-                message: `iup|${selectedProjectId}`,
-                type: 'Sensor',
-                api_index: 0
-            });
-            alert(`已送出加入專案指令 (User: ${userId}, Project: ${selectedProjectId})`);
+            // Call backend restart endpoint directly - this inserts cron_table with status='active'
+            await api.post(`/projects/${selectedProjectId}/users/${userId}/restart`);
+            alert(`已成功加入用戶 (User: ${userId}, Project: ${selectedProjectId})`);
             setIsUserSelectModalOpen(false);
             setTimeout(() => fetchProjectUsers(selectedProjectId), 1000);
         } catch (err) {
-            alert('指令發送失敗: ' + err.message);
+            alert('加入用戶失敗: ' + (err.response?.data?.message || err.message));
         }
     };
 
