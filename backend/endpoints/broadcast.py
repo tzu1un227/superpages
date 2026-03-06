@@ -211,10 +211,34 @@ def execute_broadcast(id):
     app_id = get_logical_app_id(oa)
     
     try:
+        from utils.socket_utils import send_socket_event
         conn = get_db_connection(oa.db_url)
         cur = conn.cursor()
         
-        # 1. Get targets
+        # 1. Immediate send via WebSocket
+        if bc.send_type == 'immediate':
+            data = {
+                "user": "yzuadmin", # Admin identity for triggering sensor
+                "type": "Sensor",
+                "message": ""
+            }
+            
+            if bc.target_type == 'all':
+                data["message"] = f"bmcast|ALL|QA|{bc.message_tag}"
+            elif bc.target_type == 'tag':
+                data["message"] = f"bmcast|TAG:{bc.target_value}|QA|{bc.message_tag}"
+            elif bc.target_type == 'ids':
+                data["message"] = f"bmcast|{bc.target_value}|QA|{bc.message_tag}"
+            
+            print(f"Triggering immediate broadcast via WebSocket: {data['message']}")
+            send_socket_event(data)
+            
+            bc.status = 'sent'
+            db.session.commit()
+            return jsonify({'status': 'success', 'method': 'websocket'})
+
+        # 2. Scheduled send via cron_table
+        # Get targets
         user_ids = []
         if bc.target_type == 'all':
             cur.execute(f'SELECT user_id FROM "Private_var:{app_id}" WHERE name = \'name\'')
@@ -225,7 +249,7 @@ def execute_broadcast(id):
         elif bc.target_type == 'ids':
             user_ids = [i.strip() for i in bc.target_value.split(',') if i.strip()]
             
-        # 2. Insert into cron_table
+        # Insert into cron_table
         # Use UTC time for push_time since the RDS database stores/compares with UTC NOW()
         push_time = bc.scheduled_at if bc.scheduled_at else datetime.now(timezone.utc).replace(tzinfo=None)
         msg_content = f"QA|{bc.message_tag}"
@@ -240,9 +264,9 @@ def execute_broadcast(id):
         cur.close()
         conn.close()
         
-        bc.status = 'scheduled' if bc.scheduled_at and bc.scheduled_at > datetime.now() else 'sent'
+        bc.status = 'scheduled'
         db.session.commit()
         
-        return jsonify({'status': 'success', 'targets': len(user_ids)})
+        return jsonify({'status': 'success', 'targets': len(user_ids), 'method': 'cron'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
