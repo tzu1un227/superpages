@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import api from '../api';
-import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type, BarChart2, Download, Upload, Play, ExternalLink, TrendingUp, CheckCircle2, Circle, ChevronLeft, ChevronRight, BarChart3, RotateCcw } from 'lucide-react';
+import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, User, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type, BarChart2, Download, Upload, Play, ExternalLink, TrendingUp, CheckCircle2, Circle, ChevronLeft, ChevronRight, BarChart3, RotateCcw } from 'lucide-react';
 import FlexMessageEditor from '../components/FlexMessageEditor';
 import JourneyPreview from '../components/JourneyPreview';
 import { downloadCSV } from '../utils/csvUtils';
@@ -1198,8 +1198,8 @@ const ProjectsManagement = () => {
                                                                 type="text"
                                                                 value={editScheduleFormData.message_preview || editScheduleFormData.message_content}
                                                                 onChange={e => setEditScheduleFormData({ ...editScheduleFormData, message_content: e.target.value })}
-                                                                disabled={editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|')}
-                                                                style={{ width: '100%', backgroundColor: (editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|')) ? '#444' : '' }}
+                                                                disabled={editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.is_multiple_messages}
+                                                                style={{ width: '100%', backgroundColor: (editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.is_multiple_messages) ? '#444' : '' }}
                                                             />
                                                         </div>
                                                         <button
@@ -1287,9 +1287,43 @@ const ProjectsManagement = () => {
                                                 const s = u.status || 'unknown';
                                                 let color = '#666';
                                                 let text = s;
-                                                if (s === 'active' || s === 'Active') { color = '#4CAF50'; text = '進行中'; }
-                                                if (s === 'completed') { color = '#2196F3'; text = '已完成'; }
-                                                return <span style={{ color, fontWeight: 'bold' }}>● {text}</span>
+                                                let preview = null;
+
+                                                if (s === 'active' || s === 'Active') {
+                                                    color = '#4CAF50';
+                                                    text = '進行中';
+                                                }
+                                                if (s === 'completed') {
+                                                    color = '#2196F3';
+                                                    text = '已完成';
+                                                }
+
+                                                // Find the schedule for the user's current or completed step to show a preview if possible
+                                                // If 'completed', they finished the project. We might not have a "current step" schedule without more logic, 
+                                                // but if u.step_id exists, we can try to show the preview of the *last* step they completed.
+                                                const currentSchedule = schedules.find(sched => sched.project_id == selectedProjectId && sched.step_id == (u.step_id || (s === 'completed' ? Object.keys(schedules).length : 0)));
+
+                                                if (s === 'active' && currentSchedule && currentSchedule.message_preview) {
+                                                    preview = <div style={{ fontSize: '12px', color: '#888', marginTop: '4px', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>即將發送: {currentSchedule.message_preview}</div>;
+                                                } else if (s === 'completed') {
+                                                    // If we want a preview for completed, we'd need to know the *last* message sent. 
+                                                    // This is slightly complex without specific DB support for 'last_message_preview', 
+                                                    // but we can try showing the very last step's preview as an indicator they finished everything.
+                                                    const lastSched = [...schedules].filter(sched => sched.project_id == selectedProjectId).sort((a, b) => b.step_id - a.step_id)[0];
+                                                    if (lastSched && lastSched.message_preview) {
+                                                        preview = <div style={{ fontSize: '12px', color: '#888', marginTop: '4px', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>完結於: {lastSched.message_preview}</div>;
+                                                    }
+                                                }
+
+                                                return (
+                                                    <div>
+                                                        <span style={{ color, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                            {s === 'completed' ? <CheckCircle2 size={14} /> : (s === 'active' ? <Clock size={14} /> : <Circle size={14} />)}
+                                                            {text}
+                                                        </span>
+                                                        {preview}
+                                                    </div>
+                                                );
                                             })()}
                                         </td>
                                         <td>
