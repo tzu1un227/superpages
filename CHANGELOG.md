@@ -3,6 +3,10 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **Projects.jsx 頁面結構大修復 (Structural Refactor)** [2026-03-06]:
+  - **修復編譯錯誤**：解決 `Expected "}" but found ":"` 等 Vite 編譯錯誤，恢復系統可建置狀態。
+  - **移除程式碼冗餘**：清理並重寫 `Projects.jsx` 中超過 500 行的重複及錯誤嵌套程式碼，將分頁 (Tabs) 邏輯由深層三元運算子改為扁平化條件渲染結構。
+  - **修復排程與專案管理表單**：修正新增排程表單中的 `openRichEditor` 語法錯誤與 UI 損毀問題。
 - **系統功能增強與防錯機制 (System Enhancements & Validation)** [2026-03-06]:
   - **自動旅程 (Projects) 核心優化**：
     - 實作完整表單驗證：包含必填項紅框提示、錯誤訊息顯示、自動捲動至錯誤欄位功能。
