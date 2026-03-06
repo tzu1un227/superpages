@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import api from '../api';
-import { Send, User, Search, Tag, X, Image as ImageIcon, Mic, Video, Smile, ArrowDown } from 'lucide-react';
+import { Send, User, Search, Tag, X, Image as ImageIcon, Mic, Video, Smile, ArrowDown, RefreshCw } from 'lucide-react';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 function MessageCenter() {
     const location = useLocation();
@@ -54,12 +55,13 @@ function MessageCenter() {
             if (tags.length > 0) params.tag = tags.join(',');
             const resp = await api.get('/users', { params });
             setUsers(resp.data);
-            // 若目前選中的用戶不在新清單中，自動選第一個
-            if (resp.data.length > 0 && !resp.data.find(u => u.user_id === selectedUser)) {
+            if (resp.data.length > 0 && !selectedUser) {
                 setSelectedUser(resp.data[0].user_id);
             }
         } catch (err) {
             console.error('Error fetching users:', err);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -93,8 +95,14 @@ function MessageCenter() {
     const prevMessagesLengthRef = useRef(0);
     const userScrollPositionsRef = useRef({});
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const scrollToBottom = (smooth = true) => {
+        if (chatContainerRef.current) {
+            const { scrollHeight } = chatContainerRef.current;
+            chatContainerRef.current.scrollTo({
+                top: scrollHeight,
+                behavior: smooth ? "smooth" : "auto"
+            });
+        }
         setIsAtBottom(true);
         setShowNewMsgBtn(false);
     };
@@ -123,16 +131,15 @@ function MessageCenter() {
                         if (chatContainerRef.current) {
                             const { scrollHeight, clientHeight } = chatContainerRef.current;
                             chatContainerRef.current.scrollTop = scrollHeight - savedPos;
-                            // Check if at bottom
                             const newScrollTop = chatContainerRef.current.scrollTop;
-                            setIsAtBottom(scrollHeight - newScrollTop - clientHeight < 100);
+                            setIsAtBottom(scrollHeight - newScrollTop - clientHeight < 150);
                         }
-                    }, 100);
+                    }, 50);
                 } else {
-                    setTimeout(scrollToBottom, 100);
+                    setTimeout(() => scrollToBottom(false), 50);
                 }
-            } else if (isAtBottom) {
-                setTimeout(scrollToBottom, 100);
+            } else if (isAtBottom && hasNewMessages) {
+                setTimeout(() => scrollToBottom(true), 50);
             } else if (hasNewMessages) {
                 setShowNewMsgBtn(true);
             }
@@ -401,73 +408,76 @@ function MessageCenter() {
 
                 {/* 用戶清單 */}
                 <div style={{ flex: 1, overflowY: 'auto' }}>
-                    {users.length === 0 && (
+                    {loading && users.length === 0 ? (
+                        <LoadingSpinner message="載入用戶中..." />
+                    ) : users.length === 0 ? (
                         <div style={{ color: '#555', fontSize: '13px', textAlign: 'center', marginTop: '20px' }}>
                             {searchQuery || selectedTagFilters.length > 0 ? '找不到符合的用戶' : '尚無用戶'}
                         </div>
-                    )}
-                    {users.map(u => {
-                        const userTags = getCurrentUserTags(u);
-                        const unreadCount = parseInt(u.unread_count || '0');
-                        return (
-                            <div
-                                key={u.user_id}
-                                onClick={() => setSelectedUser(u.user_id)}
-                                style={{
-                                    padding: '12px',
-                                    borderRadius: '8px',
-                                    cursor: 'pointer',
-                                    marginBottom: '8px',
-                                    backgroundColor: selectedUser === u.user_id ? 'rgba(255, 215, 0, 0.1)' : 'transparent',
-                                    border: selectedUser === u.user_id ? '1px solid var(--primary-yellow)' : '1px solid transparent',
-                                    position: 'relative'
-                                }}
-                            >
-                                {unreadCount > 0 && selectedUser !== u.user_id && (
-                                    <div style={{
-                                        position: 'absolute',
-                                        right: '12px',
-                                        top: '12px',
-                                        backgroundColor: '#ff4d4f',
-                                        color: 'white',
-                                        borderRadius: '10px',
-                                        padding: '1px 6px',
-                                        fontSize: '10px',
-                                        fontWeight: 'bold',
-                                        minWidth: '18px',
-                                        textAlign: 'center',
-                                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                                    }}>
-                                        {unreadCount > 99 ? '99+' : unreadCount}
-                                    </div>
-                                )}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <div style={{ backgroundColor: '#333', padding: '8px', borderRadius: '50%', flexShrink: 0 }}>
-                                        <User size={18} />
-                                    </div>
-                                    <div style={{ flex: 1, overflow: 'hidden' }}>
-                                        <p style={{ fontWeight: '600', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name || u.user_id}</p>
-                                        {u.name && (
-                                            <p style={{ fontSize: '11px', color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.user_id}</p>
-                                        )}
-                                        <p style={{ fontSize: '12px', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.last_message || '尚無訊息'}</p>
-                                        {userTags.length > 0 && (
-                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', marginTop: '4px' }}>
-                                                {userTags.slice(0, 3).map((t, i) => (
-                                                    <span key={i} style={{ fontSize: '10px', color: '#FFD700', backgroundColor: 'rgba(255,215,0,0.1)', padding: '1px 6px', borderRadius: '8px', border: '1px solid rgba(255,215,0,0.2)' }}>
-                                                        {t}
-                                                    </span>
-                                                ))}
-                                                {userTags.length > 3 && (
-                                                    <span style={{ fontSize: '10px', color: '#666' }}>+{userTags.length - 3}</span>
-                                                )}
-                                            </div>
-                                        )}
+                    ) : (
+                        users.map(u => {
+                            const userTags = getCurrentUserTags(u);
+                            const unreadCount = parseInt(u.unread_count || '0');
+                            return (
+                                <div
+                                    key={u.user_id}
+                                    onClick={() => setSelectedUser(u.user_id)}
+                                    style={{
+                                        padding: '12px',
+                                        borderRadius: '8px',
+                                        cursor: 'pointer',
+                                        marginBottom: '8px',
+                                        backgroundColor: selectedUser === u.user_id ? 'rgba(255, 215, 0, 0.1)' : 'transparent',
+                                        border: selectedUser === u.user_id ? '1px solid var(--primary-yellow)' : '1px solid transparent',
+                                        position: 'relative'
+                                    }}
+                                >
+                                    {unreadCount > 0 && selectedUser !== u.user_id && (
+                                        <div style={{
+                                            position: 'absolute',
+                                            right: '12px',
+                                            top: '12px',
+                                            backgroundColor: '#ff4d4f',
+                                            color: 'white',
+                                            borderRadius: '10px',
+                                            padding: '1px 6px',
+                                            fontSize: '10px',
+                                            fontWeight: 'bold',
+                                            minWidth: '18px',
+                                            textAlign: 'center',
+                                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                        }}>
+                                            {unreadCount > 99 ? '99+' : unreadCount}
+                                        </div>
+                                    )}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <div style={{ backgroundColor: '#333', padding: '8px', borderRadius: '50%', flexShrink: 0 }}>
+                                            <User size={18} />
+                                        </div>
+                                        <div style={{ flex: 1, overflow: 'hidden' }}>
+                                            <p style={{ fontWeight: '600', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name || u.user_id}</p>
+                                            {u.name && (
+                                                <p style={{ fontSize: '11px', color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.user_id}</p>
+                                            )}
+                                            <p style={{ fontSize: '12px', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.last_message || '尚無訊息'}</p>
+                                            {userTags.length > 0 && (
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', marginTop: '4px' }}>
+                                                    {userTags.slice(0, 3).map((t, i) => (
+                                                        <span key={i} style={{ fontSize: '10px', color: '#FFD700', backgroundColor: 'rgba(255,215,0,0.1)', padding: '1px 6px', borderRadius: '8px', border: '1px solid rgba(255,215,0,0.2)' }}>
+                                                            {t}
+                                                        </span>
+                                                    ))}
+                                                    {userTags.length > 3 && (
+                                                        <span style={{ fontSize: '10px', color: '#666' }}>+{userTags.length - 3}</span>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        );
-                    })}
+                            );
+                        })
+                    )}
                 </div>
             </div>
 

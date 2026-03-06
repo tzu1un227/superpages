@@ -16,6 +16,7 @@ import {
 } from '@mui/material';
 import FlexMessageEditor from '../components/FlexMessageEditor';
 import JourneyPreview from '../components/JourneyPreview';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 function Broadcast() {
     const { oaId } = useParams();
@@ -939,10 +940,7 @@ function Broadcast() {
             </Box>
 
             {loading ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '100px' }}>
-                    <CircularProgress color="inherit" />
-                    <p style={{ marginTop: '20px', color: '#666' }}>載入廣播資料中...</p>
-                </div>
+                <LoadingSpinner message="載入廣播資料中..." />
             ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', gap: '25px' }}>
                     {broadcasts.map(bc => (
@@ -995,6 +993,38 @@ function Broadcast() {
                                         <p style={{ color: '#666', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>預計時間</p>
                                         <p style={{ fontSize: '13px', color: '#BBB' }}>{bc.scheduled_at ? new Date(bc.scheduled_at).toLocaleDateString() : '立即發送'}</p>
                                     </div>
+                                </div>
+                            </div>
+
+                            {/* Message Preview */}
+                            <div style={{ borderTop: '1px solid #333', paddingTop: '15px' }}>
+                                <p style={{ color: '#666', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>訊息內容預覽</p>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                    {(() => {
+                                        try {
+                                            const msgs = bc.messages || [];
+                                            return msgs.slice(0, 3).map((m, i) => {
+                                                const type = m.OTYPE;
+                                                return (
+                                                    <div key={i} style={{
+                                                        backgroundColor: '#222', padding: '6px 10px', borderRadius: '4px', border: '1px solid #333',
+                                                        display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#BBB',
+                                                        maxWidth: '100%', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis'
+                                                    }}>
+                                                        {type === 'TextSendMessage' ? <Type size={14} /> :
+                                                            type === 'ImageSendMessage' ? <ImageIcon size={14} /> :
+                                                                type === 'VideoSendMessage' ? <Video size={14} /> : <Layout size={14} />}
+                                                        {type === 'TextSendMessage' ? (m.text?.substring(0, 20) + (m.text?.length > 20 ? '...' : '')) :
+                                                            type === 'FlexSendMessage' ? 'Flex 訊息' :
+                                                                type === 'ImageSendMessage' ? '圖片' : '影片'}
+                                                    </div>
+                                                );
+                                            });
+                                        } catch (e) { return null; }
+                                    })()}
+                                    {(bc.messages?.length > 3) && (
+                                        <div style={{ padding: '6px', fontSize: '12px', color: '#555' }}>+{bc.messages.length - 3} 則...</div>
+                                    )}
                                 </div>
                             </div>
 

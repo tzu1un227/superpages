@@ -46,8 +46,16 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 - **Schedule Settings**: Managed within the `ProjectsManagement` component in `Projects.jsx`. Supports multi-step messaging workflows with configurable delay intervals (Days/Hours/Minutes).
 - **Rich Message Previews**: The `get_schedules` API endpoint automatically enriches schedule entries with descriptive previews for Linked QA bank tags. It parses the first message from the message sequence (text, flex, image, etc.) and provides a human-readable summary.
 - **Frontend Robustness**: Implementation uses defensive coding patterns (optional chaining, array guards, fallback values) to ensure UI stability even with incomplete or malformed backend data.
--   **Editor Behavior**: The frontend detects this prefix to open the advanced visual editor instead of a plain text input.
--   **Image Upload**: The Flex Message Editor includes an upload button that allows users to upload images directly to a configured GitHub repository. The backend handles the GitHub API integration and returns the raw image URL.
+- **Editor Behavior**: The frontend detects this prefix to open the advanced visual editor instead of a plain text input.
+- **Image Upload**: The Flex Message Editor includes an upload button that allows users to upload images directly to a configured GitHub repository. The backend handles the GitHub API integration and returns the raw image URL.
+
+### UI/UX 優化與 Loading 狀態管理 [2026-03-06]
+- **LoadingSpinner**: 實作全局通用載入組件，廣泛應用於 `Projects`, `MessageCenter`, `Broadcast` 頁面。
+- **訊息編輯器內容檢查**: 
+    - 強化 `Projects.jsx` 中的 `handleSave` 驗證，透過深度解析 Flex JSON 確保各類 Component (Image, Button, Text) 內容非空且符合規範。
+    - 統一圖片、影片、音檔訊息的網址必填驗證。
+- **捲軸行為最佳化**: 針對 `MessageCenter.jsx` 的 7 秒自動輪詢更新，導入位置保護機制與 `isAtBottom` 智慧判斷，解決畫面跳動與自動下拉至底部的困擾。
+- **廣播預覽**: 實作前端 `messages` 列表預覽邏輯，提取各類訊息特徵（Type Icon + 文字截斷）顯示於廣播歷史清單中。
 
  ### User Tagging (用戶標註)
  - **Flex Message Integration**: The Flex Message Editor allows users to associate multiple tags with button actions or image clicks.

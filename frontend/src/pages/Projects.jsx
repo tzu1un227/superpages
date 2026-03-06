@@ -5,6 +5,7 @@ import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, M
 import FlexMessageEditor from '../components/FlexMessageEditor';
 import JourneyPreview from '../components/JourneyPreview';
 import { downloadCSV } from '../utils/csvUtils';
+import LoadingSpinner from '../components/LoadingSpinner';
 import {
     LineChart,
     Line,
@@ -1340,8 +1341,8 @@ const ProjectsManagement = () => {
                             </div>
                             <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
                                 {previewLoading && (
-                                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.8)', zIndex: 10 }}>
-                                        載入中...
+                                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 }}>
+                                        <LoadingSpinner message="正在生成預覽..." />
                                     </div>
                                 )}
                                 <JourneyPreview steps={previewSteps} />
@@ -1438,7 +1439,7 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                     return;
                 }
                 if (!m.preview_image_url?.trim()) {
-                    alert(`訊息 #${msgNum}: 影片預覽圖網址不可為空白`);
+                    alert(`訊息 #${msgNum}: 影片預覽圖不可為空白`);
                     return;
                 }
             }
@@ -1448,15 +1449,56 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
             }
             if (m.OTYPE === 'FlexSendMessage') {
                 if (!m.alt_text?.trim()) {
-                    alert(`訊息 #${msgNum}: Flex 替代文字 (Alt Text) 不可為空白`);
+                    alert(`訊息 #${msgNum}: Flex 替代文字不可為空白`);
                     return;
                 }
-                if (!m.contents) {
-                    alert(`訊息 #${msgNum}: Flex 內容不可為空白`);
+                try {
+                    const contents = typeof m.contents === 'string' ? JSON.parse(m.contents) : m.contents;
+                    if (!contents) {
+                        alert(`訊息 #${msgNum}: Flex 內容不可為空白`);
+                        return;
+                    }
+                    const bubbles = contents.type === 'carousel' ? contents.contents : [contents];
+                    for (let bIdx = 0; bIdx < bubbles.length; bIdx++) {
+                        const bubble = bubbles[bIdx];
+                        const bPrefix = contents.type === 'carousel' ? `(卡片 #${bIdx + 1}) ` : '';
+
+                        if (bubble.hero && bubble.hero.type === 'image' && !bubble.hero.url) {
+                            alert(`訊息 #${msgNum}: ${bPrefix}圖片網址不可為空白`);
+                            return;
+                        }
+
+                        if (bubble.body && bubble.body.contents) {
+                            const titleComp = bubble.body.contents.find(c => c.weight === 'bold');
+                            const descComp = bubble.body.contents.find(c => c.size === 'sm' && c.color === '#aaaaaa');
+                            if (titleComp && !titleComp.text?.trim()) {
+                                alert(`訊息 #${msgNum}: ${bPrefix}標題不可為空白`);
+                                return;
+                            }
+                            if (descComp && !descComp.text?.trim()) {
+                                alert(`訊息 #${msgNum}: ${bPrefix}說明文字不可為空白`);
+                                return;
+                            }
+                        }
+
+                        if (bubble.footer && bubble.footer.contents) {
+                            const buttons = bubble.footer.contents.filter(c => c.type === 'button');
+                            for (let btnIdx = 0; btnIdx < buttons.length; btnIdx++) {
+                                const btn = buttons[btnIdx];
+                                if (!btn.action.label?.trim()) {
+                                    alert(`訊息 #${msgNum}: ${bPrefix}按鈕 #${btnIdx + 1} 文字不可為空白`);
+                                    return;
+                                }
+                                if (!btn.action.text?.trim() && !btn.action.uri?.trim() && !btn.action.data?.trim()) {
+                                    alert(`訊息 #${msgNum}: ${bPrefix}按鈕 #${btnIdx + 1} 內容不可為空白`);
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    alert(`訊息 #${msgNum}: Flex 內容格式錯誤`);
                     return;
-                }
-                if (typeof m.contents === 'string') {
-                    try { JSON.parse(m.contents); } catch (e) { alert(`訊息 #${msgNum}: Flex 內容 JSON 格式錯誤`); return; }
                 }
             }
         }
@@ -1738,11 +1780,13 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [tagSearch, setTagSearch] = useState('');
 
     useEffect(() => {
         if (isOpen) {
             fetchUsers();
             setSearchTerm('');
+            setTagSearch('');
         }
     }, [isOpen]);
 
@@ -1753,19 +1797,23 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
             setUsers(res.data);
         } catch (err) {
             console.error('Fetch users error:', err);
-            // Don't alert if it's just an empty result or generic error to avoid interrupting the user.
-            // The UI will show "找不到符合的用戶" anyway if the list is empty.
             setUsers([]);
         } finally {
             setLoading(false);
         }
     };
 
-    const filteredUsers = users.filter(u =>
-        !existingUsers.includes(u.user_id) &&
-        ((u.name && u.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            (String(u.tags || '').toLowerCase().includes(searchTerm.toLowerCase())))
-    );
+    const filteredUsers = users.filter(u => {
+        const matchesExisting = !existingUsers.includes(u.user_id);
+        const matchesSearch = !searchTerm || (
+            (u.name && u.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (u.user_id && u.user_id.toLowerCase().includes(searchTerm.toLowerCase()))
+        );
+        const matchesTag = !tagSearch || (
+            String(u.tags || '').toLowerCase().includes(tagSearch.toLowerCase())
+        );
+        return matchesExisting && matchesSearch && matchesTag;
+    });
 
     if (!isOpen) return null;
 
@@ -1781,57 +1829,70 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
                     <X style={{ cursor: 'pointer' }} onClick={onClose} />
                 </div>
 
-                <div style={{ marginBottom: '15px' }}>
-                    <input
-                        type="text"
-                        placeholder="搜尋姓名或標籤..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        style={{ width: '100%', padding: '10px', background: '#333', border: '1px solid #444', color: '#fff', borderRadius: '4px' }}
-                    />
+                <div style={{ marginBottom: '15px', display: 'flex', gap: '10px' }}>
+                    <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '12px', color: '#888', marginBottom: '5px', display: 'block' }}>搜尋用戶名 / ID</label>
+                        <input
+                            type="text"
+                            placeholder="輸入關鍵字..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            style={{ width: '100%', padding: '10px', backgroundColor: '#333', border: '1px solid #444', borderRadius: '4px', color: '#fff' }}
+                        />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '12px', color: '#888', marginBottom: '5px', display: 'block' }}>透過標籤搜尋</label>
+                        <input
+                            type="text"
+                            placeholder="輸入標籤..."
+                            value={tagSearch}
+                            onChange={(e) => setTagSearch(e.target.value)}
+                            style={{ width: '100%', padding: '10px', backgroundColor: '#333', border: '1px solid #444', borderRadius: '4px', color: '#fff' }}
+                        />
+                    </div>
                 </div>
 
-                <div style={{ flex: 1, overflowY: 'auto', backgroundColor: '#333', borderRadius: '8px' }}>
+                <div style={{ flex: 1, overflowY: 'auto', marginBottom: '20px', minHeight: '300px', position: 'relative' }}>
                     {loading ? (
-                        <div style={{ padding: '20px', textAlign: 'center', color: '#888' }}>載入中...</div>
-                    ) : (Array.isArray(filteredUsers) && filteredUsers.length > 0) ? (
-                        filteredUsers.map((u) => (
-                            <div
-                                key={u.user_id}
-                                onClick={() => onSelect(u.user_id)}
-                                style={{
-                                    padding: '12px',
-                                    borderBottom: '1px solid #444',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center'
-                                }}
-                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#444'}
-                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    {u.pic ? (
-                                        <img
-                                            src={u.pic}
-                                            alt={u.name}
-                                            style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #444' }}
-                                        />
-                                    ) : (
+                        <LoadingSpinner message="載入用戶中..." />
+                    ) : (
+                        filteredUsers.length > 0 ? (
+                            filteredUsers.map(u => (
+                                <div key={u.user_id}
+                                    onClick={() => onSelect(u.user_id)}
+                                    style={{
+                                        padding: '12px', borderBottom: '1px solid #333', cursor: 'pointer',
+                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                        transition: 'background 0.2s'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = '#333'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                         <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#444', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
                                             <Users size={20} />
                                         </div>
-                                    )}
-                                    <div>
-                                        <div style={{ fontWeight: 'bold', color: '#fff' }}>{u.name || '未命名'}</div>
-                                        {u.tags && <div style={{ fontSize: '12px', color: '#888' }}>{String(u.tags).replace(/^\[|\]$/g, '').replace(/,/g, ', ')}</div>}
+                                        <div>
+                                            <div style={{ fontWeight: 'bold' }}>{u.name || '未命名'}</div>
+                                            <div style={{ fontSize: '12px', color: '#888' }}>{u.user_id}</div>
+                                            {u.tags && (
+                                                <div style={{ display: 'flex', gap: '4px', marginTop: '4px', flexWrap: 'wrap' }}>
+                                                    {String(u.tags).split('|').filter(t => t).map(t => (
+                                                        <span key={t} style={{ fontSize: '10px', backgroundColor: '#444', padding: '2px 6px', borderRadius: '10px', color: '#aaa' }}>{t}</span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
+                                    <Plus size={18} color="var(--primary-yellow)" />
                                 </div>
-                                <Plus size={16} color="var(--primary-yellow)" />
+                            ))
+                        ) : (
+                            <div style={{ textAlign: 'center', color: '#666', marginTop: '50px' }}>
+                                <User size={48} style={{ opacity: 0.2, marginBottom: '10px' }} />
+                                <div>找不到符合的用戶</div>
                             </div>
-                        ))
-                    ) : (
-                        <div style={{ padding: '20px', textAlign: 'center', color: '#888' }}>找不到符合的用戶</div>
+                        )
                     )}
                 </div>
             </div>

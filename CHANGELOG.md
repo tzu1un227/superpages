@@ -3,6 +3,20 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **Heroku 相容性與 UI/UX 深度優化 (Heroku Compatibility & UI/UX Optimization)** [2026-03-06]:
+  - **Robot Engine 相容性修正**：將 Socket.IO 的 `async_mode` 由 `eventlet` 改為 `gevent`，徹底解決 Heroku 環境下的啟動與 500 錯誤。
+  - **進階訊息編輯器驗證強化**：
+    - 實作 Flex 訊息深度驗證：在 `Projects.jsx` 中檢查卡片圖片網址、標題、說明及所有按鈕的內容完整性，防止空白儲存。
+    - 統一圖片、影片、音檔訊息的必填欄位檢查。
+  - **自動旅程 (Projects) 體驗優化**：
+    - 「加入用戶」彈窗：新增 **標籤 (Tag) 搜尋** 功能，並串接 `LoadingSpinner` 回饋。
+    - 修復無用戶符合搜尋條件時的 UI 提示，移除干擾的 alert 彈窗。
+  - **訊息中心 (Message Center) 優化**：
+    - 修正 7 秒自動刷新時的 **捲軸彈跳 (Jump)** 問題，確保聊天內容即便在輪詢更新時也能保持穩定位置。
+    - 導入全局 `LoadingSpinner` 組件，取代舊有的文字載入提示。
+  - **廣播功能 (Broadcast) 增強**：
+    - 廣播歷史清單新增 **訊息內容預覽**（提取文字前 20 字及各類訊息代表圖示）。
+    - 列表載入狀態改用 `LoadingSpinner` 組件。
 - **yzulabuse 環境修復與穩定性優化 (yzulabuse Environment Fixes)** [2026-03-06]:
   - **資料庫結構修正**：修復 `projects`、`project_schedules` 與 `cron_table` 資料表缺少主鍵與自動遞增屬性的問題，解決建立/編輯專案及排程時的 `null` ID 錯誤、前端黑畫面與 "Network Error"。
   - **欄位預設值補齊**：為 `projects` 欄位 `type` 設定預設值 'project'，並補齊現有資料之 ID 與類型，確保資料一致性。
