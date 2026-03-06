@@ -862,6 +862,19 @@ def restart_project_user(id, user_id):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
+        # Ensure required tables exist
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS user_project_status (
+                id SERIAL PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                project_id INTEGER NOT NULL,
+                status TEXT DEFAULT 'active',
+                updated_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(user_id, project_id)
+            );
+        """)
+        conn.commit()
+        
         # 1. Fetch Project and Anchor Config
         cur.execute("SELECT anchor_config FROM projects WHERE project_id = %s", (id,))
         project = cur.fetchone()
@@ -1570,6 +1583,7 @@ def get_scheduled_events():
         
         # Join with projects and user info
         # Use push_time as the primary time column
+        # Show ALL cron entries regardless of repeat_interval (0 = one-time, >0 = recurring)
         cur.execute(f"""
             SELECT c.task_id as event_id, c.project_id, c.step_id, c.push_time as scheduled_at, c.message_content, c.repeat_interval as interval_hours,
                    p.project_name,
@@ -1578,7 +1592,7 @@ def get_scheduled_events():
                    true as is_enabled
             FROM cron_table c
             LEFT JOIN projects p ON c.project_id = p.project_id
-            WHERE c.push_time IS NOT NULL AND c.repeat_interval IS NOT NULL AND c.repeat_interval != '0'
+            WHERE c.push_time IS NOT NULL
             ORDER BY c.push_time ASC
         """)
         events = cur.fetchall()
