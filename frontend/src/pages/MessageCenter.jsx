@@ -75,16 +75,15 @@ function MessageCenter() {
         }
     };
 
-    // 30 秒自動更新
+    // 7 秒自動更新
     useEffect(() => {
         const interval = setInterval(() => {
-            fetchUsers(searchQuery, selectedTagFilters);
             if (selectedUser) {
                 fetchHistory(selectedUser, true);
             }
-        }, 30000);
+        }, 7000); // Polling every 7 seconds
         return () => clearInterval(interval);
-    }, [selectedUser, searchQuery, selectedTagFilters]);
+    }, [selectedUser]);
 
     // 捲軸功能與新訊息偵測
     const messagesEndRef = useRef(null);
@@ -623,13 +622,24 @@ function MessageCenter() {
 
                                     // ... inline components logic ...
                                     const renderMessageContent = () => {
-                                        if (m.category === 'Image') return <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'inherit' }}><ImageIcon size={16} /> [圖片訊息]</div>;
+                                        if (m.category === 'Image') {
+                                            const imageUrl = `/api/line/content/${m.content}`;
+                                            return (
+                                                <img
+                                                    src={imageUrl}
+                                                    style={{ maxWidth: '200px', borderRadius: '8px', cursor: 'pointer' }}
+                                                    onClick={() => window.open(imageUrl, '_blank')}
+                                                    alt="Line Image"
+                                                />
+                                            );
+                                        }
                                         if (m.category === 'Audio') return <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'inherit' }}><Mic size={16} /> [語音訊息]</div>;
                                         if (m.category === 'Video') return <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'inherit' }}><Video size={16} /> [影片訊息]</div>;
                                         if (m.category === 'Sticker') {
                                             try {
-                                                const match = m.content.match(/"?stickerId"?\s*[:=]\s*["']?(\d+)["']?/);
-                                                const stickerId = match ? match[1] : null;
+                                                // Handle content like '{"packageId": "1", "stickerId": "1"}' or just ID
+                                                const match = m.content.match(/"stickerId":\s*"(\d+)"/);
+                                                const stickerId = match ? match[1] : (m.content.match(/^\d+$/) ? m.content : null);
                                                 if (stickerId) return <img src={`https://stickershop.line-scdn.net/stickershop/v1/sticker/${stickerId}/android/sticker.png`} style={{ width: '120px' }} alt="Sticker" />;
                                             } catch (e) { }
                                             return <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'inherit' }}><Smile size={16} /> [貼圖訊息]</div>;

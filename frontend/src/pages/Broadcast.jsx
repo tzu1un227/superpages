@@ -249,7 +249,7 @@ function Broadcast() {
                 msgTag = `bc_${Date.now()}`;
             }
 
-            // Validation: Prevent empty text messages
+            // Validation: Comprehensive check for all message types
             for (let i = 0; i < formData.messages.length; i++) {
                 const msg = formData.messages[i];
                 if (msg.OTYPE === 'TextSendMessage') {
@@ -258,8 +258,15 @@ function Broadcast() {
                         setLoading(false);
                         return;
                     }
-                    if (msg.text.length > 3000) {
-                        alert(`第 ${i + 1} 則文字訊息內容不能超過 3000 字`);
+                } else if (msg.OTYPE === 'ImageSendMessage' || msg.OTYPE === 'VideoSendMessage') {
+                    if (!msg.original_content_url) {
+                        alert(`第 ${i + 1} 則訊息網址不能為空`);
+                        setLoading(false);
+                        return;
+                    }
+                } else if (msg.OTYPE === 'FlexSendMessage') {
+                    if (!msg.contents || (typeof msg.contents === 'object' && Object.keys(msg.contents).length === 0)) {
+                        alert(`第 ${i + 1} 則 Flex 訊息內容未設定`);
                         setLoading(false);
                         return;
                     }
@@ -624,6 +631,8 @@ function Broadcast() {
                                                     setFormData({ ...formData, messages: msgs });
                                                 } catch (err) {
                                                     alert('上傳失敗');
+                                                } finally {
+                                                    e.target.value = ''; // Reset input to allow re-uploading same file
                                                 }
                                             }}
                                         />
@@ -659,9 +668,17 @@ function Broadcast() {
                                 borderRadius: '8px', border: '1px dashed #333'
                             }}>
                                 <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px' }}>使用視覺化編輯器設定 Flex 訊息內容</p>
-                                <button className="secondary" onClick={() => openMessageEditor(idx)}>
-                                    <Edit2 size={16} /> 開啟編輯器
-                                </button>
+                                <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                                    <button className="secondary" onClick={() => openMessageEditor(idx)}>
+                                        <Edit2 size={16} /> 開啟編輯器
+                                    </button>
+                                    <button className="secondary" style={{ backgroundColor: '#333' }} onClick={() => {
+                                        setEditingMsgIndex(idx);
+                                        setIsPreviewOpen(true);
+                                    }}>
+                                        <Eye size={16} /> 預覽內容
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>

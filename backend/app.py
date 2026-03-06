@@ -1637,6 +1637,31 @@ def mark_user_as_read(user_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/line/content/<string:message_id>', methods=['GET'])
+@token_required
+def get_line_message_content(message_id):
+    """Proxy route to fetch content (images/video/audio) from LINE API."""
+    token = None
+    if hasattr(g, 'current_oa_config') and g.current_oa_config.other_settings:
+        token = g.current_oa_config.other_settings.get('line_token')
+    
+    if not token:
+        return jsonify({"error": "Line token not configured"}), 400
+
+    headers = {'Authorization': f'Bearer {token}'}
+    try:
+        # Use api-data.line.me for content retrieval
+        url = f"https://api-data.line.me/v2/bot/message/{message_id}/content"
+        resp = requests.get(url, headers=headers, stream=True)
+        
+        if resp.status_code == 200:
+            from flask import Response
+            return Response(resp.content, mimetype=resp.headers.get('Content-Type', 'image/jpeg'))
+        
+        return jsonify({"error": "Failed to fetch content", "details": resp.text}), resp.status_code
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 # DISABLE conflicting scheduler (Line-Bot-Main/sensors/cronjobs.py handles this)
 # threading.Thread(target=cron_scheduler_processor, daemon=True).start()
 

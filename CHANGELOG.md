@@ -3,6 +3,19 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **系統功能增強與防錯機制 (System Enhancements & Validation)** [2026-03-06]:
+  - **自動旅程 (Projects) 核心優化**：
+    - 實作完整表單驗證：包含必填項紅框提示、錯誤訊息顯示、自動捲動至錯誤欄位功能。
+    - 加入「處理中」全螢幕載入遮罩，防止資料重複送出並提升操作回饋。
+    - 優化用戶加入功能：支援多標籤搜尋、autocomplete 自動完成，並支援選擇多個標籤進行批量加入。
+  - **訊息中心與後端代理**：
+    - 新增 `/api/line/content` 代理路徑，解決跨域與 Line Media 讀取問題，正確顯示圖片訊息。
+    - 優化讀取速度：輪詢間隔調降至 7 秒。
+    - 強化貼圖 (Sticker) 渲染邏輯，支援正規表達式解析與預設圖示回退。
+  - **廣播功能 (Broadcast) 修復**：
+    - 修復 Flex 訊息重複上傳相同圖片無反應的 Bug。
+    - 新增 Flex 訊息唯讀預覽模式（眼睛圖示），支援於編輯器內安全檢視。
+    - 實作全類型訊息（文字、圖片、影片、Flex）非空驗證與字數限制。
 - **多媒體訊息與訊息中心優化 (Rich Message & Message Center Optimization)** [2026-03-06]:
   - **Flex 訊息編輯器優化**：
     - 限制 Flex 訊息按鈕與圖片標籤選擇改為「單選」模式，避免超出系統處理範圍。
