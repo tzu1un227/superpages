@@ -87,6 +87,10 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
   - **標籤篩選 (Tag Filtering)**:
     - 載入所有可用標籤並顯示為可點選的標籤按鈕列表（含「全部」選項）。
     - 點選標籤後，以 `tag` query parameter 傳入 `/api/users`，僅回傳擁有該標籤的用戶。
+  ### 訊息中心與內容代理 (Message Center & Content Proxy)
+為了確保能正常顯示 LINE 伺服端的使用者媒體（如圖片、影片），系統實作了後端 Proxy 路由：
+- `/api/line/content/<message_id>`: 會附帶官方帳號的 `line_token` 請求 LINE API 並回傳二進位資料。
+- 前端使用 `AuthenticatedImage` 元件，透過 `api.get` (帶有 JWT Token) 獲取內容並轉為 Blob URL 顯示。
   - **對話內容搜尋 (Message Content Search)**:
     - 聊天室上方有獨立搜尋框，可搜尋當前選用用戶的對話內容。
     - 符合的關鍵字以黃色背景高亮顯示（透過 `highlightText` 函式），並顯示符合筆數。

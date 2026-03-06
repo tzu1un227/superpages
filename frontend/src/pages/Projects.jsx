@@ -26,12 +26,38 @@ const ProjectsManagement = () => {
     const [previewSteps, setPreviewSteps] = useState([]);
     const [previewLoading, setPreviewLoading] = useState(false);
 
-    const handlePreviewProject = async () => {
-        if (!selectedProjectId) {
-            alert('請先選擇一個專案');
+    const handleSave = async () => {
+        if (messages.length === 0) {
+            alert('至少需要一則訊息');
             return;
         }
-        setPreviewLoading(true);
+
+        // Validation for all message types
+        for (let i = 0; i < messages.length; i++) {
+            const m = messages[i];
+            if (m.OTYPE === 'TextSendMessage') {
+                if (!m.text || !m.text.trim()) {
+                    alert(`第 ${i + 1} 則文字訊息內容不能為空`);
+                    return;
+                }
+                if (m.text.length > 3000) {
+                    alert(`第 ${i + 1} 則文字訊息內容不能超過 3000 字`);
+                    return;
+                }
+            } else if (m.OTYPE === 'ImageSendMessage' || m.OTYPE === 'VideoSendMessage' || m.OTYPE === 'AudioSendMessage') {
+                if (!m.original_content_url) {
+                    alert(`第 ${i + 1} 則訊息網址（URL）不能為空`);
+                    return;
+                }
+            } else if (m.OTYPE === 'FlexSendMessage') {
+                if (!m.contents || (typeof m.contents === 'object' && Object.keys(m.contents).length === 0)) {
+                    alert(`第 ${i + 1} 則 Flex 訊息未設定內容`);
+                    return;
+                }
+            }
+        }
+
+        setLoading(true);
         setIsPreviewModalOpen(true);
         setPreviewSteps([]);
 
@@ -144,10 +170,10 @@ const ProjectsManagement = () => {
     const validateProjectForm = (data) => {
         const errors = {};
         if (!data.project_name?.trim()) errors.project_name = '專案名稱不能為空';
-        if (!data.start_date) errors.start_date = '開始時間必須設定';
-        if (!data.end_date) errors.end_date = '結束時間必須設定';
+        if (!data.start_date) errors.start_date = '請設定開始日期';
+        if (!data.end_date) errors.end_date = '請設定結束日期';
         if (data.start_date && data.end_date && new Date(data.start_date) >= new Date(data.end_date)) {
-            errors.end_date = '結束時間必須在開始時間之後';
+            errors.end_date = '結束日期必須在開始日期之後';
         }
         return errors;
     };
@@ -1584,6 +1610,8 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                                                 setMessages(newMsgs);
                                                             } catch (err) {
                                                                 alert('上傳失敗: ' + (err.response?.data?.message || err.message));
+                                                            } finally {
+                                                                e.target.value = ''; // Reset to allow same file upload
                                                             }
                                                         }}
                                                     />
@@ -1687,7 +1715,7 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
     const filteredUsers = users.filter(u =>
         !existingUsers.includes(u.user_id) &&
         ((u.name && u.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            (u.tags && u.tags.toLowerCase().includes(searchTerm.toLowerCase())))
+            (String(u.tags || '').toLowerCase().includes(searchTerm.toLowerCase())))
     );
 
     if (!isOpen) return null;

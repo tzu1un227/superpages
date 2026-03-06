@@ -559,8 +559,17 @@ def get_projects():
 def create_project():
     data = request.json
     try:
-        start_date = datetime.fromisoformat(data['start_date'])
-        end_date = datetime.fromisoformat(data['end_date'])
+        if not data.get('project_name') or not data['project_name'].strip():
+            return jsonify({"status": "error", "message": "專案名稱不能為空"}), 400
+            
+        if not data.get('start_date') or not data.get('end_date'):
+            return jsonify({"status": "error", "message": "請務必填寫開始與結束日期"}), 400
+
+        try:
+            start_date = datetime.fromisoformat(data['start_date'].replace('Z', '+00:00'))
+            end_date = datetime.fromisoformat(data['end_date'].replace('Z', '+00:00'))
+        except ValueError:
+            return jsonify({"status": "error", "message": "日期格式錯誤，請重新選擇"}), 400
         
         if end_date <= start_date:
             return jsonify({"status": "error", "message": "結束時間必須晚於開始時間"}), 400
@@ -585,14 +594,24 @@ def create_project():
         conn.close()
         return jsonify({"status": "success", "project_id": project_id})
     except Exception as e:
+        print(f"Error in create_project: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/projects/<int:id>', methods=['PUT'])
 def update_project(id):
     data = request.json
     try:
-        start_date = datetime.fromisoformat(data['start_date'])
-        end_date = datetime.fromisoformat(data['end_date'])
+        if not data.get('project_name') or not data['project_name'].strip():
+            return jsonify({"status": "error", "message": "專案名稱不能為空"}), 400
+            
+        if not data.get('start_date') or not data.get('end_date'):
+            return jsonify({"status": "error", "message": "請務必填寫開始與結束日期"}), 400
+
+        try:
+            start_date = datetime.fromisoformat(data['start_date'].replace('Z', '+00:00'))
+            end_date = datetime.fromisoformat(data['end_date'].replace('Z', '+00:00'))
+        except ValueError:
+            return jsonify({"status": "error", "message": "日期格式錯誤，請重新選擇"}), 400
         
         if end_date <= start_date:
             return jsonify({"status": "error", "message": "結束時間必須晚於開始時間"}), 400

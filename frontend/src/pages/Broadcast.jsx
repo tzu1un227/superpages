@@ -254,13 +254,13 @@ function Broadcast() {
                 const msg = formData.messages[i];
                 if (msg.OTYPE === 'TextSendMessage') {
                     if (!msg.text || !msg.text.trim()) {
-                        alert(`第 ${i + 1} 則訊息內容不能為空`);
+                        alert(`第 ${i + 1} 則文字訊息內容不能為空`);
                         setLoading(false);
                         return;
                     }
-                } else if (msg.OTYPE === 'ImageSendMessage' || msg.OTYPE === 'VideoSendMessage') {
+                } else if (msg.OTYPE === 'ImageSendMessage' || msg.OTYPE === 'VideoSendMessage' || msg.OTYPE === 'AudioSendMessage') {
                     if (!msg.original_content_url) {
-                        alert(`第 ${i + 1} 則訊息網址不能為空`);
+                        alert(`第 ${i + 1} 則訊息網址（URL）不能為空`);
                         setLoading(false);
                         return;
                     }
@@ -306,16 +306,26 @@ function Broadcast() {
             return;
         }
 
-        // Validation: Prevent empty text messages
+        // Validation: Comprehensive check for all message types
         for (let i = 0; i < formData.messages.length; i++) {
             const msg = formData.messages[i];
             if (msg.OTYPE === 'TextSendMessage') {
                 if (!msg.text || !msg.text.trim()) {
-                    alert(`第 ${i + 1} 則訊息內容不能為空`);
+                    alert(`第 ${i + 1} 則文字訊息內容不能為空`);
                     return;
                 }
                 if (msg.text.length > 3000) {
                     alert(`第 ${i + 1} 則文字訊息內容不能超過 3000 字`);
+                    return;
+                }
+            } else if (msg.OTYPE === 'ImageSendMessage' || msg.OTYPE === 'VideoSendMessage' || msg.OTYPE === 'AudioSendMessage') {
+                if (!msg.original_content_url) {
+                    alert(`第 ${i + 1} 則訊息網址（URL）不能為空`);
+                    return;
+                }
+            } else if (msg.OTYPE === 'FlexSendMessage') {
+                if (!msg.contents || (typeof msg.contents === 'object' && Object.keys(msg.contents).length === 0)) {
+                    alert(`第 ${i + 1} 則 Flex 訊息內容未設定`);
                     return;
                 }
             }
@@ -837,6 +847,16 @@ function Broadcast() {
                                             }
                                             if (msg.text.length > 3000) {
                                                 alert(`第 ${i + 1} 則文字訊息內容不能超過 3000 字`);
+                                                return;
+                                            }
+                                        } else if (msg.OTYPE === 'ImageSendMessage' || msg.OTYPE === 'VideoSendMessage' || msg.OTYPE === 'AudioSendMessage') {
+                                            if (!msg.original_content_url) {
+                                                alert(`第 ${i + 1} 則訊息網址（URL）不能為空`);
+                                                return;
+                                            }
+                                        } else if (msg.OTYPE === 'FlexSendMessage') {
+                                            if (!msg.contents || (typeof msg.contents === 'object' && Object.keys(msg.contents).length === 0)) {
+                                                alert(`第 ${i + 1} 則 Flex 訊息內容未設定`);
                                                 return;
                                             }
                                         }

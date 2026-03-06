@@ -287,9 +287,9 @@ function MessageCenter() {
         return content;
     };
 
-    // 聊天室中實際顯示的訊息（過濾掉系統指令，但不因搜尋而隱藏）
+    // 聊天室中實際顯示的訊息（過濾掉系統指令與 follow 事件，但不因搜尋而隱藏）
     const displayedMessages = messages.filter(m => {
-        if (m.category === 'Sensor' || m.category === 'Postback') return false;
+        if (m.category === 'Sensor' || m.category === 'Postback' || m.category === 'Follow' || m.category === 'follow') return false;
         return true;
     });
 
@@ -620,15 +620,42 @@ function MessageCenter() {
                                     const globalIndex = messages.indexOf(m);
                                     // ...
 
-                                    // ... inline components logic ...
+                                    // 內部元件：處理帶有 Token 的圖片載入
+                                    const AuthenticatedImage = ({ src, alt, style, onClick }) => {
+                                        const [imgUrl, setImgUrl] = useState(null);
+                                        useEffect(() => {
+                                            let isMounted = true;
+                                            api.get(src, { responseType: 'blob' })
+                                                .then(response => {
+                                                    if (isMounted) {
+                                                        const url = URL.createObjectURL(response.data);
+                                                        setImgUrl(url);
+                                                    }
+                                                })
+                                                .catch(err => console.error("Failed to load authenticated image:", err));
+                                            return () => {
+                                                isMounted = false;
+                                                if (imgUrl) URL.revokeObjectURL(imgUrl);
+                                            };
+                                        }, [src]);
+
+                                        if (!imgUrl) return <div style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#222', color: '#666', fontSize: '10px' }}>載入中...</div>;
+                                        return <img src={imgUrl} alt={alt} style={style} onClick={onClick} />;
+                                    };
+
                                     const renderMessageContent = () => {
                                         if (m.category === 'Image') {
-                                            const imageUrl = `/api/line/content/${m.content}`;
+                                            const imageUrl = `/line/content/${m.content}`;
                                             return (
-                                                <img
+                                                <AuthenticatedImage
                                                     src={imageUrl}
                                                     style={{ maxWidth: '200px', borderRadius: '8px', cursor: 'pointer' }}
-                                                    onClick={() => window.open(imageUrl, '_blank')}
+                                                    onClick={() => {
+                                                        api.get(imageUrl, { responseType: 'blob' }).then(res => {
+                                                            const url = URL.createObjectURL(res.data);
+                                                            window.open(url, '_blank');
+                                                        });
+                                                    }}
                                                     alt="Line Image"
                                                 />
                                             );

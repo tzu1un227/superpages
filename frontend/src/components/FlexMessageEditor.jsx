@@ -535,6 +535,8 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                                                 updateCurrentCard('imageUrl', res.data.url);
                                             } catch (err) {
                                                 alert('上傳失敗: ' + (err.response?.data?.message || err.message));
+                                            } finally {
+                                                e.target.value = ''; // Reset to allow same file upload
                                             }
                                         }}
                                     />
