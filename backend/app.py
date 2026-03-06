@@ -1465,8 +1465,16 @@ def send_socket_event(data):
     print(f"DEBUG: Final Socket URL decided: {target_ws_url} (Namespace: {namespace})")
     
     try:
+        # Heroku (herokuapp.com) uses eventlet normally, while IRL Server uses gevent.
+        # Upgrading to websocket across them often causes RuntimeError: You need to use the eventlet server.
+        # Force polling for Heroku to ensure 100% compatibility.
+        transports = ['polling', 'websocket']
+        if 'herokuapp.com' in target_ws_url:
+            transports = ['polling']
+            print(f"DEBUG: send_socket_event | Forcing polling transport for Heroku: {target_ws_url}")
+            
         # Connect to the determined URL
-        sio.connect(target_ws_url, namespaces=[namespace], wait_timeout=10)
+        sio.connect(target_ws_url, namespaces=[namespace], wait_timeout=10, transports=transports)
     except Exception as e:
         print(f"SOCKET_ERROR: Failed to connect to {target_ws_url} (Namespace: {namespace}): {e}")
         raise Exception(f"無法連線至機器人服務 ({target_ws_url}): {str(e)}")

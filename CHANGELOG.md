@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
   - **資料庫結構修正**：修復 `projects`、`project_schedules` 與 `cron_table` 資料表缺少主鍵與自動遞增屬性的問題，解決建立/編輯專案及排程時的 `null` ID 錯誤、前端黑畫面與 "Network Error"。
   - **欄位預設值補齊**：為 `projects` 欄位 `type` 設定預設值 'project'，並補齊現有資料之 ID 與類型，確保資料一致性。
   - **訊息中心連線與導向修復**：
+    - 修正訊息中心在 Heroku 環境下的 500 錯誤：針對 `herokuapp.com` 域名制使用 `polling` 傳輸協議，解決 Socket.IO 驅動程式相容性問題。
+- 強化自動旅程與進階訊息編輯器的欄位驗證：新增圖片、影片、音檔及 Flex 訊息的必填欄位檢查，防止空白資料導致發送失敗。
+- 優化自動旅程「加入用戶」介面：移除無用戶時的錯誤彈窗，改為友好的清單提示。
     - 恢復 `yzulabuse` 使用其專屬的 Heroku Socket URL (`https://yzulabuse.herokuapp.com`)，確保訊息不再誤送至 `5013` 帳號。
     - 強化後端 `send_socket_event` 邏輯：新增 OA Context 感知與顯式資料庫查詢機制，確保跨環境訊息能根據 `X-OA-ID` 標頭正確導航至對應的機器人引擎。
     - 修正 `/api/trigger` 遺漏 OA ID 導致回退至預設環境的問題。

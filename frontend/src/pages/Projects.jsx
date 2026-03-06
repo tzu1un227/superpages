@@ -27,37 +27,7 @@ const ProjectsManagement = () => {
     const [previewLoading, setPreviewLoading] = useState(false);
 
     const handleSave = async () => {
-        if (messages.length === 0) {
-            alert('至少需要一則訊息');
-            return;
-        }
-
-        // Validation for all message types
-        for (let i = 0; i < messages.length; i++) {
-            const m = messages[i];
-            if (m.OTYPE === 'TextSendMessage') {
-                if (!m.text || !m.text.trim()) {
-                    alert(`第 ${i + 1} 則文字訊息內容不能為空`);
-                    return;
-                }
-                if (m.text.length > 3000) {
-                    alert(`第 ${i + 1} 則文字訊息內容不能超過 3000 字`);
-                    return;
-                }
-            } else if (m.OTYPE === 'ImageSendMessage' || m.OTYPE === 'VideoSendMessage' || m.OTYPE === 'AudioSendMessage') {
-                if (!m.original_content_url) {
-                    alert(`第 ${i + 1} 則訊息網址（URL）不能為空`);
-                    return;
-                }
-            } else if (m.OTYPE === 'FlexSendMessage') {
-                if (!m.contents || (typeof m.contents === 'object' && Object.keys(m.contents).length === 0)) {
-                    alert(`第 ${i + 1} 則 Flex 訊息未設定內容`);
-                    return;
-                }
-            }
-        }
-
-        setLoading(true);
+        setPreviewLoading(true);
         setIsPreviewModalOpen(true);
         setPreviewSteps([]);
 
@@ -103,6 +73,51 @@ const ProjectsManagement = () => {
                     steps.push({ OTYPE: 'TextSendMessage', text: content, delay: `Step ${s.step_id} (間隔 ${intervalLabel})` });
                 }
             }
+
+            // Validation for all message types
+            for (let i = 0; i < steps.length; i++) {
+                const m = steps[i];
+                const msgNum = i + 1;
+                if (m.OTYPE === 'TextSendMessage') {
+                    if (!m.text || !m.text.trim()) {
+                        alert(`第 ${msgNum} 則文字訊息內容不能為空`);
+                        return;
+                    }
+                    if (m.text.length > 3000) {
+                        alert(`第 ${msgNum} 則文字訊息內容不能超過 3000 字`);
+                        return;
+                    }
+                } else if (m.OTYPE === 'ImageSendMessage') {
+                    if (!m.original_content_url || !m.original_content_url.trim()) {
+                        alert(`第 ${msgNum} 則圖片訊息網址不能為空`);
+                        return;
+                    }
+                } else if (m.OTYPE === 'VideoSendMessage') {
+                    if (!m.original_content_url || !m.original_content_url.trim()) {
+                        alert(`第 ${msgNum} 則影片訊息網址不能為空`);
+                        return;
+                    }
+                    if (!m.preview_image_url || !m.preview_image_url.trim()) {
+                        alert(`第 ${msgNum} 則影片預覽圖網址不能為空`);
+                        return;
+                    }
+                } else if (m.OTYPE === 'AudioSendMessage') {
+                    if (!m.original_content_url || !m.original_content_url.trim()) {
+                        alert(`第 ${msgNum} 則音檔訊息網址不能為空`);
+                        return;
+                    }
+                } else if (m.OTYPE === 'FlexSendMessage') {
+                    if (!m.alt_text || !m.alt_text.trim()) {
+                        alert(`第 ${msgNum} 則 Flex 訊息替代文字不能為空`);
+                        return;
+                    }
+                    if (!m.contents) {
+                        alert(`第 ${msgNum} 則 Flex 訊息內容不能為空`);
+                        return;
+                    }
+                }
+            }
+
             setPreviewSteps(steps);
         } catch (err) {
             alert('預覽生成失敗: ' + err.message);
@@ -490,15 +505,15 @@ const ProjectsManagement = () => {
     } else if (content) {
         msg = { OTYPE: 'TextSendMessage', text: content };
     }
-
+    
     if (msg) {
         // Format delay
         const delay = `Step ${s.step_id} (間隔 ${s.interval_hours} hr)`;
         steps.push({ ...msg, delay });
     }
-}
-setPreviewSteps(steps);
-// } catch (err) { */
+    }
+    setPreviewSteps(steps);
+    // } catch (err) { */
     // alert('預覽生成失敗: ' + err.message);
 
 
@@ -1399,17 +1414,49 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
     const handleSave = async () => {
         // Validation
         // Filter out empty messages? Or allow them? usage limited to 5.
-        // Let's validate required fields.
+        // Let's validate
         for (let i = 0; i < messages.length; i++) {
             const m = messages[i];
+            const msgNum = i + 1;
             if (m.OTYPE === 'TextSendMessage') {
-                if (!m.text) { alert(`第 ${i + 1} 則訊息內容不能為空`); return; }
-                if (m.text.length > 3000) { alert(`第 ${i + 1} 則文字訊息內容不能超過 3000 字`); return; }
+                if (!m.text?.trim()) {
+                    alert(`訊息 #${msgNum}: 文字內容不可為空白`);
+                    return;
+                }
+                if (m.text.length > 3000) {
+                    alert(`訊息 #${msgNum}: 文字訊息內容不能超過 3000 字`);
+                    return;
+                }
+            }
+            if (m.OTYPE === 'ImageSendMessage' && !m.original_content_url?.trim()) {
+                alert(`訊息 #${msgNum}: 圖片網址不可為空白`);
+                return;
+            }
+            if (m.OTYPE === 'VideoSendMessage') {
+                if (!m.original_content_url?.trim()) {
+                    alert(`訊息 #${msgNum}: 影片網址不可為空白`);
+                    return;
+                }
+                if (!m.preview_image_url?.trim()) {
+                    alert(`訊息 #${msgNum}: 影片預覽圖網址不可為空白`);
+                    return;
+                }
+            }
+            if (m.OTYPE === 'AudioSendMessage' && !m.original_content_url?.trim()) {
+                alert(`訊息 #${msgNum}: 音檔網址不可為空白`);
+                return;
             }
             if (m.OTYPE === 'FlexSendMessage') {
-                if (!m.contents) { alert(`第 ${i + 1} 則 Flex 內容不能為空`); return; }
+                if (!m.alt_text?.trim()) {
+                    alert(`訊息 #${msgNum}: Flex 替代文字 (Alt Text) 不可為空白`);
+                    return;
+                }
+                if (!m.contents) {
+                    alert(`訊息 #${msgNum}: Flex 內容不可為空白`);
+                    return;
+                }
                 if (typeof m.contents === 'string') {
-                    try { JSON.parse(m.contents); } catch (e) { alert(`第 ${i + 1} 則 JSON 格式錯誤`); return; }
+                    try { JSON.parse(m.contents); } catch (e) { alert(`訊息 #${msgNum}: Flex 內容 JSON 格式錯誤`); return; }
                 }
             }
         }
@@ -1705,8 +1752,10 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
             const res = await api.get('/registered-users?source=private_var');
             setUsers(res.data);
         } catch (err) {
-            alert('無法取得用戶列表: ' + err.message);
-            onClose();
+            console.error('Fetch users error:', err);
+            // Don't alert if it's just an empty result or generic error to avoid interrupting the user.
+            // The UI will show "找不到符合的用戶" anyway if the list is empty.
+            setUsers([]);
         } finally {
             setLoading(false);
         }

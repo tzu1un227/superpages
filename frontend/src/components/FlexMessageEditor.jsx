@@ -122,6 +122,35 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
         }
     }, [cards, mode, hasInitialized]);
 
+    // Validation helper
+    const validateCards = () => {
+        for (let i = 0; i < cards.length; i++) {
+            const card = cards[i];
+            const cardNum = i + 1;
+            const cardPrefix = mode === 'carousel' ? `卡片 #${cardNum}: ` : '';
+
+            if (card.template === 'option') {
+                if (!card.imageUrl?.trim()) return `${cardPrefix}圖片網址不可為空白`;
+                if (!card.title?.trim()) return `${cardPrefix}標題不可為空白`;
+                if (!card.description?.trim()) return `${cardPrefix}說明文字不可為空白`;
+
+                for (let j = 0; j < card.buttons.length; j++) {
+                    const btn = card.buttons[j];
+                    const btnNum = j + 1;
+                    if (!btn.text?.trim()) return `${cardPrefix}按鈕 #${btnNum} 文字不可為空白`;
+                    if (!btn.value?.trim()) return `${cardPrefix}按鈕 #${btnNum} 內容/網址不可為空白`;
+                }
+            } else {
+                // Image template
+                if (!card.imageUrl?.trim()) return `${cardPrefix}圖片網址不可為空白`;
+                if (card.imageAction.type !== 'none' && !card.imageAction.value?.trim()) {
+                    return `${cardPrefix}圖片點擊內容不可為空白`;
+                }
+            }
+        }
+        return null;
+    };
+
     // Helper: Parse Bubble back to internal Card state
     const parseBubbleToCard = (bubble) => {
         const hero = bubble.hero || {};
@@ -413,7 +442,11 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
-                    {/* <button onClick={onCancel} style={{ background: 'transparent', border: '1px solid #666', color: '#fff', padding: '6px 15px', borderRadius: '4px' }}>取消</button> */}
+                    <div style={{ fontSize: '12px', color: '#888', display: 'flex', alignItems: 'center' }}>
+                        {payloadSize > 9000 ? (
+                            <span style={{ color: '#FF4D4D' }}>⚠️ Payload 接近上限</span>
+                        ) : <span>自動儲存中...</span>}
+                    </div>
                 </div>
             </div>
 
