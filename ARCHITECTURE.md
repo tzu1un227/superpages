@@ -159,5 +159,7 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 ## Environment Specific Configurations (環境特定配置)
 
 ### yzulabuse 環境
-- **資料庫修正**: `projects` 資料表已修正為具備 `project_id` SERIAL 主鍵，並為 `type` 欄位設定預設值 'project'。
-- **Socket 連線**: 已移除 `other_settings` 中失效的 `socket_url` (Heroku)，系統會自動回推至預設的 `WS_URL` (IRL Server) 以確保訊息中心發送功能正常。
+- **資料庫修正**: 
+    - `projects` 資料表已修正為具備 `project_id` SERIAL 主鍵，並設定預設 `type`。
+    - `project_schedules` 與 `cron_table` 已補齊 SERIAL 主鍵 (`schedule_id` / `task_id`)，解決編輯排程時的 `null` 錯誤問題。
+- **Socket 連線**: 採用特定 OA 設定中的 `socket_url` (`https://yzulabuse.herokuapp.com`)。後端 `send_socket_event` 已實作 OA Context 感知機制，確保訊息能根據 `X-OA-ID` 導往正確的機器人引擎，解決誤導向至 5013 的問題。

@@ -1431,18 +1431,42 @@ def send_socket_event(data):
 
     # Determine Socket URL
     target_ws_url = WS_URL
-    if hasattr(g, 'current_oa_id') and g.current_oa_id:
+    current_oa_id = getattr(g, 'current_oa_id', None)
+    current_oa_config = getattr(g, 'current_oa_config', None)
+    
+    print(f"DEBUG: send_socket_event | initial target_ws_url={target_ws_url}, g.current_oa_id={current_oa_id}, has_config={current_oa_config is not None}")
+
+    # Priority 1: Use g.current_oa_config if available
+    if current_oa_config:
         try:
-            oa = OAConfig.query.get(g.current_oa_id)
+            if current_oa_config.other_settings and 'socket_url' in current_oa_config.other_settings:
+                if current_oa_config.other_settings['socket_url']:
+                    target_ws_url = current_oa_config.other_settings['socket_url']
+                    print(f"DEBUG: send_socket_event | Found socket_url in g.current_oa_config: {target_ws_url}")
+        except Exception as e:
+            print(f"DEBUG: send_socket_event | Error reading from g.current_oa_config: {e}")
+
+    # Priority 2: Use g.current_oa_id to query if config not in g or URL not found
+    if target_ws_url == WS_URL and current_oa_id:
+        try:
+            oa = OAConfig.query.get(int(current_oa_id))
             if oa and oa.other_settings and 'socket_url' in oa.other_settings:
                 if oa.other_settings['socket_url']:
                     target_ws_url = oa.other_settings['socket_url']
+                    print(f"DEBUG: send_socket_event | Found socket_url by querying ID {current_oa_id}: {target_ws_url}")
         except Exception as e:
-            print(f"Error fetching OA socket config: {e}")
+            print(f"DEBUG: send_socket_event | Error querying OAConfig for ID {current_oa_id}: {e}")
 
-    print(f"Connecting to Socket URL: {target_ws_url}")
+    # Priority 3: Check if data itself has a preferred URL (optional extension)
+    if 'target_ws_url' in data:
+         target_ws_url = data['target_ws_url']
+         print(f"DEBUG: send_socket_event | Overridden by data['target_ws_url']: {target_ws_url}")
+
+    print(f"DEBUG: Final Socket URL decided: {target_ws_url} (Namespace: {namespace})")
+    
     try:
-        sio.connect(target_ws_url, namespaces=[namespace], wait_timeout=5)
+        # Connect to the determined URL
+        sio.connect(target_ws_url, namespaces=[namespace], wait_timeout=10)
     except Exception as e:
         print(f"SOCKET_ERROR: Failed to connect to {target_ws_url} (Namespace: {namespace}): {e}")
         raise Exception(f"無法連線至機器人服務 ({target_ws_url}): {str(e)}")
