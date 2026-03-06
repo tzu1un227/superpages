@@ -1422,7 +1422,11 @@ def send_socket_event(data):
             print(f"Error fetching OA socket config: {e}")
 
     print(f"Connecting to Socket URL: {target_ws_url}")
-    sio.connect(target_ws_url, namespaces=[namespace], wait_timeout=3)
+    try:
+        sio.connect(target_ws_url, namespaces=[namespace], wait_timeout=5)
+    except Exception as e:
+        print(f"SOCKET_ERROR: Failed to connect to {target_ws_url} (Namespace: {namespace}): {e}")
+        raise Exception(f"無法連線至機器人服務 ({target_ws_url}): {str(e)}")
     
     # Check if we need to split the event (Postback with tags)
     content = data.get('message', '')

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Tag as TagIcon, Plus } from 'lucide-react';
 import api from '../api';
 
-const TagInput = ({ tags = [], onChange, placeholder = "選擇或輸入標籤..." }) => {
+const TagInput = ({ tags = [], onChange, placeholder = "選擇或輸入標籤...", singleSelect = false }) => {
     const [input, setInput] = useState('');
     const [availableTags, setAvailableTags] = useState([]);
     const [showDropdown, setShowDropdown] = useState(false);
@@ -37,8 +37,13 @@ const TagInput = ({ tags = [], onChange, placeholder = "選擇或輸入標籤...
     const handleAddTag = (tagName) => {
         const trimmed = tagName.trim();
         if (!trimmed) return;
-        if (!tags.includes(trimmed)) {
-            onChange([...tags, trimmed]);
+
+        if (singleSelect) {
+            onChange([trimmed]);
+        } else {
+            if (!tags.includes(trimmed)) {
+                onChange([...tags, trimmed]);
+            }
         }
         setInput('');
         setShowDropdown(false);
@@ -57,8 +62,8 @@ const TagInput = ({ tags = [], onChange, placeholder = "選擇或輸入標籤...
         }
     };
 
-    const filteredAvailable = availableTags.filter(t => 
-        !tags.includes(t) && 
+    const filteredAvailable = availableTags.filter(t =>
+        !tags.includes(t) &&
         t.toLowerCase().includes(input.toLowerCase())
     );
 
@@ -89,13 +94,13 @@ const TagInput = ({ tags = [], onChange, placeholder = "選擇或輸入標籤...
                         border: '1px solid rgba(255, 215, 0, 0.3)'
                     }}>
                         {tag}
-                        <X 
-                            size={12} 
-                            style={{ cursor: 'pointer' }} 
+                        <X
+                            size={12}
+                            style={{ cursor: 'pointer' }}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 handleRemoveTag(tag);
-                            }} 
+                            }}
                         />
                     </span>
                 ))}

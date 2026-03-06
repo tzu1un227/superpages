@@ -570,6 +570,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                                         <TagInput
                                             tags={currentCard.imageAction.tags || []}
                                             onChange={newTags => updateCurrentCard('imageAction', { ...currentCard.imageAction, tags: newTags })}
+                                            singleSelect={true}
                                         />
                                     </div>
                                 </div>
@@ -641,6 +642,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                                                     <TagInput
                                                         tags={btn.tags || []}
                                                         onChange={newTags => updateCardButton(idx, 'tags', newTags)}
+                                                        singleSelect={true}
                                                     />
                                                 </div>
                                             </div>

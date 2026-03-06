@@ -3,8 +3,17 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **多媒體訊息與訊息中心優化 (Rich Message & Message Center Optimization)** [2026-03-06]:
+  - **Flex 訊息編輯器優化**：
+    - 限制 Flex 訊息按鈕與圖片標籤選擇改為「單選」模式，避免超出系統處理範圍。
+  - **自動旅程 (Projects) 防錯機制**：
+    - 全面禁止在排程列表中直接透過 Text Input 編輯多媒體訊息（以 `QA|` 開頭之內容），強制使用進階編輯器以防止結構損毀。
+    - 修正新增排程表單中的多媒體訊息偵測邏輯。
+  - **訊息中心與後端連線診斷**：
+    - 強化 `trigger` 輔助診斷 Log，在 Socket.IO 連線失敗時輸出的報錯資訊更為具烈，便於排查區域網路或設定問題。
 - **自動旅程與訊息中心體驗升級 (Auto Journey & Message Center Enhancements)** [2026-03-03]:
   - **自動旅程修復與優化**：
+    - 修復因專案日期（`start_date`, `end_date`）為空（null）導致的前端黑畫面崩潰問題，增加了全面的空值檢查與防護邏輯。
     - 修復多媒體訊息建立排程時的字數計算，現在僅計算首則訊息字數。
     - 編輯多則排程時禁用快捷文字輸入框，防止結構意外被純文字覆寫。
     - 修正專案統計區間日期範圍挑選後 UI 狀態未更新的問題。

@@ -127,6 +127,8 @@ const ProjectsManagement = () => {
     const [activeTab, setActiveTab] = useState('projects'); // projects, schedules, users
 
     const [projectStats, setProjectStats] = useState({ tc: 0, cc: 0, ms: 0, mss: 0, msf: 0, completion_rate: 0 });
+    const [isCreatingProject, setIsCreatingProject] = useState(false);
+    const [isCreatingSchedule, setIsCreatingSchedule] = useState(false);
 
     const colors = [
         '#2196F3', '#4CAF50', '#FFD700', '#F44336', '#9C27B0',
@@ -176,8 +178,8 @@ const ProjectsManagement = () => {
             const project = projects.find(p => p.project_id == selectedProjectId);
             if (project) {
                 setStatsDateRange({
-                    start: project.start_date.split('T')[0],
-                    end: project.end_date.split('T')[0]
+                    start: project.start_date?.split('T')[0] || '',
+                    end: project.end_date?.split('T')[0] || ''
                 });
             }
         }
@@ -510,6 +512,7 @@ setPreviewSteps(steps);
             setError('專案名稱不能為空');
             return;
         }
+        setIsCreatingProject(true);
         try {
             await api.post('/projects', newProject);
             setShowAddProjectForm(false);
@@ -518,6 +521,7 @@ setPreviewSteps(steps);
                 start_date: '',
                 end_date: '',
                 is_enabled: true,
+                is_recurring: false,
                 anchor_config: { type: 'immediate', day: 1, time: '09:00' },
                 dormancy_config: { enabled: false, start: '23:00', end: '08:00' }
             });
@@ -525,6 +529,8 @@ setPreviewSteps(steps);
             setError('');
         } catch (err) {
             setError(err.response?.data?.message || '新增專案失敗');
+        } finally {
+            setIsCreatingProject(false);
         }
     };
 
@@ -591,6 +597,7 @@ setPreviewSteps(steps);
     };
 
     const handleCreateSchedule = async () => {
+        setIsCreatingSchedule(true);
         try {
             const scheduleToCreate = { ...newSchedule, project_id: selectedProjectId || newSchedule.project_id };
             if (!scheduleToCreate.project_id) {
@@ -629,6 +636,8 @@ setPreviewSteps(steps);
             setError('');
         } catch (err) {
             setError(err.response?.data?.message || err.message || '新增排程失敗');
+        } finally {
+            setIsCreatingSchedule(false);
         }
     };
 
@@ -835,8 +844,10 @@ setPreviewSteps(steps);
                                     {renderConfigInputs(newProject, setNewProject, false)}
                                 </div>
                                 <div style={{ display: 'flex', gap: '10px', alignSelf: 'flex-end', flex: '0 0 auto', marginLeft: 'auto' }}>
-                                    <button className="primary" onClick={handleCreateProject} style={{ minWidth: '80px' }}>儲存</button>
-                                    <button onClick={() => setShowAddProjectForm(false)} style={{ background: '#444', minWidth: '80px' }}>取消</button>
+                                    <button className="primary" onClick={handleCreateProject} disabled={isCreatingProject} style={{ minWidth: '100px' }}>
+                                        {isCreatingProject ? '儲存中...' : '儲存'}
+                                    </button>
+                                    <button onClick={() => setShowAddProjectForm(false)} disabled={isCreatingProject} style={{ background: '#444', minWidth: '80px' }}>取消</button>
                                 </div>
                             </div>
                         )}
@@ -873,13 +884,13 @@ setPreviewSteps(steps);
                                             <td style={{ fontSize: '14px' }}>
                                                 {editingProjectId === p.project_id ? (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                                        <input type="datetime-local" value={editProjectFormData.start_date.replace(' ', 'T').slice(0, 16)} onChange={e => setEditProjectFormData({ ...editProjectFormData, start_date: e.target.value })} style={{ padding: '5px' }} />
-                                                        <input type="datetime-local" value={editProjectFormData.end_date.replace(' ', 'T').slice(0, 16)} onChange={e => setEditProjectFormData({ ...editProjectFormData, end_date: e.target.value })} style={{ padding: '5px' }} />
+                                                        <input type="datetime-local" value={(editProjectFormData.start_date || '').replace(' ', 'T').slice(0, 16)} onChange={e => setEditProjectFormData({ ...editProjectFormData, start_date: e.target.value })} style={{ padding: '5px' }} />
+                                                        <input type="datetime-local" value={(editProjectFormData.end_date || '').replace(' ', 'T').slice(0, 16)} onChange={e => setEditProjectFormData({ ...editProjectFormData, end_date: e.target.value })} style={{ padding: '5px' }} />
                                                     </div>
                                                 ) : (
                                                     <span style={{ color: '#B0B0B0' }}>
-                                                        {p.start_date.slice(0, 16).replace('T', ' ')} <br />
-                                                        ~ {p.end_date.slice(0, 16).replace('T', ' ')}
+                                                        {p.start_date?.slice(0, 16).replace('T', ' ') || '未設定'} <br />
+                                                        ~ {p.end_date?.slice(0, 16).replace('T', ' ') || '未設定'}
                                                     </span>
                                                 )}
                                             </td>
@@ -1110,9 +1121,9 @@ setPreviewSteps(steps);
                                                         : newSchedule.message_content
                                                     }
                                                     onChange={e => setNewSchedule({ ...newSchedule, message_content: e.target.value })}
-                                                    disabled={newSchedule.message_content && newSchedule.message_content.startsWith('QA|') && newSchedule.is_multiple_messages}
-                                                    style={{ width: '100%', backgroundColor: (newSchedule.message_content && newSchedule.message_content.startsWith('QA|') && newSchedule.is_multiple_messages) ? '#444' : '#333', color: '#fff' }}
-                                                    placeholder={(newSchedule.message_content && newSchedule.message_content.startsWith('QA|') && newSchedule.is_multiple_messages) ? '多媒體訊息請點擊右側編輯按鈕修改' : ''}
+                                                    disabled={newSchedule.message_content && newSchedule.message_content.startsWith('QA|')}
+                                                    style={{ width: '100%', backgroundColor: (newSchedule.message_content && newSchedule.message_content.startsWith('QA|')) ? '#444' : '#333', color: '#fff' }}
+                                                    placeholder={(newSchedule.message_content && newSchedule.message_content.startsWith('QA|')) ? '多媒體訊息請點擊右針對按鈕修改' : ''}
                                                 />
                                                 <div style={{ fontSize: '11px', color: ((newSchedule.message_content && newSchedule.message_content.startsWith('QA|') && newSchedule.message_preview) ? newSchedule.message_preview : newSchedule.message_content || '').length > 3000 ? '#ff4d4d' : '#888', textAlign: 'right', marginTop: '2px' }}>
                                                     {((newSchedule.message_content && newSchedule.message_content.startsWith('QA|') && newSchedule.message_preview) ? newSchedule.message_preview : newSchedule.message_content || '').length} / 3000
@@ -1133,8 +1144,10 @@ setPreviewSteps(steps);
                                         </div>
                                     </div>
                                     <div style={{ display: 'flex', gap: '10px' }}>
-                                        <button className="primary" onClick={handleCreateSchedule} style={{ minWidth: '80px' }}>儲存</button>
-                                        <button onClick={() => setShowAddScheduleForm(false)} style={{ background: '#444', minWidth: '80px' }}>取消</button>
+                                        <button className="primary" onClick={handleCreateSchedule} disabled={isCreatingSchedule} style={{ minWidth: '100px' }}>
+                                            {isCreatingSchedule ? '儲存中...' : '儲存'}
+                                        </button>
+                                        <button onClick={() => setShowAddScheduleForm(false)} disabled={isCreatingSchedule} style={{ background: '#444', minWidth: '80px' }}>取消</button>
                                     </div>
                                 </div>
                             </div>
@@ -1243,9 +1256,9 @@ setPreviewSteps(steps);
                                                                     : editScheduleFormData.message_content
                                                                 }
                                                                 onChange={e => setEditScheduleFormData({ ...editScheduleFormData, message_content: e.target.value })}
-                                                                disabled={editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.is_multiple_messages}
-                                                                style={{ width: '100%', backgroundColor: (editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.is_multiple_messages) ? '#444' : '#333', color: '#fff' }}
-                                                                placeholder={(editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.is_multiple_messages) ? '多媒體訊息請點擊右側編輯按鈕修改' : ''}
+                                                                disabled={editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|')}
+                                                                style={{ width: '100%', backgroundColor: (editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|')) ? '#444' : '#333', color: '#fff' }}
+                                                                placeholder={(editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|')) ? '多媒體訊息請點擊右針對按鈕修改' : ''}
                                                             />
                                                             <div style={{ fontSize: '10px', color: ((editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.message_preview) ? editScheduleFormData.message_preview : editScheduleFormData.message_content || '').length > 3000 ? '#ff4d4d' : '#888', textAlign: 'right', marginTop: '2px' }}>
                                                                 {((editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.message_preview) ? editScheduleFormData.message_preview : editScheduleFormData.message_content || '').length} / 3000
