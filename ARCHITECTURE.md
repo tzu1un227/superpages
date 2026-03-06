@@ -155,3 +155,9 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - Manages `broadcasts` table.
     - Integrates with `QA_bank` for message storage and `cron_table` for scheduling.
     - Audience count logic uses `Private_var` for tag/all logic and calculates coverage ratio.
+
+## Environment Specific Configurations (環境特定配置)
+
+### yzulabuse 環境
+- **資料庫修正**: `projects` 資料表已修正為具備 `project_id` SERIAL 主鍵，並為 `type` 欄位設定預設值 'project'。
+- **Socket 連線**: 已移除 `other_settings` 中失效的 `socket_url` (Heroku)，系統會自動回推至預設的 `WS_URL` (IRL Server) 以確保訊息中心發送功能正常。

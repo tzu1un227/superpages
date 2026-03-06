@@ -3,6 +3,10 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **yzulabuse 環境修復與穩定性優化 (yzulabuse Environment Fixes)** [2026-03-06]:
+  - **資料庫結構修正**：修復 `projects` 資料表缺少主鍵與自動遞增屬性的問題，解決建立專案時的 `project_id` 空值錯誤與前端黑畫面崩潰。
+  - **欄位預設值補齊**：為 `projects` 欄位 `type` 設定預設值 'project'，確保資料一致性。
+  - **訊息中心連線修復**：移除失效的 Heroku Socket URL 配置，使其自動回推至預設穩定的 IRL Server，解決發送訊息時的 500 錯誤。
 - **Projects.jsx 頁面結構大修復 (Structural Refactor)** [2026-03-06]:
   - **修復編譯錯誤**：解決 `Expected "}" but found ":"` 等 Vite 編譯錯誤，恢復系統可建置狀態。
   - **移除程式碼冗餘**：清理並重寫 `Projects.jsx` 中超過 500 行的重複及錯誤嵌套程式碼，將分頁 (Tabs) 邏輯由深層三元運算子改為扁平化條件渲染結構。
