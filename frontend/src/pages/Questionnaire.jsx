@@ -271,7 +271,7 @@ export default function Questionnaire() {
                                 <DeleteIcon fontSize="small" />
                             </IconButton>
                         </Box>
-                        {expandedNote === n && (
+                        {expandedNote === q.note && (
                             <Box sx={{ px: 2, pb: 2 }}>
                                 <Divider sx={{ borderColor: '#333', mb: 1 }} />
                                 {loadingPreview ? <CircularProgress size={16} sx={{ color: '#888' }} /> : (
