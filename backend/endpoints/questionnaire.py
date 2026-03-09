@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, g
 from psycopg2.extras import RealDictCursor
 import psycopg2
+import json
 import re
 
 questionnaire_bp = Blueprint('questionnaire', __name__)
@@ -88,9 +89,9 @@ def _make_state(note: str, q_num: int) -> str:
     return f"Q{q_num:04d}"
 
 
-def _text_msg(text: str) -> list:
-    """Wrap a plain text string into the msg_rpy format expected by Q_bank (ARRAY of JSON)."""
-    return [{"Line": {"type": "text", "text": text}}]
+def _text_msg_json(text: str) -> str:
+    """Serialize a LINE text message dict to a JSON string for ARRAY(JSON) insertion."""
+    return json.dumps({"Line": {"type": "text", "text": text}}, ensure_ascii=False)
 
 
 def build_questionnaire_direct(data: dict, app_id: str, conn) -> None:
@@ -134,7 +135,7 @@ def build_questionnaire_direct(data: dict, app_id: str, conn) -> None:
         ['00000'],                    # state_in: ARRAY of strings
         first_state if n > 0 else '00000',
         f"pri_set('ans_{note}_Q0', sys.content(m))",
-        [_text_msg(first_q_content)[0]],   # msg_rpy: ARRAY of JSON (one element)
+        [_text_msg_json(first_q_content)],   # msg_rpy: ARRAY of JSON strings
         True
     ))
 
@@ -158,7 +159,7 @@ def build_questionnaire_direct(data: dict, app_id: str, conn) -> None:
             [state_in],                          # state_in: ARRAY
             state_out,
             save_fn,
-            [_text_msg(next_content)[0]],        # msg_rpy: ARRAY of JSON
+            [_text_msg_json(next_content)],      # msg_rpy: ARRAY of JSON strings
             True
         ))
 
@@ -173,7 +174,7 @@ def build_questionnaire_direct(data: dict, app_id: str, conn) -> None:
                 [state_in],                      # state_in: ARRAY (stay at same question)
                 state_in,                        # state_out = same state (re-ask)
                 '',
-                [_text_msg(error_msg)[0]],       # msg_rpy: ARRAY of JSON
+                [_text_msg_json(error_msg)],     # msg_rpy: ARRAY of JSON strings
                 True
             ))
 
