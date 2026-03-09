@@ -157,7 +157,7 @@ def build_questionnaire_direct(data: dict, app_id: str, conn, quest_id: int) -> 
     first_state = _make_state(quest_id, 1)
     cur.execute(f"""
         INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s, %s)
     """, (
         [trigger], 'Message', [], [''],
         [_text_msg_json(questions[0]['content'])],
@@ -179,7 +179,7 @@ def build_questionnaire_direct(data: dict, app_id: str, conn, quest_id: int) -> 
             # Last question -> Finish
             cur.execute(f"""
                 INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s, %s)
             """, (
                 [curr_state], 'Message', ['*'], [check_str],
                 [_text_msg_json(finish_msg)],
@@ -190,7 +190,7 @@ def build_questionnaire_direct(data: dict, app_id: str, conn, quest_id: int) -> 
             next_state = _make_state(quest_id, curr_q_idx + 1)
             cur.execute(f"""
                 INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s, %s)
             """, (
                 [curr_state], 'Message', ['*'], [check_str],
                 [_text_msg_json(questions[curr_q_idx]['content'])],
@@ -202,7 +202,7 @@ def build_questionnaire_direct(data: dict, app_id: str, conn, quest_id: int) -> 
             error_msg = _build_error_msg(q['cond'], q.get('cond_detail', ''), q['content'])
             cur.execute(f"""
                 INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s, %s)
             """, (
                 [curr_state], 'Message', ['*'], [''], # No check = catches everything (fallback)
                 [_text_msg_json(error_msg)],
