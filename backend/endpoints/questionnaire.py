@@ -156,7 +156,7 @@ def build_questionnaire_direct(data: dict, app_id: str, conn, quest_id: int) -> 
     # 1. Entry Rule (Trigger -> First Question)
     first_state = _make_state(quest_id, 1)
     cur.execute(f"""
-        INSERT INTO "{table}" (state_in, type, content, check, msg_rpy, state_out, function, history, note)
+        INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (
         [trigger], 'Message', [], [''],
@@ -178,7 +178,7 @@ def build_questionnaire_direct(data: dict, app_id: str, conn, quest_id: int) -> 
         if is_last:
             # Last question -> Finish
             cur.execute(f"""
-                INSERT INTO "{table}" (state_in, type, content, check, msg_rpy, state_out, function, history, note)
+                INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 [curr_state], 'Message', ['*'], [check_str],
@@ -189,7 +189,7 @@ def build_questionnaire_direct(data: dict, app_id: str, conn, quest_id: int) -> 
             # Next question
             next_state = _make_state(quest_id, curr_q_idx + 1)
             cur.execute(f"""
-                INSERT INTO "{table}" (state_in, type, content, check, msg_rpy, state_out, function, history, note)
+                INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 [curr_state], 'Message', ['*'], [check_str],
@@ -201,7 +201,7 @@ def build_questionnaire_direct(data: dict, app_id: str, conn, quest_id: int) -> 
         if check_str:
             error_msg = _build_error_msg(q['cond'], q.get('cond_detail', ''), q['content'])
             cur.execute(f"""
-                INSERT INTO "{table}" (state_in, type, content, check, msg_rpy, state_out, function, history, note)
+                INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 [curr_state], 'Message', ['*'], [''], # No check = catches everything (fallback)
