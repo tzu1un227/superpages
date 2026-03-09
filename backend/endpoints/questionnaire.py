@@ -307,9 +307,7 @@ def build_questionnaire():
     questions = data.get('questions', [])
 
     if not note:
-        return jsonify({'error': '問卷系列 ID (note) 不能為空'}), 400
-    if not re.match(r'^[A-Za-z0-9_]+$', note):
-        return jsonify({'error': '問卷系列 ID 只能包含英數字或底線'}), 400
+        return jsonify({'error': '問卷名稱不能為空'}), 400
     if not trigger:
         return jsonify({'error': '觸發指令不能為空'}), 400
     if not questions:
