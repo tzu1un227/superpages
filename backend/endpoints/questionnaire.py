@@ -33,7 +33,6 @@ def _trigger_sql_reload():
     try:
         from utils.socket_utils import send_socket_event
         oa_id = getattr(g, 'current_oa_id', None)
-        app_name = get_app_id()
         # Resolve socket_url from OA config if available
         socket_url = None
         if oa_id:
@@ -47,7 +46,7 @@ def _trigger_sql_reload():
         }
         if socket_url:
             data['target_ws_url'] = socket_url
-        send_socket_event(data, namespace=f'/{app_name}')
+        send_socket_event(data, namespace='/websoc')
     except Exception as e:
         print(f'[questionnaire] SQL reload trigger failed (non-critical): {e}')
 
