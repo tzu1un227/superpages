@@ -90,8 +90,13 @@ def _make_state(note: str, q_num: int) -> str:
 
 
 def _text_msg_json(text: str) -> str:
-    """Serialize a LINE text message dict to a JSON string for ARRAY(JSON) insertion."""
-    return json.dumps({"Line": {"type": "text", "text": text}}, ensure_ascii=False)
+    """
+    Serialize a LINE text message to a JSON string for ARRAY(JSON) insertion.
+    The format uses 'OTYPE' key so maingame.check_JSON converts it into
+    a TextSendMessage object before sending via the Line SDK.
+    Format: {"Line": {"OTYPE": "TextSendMessage", "text": "..."}}
+    """
+    return json.dumps({"Line": {"OTYPE": "TextSendMessage", "text": text}}, ensure_ascii=False)
 
 
 def build_questionnaire_direct(data: dict, app_id: str, conn) -> None:
