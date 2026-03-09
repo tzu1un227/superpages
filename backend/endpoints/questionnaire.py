@@ -62,13 +62,13 @@ def _parse_condition(cond_id: str, cond_detail: str = '') -> str:
         return ''  # No restriction
 
     if c == '2':
-        return "sys.content(m, 0, '').isdigit()"
+        return "sys.content(m, 0).isdigit()"
 
     if c == '3':
         # cond_detail: comma-separated options e.g. "是,否"
         options = [opt.strip() for opt in cond_detail.split(',') if opt.strip()]
         options_repr = repr(options)
-        return f"sys.content(m, 0, '') in {options_repr}"
+        return f"sys.content(m, 0) in {options_repr}"
 
     if c == '4':
         # cond_detail: "min,max" e.g. "5,20" ; -1 means no limit
@@ -82,23 +82,23 @@ def _parse_condition(cond_id: str, cond_detail: str = '') -> str:
             return ''
 
         if min_val >= 0 and max_val >= 0:
-            return f"len(sys.content(m, 0, '')) >= {min_val} and len(sys.content(m, 0, '')) <= {max_val}"
+            return f"len(sys.content(m, 0)) >= {min_val} and len(sys.content(m, 0)) <= {max_val}"
         elif min_val >= 0 and max_val == -1:
-            return f"len(sys.content(m, 0, '')) >= {min_val}"
+            return f"len(sys.content(m, 0)) >= {min_val}"
         elif min_val == 0 and max_val >= 0:
-            return f"len(sys.content(m, 0, '')) <= {max_val}"
+            return f"len(sys.content(m, 0)) <= {max_val}"
         return ''
 
     if c == '5':
-        return ("sys.content(m, 0, '').startswith('09') and "
-                "len(sys.content(m, 0, '')) == 10 and "
-                "sys.content(m, 0, '').isdigit()")
+        return ("sys.content(m, 0).startswith('09') and "
+                "len(sys.content(m, 0)) == 10 and "
+                "sys.content(m, 0).isdigit()")
 
     if c == '6':
-        return r"bool(re.match(r'[^@]+@[^@]+\.[^@]+', sys.content(m, 0, '')))"
+        return r"bool(re.match(r'[^@]+@[^@]+\.[^@]+', sys.content(m, 0)))"
 
     if c == '7':
-        return r"bool(re.match(r'^\d{4}-\d{2}-\d{2}$', sys.content(m, 0, '')))"
+        return r"bool(re.match(r'^\d{4}-\d{2}-\d{2}$', sys.content(m, 0)))"
 
     return ''
 
