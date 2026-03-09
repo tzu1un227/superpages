@@ -171,7 +171,7 @@ export default function Questionnaire() {
         setLoadingList(true);
         try {
             const res = await api.get('/questionnaire/list', authHeaders);
-            setQuestionnaires(res.data);
+            setQuestionnaires(res.data.questionnaires || []);
         } catch (e) {
             console.error(e);
         } finally {
@@ -207,10 +207,10 @@ export default function Questionnaire() {
     const updateQ = (i, q) => setQuestions(prev => { const a = [...prev]; a[i] = q; return a; });
     const addQ = () => setQuestions(prev => [...prev, emptyQuestion()]);
     const deleteQ = (i) => setQuestions(prev => prev.filter((_, idx) => idx !== i));
-    const moveUp = (i) => setQuestions(prev => { const a = [...prev]; [a[i - 1], a[i]] = [a[i], a[i - 1]]; return a; });
-    const moveDown = (i) => setQuestions(prev => { const a = [...prev]; [a[i], a[i + 1]] = [a[i + 1], a[i]]; return a; });
+    const moveUp = (i) => setQuestions(prev => { const a = [...prev];[a[i - 1], a[i]] = [a[i], a[i - 1]]; return a; });
+    const moveDown = (i) => setQuestions(prev => { const a = [...prev];[a[i], a[i + 1]] = [a[i + 1], a[i]]; return a; });
 
-    const step1Valid = note.trim() && /^[A-Za-z0-9_]+$/.test(note) && trigger.trim() && finishMsg.trim();
+    const step1Valid = note.trim() && trigger.trim() && finishMsg.trim();
     const step2Valid = questions.length > 0 && questions.every(q => {
         if (!q.content.trim()) return false;
         if (q.cond === '3' && !q.cond_detail.trim()) return false;
@@ -226,11 +226,11 @@ export default function Questionnaire() {
         setSubmitting(true);
         setAlert(null);
         try {
-            await api.post('/questionnaire/build', {
+            const res = await api.post('/questionnaire/build', {
                 note, trigger, finish_msg: finishMsg,
                 questions: questions.map(q => ({ content: q.content, cond: q.cond, cond_detail: q.cond_detail }))
             }, authHeaders);
-            setAlert({ severity: 'success', msg: `問卷「${note}」已成功建立！` });
+            setAlert({ severity: 'success', msg: res.data.message || `問卷「${note}」已成功建立！` });
             fetchList();
             // Reset form
             setNote(''); setTrigger(''); setFinishMsg('感謝您的填寫！');
@@ -253,19 +253,21 @@ export default function Questionnaire() {
                     <CircularProgress size={24} sx={{ color: 'var(--primary-yellow)' }} />
                 ) : questionnaires.length === 0 ? (
                     <Typography sx={{ color: '#666', fontSize: '0.9rem' }}>尚無問卷，請在右側建立。</Typography>
-                ) : questionnaires.map(n => (
-                    <Paper key={n} sx={{ mb: 1, background: '#222', border: '1px solid #444' }}>
+                ) : questionnaires.map(q => (
+                    <Paper key={q.note} sx={{ mb: 1, background: '#222', border: '1px solid #444' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', px: 2, py: 1 }}>
-                            <Typography
-                                sx={{ flex: 1, color: 'white', cursor: 'pointer', '&:hover': { color: 'var(--primary-yellow)' } }}
-                                onClick={() => handleExpandNote(n)}
-                            >
-                                {n}
-                            </Typography>
-                            <IconButton size="small" onClick={() => handleExpandNote(n)} sx={{ color: '#888' }}>
-                                {expandedNote === n ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                            <Box sx={{ flex: 1, cursor: 'pointer', '&:hover': { color: 'var(--primary-yellow)' } }} onClick={() => handleExpandNote(q.note)}>
+                                <Typography sx={{ color: 'white', fontWeight: 'bold' }}>
+                                    {q.note}
+                                </Typography>
+                                <Typography sx={{ color: '#666', fontSize: '0.75rem' }}>
+                                    ID: {q.id} | {q.rules_count} 條法則
+                                </Typography>
+                            </Box>
+                            <IconButton size="small" onClick={() => handleExpandNote(q.note)} sx={{ color: '#888' }}>
+                                {expandedNote === q.note ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                             </IconButton>
-                            <IconButton size="small" onClick={() => setDeleteDialog({ open: true, note: n })} sx={{ color: '#e57373' }}>
+                            <IconButton size="small" onClick={() => setDeleteDialog({ open: true, note: q.note })} sx={{ color: '#e57373' }}>
                                 <DeleteIcon fontSize="small" />
                             </IconButton>
                         </Box>
@@ -312,9 +314,9 @@ export default function Questionnaire() {
                     <Box>
                         <Typography sx={{ color: '#B0B0B0', mb: 2 }}>設定問卷的基本資料。</Typography>
                         <TextField
-                            fullWidth label="問卷系列 ID (note)" value={note}
+                            fullWidth label="問卷名稱" value={note}
                             onChange={e => setNote(e.target.value)}
-                            helperText="只能包含英數字或底線，例如：feedback01"
+                            helperText="問卷的標題或備註，可填中文 (例如：2024 客戶滿意度調查)"
                             FormHelperTextProps={{ sx: { color: '#666' } }}
                             sx={{ ...sx, mb: 2 }}
                             InputLabelProps={{ sx: { color: '#B0B0B0' } }}
@@ -368,7 +370,7 @@ export default function Questionnaire() {
                         <Typography sx={{ color: '#B0B0B0', mb: 2 }}>請確認問卷資料後送出建立。</Typography>
                         <Paper sx={{ p: 2, background: '#222', mb: 2, border: '1px solid #444' }}>
                             <Typography sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', mb: 1 }}>基本資訊</Typography>
-                            <Typography sx={{ color: 'white', mb: 0.5 }}>問卷 ID：<Chip label={note} size="small" sx={{ background: '#444', color: 'white' }} /></Typography>
+                            <Typography sx={{ color: 'white', mb: 0.5 }}>問卷名稱：<Chip label={note} size="small" sx={{ background: '#444', color: 'white' }} /></Typography>
                             <Typography sx={{ color: 'white', mb: 0.5 }}>觸發指令：<Chip label={trigger} size="small" sx={{ background: '#444', color: 'white' }} /></Typography>
                             <Typography sx={{ color: 'white' }}>完成訊息：{finishMsg}</Typography>
                         </Paper>

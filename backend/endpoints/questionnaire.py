@@ -103,17 +103,32 @@ def _parse_condition(cond_id: str, cond_detail: str = '') -> str:
     return ''
 
 
-def _make_state(note: str, q_num: int) -> str:
+def _get_next_available_id(conn, app_id: str) -> int:
     """
-    Build a 5-char state string for question number q_num within note.
-    e.g. note='abc', q_num=1 -> 'Qabc1' (5 chars if note<=3 chars)
-    Falls back to a numeric state 'Q{q_num:04d}' if note is too long.
+    Find the smallest available ID (1-99) not currently used by any questionnaire
+    in the Q_bank:{app_id} table.
     """
-    candidate = f"Q{note}{q_num}"
-    if len(candidate) <= 5:
-        return candidate
-    # Fallback: use numeric key, prefix with 'q' to stay 5 chars
-    return f"Q{q_num:04d}"
+    cur = conn.cursor()
+    table = f"Q_bank:{app_id}"
+    # Extract IDs from existing states like 'Q0101' -> '01'
+    # We look at all state_in[0] since every rule belongs to a questionnaire
+    cur.execute(f"SELECT DISTINCT substring(state_in[1] from 2 for 2) FROM \"{table}\" WHERE state_in[1] LIKE 'Q____'")
+    used_ids = {int(r[0]) for r in cur.fetchall() if r[0].isdigit()}
+    cur.close()
+
+    for i in range(1, 100):
+        if i not in used_ids:
+            return i
+    raise Exception("已達到問卷數量上限 (99)")
+
+
+def _make_state(quest_id: int, q_num: int) -> str:
+    """
+    Generates a unique 5-character state for a question.
+    Format: Q + ID(2 digits) + Seq(2 digits)
+    Example: Q0101, Q0113
+    """
+    return f"Q{quest_id:02d}{q_num:02d}"
 
 
 def _text_msg_json(text: str) -> str:
@@ -126,93 +141,76 @@ def _text_msg_json(text: str) -> str:
     return json.dumps({"Line": {"OTYPE": "TextSendMessage", "text": text}}, ensure_ascii=False)
 
 
-def build_questionnaire_direct(data: dict, app_id: str, conn) -> None:
+def build_questionnaire_direct(data: dict, app_id: str, conn, quest_id: int) -> None:
     """
     Build and insert Q_bank rules from structured questionnaire data.
-    data format:
-    {
-        "note": str,
-        "trigger": str,
-        "finish_msg": str,
-        "questions": [
-            {"content": str, "cond": str, "cond_detail": str},
-            ...
-        ]
-    }
     """
-    note = data['note']
-    trigger = data['trigger']
-    finish_msg = data.get('finish_msg', '感謝您的填寫！')
-    questions = data['questions']
-    n = len(questions)
+    note = data.get('note', '未命名問卷')
+    trigger = data.get('trigger')
+    finish_msg = data.get('finish_msg', '問卷已完成，謝謝您的參與！')
+    questions = data.get('questions', [])
 
-    table = f"Q_bank:{app_id}"
     cur = conn.cursor()
+    table = f"Q_bank:{app_id}"
 
-    insert_sql = (
-        f'INSERT INTO "{table}" '
-        f'(note, type, "check", content, state_in, state_out, function, msg_rpy, history) '
-        f'VALUES (%s, %s, %s, %s, %s, %s, %s, %s::json[], %s)'
-    )
-
-    # Rule 0: Trigger rule (state_in=['00000'], content=[trigger] -> state_out = Q[note]1)
-    first_state = _make_state(note, 1)
-    first_q_content = questions[0]['content'] if n > 0 else finish_msg
-
-    cur.execute(insert_sql, (
-        note,
-        'Message',
-        [],                           # check: empty ARRAY
-        [trigger],                    # content: ARRAY of strings
-        ['00000'],                    # state_in: ARRAY of strings
-        first_state if n > 0 else '00000',
-        f"pri_set('ans_{note}_Q0', sys.content(m))",
-        [_text_msg_json(first_q_content)],   # msg_rpy: ARRAY of JSON strings
-        True
+    # 1. Entry Rule (Trigger -> First Question)
+    first_state = _make_state(quest_id, 1)
+    cur.execute(f"""
+        INSERT INTO "{table}" (state_in, type, content, check, msg_rpy, state_out, function, history, note)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (
+        [trigger], 'Message', [], [''],
+        [_text_msg_json(questions[0]['content'])],
+        first_state, '', True, note
     ))
 
-    # Rules per question: correct + fallback (error)
+    # 2. Question Rules
     for i, q in enumerate(questions):
-        q_num = i + 1
-        state_in = _make_state(note, q_num)
-        is_last = (i == n - 1)
-        state_out = '00000' if is_last else _make_state(note, q_num + 1)
-        next_content = finish_msg if is_last else questions[i + 1]['content']
+        curr_q_idx = i + 1
+        curr_state = _make_state(quest_id, curr_q_idx)
+        is_last = (curr_q_idx == len(questions))
 
-        check_str = _parse_condition(q['cond'], q.get('cond_detail', ''))
-        save_fn = f"pri_set('ans_{note}_Q{q_num}', sys.content(m))"
+        # Check condition for this question
+        check_str = _parse_condition(q.get('cond', '1'), q.get('cond_detail', ''))
+        save_fn = f"pri_set('ans_{note}_Q{curr_q_idx}', sys.content(m))"
 
         # Correct answer rule
-        cur.execute(insert_sql, (
-            note,
-            'Message',
-            [check_str] if check_str else [],   # check: ARRAY (empty if no condition)
-            ['*'],                               # content: wildcard ARRAY
-            [state_in],                          # state_in: ARRAY
-            state_out,
-            save_fn,
-            [_text_msg_json(next_content)],      # msg_rpy: ARRAY of JSON strings
-            True
-        ))
+        if is_last:
+            # Last question -> Finish
+            cur.execute(f"""
+                INSERT INTO "{table}" (state_in, type, content, check, msg_rpy, state_out, function, history, note)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                [curr_state], 'Message', ['*'], [check_str],
+                [_text_msg_json(finish_msg)],
+                '00000', save_fn, True, note
+            ))
+        else:
+            # Next question
+            next_state = _make_state(quest_id, curr_q_idx + 1)
+            cur.execute(f"""
+                INSERT INTO "{table}" (state_in, type, content, check, msg_rpy, state_out, function, history, note)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                [curr_state], 'Message', ['*'], [check_str],
+                [_text_msg_json(questions[curr_q_idx]['content'])],
+                next_state, save_fn, True, note
+            ))
 
         # Fallback/error rule (only if there IS a condition to check)
         if check_str:
             error_msg = _build_error_msg(q['cond'], q.get('cond_detail', ''), q['content'])
-            cur.execute(insert_sql, (
-                note,
-                'Message',
-                [],                              # no check = catches everything (fallback)
-                ['*'],                           # content: wildcard ARRAY
-                [state_in],                      # state_in: ARRAY (stay at same question)
-                state_in,                        # state_out = same state (re-ask)
-                '',
-                [_text_msg_json(error_msg)],     # msg_rpy: ARRAY of JSON strings
-                True
+            cur.execute(f"""
+                INSERT INTO "{table}" (state_in, type, content, check, msg_rpy, state_out, function, history, note)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                [curr_state], 'Message', ['*'], [''], # No check = catches everything (fallback)
+                [_text_msg_json(error_msg)],
+                curr_state, '', True, note # state_out = same state (re-ask)
             ))
 
     conn.commit()
     cur.close()
-
 
 
 def _build_error_msg(cond_id: str, cond_detail: str, question_text: str) -> str:
@@ -242,11 +240,37 @@ def list_questionnaires():
         app_id = get_app_id()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         table = f"Q_bank:{app_id}"
-        cur.execute(f'SELECT DISTINCT note FROM "{table}" WHERE note IS NOT NULL AND note != \'\' ORDER BY note')
-        rows = cur.fetchall()
+        
+        # Group by note to find unique questionnaires
+        # Extract ID from state_in[1] where it matches our Q[ID][SEQ] pattern
+        cur.execute(f"""
+            SELECT note, 
+                   (SELECT state_in[1] FROM "{table}" AS sub 
+                    WHERE sub.note = t.note AND sub.state_in[1] LIKE 'Q____' 
+                    LIMIT 1) as sample_state,
+                   count(*) as rules_count
+            FROM "{table}" AS t
+            WHERE note IS NOT NULL 
+            GROUP BY note
+        """)
+        results = cur.fetchall()
+        
+        questionnaires = []
+        for r in results:
+            # Attempt to extract ID from sample_state like 'Q0101'
+            q_id = "00"
+            if r['sample_state'] and len(r['sample_state']) == 5:
+                q_id = r['sample_state'][1:3]
+                
+            questionnaires.append({
+                'id': q_id,
+                'note': r['note'],
+                'rules_count': r['rules_count'] # Total rules for this questionnaire
+            })
+            
         cur.close()
         conn.close()
-        return jsonify([r['note'] for r in rows])
+        return jsonify({'questionnaires': questionnaires})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -302,10 +326,21 @@ def build_questionnaire():
     try:
         conn = get_db_connection()
         app_id = get_app_id()
-        build_questionnaire_direct(data, app_id, conn)
+        
+        # Check for duplicate names to ensure safe DELETE
+        cur = conn.cursor()
+        cur.execute(f"SELECT 1 FROM \"Q_bank:{app_id}\" WHERE note = %s LIMIT 1", (note,))
+        if cur.fetchone():
+            conn.close()
+            return jsonify({'error': f'問卷名稱「{note}」已存在，請使用不同名稱'}), 400
+
+        # Auto-assignment of numeric ID (reuses holes)
+        quest_id = _get_next_available_id(conn, app_id)
+        
+        build_questionnaire_direct(data, app_id, conn, quest_id)
         conn.close()
         _trigger_sql_reload()
-        return jsonify({'status': 'success', 'message': f'問卷「{note}」已成功建立並寫入資料庫'})
+        return jsonify({'status': 'success', 'message': f'問卷「{note}」已成功建立 (ID: {quest_id:02d})'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
