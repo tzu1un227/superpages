@@ -54,6 +54,10 @@ app.register_blueprint(richmenu_bp, url_prefix='/api/richmenu')
 from endpoints.broadcast import broadcast_bp
 app.register_blueprint(broadcast_bp, url_prefix='/api/broadcast')
 
+# Register Questionnaire Blueprint
+from endpoints.questionnaire import questionnaire_bp
+app.register_blueprint(questionnaire_bp, url_prefix='/api/questionnaire')
+
 with app.app_context():
     db.create_all()
 
@@ -68,7 +72,8 @@ with app.app_context():
             {'name': 'Broadcast', 'description': '群發訊息'},
             {'name': 'ScheduledEvents', 'description': '定時排程'},
             {'name': 'PrizeStatus', 'description': '抽獎管理'},
-            {'name': 'RichMenu', 'description': '圖文選單'}
+            {'name': 'RichMenu', 'description': '圖文選單'},
+            {'name': 'Questionnaire', 'description': '問卷管理'}
         ]
         
         for p in default_pages:

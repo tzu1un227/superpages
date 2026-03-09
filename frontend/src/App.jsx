@@ -11,8 +11,9 @@ import PrizeStatus from './pages/PrizeStatus';
 import Statistics from './pages/Statistics';
 import RichMenu from './pages/RichMenu';
 import AdminPage from './pages/AdminPage';
+import Questionnaire from './pages/Questionnaire';
 import api from './api';
-import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send, Gift, Shield, LayoutGrid } from 'lucide-react';
+import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send, Gift, Shield, LayoutGrid, ClipboardList } from 'lucide-react';
 
 const GOOGLE_CLIENT_ID = "909213734319-feblc4e1vhgu7e0r340e43h9aabc8iqf.apps.googleusercontent.com";
 
@@ -37,7 +38,8 @@ const PAGE_ROUTE_MAP = {
   'ScheduledEvents': 'scheduled-events',
   'PrizeStatus': 'prizes',
   'Statistics': 'statistics',
-  'RichMenu': 'richmenu'
+  'RichMenu': 'richmenu',
+  'Questionnaire': 'questionnaire'
 };
 
 const PAGE_ICON_MAP = {
@@ -47,7 +49,8 @@ const PAGE_ICON_MAP = {
   'ScheduledEvents': Clock,
   'PrizeStatus': Gift,
   'Statistics': BarChart3,
-  'RichMenu': LayoutGrid
+  'RichMenu': LayoutGrid,
+  'Questionnaire': ClipboardList
 };
 
 const MainLayout = () => {
@@ -98,7 +101,8 @@ const MainLayout = () => {
 
                     const displayName = page.name === 'PrizeStatus' ? '抽獎管理' :
                       page.name === 'Projects' ? '自動旅程' :
-                        page.description;
+                        page.name === 'Questionnaire' ? '問卷管理' :
+                          page.description;
 
                     return (
                       <li key={page.id} style={{ marginBottom: '5px' }}>
@@ -152,6 +156,7 @@ const MainLayout = () => {
           <Route path="/oa/:oaId/prizes" element={<ProtectedRoute><PrizeStatus /></ProtectedRoute>} />
           <Route path="/oa/:oaId/statistics" element={<ProtectedRoute><Statistics /></ProtectedRoute>} />
           <Route path="/oa/:oaId/richmenu" element={<ProtectedRoute><RichMenu /></ProtectedRoute>} />
+          <Route path="/oa/:oaId/questionnaire" element={<ProtectedRoute><Questionnaire /></ProtectedRoute>} />
 
           <Route path="/" element={
             isAuthenticated && myOAs.length > 0 ? (
