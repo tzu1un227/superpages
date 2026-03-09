@@ -88,6 +88,11 @@ def _make_state(note: str, q_num: int) -> str:
     return f"Q{q_num:04d}"
 
 
+def _text_msg(text: str) -> list:
+    """Wrap a plain text string into the msg_rpy format expected by Q_bank (ARRAY of JSON)."""
+    return [{"Line": {"type": "text", "text": text}}]
+
+
 def build_questionnaire_direct(data: dict, app_id: str, conn) -> None:
     """
     Build and insert Q_bank rules from structured questionnaire data.
@@ -111,25 +116,27 @@ def build_questionnaire_direct(data: dict, app_id: str, conn) -> None:
     table = f"Q_bank:{app_id}"
     cur = conn.cursor()
 
-    # Rule 0: Trigger rule (state_in=00000, content=trigger word -> state_out = Q[note]1)
+    insert_sql = (
+        f'INSERT INTO "{table}" '
+        f'(note, type, "check", content, state_in, state_out, function, msg_rpy, history) '
+        f'VALUES (%s, %s, %s, %s, %s, %s, %s, %s::json[], %s)'
+    )
+
+    # Rule 0: Trigger rule (state_in=['00000'], content=[trigger] -> state_out = Q[note]1)
     first_state = _make_state(note, 1)
     first_q_content = questions[0]['content'] if n > 0 else finish_msg
 
-    cur.execute(
-        f'INSERT INTO "{table}" (note, type, "check", content, state_in, state_out, function, msg_rpy, history) '
-        f'VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)',
-        (
-            note,
-            'Message',
-            '',
-            trigger,
-            '00000',
-            first_state if n > 0 else '00000',
-            f"pri_set('ans_{note}_Q0', sys.content(m))",
-            first_q_content,
-            True
-        )
-    )
+    cur.execute(insert_sql, (
+        note,
+        'Message',
+        [],                           # check: empty ARRAY
+        [trigger],                    # content: ARRAY of strings
+        ['00000'],                    # state_in: ARRAY of strings
+        first_state if n > 0 else '00000',
+        f"pri_set('ans_{note}_Q0', sys.content(m))",
+        [_text_msg(first_q_content)[0]],   # msg_rpy: ARRAY of JSON (one element)
+        True
+    ))
 
     # Rules per question: correct + fallback (error)
     for i, q in enumerate(questions):
@@ -143,43 +150,36 @@ def build_questionnaire_direct(data: dict, app_id: str, conn) -> None:
         save_fn = f"pri_set('ans_{note}_Q{q_num}', sys.content(m))"
 
         # Correct answer rule
-        cur.execute(
-            f'INSERT INTO "{table}" (note, type, "check", content, state_in, state_out, function, msg_rpy, history) '
-            f'VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)',
-            (
-                note,
-                'Message',
-                check_str,
-                '*',
-                state_in,
-                state_out,
-                save_fn,
-                next_content,
-                True
-            )
-        )
+        cur.execute(insert_sql, (
+            note,
+            'Message',
+            [check_str] if check_str else [],   # check: ARRAY (empty if no condition)
+            ['*'],                               # content: wildcard ARRAY
+            [state_in],                          # state_in: ARRAY
+            state_out,
+            save_fn,
+            [_text_msg(next_content)[0]],        # msg_rpy: ARRAY of JSON
+            True
+        ))
 
-        # Error/fallback rule (only if there IS a condition to check)
+        # Fallback/error rule (only if there IS a condition to check)
         if check_str:
             error_msg = _build_error_msg(q['cond'], q.get('cond_detail', ''), q['content'])
-            cur.execute(
-                f'INSERT INTO "{table}" (note, type, "check", content, state_in, state_out, function, msg_rpy, history) '
-                f'VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)',
-                (
-                    note,
-                    'Message',
-                    '',    # No check = catches everything (fallback)
-                    '*',
-                    state_in,
-                    state_in,  # Stay at same question
-                    '',
-                    error_msg,
-                    True
-                )
-            )
+            cur.execute(insert_sql, (
+                note,
+                'Message',
+                [],                              # no check = catches everything (fallback)
+                ['*'],                           # content: wildcard ARRAY
+                [state_in],                      # state_in: ARRAY (stay at same question)
+                state_in,                        # state_out = same state (re-ask)
+                '',
+                [_text_msg(error_msg)[0]],       # msg_rpy: ARRAY of JSON
+                True
+            ))
 
     conn.commit()
     cur.close()
+
 
 
 def _build_error_msg(cond_id: str, cond_detail: str, question_text: str) -> str:
