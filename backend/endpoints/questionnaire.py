@@ -3,6 +3,7 @@ from psycopg2.extras import RealDictCursor
 import psycopg2
 import json
 import re
+from models import OAConfig
 
 questionnaire_bp = Blueprint('questionnaire', __name__)
 
@@ -15,13 +16,40 @@ def get_db_connection():
 
 
 def get_app_id():
-    """Get the current logical app id (e.g. '5013')."""
+    """Get the current logical app id (e.g. 'yzulabuse')."""
     if hasattr(g, 'current_app_name') and g.current_app_name:
         return g.current_app_name
     if hasattr(g, 'current_db_url') and g.current_db_url:
         path_part = g.current_db_url.split('/')[-1]
         return path_part.split('?')[0].strip()
-    return '5013'
+    return 'yzulabuse'
+
+
+def _trigger_sql_reload():
+    """
+    Send SQL|True Sensor event to the Line Bot server so it reloads Q_bank
+    rule_table from DB at runtime — no Heroku restart needed.
+    """
+    try:
+        from utils.socket_utils import send_socket_event
+        oa_id = getattr(g, 'current_oa_id', None)
+        app_name = get_app_id()
+        # Resolve socket_url from OA config if available
+        socket_url = None
+        if oa_id:
+            oa = OAConfig.query.get(int(oa_id))
+            if oa and oa.other_settings:
+                socket_url = oa.other_settings.get('socket_url')
+        data = {
+            'user': 'yzuadmin',
+            'type': 'Sensor',
+            'message': 'SQL|True',
+        }
+        if socket_url:
+            data['target_ws_url'] = socket_url
+        send_socket_event(data, namespace=f'/{app_name}')
+    except Exception as e:
+        print(f'[questionnaire] SQL reload trigger failed (non-critical): {e}')
 
 
 def _parse_condition(cond_id: str, cond_detail: str = '') -> str:
@@ -277,6 +305,7 @@ def build_questionnaire():
         app_id = get_app_id()
         build_questionnaire_direct(data, app_id, conn)
         conn.close()
+        _trigger_sql_reload()
         return jsonify({'status': 'success', 'message': f'問卷「{note}」已成功建立並寫入資料庫'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -295,6 +324,7 @@ def delete_questionnaire(note):
         conn.commit()
         cur.close()
         conn.close()
+        _trigger_sql_reload()
         return jsonify({'status': 'success', 'deleted_rows': deleted})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
