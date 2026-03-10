@@ -71,6 +71,7 @@ function MessageCenter() {
     const [searchQuery, setSearchQuery] = useState('');          // 用戶清單搜尋（user_id / 名稱）
     const [selectedTagFilters, setSelectedTagFilters] = useState([]); // 標籤篩選
     const [messageSearch, setMessageSearch] = useState('');       // 對話內容搜尋
+    const [fetchUsersInterval, setFetchUsersInterval] = useState(15000); // 用戶列表抓取間隔
 
     // 用來對 searchQuery 做 debounce，避免每一個字都打 API
     const searchTimer = useRef(null);
@@ -117,6 +118,44 @@ function MessageCenter() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const getCurrentUserTags = (userObj) => {
+        const user = userObj || users.find(u => u.user_id === selectedUser);
+        if (!user || !user.tags) return [];
+
+        let tagsInput = user.tags;
+        let tagList = [];
+
+        // 處理分割符 |
+        const rawParts = typeof tagsInput === 'string' ? tagsInput.split('|') : [tagsInput];
+
+        rawParts.forEach(part => {
+            if (!part) return;
+            let trimmed = String(part).trim();
+
+            // 處理 ['A', 'B'] 這種字串
+            if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+                // 移除前後方括號，然後依照逗號分割
+                const inner = trimmed.substring(1, trimmed.length - 1);
+                // 處理逗號分割並移除引號
+                inner.split(',').forEach(s => {
+                    const s_clean = s.trim().replace(/^['"]|['"]$/g, '');
+                    if (s_clean) tagList.push(s_clean);
+                });
+            } else if (trimmed.includes(',')) {
+                trimmed.split(',').forEach(s => {
+                    const s_clean = s.trim().replace(/^['"]|['"]$/g, '');
+                    if (s_clean) tagList.push(s_clean);
+                });
+            } else {
+                tagList.push(trimmed.replace(/^['"]|['"]$/g, ''));
+            }
+        });
+
+        // 最終清理與去重
+        const uniqueTags = [...new Set(tagList.map(t => String(t).trim()).filter(t => t && t !== 'null' && t !== 'undefined' && t !== '[]' && t !== '{}'))];
+        return uniqueTags;
     };
 
     const fetchHistory = async (userId, isPolling = false) => {
@@ -358,44 +397,6 @@ function MessageCenter() {
         } catch (err) {
             toast('刪除標籤失敗', 'error');
         }
-    };
-
-    const getCurrentUserTags = (userObj) => {
-        const user = userObj || users.find(u => u.user_id === selectedUser);
-        if (!user || !user.tags) return [];
-
-        let tagsInput = user.tags;
-        let tagList = [];
-
-        // 處理分割符 |
-        const rawParts = typeof tagsInput === 'string' ? tagsInput.split('|') : [tagsInput];
-
-        rawParts.forEach(part => {
-            if (!part) return;
-            let trimmed = String(part).trim();
-
-            // 處理 ['A', 'B'] 這種字串
-            if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-                // 移除前後方括號，然後依照逗號分割
-                const inner = trimmed.substring(1, trimmed.length - 1);
-                // 處理逗號分割並移除引號
-                inner.split(',').forEach(s => {
-                    const s_clean = s.trim().replace(/^['"]|['"]$/g, '');
-                    if (s_clean) tagList.push(s_clean);
-                });
-            } else if (trimmed.includes(',')) {
-                trimmed.split(',').forEach(s => {
-                    const s_clean = s.trim().replace(/^['"]|['"]$/g, '');
-                    if (s_clean) tagList.push(s_clean);
-                });
-            } else {
-                tagList.push(trimmed.replace(/^['"]|['"]$/g, ''));
-            }
-        });
-
-        // 最終清理與去重
-        const uniqueTags = [...new Set(tagList.map(t => String(t).trim()).filter(t => t && t !== 'null' && t !== 'undefined' && t !== '[]' && t !== '{}'))];
-        return uniqueTags;
     };
 
     // 輔助函式：格式化側邊欄的最後一則訊息
