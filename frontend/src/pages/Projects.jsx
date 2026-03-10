@@ -1676,11 +1676,16 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
                                     {(() => {
                                         let tagStr = u.tags || '';
+                                        if (typeof tagStr !== 'string') {
+                                            if (Array.isArray(tagStr)) tagStr = JSON.stringify(tagStr);
+                                            else tagStr = String(tagStr);
+                                        }
                                         let tagList = [];
                                         if (tagStr.startsWith('[') && tagStr.endsWith(']')) {
                                             try {
                                                 // Handle JSON list format ["AA", "BB"]
                                                 tagList = JSON.parse(tagStr.replace(/'/g, '"'));
+                                                if (!Array.isArray(tagList)) tagList = [tagList];
                                             } catch (e) {
                                                 tagList = tagStr.replace(/[\[\]"']/g, '').split(',').map(t => t.trim());
                                             }

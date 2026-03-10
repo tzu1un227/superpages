@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
     - **連線機制優化**：針對 Heroku 環境，將 WebSocket 連線改為單一 Namespace 握手模式，解決「One or more namespaces failed to connect」之連線中斷問題。
     - **跨環境相容性**：統一專案預設 WebSocket 名稱為 `websoc`，與 5013 及 yzulabuse 機器人引擎保持一致。
 - **自動旅程與廣播 UI/UX 深度優化 (Journey & Broadcast UI/UX Refinement)** [2026-03-10]:
+  - **自動旅程防當機保護**：修正「自動旅程」專案中「手動加入用戶」時，因特殊標籤資料型態導致的 React 畫面崩潰 (黑畫面) 問題。
   - **群發訊息介面簡化**：移除編輯訊息頁面不必要的「視窗預覽」按鈕，保持介面簡潔。
   - **進階訊息編輯器驗證強化**：
     - 實作 Flex 訊息深度驗證：在「自動旅程」與「廣播訊息」中，儲存或發送前會檢查 Flex 卡片的圖片點擊動作、按鈕連結及回傳文字，確保不為空值，防止發送失敗。
