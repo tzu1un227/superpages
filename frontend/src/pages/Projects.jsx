@@ -1107,7 +1107,7 @@ const ProjectsManagement = () => {
                                                 const { hours, minutes } = formatInterval(newSchedule.interval_hours);
                                                 setNewSchedule({ ...newSchedule, interval_hours: (d * 24 + hours + minutes / 60).toString() });
                                             }}
-                                            style={{ width: '60px' }}
+                                            style={{ width: '80px' }}
                                         /> <span style={{ fontSize: '12px' }}>天</span>
                                         <input
                                             type="number" min="0" max="23" step="1"
@@ -1117,7 +1117,7 @@ const ProjectsManagement = () => {
                                                 const { days, minutes } = formatInterval(newSchedule.interval_hours);
                                                 setNewSchedule({ ...newSchedule, interval_hours: (days * 24 + h + minutes / 60).toString() });
                                             }}
-                                            style={{ width: '60px' }}
+                                            style={{ width: '80px' }}
                                         /> <span style={{ fontSize: '12px' }}>時</span>
                                         <input
                                             type="number" min="0" max="59" step="1"
@@ -1127,7 +1127,7 @@ const ProjectsManagement = () => {
                                                 const { days, hours } = formatInterval(newSchedule.interval_hours);
                                                 setNewSchedule({ ...newSchedule, interval_hours: (days * 24 + hours + m / 60).toString() });
                                             }}
-                                            style={{ width: '60px' }}
+                                            style={{ width: '80px' }}
                                         /> <span style={{ fontSize: '12px' }}>分</span>
                                     </div>
                                 </div>
@@ -1217,7 +1217,7 @@ const ProjectsManagement = () => {
                                                                     const { hours, minutes } = formatInterval(editScheduleFormData.interval_hours);
                                                                     setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (d * 24 + hours + minutes / 60).toString() });
                                                                 }}
-                                                                style={{ width: '50px' }}
+                                                                style={{ width: '70px' }}
                                                             /> <span style={{ fontSize: '11px' }}>天</span>
                                                             <input
                                                                 type="number" min="0" max="23" step="1"
@@ -1227,7 +1227,7 @@ const ProjectsManagement = () => {
                                                                     const { days, minutes } = formatInterval(editScheduleFormData.interval_hours);
                                                                     setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (days * 24 + h + minutes / 60).toString() });
                                                                 }}
-                                                                style={{ width: '50px' }}
+                                                                style={{ width: '70px' }}
                                                             /> <span style={{ fontSize: '11px' }}>時</span>
                                                             <input
                                                                 type="number" min="0" max="59" step="1"
@@ -1237,7 +1237,7 @@ const ProjectsManagement = () => {
                                                                     const { days, hours } = formatInterval(editScheduleFormData.interval_hours);
                                                                     setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (days * 24 + hours + m / 60).toString() });
                                                                 }}
-                                                                style={{ width: '50px' }}
+                                                                style={{ width: '70px' }}
                                                             /> <span style={{ fontSize: '11px' }}>分</span>
                                                         </div>
                                                     ) : (
