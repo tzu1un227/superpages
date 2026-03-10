@@ -30,7 +30,7 @@ const ProjectsManagement = () => {
     const [previewSteps, setPreviewSteps] = useState([]);
     const [previewLoading, setPreviewLoading] = useState(false);
 
-    const handleSave = async () => {
+    const handlePreviewProject = async () => {
         setPreviewLoading(true);
         setIsPreviewModalOpen(true);
         setPreviewSteps([]);

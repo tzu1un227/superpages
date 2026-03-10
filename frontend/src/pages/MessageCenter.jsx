@@ -5,6 +5,58 @@ import { Send, User, Info, Search, Tag, X, Image as ImageIcon, Mic, Video, Smile
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useToast } from '../contexts/ToastContext';
 
+// 內部元件：處理帶有 Token 的圖片載入
+const AuthenticatedImage = ({ src, alt, style, onClick }) => {
+    const [imgUrl, setImgUrl] = useState(null);
+    const [error, setError] = useState(false);
+    const [retryCount, setRetryCount] = useState(0);
+
+    useEffect(() => {
+        let isMounted = true;
+        setError(false);
+
+        api.get(src, { responseType: 'blob', timeout: 10000 })
+            .then(response => {
+                if (isMounted) {
+                    const url = URL.createObjectURL(response.data);
+                    setImgUrl(url);
+                }
+            })
+            .catch(err => {
+                console.error("Failed to load authenticated image:", err);
+                if (isMounted) {
+                    setError(true);
+                    // 自動重試一次
+                    if (retryCount < 1) {
+                        setTimeout(() => setRetryCount(c => c + 1), 2000);
+                    }
+                }
+            });
+        return () => {
+            isMounted = false;
+            // 這裡不立即 revoke，交給下一次 effect 或元件卸載處理，避免閃爍或載入中斷
+        };
+    }, [src, retryCount]);
+
+    // 卸載時清理
+    useEffect(() => {
+        return () => {
+            if (imgUrl) URL.revokeObjectURL(imgUrl);
+        };
+    }, [imgUrl]);
+
+    if (error && retryCount >= 1) return (
+        <div style={{ ...style, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#333', color: '#888', padding: '10px' }}>
+            <ImageIcon size={20} />
+            <div style={{ fontSize: '10px', marginTop: '5px' }}>圖片載入失敗</div>
+            <button onClick={() => setRetryCount(0)} style={{ fontSize: '10px', marginTop: '5px', padding: '2px 8px' }}>重試</button>
+        </div>
+    );
+
+    if (!imgUrl) return <div style={{ ...style, width: '150px', height: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#222', color: '#666', fontSize: '10px' }}>載入中...</div>;
+    return <img src={imgUrl} alt={alt} style={style} onClick={onClick} />;
+};
+
 function MessageCenter() {
     const location = useLocation();
     const [users, setUsers] = useState([]);
@@ -81,6 +133,18 @@ function MessageCenter() {
             console.error('Error fetching history:', err);
         }
     };
+
+    // --- 輔助：排序後的用戶清單 (未讀優先) ---
+    const sortedUsers = React.useMemo(() => {
+        return [...users].sort((a, b) => {
+            const aUnread = parseInt(a.unread_count || '0');
+            const bUnread = parseInt(b.unread_count || '0');
+            if (aUnread > 0 && bUnread === 0) return -1;
+            if (aUnread === 0 && bUnread > 0) return 1;
+            // 否則維持原本的時間排序 (後端已經依時間排序)
+            return 0;
+        });
+    }, [users]);
 
     // 自動更新：歷史訊息 7 秒一次，用戶清單 15 秒一次
     useEffect(() => {
@@ -469,8 +533,7 @@ function MessageCenter() {
                     </div>
                 )}
 
-                {/* 用戶清單 */}
-                <div style={{ flex: 1, overflowY: 'auto' }}>
+                <div style={{ flex: 1, overflowY: 'auto', paddingRight: '5px' }}>
                     {loading && users.length === 0 ? (
                         <LoadingSpinner message="載入用戶中..." />
                     ) : users.length === 0 ? (
@@ -478,9 +541,10 @@ function MessageCenter() {
                             {searchQuery || selectedTagFilters.length > 0 ? '找不到符合的用戶' : '尚無用戶'}
                         </div>
                     ) : (
-                        users.map(u => {
+                        sortedUsers.map(u => {
                             const userTags = getCurrentUserTags(u);
                             const unreadCount = parseInt(u.unread_count || '0');
+                            const isUnread = unreadCount > 0 && selectedUser !== u.user_id;
                             return (
                                 <div
                                     key={u.user_id}
@@ -490,12 +554,20 @@ function MessageCenter() {
                                         borderRadius: '8px',
                                         cursor: 'pointer',
                                         marginBottom: '8px',
-                                        backgroundColor: selectedUser === u.user_id ? 'rgba(255, 215, 0, 0.1)' : 'transparent',
-                                        border: selectedUser === u.user_id ? '1px solid var(--primary-yellow)' : '1px solid transparent',
-                                        position: 'relative'
+                                        backgroundColor: selectedUser === u.user_id
+                                            ? 'rgba(255, 215, 0, 0.12)'
+                                            : (isUnread ? 'rgba(255, 215, 0, 0.04)' : 'transparent'),
+                                        border: selectedUser === u.user_id
+                                            ? '1px solid var(--primary-yellow)'
+                                            : (isUnread ? '1px solid rgba(255, 215, 0, 0.2)' : '1px solid transparent'),
+                                        borderLeft: isUnread && selectedUser !== u.user_id
+                                            ? '4px solid var(--primary-yellow)'
+                                            : (selectedUser === u.user_id ? '4px solid var(--primary-yellow)' : '1px solid transparent'),
+                                        position: 'relative',
+                                        transition: 'all 0.2s ease'
                                     }}
                                 >
-                                    {unreadCount > 0 && selectedUser !== u.user_id && (
+                                    {isUnread && (
                                         <div style={{
                                             position: 'absolute',
                                             right: '12px',
@@ -704,57 +776,7 @@ function MessageCenter() {
                                     const globalIndex = messages.indexOf(m);
                                     // ...
 
-                                    // 內部元件：處理帶有 Token 的圖片載入
-                                    const AuthenticatedImage = ({ src, alt, style, onClick }) => {
-                                        const [imgUrl, setImgUrl] = useState(null);
-                                        const [error, setError] = useState(false);
-                                        const [retryCount, setRetryCount] = useState(0);
 
-                                        useEffect(() => {
-                                            let isMounted = true;
-                                            setError(false);
-
-                                            api.get(src, { responseType: 'blob', timeout: 10000 })
-                                                .then(response => {
-                                                    if (isMounted) {
-                                                        const url = URL.createObjectURL(response.data);
-                                                        setImgUrl(url);
-                                                    }
-                                                })
-                                                .catch(err => {
-                                                    console.error("Failed to load authenticated image:", err);
-                                                    if (isMounted) {
-                                                        setError(true);
-                                                        // 自動重試一次
-                                                        if (retryCount < 1) {
-                                                            setTimeout(() => setRetryCount(c => c + 1), 2000);
-                                                        }
-                                                    }
-                                                });
-                                            return () => {
-                                                isMounted = false;
-                                                // 這裡不立即 revoke，交給下一次 effect 或元件卸載處理，避免閃爍或載入中斷
-                                            };
-                                        }, [src, retryCount]);
-
-                                        // 卸載時清理
-                                        useEffect(() => {
-                                            return () => {
-                                                if (imgUrl) URL.revokeObjectURL(imgUrl);
-                                            };
-                                        }, [imgUrl]);
-
-                                        if (error && retryCount >= 1) return (
-                                            <div style={{ ...style, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#333', color: '#888', padding: '10px' }}>
-                                                <ImageIcon size={20} />
-                                                <div style={{ fontSize: '10px', marginTop: '5px' }}>圖片載入失敗</div>
-                                                <button onClick={() => setRetryCount(0)} style={{ fontSize: '10px', marginTop: '5px', padding: '2px 8px' }}>重試</button>
-                                            </div>
-                                        );
-
-                                        if (!imgUrl) return <div style={{ ...style, width: '150px', height: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#222', color: '#666', fontSize: '10px' }}>載入中...</div>;
-                                        return <img src={imgUrl} alt={alt} style={style} onClick={onClick} />;
-                                    };
 
                                     const renderMessageContent = () => {
                                         if (m.category === 'Image') {
