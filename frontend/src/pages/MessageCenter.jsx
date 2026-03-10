@@ -1,3 +1,6 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
+import api from '../api';
 import { Send, User, Info, Search, Tag, X, Image as ImageIcon, Mic, Video, Smile, ArrowDown, RefreshCw } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useToast } from '../contexts/ToastContext';
@@ -196,7 +199,6 @@ function MessageCenter() {
                 api_index: 0
             });
             setMessages([...messages, { content: input, timestamp: new Date(), category: 'Message', user_id: 'yzuadmin' }]);
-            setInput('');
             setInput('');
         } catch (err) {
             toast('發送失敗: ' + err.message, 'error');
