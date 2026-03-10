@@ -134,17 +134,38 @@ function MessageCenter() {
         }
     };
 
+    // --- 輔助：未讀判斷 (基於本地快取的最後讀取時間) ---
+    const isUserUnread = (user) => {
+        if (!user.last_time) return false;
+        if (selectedUser === user.user_id) return false;
+
+        const lastReadTime = localStorage.getItem(`lastRead_${user.user_id}`);
+        if (!lastReadTime) return true; // 從未讀取過，視為未讀
+
+        return new Date(user.last_time) > new Date(lastReadTime);
+    };
+
     // --- 輔助：排序後的用戶清單 (未讀優先) ---
     const sortedUsers = React.useMemo(() => {
         return [...users].sort((a, b) => {
-            const aUnread = parseInt(a.unread_count || '0');
-            const bUnread = parseInt(b.unread_count || '0');
-            if (aUnread > 0 && bUnread === 0) return -1;
-            if (aUnread === 0 && bUnread > 0) return 1;
-            // 否則維持原本的時間排序 (後端已經依時間排序)
-            return 0;
+            const aUnread = isUserUnread(a);
+            const bUnread = isUserUnread(b);
+            if (aUnread && !bUnread) return -1;
+            if (!aUnread && bUnread) return 1;
+
+            // 否則維持原本的時間排序
+            const aTime = new Date(a.last_time || 0);
+            const bTime = new Date(b.last_time || 0);
+            return bTime - aTime;
         });
-    }, [users]);
+    }, [users, selectedUser]);
+
+    // 更新讀取時間
+    useEffect(() => {
+        if (selectedUser) {
+            localStorage.setItem(`lastRead_${selectedUser}`, new Date().toISOString());
+        }
+    }, [selectedUser, messages]);
 
     // 自動更新：歷史訊息 7 秒一次，用戶清單 15 秒一次
     useEffect(() => {
@@ -543,8 +564,7 @@ function MessageCenter() {
                     ) : (
                         sortedUsers.map(u => {
                             const userTags = getCurrentUserTags(u);
-                            const unreadCount = parseInt(u.unread_count || '0');
-                            const isUnread = unreadCount > 0 && selectedUser !== u.user_id;
+                            const isUnread = isUserUnread(u);
                             return (
                                 <div
                                     key={u.user_id}
@@ -574,16 +594,11 @@ function MessageCenter() {
                                             top: '12px',
                                             backgroundColor: '#ff4d4f',
                                             color: 'white',
-                                            borderRadius: '10px',
-                                            padding: '1px 6px',
-                                            fontSize: '10px',
-                                            fontWeight: 'bold',
-                                            minWidth: '18px',
-                                            textAlign: 'center',
-                                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                                        }}>
-                                            {unreadCount > 99 ? '99+' : unreadCount}
-                                        </div>
+                                            borderRadius: '50%',
+                                            width: '8px',
+                                            height: '8px',
+                                            boxShadow: '0 0 5px rgba(255,77,79,0.5)'
+                                        }} />
                                     )}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                         <div style={{ backgroundColor: '#333', padding: '8px', borderRadius: '50%', flexShrink: 0 }}>
