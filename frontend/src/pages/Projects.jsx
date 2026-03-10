@@ -1655,11 +1655,17 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
     useEffect(() => {
         if (isOpen) {
             setLoading(true);
-            api.get('/registered-users?source=private_var').then(res => setUsers(res.data || [])).finally(() => setLoading(false));
+            api.get('/registered-users?source=private_var').then(res => {
+                const data = Array.isArray(res.data) ? res.data : [];
+                setUsers(data.filter(u => u && u.user_id)); // Filter out any completely invalid/null rows
+            }).catch(err => {
+                console.error("Failed to load users for modal:", err);
+                setUsers([]);
+            }).finally(() => setLoading(false));
         }
     }, [isOpen]);
 
-    const filteredUsers = users.filter(u => !existingUsers.includes(u.user_id) && String(u.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
+    const filteredUsers = users.filter(u => !existingUsers.includes(u?.user_id) && String(u?.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
 
     if (!isOpen) return null;
 
@@ -1669,42 +1675,52 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
             <DialogContent style={{ paddingTop: '20px' }}>
                 <TextField fullWidth placeholder="搜尋姓名..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} sx={{ marginBottom: '20px', input: { color: '#fff' } }} />
                 <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                    {loading ? <CircularProgress /> : filteredUsers.map(u => (
-                        <div key={u.user_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderBottom: '1px solid #333' }}>
-                            <div>
-                                <div style={{ fontWeight: 'bold' }}>{u.name || '未命名'}</div>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
-                                    {(() => {
-                                        let tagStr = u.tags || '';
-                                        if (typeof tagStr !== 'string') {
-                                            if (Array.isArray(tagStr)) tagStr = JSON.stringify(tagStr);
-                                            else tagStr = String(tagStr);
-                                        }
-                                        let tagList = [];
-                                        if (tagStr.startsWith('[') && tagStr.endsWith(']')) {
+                    {loading ? <CircularProgress /> : filteredUsers.map((u, index) => {
+                        if (!u) return null;
+                        const uKey = u.user_id || `temp-key-${index}`;
+                        return (
+                            <div key={uKey} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderBottom: '1px solid #333' }}>
+                                <div style={{ flex: 1, overflow: 'hidden' }}>
+                                    <div style={{ fontWeight: 'bold' }}>{String(u.name || '未命名')}</div>
+                                    <div style={{ fontSize: '12px', color: '#888' }}>{String(u.user_id || '')}</div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+                                        {(() => {
                                             try {
-                                                // Handle JSON list format ["AA", "BB"]
-                                                tagList = JSON.parse(tagStr.replace(/'/g, '"'));
-                                                if (!Array.isArray(tagList)) tagList = [tagList];
-                                            } catch (e) {
-                                                tagList = tagStr.replace(/[\[\]"']/g, '').split(',').map(t => t.trim());
+                                                let tagStr = u.tags || '';
+                                                if (typeof tagStr !== 'string') {
+                                                    if (Array.isArray(tagStr)) tagStr = JSON.stringify(tagStr);
+                                                    else tagStr = String(tagStr);
+                                                }
+                                                let tagList = [];
+                                                if (tagStr.startsWith('[') && tagStr.endsWith(']')) {
+                                                    try {
+                                                        // Handle JSON list format ["AA", "BB"]
+                                                        tagList = JSON.parse(tagStr.replace(/'/g, '"'));
+                                                        if (!Array.isArray(tagList)) tagList = [tagList];
+                                                    } catch (e) {
+                                                        tagList = tagStr.replace(/[\[\]"']/g, '').split(',').map(t => t.trim());
+                                                    }
+                                                } else {
+                                                    // Handle pipe format |AA|BB|
+                                                    tagList = tagStr.split('|').map(t => t.trim());
+                                                }
+                                                return tagList.filter(t => t).map((t, idx) => {
+                                                    const displayText = typeof t === 'object' ? JSON.stringify(t) : String(t);
+                                                    return (
+                                                        <span key={idx} style={{ fontSize: '10px', background: '#333', color: 'var(--primary-yellow)', padding: '2px 6px', borderRadius: '4px' }}>{displayText}</span>
+                                                    );
+                                                });
+                                            } catch (err) {
+                                                console.error("Tag render error for user:", u, err);
+                                                return <span style={{ fontSize: '10px', color: 'red' }}>標籤解析錯誤</span>;
                                             }
-                                        } else {
-                                            // Handle pipe format |AA|BB|
-                                            tagList = tagStr.split('|').map(t => t.trim());
-                                        }
-                                        return tagList.filter(t => t).map((t, idx) => {
-                                            const displayText = typeof t === 'object' ? JSON.stringify(t) : String(t);
-                                            return (
-                                                <span key={idx} style={{ fontSize: '10px', background: '#333', color: 'var(--primary-yellow)', padding: '2px 6px', borderRadius: '4px' }}>{displayText}</span>
-                                            );
-                                        });
-                                    })()}
+                                        })()}
+                                    </div>
                                 </div>
+                                <button className="primary" onClick={() => onSelect(u.user_id)} style={{ padding: '6px 12px', marginLeft: '10px' }}>加入</button>
                             </div>
-                            <button className="primary" onClick={() => onSelect(u.user_id)}>加入</button>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </DialogContent>
             <DialogActions><button onClick={onClose} style={{ background: '#444', color: '#fff', padding: '8px 20px', borderRadius: '4px', border: 'none' }}>關閉</button></DialogActions>

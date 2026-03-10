@@ -519,9 +519,6 @@ function MessageCenter() {
                                         </div>
                                         <div style={{ flex: 1, overflow: 'hidden' }}>
                                             <p style={{ fontWeight: '600', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name || u.user_id}</p>
-                                            {u.name && (
-                                                <p style={{ fontSize: '11px', color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.user_id}</p>
-                                            )}
                                             <p style={{ fontSize: '12px', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatSidebarMessage(u.last_message) || '尚無訊息'}</p>
                                             {userTags.length > 0 && (
                                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', marginTop: '4px' }}>
