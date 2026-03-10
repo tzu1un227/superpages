@@ -26,6 +26,30 @@ import {
 } from 'recharts';
 import { downloadCSV } from '../utils/csvUtils';
 
+const parseTags = (tagStr) => {
+    if (!tagStr) return ['未分類'];
+    let str = tagStr;
+    if (typeof str !== 'string') {
+        if (Array.isArray(str)) return str.map(String);
+        str = String(str);
+    }
+    let tagList = [];
+    if (str.startsWith('[') && str.endsWith(']')) {
+        try {
+            tagList = JSON.parse(str.replace(/'/g, '"'));
+            if (!Array.isArray(tagList)) tagList = [tagList];
+        } catch (e) {
+            tagList = str.replace(/[\[\]"']/g, '').split(',').map(t => t.trim());
+        }
+    } else if (str.includes('|')) {
+        tagList = str.split('|').map(t => t.trim());
+    } else {
+        tagList = [str.trim()];
+    }
+    return tagList.filter(Boolean);
+};
+
+
 const StatCard = ({ title, value, icon: Component, color }) => (
     <div style={{
         background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333',
@@ -97,8 +121,11 @@ const Statistics = () => {
 
             // Auto-select tags if category changes or data loaded
             const currentData = resp.data[activeCategory] || [];
-            const tags = [...new Set(currentData.map(item => item.tag))];
-            setSelectedTags(tags);
+            const tags = new Set();
+            currentData.forEach(item => {
+                parseTags(item.tag).forEach(t => tags.add(t));
+            });
+            setSelectedTags([...tags]);
         } catch (err) {
             console.error('Error fetching global stats:', err);
         } finally {
@@ -106,26 +133,37 @@ const Statistics = () => {
         }
     };
 
-    const availableTags = React.useMemo(() => {
-        const currentData = globalData[activeCategory] || [];
-        return [...new Set(currentData.map(item => item.tag))];
+    const parsedCategoryData = React.useMemo(() => {
+        const rawData = globalData[activeCategory] || [];
+        const processed = [];
+        rawData.forEach(item => {
+            const tags = parseTags(item.tag);
+            tags.forEach(t => {
+                processed.push({ ...item, tag: t });
+            });
+        });
+        return processed;
     }, [globalData, activeCategory]);
 
+    const availableTags = React.useMemo(() => {
+        return [...new Set(parsedCategoryData.map(item => item.tag))];
+    }, [parsedCategoryData]);
+
     const chartData = React.useMemo(() => {
-        const currentData = globalData[activeCategory] || [];
         const groupMap = {};
 
-        currentData.forEach(item => {
+        parsedCategoryData.forEach(item => {
             if (!groupMap[item.group_key]) {
                 groupMap[item.group_key] = { name: item.group_key };
             }
             if (selectedTags.includes(item.tag)) {
-                groupMap[item.group_key][item.tag] = item.tag_count;
+                // Sum counts in case multiple items resolve to the same tag on the same date
+                groupMap[item.group_key][item.tag] = (groupMap[item.group_key][item.tag] || 0) + item.tag_count;
             }
         });
 
         return Object.values(groupMap).sort((a, b) => a.name.localeCompare(b.name));
-    }, [globalData, activeCategory, selectedTags]);
+    }, [parsedCategoryData, selectedTags]);
 
     const handleTagToggle = (tag) => {
         setSelectedTags(prev =>
@@ -144,8 +182,7 @@ const Statistics = () => {
     const getGlobalSum = (arr) => (arr || []).reduce((acc, curr) => acc + (curr.tag_count || 0), 0);
 
     const handleDownloadTrend = () => {
-        const currentData = globalData[activeCategory] || [];
-        const filteredData = currentData.filter(item => selectedTags.includes(item.tag));
+        const filteredData = parsedCategoryData.filter(item => selectedTags.includes(item.tag));
         const formattedData = filteredData.map(item => ({
             '時間範圍': item.group_key,
             '標籤': item.tag,
@@ -228,8 +265,12 @@ const Statistics = () => {
                                 onChange={(e) => {
                                     const newCat = e.target.value;
                                     setActiveCategory(newCat);
-                                    const tags = [...new Set(globalData[newCat]?.map(item => item.tag) || [])];
-                                    setSelectedTags(tags);
+                                    const rawData = globalData[newCat] || [];
+                                    const tags = new Set();
+                                    rawData.forEach(item => {
+                                        parseTags(item.tag).forEach(t => tags.add(t));
+                                    });
+                                    setSelectedTags([...tags]);
                                 }}
                                 style={{ padding: '6px 12px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '4px' }}
                             >

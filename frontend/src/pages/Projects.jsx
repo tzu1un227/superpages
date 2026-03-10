@@ -1659,7 +1659,7 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
         }
     }, [isOpen]);
 
-    const filteredUsers = users.filter(u => !existingUsers.includes(u.user_id) && (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
+    const filteredUsers = users.filter(u => !existingUsers.includes(u.user_id) && String(u.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
 
     if (!isOpen) return null;
 
@@ -1693,9 +1693,12 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
                                             // Handle pipe format |AA|BB|
                                             tagList = tagStr.split('|').map(t => t.trim());
                                         }
-                                        return tagList.filter(t => t).map((t, idx) => (
-                                            <span key={idx} style={{ fontSize: '10px', background: '#333', color: 'var(--primary-yellow)', padding: '2px 6px', borderRadius: '4px' }}>{t}</span>
-                                        ));
+                                        return tagList.filter(t => t).map((t, idx) => {
+                                            const displayText = typeof t === 'object' ? JSON.stringify(t) : String(t);
+                                            return (
+                                                <span key={idx} style={{ fontSize: '10px', background: '#333', color: 'var(--primary-yellow)', padding: '2px 6px', borderRadius: '4px' }}>{displayText}</span>
+                                            );
+                                        });
                                     })()}
                                 </div>
                             </div>
