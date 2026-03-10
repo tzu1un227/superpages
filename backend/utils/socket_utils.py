@@ -63,9 +63,12 @@ def send_socket_event(data, namespace=None):
         # Default Socket.IO behavior: try websocket, fallback to polling
         transports = ['websocket', 'polling'] 
         
+        # Connect to *only* the specific namespace needed to avoid "One or more namespaces failed" error
+        # Some servers/load balancers (especially on Heroku) are picky about multi-namespace requests
         local_sio.connect(target_ws_url, namespaces=[final_namespace], wait_timeout=10, transports=transports)
         print(f"DEBUG: [SOCKET_CONNECTED] Active Transport: {local_sio.transport}")
     except Exception as e:
+
         print(f"SOCKET_ERROR: Connection failed to {target_ws_url}: {e}")
         raise Exception(f"無法連線至機器人服務 ({target_ws_url}): {str(e)}")
     
