@@ -247,16 +247,25 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
             if (type === 'none') return null;
 
             if (type === 'uri') {
-                // Validate URI scheme
-                const hasValidScheme = val && (val.startsWith('http://') || val.startsWith('https://') || val.startsWith('line://'));
-                if (!val || !hasValidScheme) return null;
+                if (!val || !val.trim()) return { type: 'uri', label: 'action', uri: '' };
+
+                // Validate URI scheme (optional fallback if scheme is missing, we could auto-prepend https, but for now just pass it)
+                const hasValidScheme = val.startsWith('http://') || val.startsWith('https://') || val.startsWith('line://');
+                let finalVal = val;
+                if (!hasValidScheme && val.trim().length > 0) {
+                    finalVal = 'https://' + val; // auto-fix missing scheme to prevent LINE API errors
+                }
 
                 // Add tags using redirect if present
                 if (tags.length > 0) {
-                    const redirectUrl = `https://irl-svr.ee.yzu.edu.tw:5016/api/redirect?url=${encodeURIComponent(val)}&tags=${encodeURIComponent(tags.join(','))}&userId=<%m.user_id%>`;
+                    const redirectUrl = `https://irl-svr.ee.yzu.edu.tw:5016/api/redirect?url=${encodeURIComponent(finalVal)}&tags=${encodeURIComponent(tags.join(','))}&userId=<%m.user_id%>`;
                     return { type: 'uri', label: 'action', uri: redirectUrl };
                 }
-                return { type: 'uri', label: 'action', uri: val };
+                return { type: 'uri', label: 'action', uri: finalVal };
+            }
+
+            if (!val || !val.trim()) {
+                return { type: 'postback', label: 'action', data: '', displayText: '' };
             }
 
             // Default to postback if message + tags

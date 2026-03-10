@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import api from '../api';
 import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, User, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type, BarChart2, Download, Upload, Play, ExternalLink, TrendingUp, CheckCircle2, Circle, ChevronLeft, ChevronRight, BarChart3, RotateCcw } from 'lucide-react';
+import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, CircularProgress } from '@mui/material';
 import FlexMessageEditor from '../components/FlexMessageEditor';
 import JourneyPreview from '../components/JourneyPreview';
 import { downloadCSV } from '../utils/csvUtils';
@@ -1453,6 +1454,7 @@ const ProjectsManagement = () => {
 
 // Rich Message Editor Modal
 const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, projectId, stepId }) => {
+    const { showToast } = useToast();
     const [tag, setTag] = useState(initialTag || '');
     const [messages, setMessages] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -1527,7 +1529,7 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                             const act = bubble.hero.action;
                             const val = act.uri || act.data || act.text || '';
                             if (!val.trim()) {
-                                alert(`${bubbleNum}圖片點擊動作內容不能為空`);
+                                showToast(`${bubbleNum}圖片點擊動作內容不能為空`, 'warning');
                                 setLoading(false);
                                 return;
                             }
@@ -1541,7 +1543,7 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                             const act = btn.action || {};
                             const val = act.uri || act.data || act.text || '';
                             if (!val.trim()) {
-                                alert(`${bubbleNum}按鈕 #${k + 1} 的內容或連結不能為空`);
+                                showToast(`${bubbleNum}按鈕 #${k + 1} 的內容或連結不能為空`, 'warning');
                                 setLoading(false);
                                 return;
                             }
