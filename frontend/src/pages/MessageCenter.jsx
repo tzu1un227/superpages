@@ -129,9 +129,20 @@ function MessageCenter() {
                     setUsers(prev => prev.map(u => u.user_id === userId ? { ...u, unread_count: 0 } : u));
                 }).catch(e => console.error("Failed to mark as read", e));
             }
-        } catch (err) {
-            console.error('Error fetching history:', err);
+        } catch (error) {
+            console.error('Error marking as read:', error);
         }
+    };
+
+    // --- 全部已讀 ---
+    const handleMarkAllRead = () => {
+        const now = new Date().toISOString();
+        users.forEach(u => {
+            localStorage.setItem(`lastRead_${u.user_id}`, now);
+        });
+        // 強制重新渲染排序
+        setFetchUsersInterval(100); // 縮短下次抓取時間來觸發更新
+        setTimeout(() => setFetchUsersInterval(15000), 1000);
     };
 
     // --- 輔助：未讀判斷 (基於本地快取的最後讀取時間) ---
@@ -180,13 +191,13 @@ function MessageCenter() {
             if (!searchQuery) {
                 fetchUsers(searchQuery, selectedTagFilters);
             }
-        }, 15000);
+        }, fetchUsersInterval);
 
         return () => {
             clearInterval(historyInterval);
             clearInterval(usersInterval);
         };
-    }, [selectedUser, searchQuery, selectedTagFilters]);
+    }, [selectedUser, searchQuery, selectedTagFilters, fetchUsersInterval]);
 
     // 捲軸功能與新訊息偵測
     const messagesEndRef = useRef(null);
@@ -485,6 +496,18 @@ function MessageCenter() {
         );
     };
 
+    const filteredUsers = React.useMemo(() => {
+        // This is just to get the count for the "用戶列表 (X)" display
+        // The actual filtering for display is handled by `sortedUsers` which uses `fetchUsers` results.
+        // This `filteredUsers` is not used for rendering the list itself, only for the count.
+        return users.filter(u => {
+            const matchesSearch = searchQuery ? (u.name?.toLowerCase().includes(searchQuery.toLowerCase()) || u.user_id?.toLowerCase().includes(searchQuery.toLowerCase())) : true;
+            const userTags = getCurrentUserTags(u);
+            const matchesTags = selectedTagFilters.length > 0 ? selectedTagFilters.every(tag => userTags.includes(tag)) : true;
+            return matchesSearch && matchesTags;
+        });
+    }, [users, searchQuery, selectedTagFilters]);
+
     return (
         <div style={{ display: 'flex', height: 'calc(100vh - 120px)', gap: '20px' }}>
             {/* User Sidebar */}
@@ -499,13 +522,23 @@ function MessageCenter() {
                         style={{ width: '100%', paddingLeft: '35px', paddingRight: searchQuery ? '32px' : '12px', boxSizing: 'border-box' }}
                     />
                     {searchQuery && (
-                        <button
+                        <X
+                            size={14}
+                            style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: '#999' }}
                             onClick={() => setSearchQuery('')}
-                            style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
-                        >
-                            <X size={14} />
-                        </button>
+                        />
                     )}
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '12px', color: '#666' }}>用戶列表 ({filteredUsers.length})</div>
+                    <button
+                        onClick={handleMarkAllRead}
+                        className="btn-secondary"
+                        style={{ padding: '2px 8px', fontSize: '11px', borderRadius: '4px' }}
+                    >
+                        全部已讀
+                    </button>
                 </div>
 
                 {/* 標籤篩選區 */}
