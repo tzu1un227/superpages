@@ -3,11 +3,10 @@ import time
 from flask import g
 from models import OAConfig
 
-sio = socketio.Client()
 WS_URL = "https://irl-svr.ee.yzu.edu.tw:5013"
-BOT_NAME = "websoc"
+DEFAULT_BOT_NAME = "websoc"
 
-def send_socket_event(data, namespace='/websoc'):
+def send_socket_event(data, namespace=None):
     """
     Sends an event via Socket.IO to the bot engine.
     Ensures thread-safe connection by creating a new client instance per call.
@@ -16,45 +15,55 @@ def send_socket_event(data, namespace='/websoc'):
     local_sio = socketio.Client()
     
     target_ws_url = WS_URL
+    bot_name = DEFAULT_BOT_NAME
     current_oa_id = getattr(g, 'current_oa_id', None)
     current_oa_config = getattr(g, 'current_oa_config', None)
     
-    print(f"DEBUG: send_socket_event | namespace={namespace}, g.current_oa_id={current_oa_id}")
-
-    # Priority 1: Use g.current_oa_config if available
+    # 1. Resolve Target URL and Bot Name
     if current_oa_config:
         try:
-            if current_oa_config.other_settings and 'socket_url' in current_oa_config.other_settings:
-                if current_oa_config.other_settings['socket_url']:
-                    target_ws_url = current_oa_config.other_settings['socket_url']
-                    print(f"DEBUG: send_socket_event | Using socket_url from g.current_oa_config: {target_ws_url}")
+            if current_oa_config.other_settings:
+                settings = current_oa_config.other_settings
+                if settings.get('socket_url'):
+                    target_ws_url = settings['socket_url']
+                
+                # Resolve bot name: Priority: socket_name > DEFAULT (websoc) > app_name
+                # Usually test_tool in Line-Bot-Main is 'websoc'
+                bot_name = settings.get('socket_name') or DEFAULT_BOT_NAME
+                
         except Exception as e:
             print(f"DEBUG: send_socket_event | Error reading from g.current_oa_config: {e}")
 
-    # Priority 2: Use g.current_oa_id to query if config not in g or URL not found
-    if target_ws_url == WS_URL and current_oa_id:
+
+    # Fallback to DB query if ID provided but config not in g or names missing
+    if (target_ws_url == WS_URL or bot_name == DEFAULT_BOT_NAME) and current_oa_id:
         try:
             oa = OAConfig.query.get(int(current_oa_id))
-            if oa and oa.other_settings and 'socket_url' in oa.other_settings:
-                if oa.other_settings['socket_url']:
-                    target_ws_url = oa.other_settings['socket_url']
-                    print(f"DEBUG: send_socket_event | Using socket_url from DB query (ID {current_oa_id}): {target_ws_url}")
+            if oa and oa.other_settings:
+                settings = oa.other_settings
+                if target_ws_url == WS_URL and settings.get('socket_url'):
+                    target_ws_url = settings['socket_url']
+                if bot_name == DEFAULT_BOT_NAME:
+                    bot_name = settings.get('socket_name') or settings.get('app_name') or DEFAULT_BOT_NAME
         except Exception as e:
             print(f"DEBUG: send_socket_event | Error querying OAConfig: {e}")
 
     # Priority 3: Explicit override in data
     if 'target_ws_url' in data:
          target_ws_url = data['target_ws_url']
-         print(f"DEBUG: send_socket_event | Overridden by data payload: {target_ws_url}")
+    if 'bot_name' in data:
+         bot_name = data['bot_name']
 
-    print(f"DEBUG: [SOCKET_CONNECTING] URL: {target_ws_url} | Namespace: {namespace}")
+    # Resolve Namespace
+    final_namespace = namespace if namespace else f"/{bot_name}"
+
+    print(f"DEBUG: [SOCKET_INIT] Target: {target_ws_url} | BotName: {bot_name} | Namespace: {final_namespace} | OA_ID: {current_oa_id}")
     
     try:
         # Default Socket.IO behavior: try websocket, fallback to polling
-        # Removed hard-coded restriction for herokuapp.com to allow better protocol selection
         transports = ['websocket', 'polling'] 
         
-        local_sio.connect(target_ws_url, namespaces=[namespace], wait_timeout=10, transports=transports)
+        local_sio.connect(target_ws_url, namespaces=[final_namespace], wait_timeout=10, transports=transports)
         print(f"DEBUG: [SOCKET_CONNECTED] Active Transport: {local_sio.transport}")
     except Exception as e:
         print(f"SOCKET_ERROR: Connection failed to {target_ws_url}: {e}")
@@ -63,6 +72,7 @@ def send_socket_event(data, namespace='/websoc'):
     try:
         content = data.get('message', '')
         msg_type = data.get('type', '')
+        event_name = f'{bot_name}_message'
         
         # Split event for Postback with tags (maintain existing logic)
         if msg_type == 'Postback' and '|set_tag|' in content:
@@ -71,17 +81,17 @@ def send_socket_event(data, namespace='/websoc'):
             data_msg = data.copy()
             data_msg['message'] = msg_content
             data_msg['type'] = 'Message'
-            local_sio.emit(f'{BOT_NAME}_message', data_msg, namespace=namespace)
+            local_sio.emit(event_name, data_msg, namespace=final_namespace)
             
             time.sleep(0.1)
             
             data_pb = data.copy()
             data_pb['message'] = f"set_tag|{tag_part}"
-            local_sio.emit(f'{BOT_NAME}_message', data_pb, namespace=namespace)
-            print(f"DEBUG: [SOCKET_EMITTED] Split Postback/Tag events")
+            local_sio.emit(event_name, data_pb, namespace=final_namespace)
+            print(f"DEBUG: [SOCKET_EMITTED] Split Postback/Tag events with event_name: {event_name}")
         else:
-            local_sio.emit(f'{BOT_NAME}_message', data, namespace=namespace)
-            print(f"DEBUG: [SOCKET_EMITTED] Standard event: {msg_type}")
+            local_sio.emit(event_name, data, namespace=final_namespace)
+            print(f"DEBUG: [SOCKET_EMITTED] Event: {event_name} | Type: {msg_type}")
             
         # Give some time for emission to flush before disconnect
         time.sleep(0.5)
@@ -93,3 +103,4 @@ def send_socket_event(data, namespace='/websoc'):
             print(f"DEBUG: [SOCKET_DISCONNECTED]")
         except:
             pass
+

@@ -1440,20 +1440,8 @@ def get_users_list():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-def send_socket_event(data):
-    """
-    Helper function to send a socket event to the bot engine.
-    data: dict with 'user', 'message', 'type', and optionally 'api_index'
-    """
-    sio = socketio.Client()
-    namespace = f"/{BOT_NAME}"
-    
-    # Ensure api_index is explicitly included as 0 if not provided
-    if 'api_index' not in data:
-        data['api_index'] = 0
-    
-    print(f"Emitting {BOT_NAME}_message to {namespace}: {data}")
-# send_socket_event refactored to utils/socket_utils.py
+# Note: send_socket_event is imported from utils.socket_utils
+
 
 @app.route('/api/trigger', methods=['POST'])
 def trigger_socket_event_route():
