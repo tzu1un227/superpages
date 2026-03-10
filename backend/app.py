@@ -1413,17 +1413,23 @@ def get_users_list():
 
         query = f"""
             SELECT sub.user_id,
-                   sub.last_message,
+                   (
+                       SELECT content 
+                       FROM "history:{app_id}" 
+                       WHERE user_id = sub.user_id 
+                         AND (category NOT IN ('Sensor', 'Postback') OR category IS NULL)
+                       ORDER BY timestamp DESC 
+                       LIMIT 1
+                   ) as last_message,
                    sub.last_time,
                     (SELECT string_agg(value, '|') FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'tag') as tags,
                     (SELECT value FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'name' LIMIT 1) as name,
                     (SELECT value FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'unread_count' LIMIT 1) as unread_count
             FROM (
-                SELECT DISTINCT ON (user_id) user_id,
-                       content as last_message,
-                       timestamp as last_time
+                SELECT user_id,
+                       MAX(timestamp) as last_time
                 FROM "history:{app_id}"
-                ORDER BY user_id, timestamp DESC
+                GROUP BY user_id
             ) sub
             {where_sql}
             ORDER BY sub.last_time DESC NULLS LAST
