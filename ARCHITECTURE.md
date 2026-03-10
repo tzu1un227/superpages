@@ -183,5 +183,5 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 - **資料庫修正**: 
     - `projects` 資料表已修正為具備 `project_id` SERIAL 主鍵，並設定預設 `type`。
     - `project_schedules` 與 `cron_table` 已補齊 SERIAL 主鍵 (`schedule_id` / `task_id`)，解決編輯排程時的 `null` 錯誤問題。
-- **Socket 連線相容性**：針對 Heroku 環境（eventlet 驅動）與 IRL Server（gevent 驅動）的差異，系統在偵測到 `herokuapp.com` 域名時會自動將 Socket.IO 傳輸模式切換為 `polling`，以確保跨環境通訊的穩定性。
+- **Socket 連線執行緒安全與協議優化**：為了解決高併發下的連線中斷問題，`send_socket_event` 已重構為「請求作用域 (Request-Scoped)」模式。每次調用皆會建立獨立的 Socket.IO 客戶端實例。同時優化了傳輸協議，優先使用 WebSocket 並在失敗時自動回退至 Polling，移除針對 Heroku 的強制限制，顯著提升了 `yzulabuse` 環境的通訊穩定性。
 - **針對 yzulabuse 的特殊處理**：在 `yzulabuse` 環境下，系統會優先搜尋 `OAConfig.other_settings` 中的 `socket_url`。若未設定，則預設連接至 `https://yzulabuse.herokuapp.com`。此機制確保了訊息能正確路由至該環境的機器人伺服器，避免與 `5013` 環境混淆。後端 `send_socket_event` 已實作 OA Context 感知機制，確保訊息能根據 `X-OA-ID` 導往正確的機器人引擎，解決誤導向至 5013 的問題。

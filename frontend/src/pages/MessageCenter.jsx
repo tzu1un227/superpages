@@ -199,7 +199,7 @@ function MessageCenter() {
             setMessages([...messages, { content: input, timestamp: new Date(), category: 'Message', user_id: 'yzuadmin' }]);
             setInput('');
         } catch (err) {
-            alert('發送失敗: ' + err.message);
+            showToast('發送失敗: ' + err.message, 'error');
         } finally {
             setLoading(false);
         }
@@ -214,7 +214,7 @@ function MessageCenter() {
                 type: 'Sensor',
                 api_index: 0
             });
-            alert(`已新增標籤: ${tagInput}`);
+            showToast(`已新增標籤: ${tagInput}`, 'success');
             setTagInput('');
             // Update local state immediately for better UX
             setUsers(prev => prev.map(u => u.user_id === selectedUser ? {
@@ -226,7 +226,7 @@ function MessageCenter() {
                 fetchAvailableTags();
             }, 1000);
         } catch (err) {
-            alert('新增標籤失敗');
+            showToast('新增標籤失敗', 'error');
         }
     };
 
@@ -240,7 +240,7 @@ function MessageCenter() {
                 type: 'Sensor',
                 api_index: 0
             });
-            alert(`已刪除標籤: ${tagName}`);
+            showToast(`已刪除標籤: ${tagName}`, 'success');
             // Update local state immediately
             setUsers(prev => prev.map(u => {
                 if (u.user_id === selectedUser) {

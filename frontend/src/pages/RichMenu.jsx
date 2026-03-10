@@ -398,7 +398,7 @@ function RichMenu() {
                             <h3 style={{ marginBottom: '15px' }}>選單設定</h3>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                 <div><label className="label">選單名稱</label><input type="text" disabled={viewOnly} value={currentMenu.name} onChange={e => setCurrentMenu({ ...currentMenu, name: e.target.value })} /></div>
-                                <div><label className="label">選單別名 (Alias)</label><input type="text" disabled={viewOnly} value={currentMenu.alias || ''} placeholder="例如: main_menu" onChange={e => setCurrentMenu({ ...currentMenu, alias: e.target.value })} /></div>
+                                <div><label className="label">選單別名</label><input type="text" disabled={viewOnly} value={currentMenu.alias || ''} placeholder="例如: main_menu" onChange={e => setCurrentMenu({ ...currentMenu, alias: e.target.value })} /></div>
                                 <div><label className="label">聊天欄標題</label><input type="text" disabled={viewOnly} value={currentMenu.chatBarText} onChange={e => setCurrentMenu({ ...currentMenu, chatBarText: e.target.value })} /></div>
                                 <div><label className="label">選單高度</label><select disabled={viewOnly} value={currentMenu.size.height} onChange={e => setCurrentMenu({ ...currentMenu, size: { ...currentMenu.size, height: parseInt(e.target.value) } })}><option value={1686}>大型 (1686px)</option><option value={843}>小型 (843px)</option></select></div>
                             </div>

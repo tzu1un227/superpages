@@ -159,6 +159,10 @@ All notable changes to this project will be documented in this file.
 - **Persistent GitHub Configuration**: Migrated GitHub upload settings from `.env` to the database (OA Config). Added management UI in the Admin Page to allow per-OA configuration, ensuring settings persist in Docker environments.
 - **Image Upload to GitHub**: Added ability to upload images directly to GitHub from the Flex Message Editor in Schedule Settings.
 - **Statistics Integration**: Consolidated standalone statistics functionality into the `Projects.jsx` page. Global statistics (Trends, Keywords) are now visible by default in the "stats" tab when no project is selected, alongside project-specific metrics. Removed the redundant `Statistics.jsx` page and associated route from `App.jsx`.
+-### WebSocket Connectivity & Thread Safety
+- **Request-Scoped Connections**: To prevent data races and "Connection Aborted" errors during high-concurrency periods (e.g., mass tag operations), each `/api/trigger` call now utilizes an isolated `socketio.Client` instance that disconnects immediately after task completion.
+- **Transport Optimization**: Standardized on a `['websocket', 'polling']` transport sequence. This allows modern bot engines (including those on Heroku) to upgrade to the more efficient WebSocket protocol while maintaining polling as a robust fallback.
+- **Improved Logging**: Enhanced backend trace logs with stage-specific markers (`[SOCKET_CONNECTING]`, `[SOCKET_CONNECTED]`, etc.) to facilitate pinpointing network-specific failures.
 -### Refined Features & Bug Fixes
 - **Message Center**: Fixed black screen issue by correcting missing imports.
 - **Broadcast**:
@@ -168,8 +172,10 @@ All notable changes to this project will be documented in this file.
 - **Rich Menu**:
   - Translated "Alias" labels to Chinese ("選單別名").
   - Improved alias management and autocomplete.
-- **Flex Message Editor**:
-  - Updated "Option" template to allow 0-3 buttons.
+- **WebSocket Stability (yzulabuse Fixes)**:
+  - Refactored `send_socket_event` to initialize temporary SIO clients per-request, resolving concurrency race conditions.
+  - Optimized transport protocol by allowing automatic WebSocket-to-Polling fallback, removing hard-coded Heroku restrictions.
+  - Added comprehensive diagnostic logging for socket connection and emission states.
 - **Global UI**:
   - Implemented a global Toast notification system with 5-second auto-hide.
   - Replaced most browser alerts with the new toast system for better UX.
