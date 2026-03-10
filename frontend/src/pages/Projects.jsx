@@ -1667,7 +1667,15 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
         }
     }, [isOpen]);
 
-    const filteredUsers = users.filter(u => !existingUsers.includes(u?.user_id) && String(u?.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
+    const filteredUsers = users.filter(u => {
+        if (existingUsers.includes(u?.user_id)) return false;
+        const term = searchTerm.toLowerCase();
+        if (!term) return true;
+        const nameMatch = String(u?.name || '').toLowerCase().includes(term);
+        // Simple string coercion works well enough for array/JSON string formats for a raw text search
+        const tagMatch = String(u?.tags || '').toLowerCase().includes(term);
+        return nameMatch || tagMatch;
+    });
 
     if (!isOpen) return null;
 
@@ -1675,7 +1683,7 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
         <Dialog open={isOpen} onClose={onClose} maxWidth="sm" fullWidth PaperProps={{ style: { backgroundColor: '#1A1A1A', color: '#fff' } }}>
             <DialogTitle style={{ borderBottom: '1px solid #333' }}>手動將用戶加入專案</DialogTitle>
             <DialogContent style={{ paddingTop: '20px' }}>
-                <TextField fullWidth placeholder="搜尋姓名..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} sx={{ marginBottom: '20px', input: { color: '#fff' } }} />
+                <TextField fullWidth placeholder="搜尋..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} sx={{ marginBottom: '20px', input: { color: '#fff' } }} />
                 <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
                     {loading ? <CircularProgress /> : filteredUsers.map((u, index) => {
                         if (!u) return null;
