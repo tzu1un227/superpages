@@ -794,12 +794,6 @@ function Broadcast() {
                                     <button className="secondary" onClick={() => openMessageEditor(idx)}>
                                         <Edit2 size={16} /> 開啟編輯器
                                     </button>
-                                    <button className="secondary" style={{ backgroundColor: '#333' }} onClick={() => {
-                                        setEditingMsgIndex(idx);
-                                        setIsPreviewOpen(true);
-                                    }}>
-                                        <Eye size={16} /> 視窗預覽
-                                    </button>
                                 </div>
                                 {msg.contents && (
                                     <div style={{ marginTop: '20px', backgroundColor: '#8CAEC5', padding: '15px', borderRadius: '8px', transform: 'scale(0.8)', transformOrigin: 'top center' }}>
