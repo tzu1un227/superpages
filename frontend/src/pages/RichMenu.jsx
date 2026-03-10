@@ -23,6 +23,7 @@ function RichMenu() {
     const [currentMenu, setCurrentMenu] = useState(null);
     const [selectedAreaIndex, setSelectedAreaIndex] = useState(null);
     const [backgroundImage, setBackgroundImage] = useState(null);
+    const [allAliases, setAllAliases] = useState([]);
     const [viewOnly, setViewOnly] = useState(false);
 
     // Initial menu state
@@ -31,6 +32,7 @@ function RichMenu() {
         selected: false,
         name: '未命名選單',
         chatBarText: '開啟選單',
+        alias: '',
         areas: []
     };
 
@@ -56,8 +58,12 @@ function RichMenu() {
         try {
             const res = await api.get('/richmenu/');
             setMenus(res.data.richmenus || []);
+
+            // Also fetch all available aliases for autocomplete
+            const aliasRes = await api.get('/richmenu/aliases');
+            setAllAliases((aliasRes.data.aliases || []).map(a => a.richMenuAliasId));
         } catch (err) {
-            console.error('Failed to fetch menus:', err);
+            console.error('Failed to fetch menus or aliases:', err);
         } finally {
             setLoading(false);
         }
@@ -131,14 +137,43 @@ function RichMenu() {
     const handleImageUpload = (e) => {
         if (viewOnly) return;
         const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                setBackgroundImage(event.target.result);
-            };
-            reader.readAsDataURL(file);
-            setCurrentMenu({ ...currentMenu, imageFile: file });
+        if (!file) return;
+
+        // 1. Check file type
+        if (!file.type.startsWith('image/')) {
+            alert('錯誤：必須為圖片檔 (JPEG/PNG)');
+            return;
         }
+
+        // 2. Check file size (1MB)
+        if (file.size > 1024 * 1024) {
+            alert('錯誤：檔案大小不可大於 1MB');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                // 3. Check dimensions
+                const { width, height } = img;
+                const isValidSize = (width === 2500 && (height === 1686 || height === 843));
+                if (!isValidSize) {
+                    alert('錯誤：圖片尺寸必須為 2500x1686 或 2500x843px');
+                    return;
+                }
+
+                setBackgroundImage(event.target.result);
+                setCurrentMenu({
+                    ...currentMenu,
+                    imageFile: file,
+                    size: { width, height } // Sync menu size with image
+                });
+            };
+            img.onerror = () => alert('錯誤：無法讀取圖片');
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
     };
 
     const saveMenu = async () => {
@@ -188,7 +223,7 @@ function RichMenu() {
                 return;
             }
 
-            const safeAlias = currentMenu.name.toLowerCase().replace(/[^a-z0-9_-]/g, '_').substring(0, 32);
+            const safeAlias = (currentMenu.alias || currentMenu.name).toLowerCase().replace(/[^a-z0-9_-]/g, '_').substring(0, 32);
             if (safeAlias) {
                 try {
                     await api.post('/richmenu/alias', {
@@ -353,6 +388,7 @@ function RichMenu() {
                             <h3 style={{ marginBottom: '15px' }}>選單設定</h3>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                 <div><label className="label">選單名稱</label><input type="text" disabled={viewOnly} value={currentMenu.name} onChange={e => setCurrentMenu({ ...currentMenu, name: e.target.value })} /></div>
+                                <div><label className="label">別名 (Alias)</label><input type="text" disabled={viewOnly} value={currentMenu.alias || ''} placeholder="例如: main_menu" onChange={e => setCurrentMenu({ ...currentMenu, alias: e.target.value })} /></div>
                                 <div><label className="label">聊天欄標題</label><input type="text" disabled={viewOnly} value={currentMenu.chatBarText} onChange={e => setCurrentMenu({ ...currentMenu, chatBarText: e.target.value })} /></div>
                                 <div><label className="label">選單高度</label><select disabled={viewOnly} value={currentMenu.size.height} onChange={e => setCurrentMenu({ ...currentMenu, size: { ...currentMenu.size, height: parseInt(e.target.value) } })}><option value={1686}>大型 (1686px)</option><option value={843}>小型 (843px)</option></select></div>
                             </div>
@@ -400,7 +436,19 @@ function RichMenu() {
                                     )}
                                     {currentMenu.areas[selectedAreaIndex].action.type === 'richmenuswitch' && (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                            <div><label className="label">切換目標別名 (Alias)</label><input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.richMenuAliasId || ''} onChange={e => updateAreaAction(selectedAreaIndex, { richMenuAliasId: e.target.value })} /></div>
+                                            <div>
+                                                <label className="label">切換目標別名 (Alias)</label>
+                                                <input
+                                                    type="text"
+                                                    list="available-aliases"
+                                                    disabled={viewOnly}
+                                                    value={currentMenu.areas[selectedAreaIndex].action.richMenuAliasId || ''}
+                                                    onChange={e => updateAreaAction(selectedAreaIndex, { richMenuAliasId: e.target.value })}
+                                                />
+                                                <datalist id="available-aliases">
+                                                    {allAliases.map(a => <option key={a} value={a} />)}
+                                                </datalist>
+                                            </div>
                                             <div><label className="label">Data (必填)</label><input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.data || ''} onChange={e => updateAreaAction(selectedAreaIndex, { data: e.target.value })} /></div>
                                         </div>
                                     )}

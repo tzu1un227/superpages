@@ -171,6 +171,7 @@ const ProjectsManagement = () => {
     const [projectStats, setProjectStats] = useState({ tc: 0, cc: 0, ms: 0, mss: 0, msf: 0, completion_rate: 0 });
     const [isCreatingProject, setIsCreatingProject] = useState(false);
     const [isCreatingSchedule, setIsCreatingSchedule] = useState(false);
+    const [pageLoading, setPageLoading] = useState(false);
 
     const colors = [
         '#2196F3', '#4CAF50', '#FFD700', '#F44336', '#9C27B0',
@@ -259,13 +260,20 @@ const ProjectsManagement = () => {
 
     useEffect(() => {
         if (activeTab === 'schedules') {
-            fetchSchedules();
             if (selectedProjectId) {
+                fetchSchedules();
                 fetchProjectStats(selectedProjectId);
+            } else {
+                setSchedules([]);
+                setProjectStats({ tc: 0, cc: 0, ms: 0, mss: 0, msf: 0, completion_rate: 0 });
             }
         }
-        if (activeTab === 'users' && selectedProjectId) {
-            fetchProjectUsers(selectedProjectId);
+        if (activeTab === 'users') {
+            if (selectedProjectId) {
+                fetchProjectUsers(selectedProjectId);
+            } else {
+                setProjectUsers([]);
+            }
         }
     }, [selectedProjectId, activeTab, statsDateRange.start, statsDateRange.end]);
 
@@ -328,11 +336,10 @@ const ProjectsManagement = () => {
     };
 
     const fetchSchedules = async () => {
-        if (activeTab !== 'schedules') return;
+        if (activeTab !== 'schedules' || !selectedProjectId) return;
+        setPageLoading(true);
         try {
-            const url = selectedProjectId
-                ? `/schedules?project_id=${selectedProjectId}`
-                : `/schedules`;
+            const url = `/schedules?project_id=${selectedProjectId}`;
             const res = await api.get(url);
             console.log("Fetched schedules:", res.data); // Debugging
             const sortedData = Array.isArray(res.data) ? res.data.sort((a, b) => (parseInt(a.step_id) || 0) - (parseInt(b.step_id) || 0)) : [];
@@ -340,21 +347,27 @@ const ProjectsManagement = () => {
         } catch (err) {
             console.error("Fetch schedules error:", err);
             setError('無法取得排程資料: ' + (err.response?.data?.error || err.message));
+        } finally {
+            setPageLoading(false);
         }
     };
 
     const fetchProjectUsers = async (projectId) => {
+        setPageLoading(true);
         try {
             const res = await api.get(`/projects/${projectId}/users`);
             setProjectUsers(res.data);
         } catch (err) {
             console.error('No project users found:', err);
             setProjectUsers([]);
+        } finally {
+            setPageLoading(false);
         }
     };
 
     const fetchProjectStats = async (projectId) => {
         if (!projectId) return;
+        setPageLoading(true);
         try {
             const resp = await api.get(`/projects/${projectId}/stats`, {
                 params: {
@@ -365,6 +378,8 @@ const ProjectsManagement = () => {
             setProjectStats(resp.data);
         } catch (err) {
             console.error('Error fetching project stats:', err);
+        } finally {
+            setPageLoading(false);
         }
     };
 
@@ -686,9 +701,15 @@ const ProjectsManagement = () => {
                 finalMessageContent = await saveAsRichMessage(finalMessageContent, selectedProjectId, newSchedule.step_id);
             }
 
+            // Ensure interval_hours is valid
+            const safeInterval = (newSchedule.interval_hours === '' || newSchedule.interval_hours === null)
+                ? '0'
+                : newSchedule.interval_hours;
+
             await api.post('/schedules', {
                 ...newSchedule,
                 project_id: selectedProjectId,
+                interval_hours: safeInterval,
                 message_content: finalMessageContent
             });
 
@@ -1073,14 +1094,40 @@ const ProjectsManagement = () => {
                                     />
                                     {formErrors.step_id && <div style={{ color: '#ff4d4d', fontSize: '11px', marginTop: '4px' }}>{formErrors.step_id}</div>}
                                 </div>
-                                <div style={{ flex: '0 0 150px' }}>
-                                    <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>間隔 (小時)</label>
-                                    <input
-                                        type="number"
-                                        value={newSchedule.interval_hours}
-                                        onChange={e => setNewSchedule({ ...newSchedule, interval_hours: e.target.value })}
-                                        style={{ width: '100%' }}
-                                    />
+                                <div style={{ flex: '0 0 250px' }}>
+                                    <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>間隔時間</label>
+                                    <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                        <input
+                                            type="number" min="0" step="1"
+                                            value={formatInterval(newSchedule.interval_hours).days}
+                                            onChange={e => {
+                                                const d = parseInt(e.target.value) || 0;
+                                                const { hours, minutes } = formatInterval(newSchedule.interval_hours);
+                                                setNewSchedule({ ...newSchedule, interval_hours: (d * 24 + hours + minutes / 60).toString() });
+                                            }}
+                                            style={{ width: '60px' }}
+                                        /> <span style={{ fontSize: '12px' }}>天</span>
+                                        <input
+                                            type="number" min="0" max="23" step="1"
+                                            value={formatInterval(newSchedule.interval_hours).hours}
+                                            onChange={e => {
+                                                const h = parseInt(e.target.value) || 0;
+                                                const { days, minutes } = formatInterval(newSchedule.interval_hours);
+                                                setNewSchedule({ ...newSchedule, interval_hours: (days * 24 + h + minutes / 60).toString() });
+                                            }}
+                                            style={{ width: '60px' }}
+                                        /> <span style={{ fontSize: '12px' }}>時</span>
+                                        <input
+                                            type="number" min="0" max="59" step="1"
+                                            value={formatInterval(newSchedule.interval_hours).minutes}
+                                            onChange={e => {
+                                                const m = parseInt(e.target.value) || 0;
+                                                const { days, hours } = formatInterval(newSchedule.interval_hours);
+                                                setNewSchedule({ ...newSchedule, interval_hours: (days * 24 + hours + m / 60).toString() });
+                                            }}
+                                            style={{ width: '60px' }}
+                                        /> <span style={{ fontSize: '12px' }}>分</span>
+                                    </div>
                                 </div>
                                 <div style={{ flex: '1 1 300px' }}>
                                     <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>訊息內容</label>
@@ -1125,121 +1172,139 @@ const ProjectsManagement = () => {
                         </div>
                     )}
 
-                    <div style={{ overflowX: 'auto' }}>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>專案</th>
-                                    <th>步驟</th>
-                                    <th>間隔時間</th>
-                                    <th>預設訊息內容</th>
-                                    <th>操作</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {Array.isArray(schedules) && schedules.length > 0 ? (
-                                    schedules.map((s) => (
-                                        <tr key={s.schedule_id}>
-                                            <td style={{ fontSize: '13px', color: '#B0B0B0' }}>
-                                                {(() => {
-                                                    const pId = parseInt(s.project_id);
-                                                    const p = Array.isArray(projects) ? projects.find(pr => parseInt(pr.project_id) === pId) : null;
-                                                    return p ? p.project_name : `ID: ${s.project_id}`;
-                                                })()}
-                                            </td>
-                                            <td>
-                                                {editingScheduleId === s.schedule_id ? (
-                                                    <input type="number" value={editScheduleFormData.step_id} onChange={e => setEditScheduleFormData({ ...editScheduleFormData, step_id: e.target.value })} style={{ width: '60px' }} />
-                                                ) : s.step_id}
-                                            </td>
-                                            <td>
-                                                {editingScheduleId === s.schedule_id ? (
-                                                    <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                                                        <input
-                                                            type="number" min="0" step="1"
-                                                            value={formatInterval(editScheduleFormData.interval_hours).days}
-                                                            onChange={e => {
-                                                                const d = parseInt(e.target.value) || 0;
-                                                                const { hours, minutes } = formatInterval(editScheduleFormData.interval_hours);
-                                                                setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (d * 24 + hours + minutes / 60).toString() });
-                                                            }}
-                                                            style={{ width: '60px' }}
-                                                        /> <span>天</span>
-                                                        <input
-                                                            type="number" min="0" max="23" step="1"
-                                                            value={formatInterval(editScheduleFormData.interval_hours).hours}
-                                                            onChange={e => {
-                                                                const h = parseInt(e.target.value) || 0;
-                                                                const { days, minutes } = formatInterval(editScheduleFormData.interval_hours);
-                                                                setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (days * 24 + h + minutes / 60).toString() });
-                                                            }}
-                                                            style={{ width: '60px' }}
-                                                        /> <span>時</span>
-                                                    </div>
-                                                ) : (
-                                                    (() => {
-                                                        const { days, hours, minutes } = formatInterval(s.interval_hours);
-                                                        let text = '';
-                                                        if (days > 0) text += `${days}天 `;
-                                                        if (hours > 0) text += `${hours}時 `;
-                                                        if (minutes > 0) text += `${minutes}分`;
-                                                        return <span>{text || '0分'}</span>
-                                                    })()
-                                                )}
-                                            </td>
-                                            <td style={{ maxWidth: '300px' }}>
-                                                {editingScheduleId === s.schedule_id ? (
-                                                    <div style={{ display: 'flex', gap: '5px' }}>
-                                                        <div style={{ flex: 1 }}>
+                    {pageLoading ? (
+                        <div style={{ padding: '40px' }}>
+                            <LoadingSpinner message="載入中..." />
+                        </div>
+                    ) : (
+                        <div style={{ overflowX: 'auto' }}>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>專案</th>
+                                        <th>步驟</th>
+                                        <th>間隔時間</th>
+                                        <th>預設訊息內容</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {Array.isArray(schedules) && schedules.length > 0 ? (
+                                        schedules.map((s) => (
+                                            <tr key={s.schedule_id}>
+                                                <td style={{ fontSize: '13px', color: '#B0B0B0' }}>
+                                                    {(() => {
+                                                        const pId = parseInt(s.project_id);
+                                                        const p = Array.isArray(projects) ? projects.find(pr => parseInt(pr.project_id) === pId) : null;
+                                                        return p ? p.project_name : `ID: ${s.project_id}`;
+                                                    })()}
+                                                </td>
+                                                <td>
+                                                    {editingScheduleId === s.schedule_id ? (
+                                                        <input type="number" value={editScheduleFormData.step_id} onChange={e => setEditScheduleFormData({ ...editScheduleFormData, step_id: e.target.value })} style={{ width: '60px' }} />
+                                                    ) : s.step_id}
+                                                </td>
+                                                <td>
+                                                    {editingScheduleId === s.schedule_id ? (
+                                                        <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
                                                             <input
-                                                                type="text"
-                                                                value={editScheduleFormData.message_preview || editScheduleFormData.message_content}
-                                                                onChange={e => setEditScheduleFormData({ ...editScheduleFormData, message_content: e.target.value })}
-                                                                disabled={editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.is_multiple_messages}
-                                                                style={{ width: '100%', backgroundColor: (editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.is_multiple_messages) ? '#444' : '' }}
-                                                            />
+                                                                type="number" min="0" step="1"
+                                                                value={formatInterval(editScheduleFormData.interval_hours).days}
+                                                                onChange={e => {
+                                                                    const d = parseInt(e.target.value) || 0;
+                                                                    const { hours, minutes } = formatInterval(editScheduleFormData.interval_hours);
+                                                                    setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (d * 24 + hours + minutes / 60).toString() });
+                                                                }}
+                                                                style={{ width: '50px' }}
+                                                            /> <span style={{ fontSize: '11px' }}>天</span>
+                                                            <input
+                                                                type="number" min="0" max="23" step="1"
+                                                                value={formatInterval(editScheduleFormData.interval_hours).hours}
+                                                                onChange={e => {
+                                                                    const h = parseInt(e.target.value) || 0;
+                                                                    const { days, minutes } = formatInterval(editScheduleFormData.interval_hours);
+                                                                    setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (days * 24 + h + minutes / 60).toString() });
+                                                                }}
+                                                                style={{ width: '50px' }}
+                                                            /> <span style={{ fontSize: '11px' }}>時</span>
+                                                            <input
+                                                                type="number" min="0" max="59" step="1"
+                                                                value={formatInterval(editScheduleFormData.interval_hours).minutes}
+                                                                onChange={e => {
+                                                                    const m = parseInt(e.target.value) || 0;
+                                                                    const { days, hours } = formatInterval(editScheduleFormData.interval_hours);
+                                                                    setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (days * 24 + hours + m / 60).toString() });
+                                                                }}
+                                                                style={{ width: '50px' }}
+                                                            /> <span style={{ fontSize: '11px' }}>分</span>
                                                         </div>
-                                                        <button
-                                                            onClick={() => openRichEditor(
-                                                                editScheduleFormData.message_content,
-                                                                editScheduleFormData.project_id,
-                                                                editScheduleFormData.step_id,
-                                                                (val, preview, isMultiple) => setEditScheduleFormData(prev => ({ ...prev, message_content: val, message_preview: preview, is_multiple_messages: isMultiple }))
-                                                            )}
-                                                            style={{ padding: '5px', background: '#333', border: '1px solid #444', color: 'var(--primary-yellow)' }}
-                                                        >
-                                                            <MessageSquare size={14} />
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                        {s.message_preview || s.message_content}
-                                                    </div>
-                                                )}
-                                            </td>
-                                            <td>
-                                                {editingScheduleId === s.schedule_id ? (
-                                                    <div style={{ display: 'flex', gap: '10px' }}>
-                                                        <Check className="text-yellow" style={{ cursor: 'pointer' }} onClick={handleUpdateSchedule} />
-                                                        <X style={{ cursor: 'pointer' }} onClick={() => setEditingScheduleId(null)} />
-                                                    </div>
-                                                ) : (
-                                                    <div style={{ display: 'flex', gap: '15px' }}>
-                                                        <Edit2 size={18} style={{ cursor: 'pointer', color: '#B0B0B0' }} onClick={() => handleEditScheduleClick(s)} />
-                                                        <Trash2 size={18} style={{ cursor: 'pointer', color: '#FF4D4D' }} onClick={() => handleDeleteSchedule(s.schedule_id)} />
-                                                    </div>
-                                                )}
+                                                    ) : (
+                                                        (() => {
+                                                            const { days, hours, minutes } = formatInterval(s.interval_hours);
+                                                            let text = '';
+                                                            if (days > 0) text += `${days}天 `;
+                                                            if (hours > 0) text += `${hours}時 `;
+                                                            if (minutes > 0) text += `${minutes}分`;
+                                                            return <span>{text || '0分'}</span>
+                                                        })()
+                                                    )}
+                                                </td>
+                                                <td style={{ maxWidth: '300px' }}>
+                                                    {editingScheduleId === s.schedule_id ? (
+                                                        <div style={{ display: 'flex', gap: '5px' }}>
+                                                            <div style={{ flex: 1 }}>
+                                                                <input
+                                                                    type="text"
+                                                                    value={editScheduleFormData.message_preview || editScheduleFormData.message_content}
+                                                                    onChange={e => setEditScheduleFormData({ ...editScheduleFormData, message_content: e.target.value })}
+                                                                    disabled={editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.is_multiple_messages}
+                                                                    style={{ width: '100%', backgroundColor: (editScheduleFormData.message_content && editScheduleFormData.message_content.startsWith('QA|') && editScheduleFormData.is_multiple_messages) ? '#444' : '' }}
+                                                                />
+                                                            </div>
+                                                            <button
+                                                                onClick={() => openRichEditor(
+                                                                    editScheduleFormData.message_content,
+                                                                    editScheduleFormData.project_id,
+                                                                    editScheduleFormData.step_id,
+                                                                    (val, preview, isMultiple) => setEditScheduleFormData(prev => ({ ...prev, message_content: val, message_preview: preview, is_multiple_messages: isMultiple }))
+                                                                )}
+                                                                style={{ padding: '5px', background: '#333', border: '1px solid #444', color: 'var(--primary-yellow)' }}
+                                                            >
+                                                                <MessageSquare size={14} />
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            {s.message_preview || s.message_content}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    {editingScheduleId === s.schedule_id ? (
+                                                        <div style={{ display: 'flex', gap: '10px' }}>
+                                                            <Check className="text-yellow" style={{ cursor: 'pointer' }} onClick={handleUpdateSchedule} />
+                                                            <X style={{ cursor: 'pointer' }} onClick={() => setEditingScheduleId(null)} />
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{ display: 'flex', gap: '15px' }}>
+                                                            <Edit2 size={18} style={{ cursor: 'pointer', color: '#B0B0B0' }} onClick={() => handleEditScheduleClick(s)} />
+                                                            <Trash2 size={18} style={{ cursor: 'pointer', color: '#FF4D4D' }} onClick={() => handleDeleteSchedule(s.schedule_id)} />
+                                                        </div>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan="5" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                                                {selectedProjectId ? '此專案尚無排程設定' : '請選擇專案以查看排程'}
                                             </td>
                                         </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan="5" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>無排程設定。</td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </div>
             ) : (
                 <div className="card">
@@ -1264,80 +1329,78 @@ const ProjectsManagement = () => {
                         </button>
                     </div>
 
-                    <div style={{ overflowX: 'auto' }}>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>姓名</th>
-                                    <th>目前步驟</th>
-                                    <th>狀態</th>
-                                    <th>操作</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {projectUsers.length > 0 ? projectUsers.map((u, i) => (
-                                    <tr key={i}>
-                                        <td style={{ fontWeight: '600' }}>{u.user_name || u.user_id}</td>
-                                        <td>{u.step_id || 'N/A'}</td>
-                                        <td>
-                                            {(() => {
-                                                const s = u.status || 'unknown';
-                                                let color = '#666';
-                                                let text = s;
-                                                let preview = null;
-
-                                                if (s === 'active' || s === 'Active') {
-                                                    color = '#4CAF50';
-                                                    text = '進行中';
-                                                }
-                                                if (s === 'completed') {
-                                                    color = '#2196F3';
-                                                    text = '已完成';
-                                                }
-
-                                                // Find the schedule for the user's current or completed step to show a preview if possible
-                                                // If 'completed', they finished the project. We might not have a "current step" schedule without more logic, 
-                                                // but if u.step_id exists, we can try to show the preview of the *last* step they completed.
-                                                const currentSchedule = schedules.find(sched => sched.project_id == selectedProjectId && sched.step_id == (u.step_id || (s === 'completed' ? Object.keys(schedules).length : 0)));
-
-                                                if (s === 'active' && currentSchedule && currentSchedule.message_preview) {
-                                                    preview = <div style={{ fontSize: '12px', color: '#888', marginTop: '4px', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>即將發送: {currentSchedule.message_preview}</div>;
-                                                } else if (s === 'completed') {
-                                                    // If we want a preview for completed, we'd need to know the *last* message sent. 
-                                                    // This is slightly complex without specific DB support for 'last_message_preview', 
-                                                    // but we can try showing the very last step's preview as an indicator they finished everything.
-                                                    const lastSched = [...schedules].filter(sched => sched.project_id == selectedProjectId).sort((a, b) => b.step_id - a.step_id)[0];
-                                                    if (lastSched && lastSched.message_preview) {
-                                                        preview = <div style={{ fontSize: '12px', color: '#888', marginTop: '4px', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>完結於: {lastSched.message_preview}</div>;
-                                                    }
-                                                }
-
-                                                return (
-                                                    <div>
-                                                        <span style={{ color, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                            {s === 'completed' ? <CheckCircle2 size={14} /> : (s === 'active' ? <Clock size={14} /> : <Circle size={14} />)}
-                                                            {text}
-                                                        </span>
-                                                        {preview}
-                                                    </div>
-                                                );
-                                            })()}
-                                        </td>
-                                        <td>
-                                            <div style={{ display: 'flex', gap: '10px' }}>
-                                                <button onClick={() => handleRestartUser(u.user_id)} style={{ padding: '4px 8px', background: '#333', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', color: 'var(--primary-yellow)' }}><RotateCcw size={14} /> 重啟</button>
-                                                <button onClick={() => handleRemoveUser(u.user_id)} style={{ padding: '4px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#FF4D4D' }}><Trash2 size={16} /></button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )) : (
+                    {pageLoading ? (
+                        <div style={{ padding: '40px' }}>
+                            <LoadingSpinner message="載入用戶中..." />
+                        </div>
+                    ) : (
+                        <div style={{ overflowX: 'auto' }}>
+                            <table>
+                                <thead>
                                     <tr>
-                                        <td colSpan="4" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>無參與用戶。</td>
+                                        <th>姓名</th>
+                                        <th>目前步驟</th>
+                                        <th>狀態</th>
+                                        <th>操作</th>
                                     </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody>
+                                    {projectUsers.length > 0 ? projectUsers.map((u, i) => (
+                                        <tr key={i}>
+                                            <td style={{ fontWeight: '600' }}>{u.user_name || '未命名'}</td>
+                                            <td>{u.step_id || 'N/A'}</td>
+                                            <td>
+                                                {(() => {
+                                                    const s = u.status || 'unknown';
+                                                    let color = '#666';
+                                                    let text = s;
+                                                    let preview = null;
+                                                    if (s === 'active' || s === 'Active') {
+                                                        color = '#4CAF50';
+                                                        text = '進行中';
+                                                    }
+                                                    if (s === 'completed') {
+                                                        color = '#2196F3';
+                                                        text = '已完成';
+                                                    }
+                                                    const currentSchedule = schedules.find(sched => sched.project_id == selectedProjectId && sched.step_id == (u.step_id || (s === 'completed' ? Object.keys(schedules).length : 0)));
+                                                    if (s === 'active' && currentSchedule && currentSchedule.message_preview) {
+                                                        preview = <div style={{ fontSize: '12px', color: '#888', marginTop: '4px', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>即將發送: {currentSchedule.message_preview}</div>;
+                                                    } else if (s === 'completed') {
+                                                        const lastSched = [...schedules].filter(sched => sched.project_id == selectedProjectId).sort((a, b) => b.step_id - a.step_id)[0];
+                                                        if (lastSched && lastSched.message_preview) {
+                                                            preview = <div style={{ fontSize: '12px', color: '#888', marginTop: '4px', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>完結於: {lastSched.message_preview}</div>;
+                                                        }
+                                                    }
+                                                    return (
+                                                        <div>
+                                                            <span style={{ color, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                {s === 'completed' ? <CheckCircle2 size={14} /> : (s === 'active' ? <Clock size={14} /> : <Circle size={14} />)}
+                                                                {text}
+                                                            </span>
+                                                            {preview}
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </td>
+                                            <td>
+                                                <div style={{ display: 'flex', gap: '10px' }}>
+                                                    <button onClick={() => handleRestartUser(u.user_id)} style={{ padding: '4px 8px', background: '#333', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', color: 'var(--primary-yellow)' }}><RotateCcw size={14} /> 重啟</button>
+                                                    <button onClick={() => handleRemoveUser(u.user_id)} style={{ padding: '4px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#FF4D4D' }}><Trash2 size={16} /></button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )) : (
+                                        <tr>
+                                            <td colSpan="4" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                                                {selectedProjectId ? '無參與用戶' : '請選擇專案以查看參與用戶'}
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </div>
             )}
             {/* Rich Message Modal */}
@@ -1393,28 +1456,6 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
     const [loading, setLoading] = useState(false);
     const [activeMsgIndex, setActiveMsgIndex] = useState(0);
 
-    // Default Tag Generation if empty
-    useEffect(() => {
-        if (isOpen) {
-            if (!initialTag) {
-                // Try to generate default tag
-                const pId = projectId || 'new';
-                const sId = stepId || 'new';
-                setTag(`cron_${pId}_${sId}`);
-
-                // If there is initialText (passed from input), stick it in first message
-                if (initialText) {
-                    setMessages([{ OTYPE: 'TextSendMessage', text: initialText }]);
-                } else {
-                    setMessages([createEmptyMsg()]); // Init with 1 empty message
-                }
-            } else {
-                setTag(initialTag);
-                fetchExistingMessages(initialTag);
-            }
-        }
-    }, [isOpen, initialTag, initialText, projectId, stepId]);
-
     const createEmptyMsg = () => ({ OTYPE: 'TextSendMessage', text: '' });
 
     const fetchExistingMessages = async (tagName) => {
@@ -1423,10 +1464,8 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
             const res = await api.get(`/qa-bank/${tagName}`);
             const msgsRaw = res.data.msg_rpy || [];
             let msgs = Array.isArray(msgsRaw) ? msgsRaw : [msgsRaw];
-            // Parse strings if they are JSON strings
             msgs = msgs.map(m => {
                 let parsed = typeof m === 'string' ? JSON.parse(m) : m;
-                // Backend wraps content in {"Line": ...}, we need to unwrap it for the editor
                 if (parsed.Line) return parsed.Line;
                 return parsed;
             });
@@ -1443,112 +1482,73 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
         }
     };
 
-    const handleSave = async () => {
-        // Validation
-        // Filter out empty messages? Or allow them? usage limited to 5.
-        // Let's validate
-        for (let i = 0; i < messages.length; i++) {
-            const m = messages[i];
-            const msgNum = i + 1;
-            if (m.OTYPE === 'TextSendMessage') {
-                if (!m.text?.trim()) {
-                    alert(`訊息 #${msgNum}: 文字內容不可為空白`);
-                    return;
+    useEffect(() => {
+        if (isOpen) {
+            if (!initialTag) {
+                const defaultTag = `project_${projectId}_step_${stepId}_${Date.now()}`;
+                setTag(defaultTag);
+                if (initialText) {
+                    setMessages([{ OTYPE: 'TextSendMessage', text: initialText }]);
+                } else {
+                    setMessages([createEmptyMsg()]);
                 }
-                if (m.text.length > 3000) {
-                    alert(`訊息 #${msgNum}: 文字訊息內容不能超過 3000 字`);
-                    return;
-                }
-            }
-            if (m.OTYPE === 'ImageSendMessage' && !m.original_content_url?.trim()) {
-                alert(`訊息 #${msgNum}: 圖片網址不可為空白`);
-                return;
-            }
-            if (m.OTYPE === 'VideoSendMessage') {
-                if (!m.original_content_url?.trim()) {
-                    alert(`訊息 #${msgNum}: 影片網址不可為空白`);
-                    return;
-                }
-                if (!m.preview_image_url?.trim()) {
-                    alert(`訊息 #${msgNum}: 影片預覽圖不可為空白`);
-                    return;
-                }
-            }
-            if (m.OTYPE === 'AudioSendMessage' && !m.original_content_url?.trim()) {
-                alert(`訊息 #${msgNum}: 音檔網址不可為空白`);
-                return;
-            }
-            if (m.OTYPE === 'FlexSendMessage') {
-                if (!m.alt_text?.trim()) {
-                    alert(`訊息 #${msgNum}: Flex 替代文字不可為空白`);
-                    return;
-                }
-                try {
-                    const contents = typeof m.contents === 'string' ? JSON.parse(m.contents) : m.contents;
-                    if (!contents) {
-                        alert(`訊息 #${msgNum}: Flex 內容不可為空白`);
-                        return;
-                    }
-                    const bubbles = contents.type === 'carousel' ? contents.contents : [contents];
-                    for (let bIdx = 0; bIdx < bubbles.length; bIdx++) {
-                        const bubble = bubbles[bIdx];
-                        const bPrefix = contents.type === 'carousel' ? `(卡片 #${bIdx + 1}) ` : '';
-
-                        if (bubble.hero && bubble.hero.type === 'image' && !bubble.hero.url) {
-                            alert(`訊息 #${msgNum}: ${bPrefix}圖片網址不可為空白`);
-                            return;
-                        }
-
-                        if (bubble.body && bubble.body.contents) {
-                            const titleComp = bubble.body.contents.find(c => c.weight === 'bold');
-                            const descComp = bubble.body.contents.find(c => c.size === 'sm' && c.color === '#aaaaaa');
-                            if (titleComp && !titleComp.text?.trim()) {
-                                alert(`訊息 #${msgNum}: ${bPrefix}標題不可為空白`);
-                                return;
-                            }
-                            if (descComp && !descComp.text?.trim()) {
-                                alert(`訊息 #${msgNum}: ${bPrefix}說明文字不可為空白`);
-                                return;
-                            }
-                        }
-
-                        if (bubble.footer && bubble.footer.contents) {
-                            const buttons = bubble.footer.contents.filter(c => c.type === 'button');
-                            for (let btnIdx = 0; btnIdx < buttons.length; btnIdx++) {
-                                const btn = buttons[btnIdx];
-                                if (!btn.action.label?.trim()) {
-                                    alert(`訊息 #${msgNum}: ${bPrefix}按鈕 #${btnIdx + 1} 文字不可為空白`);
-                                    return;
-                                }
-                                if (!btn.action.text?.trim() && !btn.action.uri?.trim() && !btn.action.data?.trim()) {
-                                    alert(`訊息 #${msgNum}: ${bPrefix}按鈕 #${btnIdx + 1} 內容不可為空白`);
-                                    return;
-                                }
-                            }
-                        }
-                    }
-                } catch (e) {
-                    alert(`訊息 #${msgNum}: Flex 內容格式錯誤`);
-                    return;
-                }
+            } else {
+                setTag(initialTag);
+                fetchExistingMessages(initialTag);
             }
         }
+    }, [isOpen, initialTag, initialText, projectId, stepId]);
 
+    const handleSave = async () => {
         setLoading(true);
         try {
-            // Converts contents string to object if needed for Flex
-            const payloadMessages = (Array.isArray(messages) ? messages : []).map(m => {
+            const payloadMessages = messages.map(m => {
                 if (m.OTYPE === 'FlexSendMessage' && typeof m.contents === 'string') {
                     return { ...m, contents: JSON.parse(m.contents) };
                 }
                 return m;
             });
 
-            await api.post('/qa-bank', {
-                tag: tag,
-                msg_rpy: payloadMessages,
-                type: 'Sensor'
-            });
+            // Validation: Ensure Flex links/return text are not empty if present
+            for (let i = 0; i < payloadMessages.length; i++) {
+                const m = payloadMessages[i];
+                if (m.OTYPE === 'FlexSendMessage') {
+                    const contents = m.contents;
+                    const bubbles = contents.type === 'carousel' ? contents.contents : [contents];
+
+                    for (let j = 0; j < bubbles.length; j++) {
+                        const bubble = bubbles[j];
+                        const bubbleNum = contents.type === 'carousel' ? `卡片 #${j + 1}: ` : '';
+
+                        // Check hero action (usually "open link")
+                        if (bubble.hero?.action) {
+                            const act = bubble.hero.action;
+                            const val = act.uri || act.data || act.text || '';
+                            if (!val.trim()) {
+                                alert(`${bubbleNum}圖片點擊動作內容不能為空`);
+                                setLoading(false);
+                                return;
+                            }
+                        }
+
+                        // Check buttons (usually "return text" or "open link")
+                        const footerContents = bubble.footer?.contents || [];
+                        const buttons = footerContents.filter(c => c.type === 'button');
+                        for (let k = 0; k < buttons.length; k++) {
+                            const btn = buttons[k];
+                            const act = btn.action || {};
+                            const val = act.uri || act.data || act.text || '';
+                            if (!val.trim()) {
+                                alert(`${bubbleNum}按鈕 #${k + 1} 的內容或連結不能為空`);
+                                setLoading(false);
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+
+            await api.post('/qa-bank', { tag, msg_rpy: payloadMessages, type: 'Sensor' });
             const firstMsg = payloadMessages[0];
             let previewText = '';
             if (firstMsg) {
@@ -1575,87 +1575,45 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
         const newMsgs = [...messages];
         let newMsg = { OTYPE: newType };
         if (newType === 'TextSendMessage') newMsg.text = '';
-        if (newType === 'ImageSendMessage' || newType === 'VideoSendMessage') {
+        else if (newType === 'ImageSendMessage' || newType === 'VideoSendMessage') {
             newMsg.original_content_url = '';
             newMsg.preview_image_url = '';
-        }
-        if (newType === 'AudioSendMessage') {
+        } else if (newType === 'AudioSendMessage') {
             newMsg.original_content_url = '';
             newMsg.duration = 1000;
-        }
-        if (newType === 'FlexSendMessage') {
+        } else if (newType === 'FlexSendMessage') {
             newMsg.alt_text = 'Flex Message';
-            newMsg.contents = '{ }';
+            newMsg.contents = '{}';
         }
         newMsgs[index] = newMsg;
         setMessages(newMsgs);
     };
 
-    const addMessageSlot = () => {
-        if (messages.length >= 5) return;
-        setMessages([...messages, createEmptyMsg()]);
-        setActiveMsgIndex(messages.length);
-    };
-
-    const removeMessageSlot = (index) => {
-        const newMsgs = messages.filter((_, i) => i !== index);
-        setMessages(newMsgs);
-        if (activeMsgIndex >= newMsgs.length) setActiveMsgIndex(newMsgs.length - 1);
-    };
-
     if (!isOpen) return null;
 
     return (
-        <div style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1000,
-            display: 'flex', justifyContent: 'center', alignItems: 'center'
-        }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
             <div style={{ width: '800px', height: '80%', backgroundColor: '#222', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                     <h2 style={{ fontSize: '20px' }}>進階訊息編輯器</h2>
                     <X style={{ cursor: 'pointer' }} onClick={onClose} />
                 </div>
-
-                {/* <div style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'block', color: '#888', marginBottom: '5px' }}>Tag (識別標籤)</label>
-                    <input type="text" value={tag} onChange={(e) => setTag(e.target.value)} style={{ width: '100%', padding: '8px', background: '#333', border: '1px solid #444', color: '#fff' }} />
-                </div> */}
-
                 <div style={{ flex: 1, display: 'flex', gap: '20px', overflow: 'hidden' }}>
-                    {/* Left: Message List */}
                     <div style={{ width: '200px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
-                        {(Array.isArray(messages) ? messages : []).map((m, i) => (
-                            <div key={i}
-                                onClick={() => setActiveMsgIndex(i)}
-                                style={{
-                                    padding: '10px', backgroundColor: activeMsgIndex === i ? '#444' : '#333',
-                                    borderRadius: '8px', cursor: 'pointer', border: activeMsgIndex === i ? '1px solid var(--primary-yellow)' : '1px solid transparent',
-                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                                }}
-                            >
+                        {messages.map((m, i) => (
+                            <div key={i} onClick={() => setActiveMsgIndex(i)} style={{ padding: '10px', backgroundColor: activeMsgIndex === i ? '#444' : '#333', borderRadius: '8px', cursor: 'pointer', border: activeMsgIndex === i ? '1px solid var(--primary-yellow)' : '1px solid transparent', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <span style={{ fontSize: '14px' }}>#{i + 1} {m.OTYPE.replace('SendMessage', '')}</span>
-                                <Trash2 size={14} color="#FF4D4D" onClick={(e) => { e.stopPropagation(); removeMessageSlot(i); }} />
+                                <Trash2 size={14} color="#FF4D4D" onClick={(e) => { e.stopPropagation(); const next = messages.filter((_, idx) => idx !== i); setMessages(next); if (activeMsgIndex >= next.length) setActiveMsgIndex(Math.max(0, next.length - 1)); }} />
                             </div>
                         ))}
-                        {messages.length < 5 && (
-                            <button onClick={addMessageSlot} style={{ border: '1px dashed #666', background: 'transparent', padding: '10px', color: '#888' }}>
-                                + 新增訊息
-                            </button>
-                        )}
+                        {messages.length < 5 && <button onClick={() => { setMessages([...messages, createEmptyMsg()]); setActiveMsgIndex(messages.length); }} style={{ border: '1px dashed #666', background: 'transparent', padding: '10px', color: '#888' }}>+ 新增訊息</button>}
                     </div>
-
-                    {/* Right: Content Editor */}
                     <div style={{ flex: 1, backgroundColor: '#333', borderRadius: '8px', padding: '20px', overflowY: 'auto' }}>
                         {messages[activeMsgIndex] ? (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                 <div>
                                     <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>類型</label>
-                                    <select
-                                        value={messages[activeMsgIndex].OTYPE}
-                                        onChange={(e) => changeType(activeMsgIndex, e.target.value)}
-                                        style={{ width: '100%', padding: '8px', background: '#222', border: 'none', color: '#fff' }}
-                                    >
+                                    <select value={messages[activeMsgIndex].OTYPE} onChange={(e) => changeType(activeMsgIndex, e.target.value)} style={{ width: '100%', padding: '8px', background: '#222', border: 'none', color: '#fff' }}>
                                         <option value="TextSendMessage">文字 (Text)</option>
                                         <option value="ImageSendMessage">圖片 (Image)</option>
                                         <option value="VideoSendMessage">影片 (Video)</option>
@@ -1663,144 +1621,24 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                         <option value="FlexSendMessage">Flex 訊息</option>
                                     </select>
                                 </div>
-
                                 {messages[activeMsgIndex].OTYPE === 'TextSendMessage' && (
                                     <div>
                                         <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>內容</label>
-                                        <textarea
-                                            value={messages[activeMsgIndex].text}
-                                            onChange={(e) => updateMessage(activeMsgIndex, 'text', e.target.value)}
-                                            rows={8}
-                                            style={{ width: '100%', padding: '10px', background: '#222', border: 'none', color: '#fff' }}
-                                        />
-                                        <div style={{ fontSize: '12px', color: (messages[activeMsgIndex].text || '').length > 3000 ? '#ff4d4d' : '#888', textAlign: 'right', marginTop: '5px' }}>
-                                            {(messages[activeMsgIndex].text || '').length} / 3000
-                                        </div>
+                                        <textarea value={messages[activeMsgIndex].text} onChange={(e) => updateMessage(activeMsgIndex, 'text', e.target.value)} rows={8} style={{ width: '100%', padding: '10px', background: '#222', border: 'none', color: '#fff' }} />
                                     </div>
                                 )}
-
-                                {messages[activeMsgIndex].OTYPE === 'ImageSendMessage' && (
-                                    <>
-                                        <div>
-                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>圖片網址 (Original)</label>
-                                            <div style={{ display: 'flex', gap: '5px' }}>
-                                                <input type="text" value={messages[activeMsgIndex].original_content_url || ''} onChange={(e) => {
-                                                    const newMsgs = [...messages];
-                                                    newMsgs[activeMsgIndex] = {
-                                                        ...newMsgs[activeMsgIndex],
-                                                        original_content_url: e.target.value,
-                                                        preview_image_url: e.target.value
-                                                    };
-                                                    setMessages(newMsgs);
-                                                }} style={{ flex: 1, padding: '8px', background: '#222', border: 'none', color: '#fff' }} />
-                                                <label style={{
-                                                    padding: '8px 12px',
-                                                    background: 'var(--primary-yellow)',
-                                                    color: '#000',
-                                                    borderRadius: '4px',
-                                                    cursor: 'pointer',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '5px',
-                                                    fontSize: '13px',
-                                                    fontWeight: 'bold'
-                                                }}>
-                                                    上傳圖片
-                                                    <input
-                                                        type="file"
-                                                        accept="image/*"
-                                                        style={{ display: 'none' }}
-                                                        onChange={async (e) => {
-                                                            const file = e.target.files[0];
-                                                            if (!file) return;
-
-                                                            const formData = new FormData();
-                                                            formData.append('file', file);
-
-                                                            try {
-                                                                const res = await api.post('/upload/github', formData, {
-                                                                    headers: { 'Content-Type': 'multipart/form-data' }
-                                                                });
-                                                                const newMsgs = [...messages];
-                                                                newMsgs[activeMsgIndex] = {
-                                                                    ...newMsgs[activeMsgIndex],
-                                                                    original_content_url: res.data.url,
-                                                                    preview_image_url: res.data.url
-                                                                };
-                                                                setMessages(newMsgs);
-                                                            } catch (err) {
-                                                                alert('上傳失敗: ' + (err.response?.data?.message || err.message));
-                                                            } finally {
-                                                                e.target.value = ''; // Reset to allow same file upload
-                                                            }
-                                                        }}
-                                                    />
-                                                </label>
-                                            </div>
-                                            <p style={{ fontSize: '12px', color: '#666' }}>*Preview URL 自動同步</p>
-                                        </div>
-                                    </>
-                                )}
-
-                                {messages[activeMsgIndex].OTYPE === 'VideoSendMessage' && (
-                                    <>
-                                        <div>
-                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>影片網址</label>
-                                            <input type="text" value={messages[activeMsgIndex].original_content_url || ''} onChange={(e) => updateMessage(activeMsgIndex, 'original_content_url', e.target.value)} style={{ width: '100%', padding: '8px', background: '#222', border: 'none', color: '#fff' }} />
-                                        </div>
-                                        <div>
-                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>預覽圖網址</label>
-                                            <input type="text" value={messages[activeMsgIndex].preview_image_url || ''} onChange={(e) => updateMessage(activeMsgIndex, 'preview_image_url', e.target.value)} style={{ width: '100%', padding: '8px', background: '#222', border: 'none', color: '#fff' }} />
-                                        </div>
-                                    </>
-                                )}
-
-                                {messages[activeMsgIndex].OTYPE === 'AudioSendMessage' && (
-                                    <>
-                                        <div>
-                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>音檔網址</label>
-                                            <input type="text" value={messages[activeMsgIndex].original_content_url || ''} onChange={(e) => updateMessage(activeMsgIndex, 'original_content_url', e.target.value)} style={{ width: '100%', padding: '8px', background: '#222', border: 'none', color: '#fff' }} />
-                                        </div>
-                                        <div>
-                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>長度 (毫秒)</label>
-                                            <input type="number" value={messages[activeMsgIndex].duration || 1000} onChange={(e) => updateMessage(activeMsgIndex, 'duration', parseInt(e.target.value))} style={{ width: '100%', padding: '8px', background: '#222', border: 'none', color: '#fff' }} />
-                                        </div>
-                                    </>
-                                )}
-
                                 {messages[activeMsgIndex].OTYPE === 'FlexSendMessage' && (
-                                    <>
-                                        <div>
-                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>替代文字 (Alt Text)</label>
-                                            <input type="text" value={messages[activeMsgIndex].alt_text || ''} onChange={(e) => updateMessage(activeMsgIndex, 'alt_text', e.target.value)} style={{ width: '100%', padding: '8px', background: '#222', border: 'none', color: '#fff' }} />
-                                        </div>
-                                        <>
-                                            <div style={{ height: '600px', border: '1px solid #444', borderRadius: '8px', overflow: 'hidden' }}>
-                                                <FlexMessageEditor
-                                                    key={activeMsgIndex}
-                                                    initialContent={messages[activeMsgIndex].contents}
-                                                    onSave={(jsonString) => {
-                                                        updateMessage(activeMsgIndex, 'contents', jsonString);
-                                                    }}
-                                                    onCancel={() => { }}
-                                                />
-                                            </div>
-                                        </>
-                                    </>
+                                    <div style={{ height: '500px', border: '1px solid #444' }}>
+                                        <FlexMessageEditor initialContent={messages[activeMsgIndex].contents} onSave={(val) => updateMessage(activeMsgIndex, 'contents', val)} onCancel={() => { }} />
+                                    </div>
                                 )}
-
                             </div>
-                        ) : (
-                            <div style={{ color: '#666', textAlign: 'center', marginTop: '50px' }}>請選擇或新增訊息</div>
-                        )}
+                        ) : null}
                     </div>
                 </div>
-
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px', gap: '10px' }}>
-                    <button onClick={onClose} style={{ background: '#444', padding: '10px 20px', borderRadius: '4px', border: 'none', color: '#fff' }}>取消</button>
-                    <button onClick={handleSave} disabled={loading} style={{ background: 'var(--primary-yellow)', padding: '10px 20px', borderRadius: '4px', border: 'none', color: '#000', fontWeight: 'bold' }}>
-                        {loading ? '儲存中...' : '儲存'}
-                    </button>
+                    <button onClick={onClose} style={{ background: '#444', padding: '10px 20px', border: 'none', color: '#fff' }}>取消</button>
+                    <button onClick={handleSave} disabled={loading} style={{ background: 'var(--primary-yellow)', padding: '10px 20px', border: 'none', color: '#000', fontWeight: 'bold' }}>{loading ? '儲存中...' : '儲存'}</button>
                 </div>
             </div>
         </div>
@@ -1811,148 +1649,56 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const [tagSearch, setTagSearch] = useState('');
 
     useEffect(() => {
         if (isOpen) {
-            fetchUsers();
-            setSearchTerm('');
-            setTagSearch('');
+            setLoading(true);
+            api.get('/registered-users?source=private_var').then(res => setUsers(res.data || [])).finally(() => setLoading(false));
         }
     }, [isOpen]);
 
-    const fetchUsers = async () => {
-        setLoading(true);
-        try {
-            const res = await api.get('/registered-users?source=private_var');
-            setUsers(res.data);
-        } catch (err) {
-            console.error('Fetch users error:', err);
-            setUsers([]);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const getCurrentUserTags = (tagsInput) => {
-        if (!tagsInput) return [];
-        let tagList = [];
-        const rawParts = typeof tagsInput === 'string' ? tagsInput.split('|') : [tagsInput];
-        rawParts.forEach(part => {
-            if (!part) return;
-            let trimmed = String(part).trim();
-            if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-                const inner = trimmed.substring(1, trimmed.length - 1);
-                inner.split(',').forEach(s => {
-                    const s_clean = s.trim().replace(/^['"]|['"]$/g, '');
-                    if (s_clean) tagList.push(s_clean);
-                });
-            } else if (trimmed.includes(',')) {
-                trimmed.split(',').forEach(s => {
-                    const s_clean = s.trim().replace(/^['"]|['"]$/g, '');
-                    if (s_clean) tagList.push(s_clean);
-                });
-            } else {
-                tagList.push(trimmed.replace(/^['"]|['"]$/g, ''));
-            }
-        });
-        return [...new Set(tagList.map(t => String(t).trim()).filter(t => t && t !== 'null' && t !== 'undefined' && t !== '[]' && t !== '{}'))];
-    };
-
-    const filteredUsers = users.filter(u => {
-        const matchesExisting = !existingUsers.includes(u.user_id);
-        const matchesSearch = !searchTerm || (
-            (u.name && u.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            (u.user_id && u.user_id.toLowerCase().includes(searchTerm.toLowerCase()))
-        );
-        const matchesTag = !tagSearch || (
-            getCurrentUserTags(u.tags).some(t => t.toLowerCase().includes(tagSearch.toLowerCase()))
-        );
-        return matchesExisting && matchesSearch && matchesTag;
-    });
+    const filteredUsers = users.filter(u => !existingUsers.includes(u.user_id) && (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
 
     if (!isOpen) return null;
 
     return (
-        <div style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1100,
-            display: 'flex', justifyContent: 'center', alignItems: 'center'
-        }}>
-            <div style={{ width: '500px', height: '600px', backgroundColor: '#222', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <h2 style={{ fontSize: '20px' }}>選擇用戶加入專案</h2>
-                    <X style={{ cursor: 'pointer' }} onClick={onClose} />
-                </div>
-
-                <div style={{ marginBottom: '15px', display: 'flex', gap: '10px' }}>
-                    <div style={{ flex: 1 }}>
-                        <label style={{ fontSize: '12px', color: '#888', marginBottom: '5px', display: 'block' }}>搜尋用戶名 / ID</label>
-                        <input
-                            type="text"
-                            placeholder="輸入關鍵字..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            style={{ width: '100%', padding: '10px', backgroundColor: '#333', border: '1px solid #444', borderRadius: '4px', color: '#fff' }}
-                        />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                        <label style={{ fontSize: '12px', color: '#888', marginBottom: '5px', display: 'block' }}>透過標籤搜尋</label>
-                        <input
-                            type="text"
-                            placeholder="輸入標籤..."
-                            value={tagSearch}
-                            onChange={(e) => setTagSearch(e.target.value)}
-                            style={{ width: '100%', padding: '10px', backgroundColor: '#333', border: '1px solid #444', borderRadius: '4px', color: '#fff' }}
-                        />
-                    </div>
-                </div>
-
-                <div style={{ flex: 1, overflowY: 'auto', marginBottom: '20px', minHeight: '300px', position: 'relative' }}>
-                    {loading ? (
-                        <LoadingSpinner message="載入用戶中..." />
-                    ) : (
-                        filteredUsers.length > 0 ? (
-                            filteredUsers.map(u => (
-                                <div key={u.user_id}
-                                    onClick={() => onSelect(u.user_id)}
-                                    style={{
-                                        padding: '12px', borderBottom: '1px solid #333', cursor: 'pointer',
-                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                        transition: 'background 0.2s'
-                                    }}
-                                    onMouseEnter={e => e.currentTarget.style.background = '#333'}
-                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#444', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
-                                            <Users size={20} />
-                                        </div>
-                                        <div>
-                                            <div style={{ fontWeight: 'bold' }}>{u.name || '未命名'}</div>
-                                            <div style={{ fontSize: '12px', color: '#888' }}>{u.user_id}</div>
-                                            {u.tags && (
-                                                <div style={{ display: 'flex', gap: '4px', marginTop: '4px', flexWrap: 'wrap' }}>
-                                                    {String(u.tags).split('|').filter(t => t).map(t => (
-                                                        <span key={t} style={{ fontSize: '10px', backgroundColor: '#444', padding: '2px 6px', borderRadius: '10px', color: '#aaa' }}>{t}</span>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <Plus size={18} color="var(--primary-yellow)" />
+        <Dialog open={isOpen} onClose={onClose} maxWidth="sm" fullWidth PaperProps={{ style: { backgroundColor: '#1A1A1A', color: '#fff' } }}>
+            <DialogTitle style={{ borderBottom: '1px solid #333' }}>手動將用戶加入專案</DialogTitle>
+            <DialogContent style={{ paddingTop: '20px' }}>
+                <TextField fullWidth placeholder="搜尋姓名..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} sx={{ marginBottom: '20px', input: { color: '#fff' } }} />
+                <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                    {loading ? <CircularProgress /> : filteredUsers.map(u => (
+                        <div key={u.user_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderBottom: '1px solid #333' }}>
+                            <div>
+                                <div style={{ fontWeight: 'bold' }}>{u.name || '未命名'}</div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+                                    {(() => {
+                                        let tagStr = u.tags || '';
+                                        let tagList = [];
+                                        if (tagStr.startsWith('[') && tagStr.endsWith(']')) {
+                                            try {
+                                                // Handle JSON list format ["AA", "BB"]
+                                                tagList = JSON.parse(tagStr.replace(/'/g, '"'));
+                                            } catch (e) {
+                                                tagList = tagStr.replace(/[\[\]"']/g, '').split(',').map(t => t.trim());
+                                            }
+                                        } else {
+                                            // Handle pipe format |AA|BB|
+                                            tagList = tagStr.split('|').map(t => t.trim());
+                                        }
+                                        return tagList.filter(t => t).map((t, idx) => (
+                                            <span key={idx} style={{ fontSize: '10px', background: '#333', color: 'var(--primary-yellow)', padding: '2px 6px', borderRadius: '4px' }}>{t}</span>
+                                        ));
+                                    })()}
                                 </div>
-                            ))
-                        ) : (
-                            <div style={{ textAlign: 'center', color: '#666', marginTop: '50px' }}>
-                                <User size={48} style={{ opacity: 0.2, marginBottom: '10px' }} />
-                                <div>找不到符合的用戶</div>
                             </div>
-                        )
-                    )}
+                            <button className="primary" onClick={() => onSelect(u.user_id)}>加入</button>
+                        </div>
+                    ))}
                 </div>
-            </div>
-        </div>
+            </DialogContent>
+            <DialogActions><button onClick={onClose} style={{ background: '#444', color: '#fff', padding: '8px 20px', borderRadius: '4px', border: 'none' }}>關閉</button></DialogActions>
+        </Dialog>
     );
 };
 

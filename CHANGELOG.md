@@ -3,6 +3,20 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **自動旅程與廣播 UI/UX 深度優化 (Journey & Broadcast UI/UX Refinement)** [2026-03-10]:
+  - **進階訊息編輯器驗證強化**：
+    - 實作 Flex 訊息深度驗證：在「自動旅程」與「廣播訊息」中，儲存或發送前會檢查 Flex 卡片的圖片點擊動作、按鈕連結及回傳文字，確保不為空值，防止發送失敗。
+  - **自動旅程 (Projects) 體驗優化**：
+    - **載入畫面 (Loading UI)**：切換不同專案或功能分頁時，新增 `LoadingSpinner` 回傳並清除舊有數據，確保使用者不會看到前一個旅程的殘留資訊。
+    - **數據隔離**：切換專案時主動清空排程與用戶列表狀態，防止數據混淆。
+    - **用戶列表優化**：移除參與用戶列表中的 User ID 顯示，保持介面清爽；優化「手動加入用戶」彈窗中的標籤顯示，支援 JSON 格式標籤之解析與獨立顯示。
+    - **刪除邏輯強化**：刪除專案時會連動清理 `project_schedules`、`cron_table` 以及相關的 `QA_bank` 標籤，徹底杜絕孤兒數據。
+  - **圖文選單 (Rich Menu) 增強**：
+    - **別名管理**：新增別名 (Alias) 設定與顯示；實作別名自動完成 (Autocomplete) 功能，提升切換選單設定的效率。
+    - **上傳限制**：實作圖文選單圖片上傳限制（檔案大小 < 1MB、寬高須符合 2500x1686 或 2500x843），並提供中文錯誤提示。
+  - **廣播功能 (Broadcast) 增強**：
+    - **唯讀查閱**：已預約或已成功發送的任務改為「唯讀查看詳情」，僅草稿狀態可進行編輯，確保歷史紀錄不被意外修改。
+
 - **Heroku 相容性與 UI/UX 深度優化 (Heroku Compatibility & UI/UX Optimization)** [2026-03-06]:
   - **Robot Engine 相容性修正**：將 Socket.IO 的 `async_mode` 由 `eventlet` 改為 `gevent`，徹底解決 Heroku 環境下的啟動與 500 錯誤。
   - **進階訊息編輯器驗證強化**：
@@ -22,8 +36,6 @@ All notable changes to this project will be documented in this file.
   - **欄位預設值補齊**：為 `projects` 欄位 `type` 設定預設值 'project'，並補齊現有資料之 ID 與類型，確保資料一致性。
   - **訊息中心連線與導向修復**：
     - 修正訊息中心在 Heroku 環境下的 500 錯誤：針對 `herokuapp.com` 域名制使用 `polling` 傳輸協議，解決 Socket.IO 驅動程式相容性問題。
-- 強化自動旅程與進階訊息編輯器的欄位驗證：新增圖片、影片、音檔及 Flex 訊息的必填欄位檢查，防止空白資料導致發送失敗。
-- 優化自動旅程「加入用戶」介面：移除無用戶時的錯誤彈窗，改為友好的清單提示。
     - 恢復 `yzulabuse` 使用其專屬的 Heroku Socket URL (`https://yzulabuse.herokuapp.com`)，確保訊息不再誤送至 `5013` 帳號。
     - 強化後端 `send_socket_event` 邏輯：新增 OA Context 感知與顯式資料庫查詢機制，確保跨環境訊息能根據 `X-OA-ID` 標頭正確導航至對應的機器人引擎。
     - 修正 `/api/trigger` 遺漏 OA ID 導致回退至預設環境的問題。
@@ -119,8 +131,11 @@ All notable changes to this project will be documented in this file.
 - **綜合數據重構與指標修正 (Statistics Refinement)** [2026-02-23]:
   - **精確統計邏輯修復**：修正「有效好友數」在長時段下的虛增問題。後端新增 `total_counts` 邏輯，確保統計卡片顯示的是全時段「不重複用戶總數」(Strictly Distinct)，而非每日活躍數的簡單累加。
   - **指標正名與 UI 簡化**：移除所有統計卡片標題中的括號及其內容。更名「總追蹤數」為「**總好友數**」，更名「不重複活躍用戶」為「**有效好友數**」（並統一趨勢分析下拉選單名稱）。
-  - **LINE API 擷取優化**：後端 `get_statistics` 加入日期回退 (Fallback) 邏輯，若昨天資料未就緒則自動嘗試前天。
-- **訊息中心搜尋功能修正 (Message Center Search Fix)** [2026-02-23]:
+  - **LINE API- **捲軸行為最佳化**: 針對 `MessageCenter.jsx` 的 7 秒自動輪詢更新，導入位置保護機制與 `isAtBottom` 智慧判斷，解決畫面跳動與自動下拉至底部的困擾。
+- **廣播預覽與唯讀模式**: 
+    - 實作前端 `messages` 列表預覽邏輯，提取各類訊息特徵（Type Icon + 文字截斷）顯示於廣播歷史清單中。
+    - 對於「非草稿」狀態之廣播任務，限制為唯讀查看，並顯示發送對象、時間與預覽。
+- **排程間隔預設值**: 新增排程時若未填寫間隔時間，系統將自動預設為 0 分鐘，避免後端報錯。Fix)** [2026-02-23]:
   - **修正搜尋框**：原搜尋框為純 UI 外觀（未綁定任何 state），現已綁定 `searchQuery` state 並透過 debounce 呼叫 `/api/users?q=` 後端搜尋，支援依 `user_id`、使用者名稱或**對話內容（含官方帳號訊息及 Unicode 編碼文本）**即時過濾用戶清單。
   - **新增標籤篩選**：在用戶清單搜尋框下方顯示所有可用標籤按鈕，點選後以 `/api/users?tag=` 篩選聊天室，再次點選可取消。
   - **新增對話內容搜尋**：聊天室頂部新增訊息搜尋框，可搜尋當前用戶的對話內容；符合的關鍵字以黃色背景高亮顯示，並顯示符合筆數。

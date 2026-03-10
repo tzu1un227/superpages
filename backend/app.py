@@ -649,12 +649,19 @@ def delete_project(id):
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Clean up QA_bank entries associated with this project's schedules
+        # 1. Clean up QA_bank entries associated with this project's schedules
         app_id = get_current_app_id()
-        # Find all tags that belong to this project specifically (cloned tags)
         cur.execute(f'DELETE FROM "QA_bank:{app_id}" WHERE tag LIKE %s', (f"cron_{id}_%",))
         
+        # 2. Delete project schedules
+        cur.execute("DELETE FROM project_schedules WHERE project_id=%s", (id,))
+        
+        # 3. Delete from cron_table
+        cur.execute("DELETE FROM cron_table WHERE project_id=%s", (id,))
+        
+        # 4. Delete the project itself
         cur.execute("DELETE FROM projects WHERE project_id=%s", (id,))
+        
         conn.commit()
         cur.close()
         conn.close()

@@ -46,6 +46,24 @@ def list_rich_menus():
     except Exception as e:
         return jsonify({'message': 'Error', 'error': str(e)}), 500
 
+@richmenu_bp.route('/aliases', methods=['GET'])
+@token_required
+def list_rich_menu_aliases():
+    token = get_line_token()
+    if not token:
+        return jsonify({'message': 'Line token not configured'}), 400
+    
+    headers = {'Authorization': f'Bearer {token}'}
+    
+    try:
+        resp = requests.get('https://api.line.me/v2/bot/richmenu/alias/list', headers=headers)
+        if resp.status_code != 200:
+            return jsonify({'message': 'Failed to fetch aliases', 'error': resp.text}), resp.status_code
+        
+        return jsonify(resp.json())
+    except Exception as e:
+        return jsonify({'message': 'Error', 'error': str(e)}), 500
+
 @richmenu_bp.route('/', methods=['POST'])
 @token_required
 def create_rich_menu():

@@ -180,6 +180,10 @@ function Broadcast() {
     };
 
     const handleEdit = async (bc) => {
+        if (bc.status !== 'draft') {
+            alert('只有草稿狀態的任務可以編輯');
+            return;
+        }
         setLoading(true);
         try {
             const messages = bc.message_tag ? await fetchMessagesByTag(bc.message_tag) : [
@@ -260,8 +264,21 @@ function Broadcast() {
                 setFormData({ ...bc, messages: mappedMessages });
                 setIsPreviewOpen(true);
             } else {
-                // in list view, open standalone preview dialog
-                setPreviewBcMessages(mappedMessages);
+                // In list view, open detail view (wizard with step 1, read-only)
+                const idList = (bc.target_type === 'ids' && bc.target_value) ? bc.target_value.split(',') : [];
+                const selectedUsers = idList.map(id => {
+                    const found = availableUsers.find(u => u.user_id === id.trim?.() || u.user_id === id);
+                    return found || { user_id: id, name: id };
+                });
+
+                setFormData({
+                    ...bc,
+                    messages: mappedMessages,
+                    selectedUsers: selectedUsers,
+                    send_type: bc.send_type || 'immediate'
+                });
+                setStep(1);
+                setView('create');
             }
         } catch (err) {
             alert('無法載入預覽內容: ' + err.message);
@@ -312,6 +329,32 @@ function Broadcast() {
                         alert(`第 ${i + 1} 則 Flex 訊息內容未設定`);
                         setLoading(false);
                         return;
+                    }
+                    // Deep validation for Flex links/return text
+                    const contents = msg.contents;
+                    const bubbles = contents.type === 'carousel' ? contents.contents : [contents];
+                    for (let j = 0; j < bubbles.length; j++) {
+                        const bubble = bubbles[j];
+                        const bubbleNum = contents.type === 'carousel' ? `卡片 #${j + 1}: ` : '';
+                        if (bubble.hero?.action) {
+                            const val = bubble.hero.action.uri || bubble.hero.action.data || bubble.hero.action.text || '';
+                            if (!val.trim()) {
+                                alert(`第 ${i + 1} 則 Flex 訊息 ${bubbleNum}圖片點擊內容不能為空`);
+                                setLoading(false);
+                                return;
+                            }
+                        }
+                        const footerContents = bubble.footer?.contents || [];
+                        const buttons = footerContents.filter(c => c.type === 'button');
+                        for (let k = 0; k < buttons.length; k++) {
+                            const btn = buttons[k];
+                            const val = btn.action?.uri || btn.action?.data || btn.action?.text || '';
+                            if (!val.trim()) {
+                                alert(`第 ${i + 1} 則 Flex 訊息 ${bubbleNum}按鈕 #${k + 1} 文字或連結不能為空`);
+                                setLoading(false);
+                                return;
+                            }
+                        }
                     }
                 }
             }
@@ -370,6 +413,30 @@ function Broadcast() {
                 if (!msg.contents || (typeof msg.contents === 'object' && Object.keys(msg.contents).length === 0)) {
                     alert(`第 ${i + 1} 則 Flex 訊息內容未設定`);
                     return;
+                }
+                // Deep validation for Flex links/return text
+                const contents = msg.contents;
+                const bubbles = contents.type === 'carousel' ? contents.contents : [contents];
+                for (let j = 0; j < bubbles.length; j++) {
+                    const bubble = bubbles[j];
+                    const bubbleNum = contents.type === 'carousel' ? `卡片 #${j + 1}: ` : '';
+                    if (bubble.hero?.action) {
+                        const val = bubble.hero.action.uri || bubble.hero.action.data || bubble.hero.action.text || '';
+                        if (!val.trim()) {
+                            alert(`第 ${i + 1} 則 Flex 訊息 ${bubbleNum}圖片點擊內容不能為空`);
+                            return;
+                        }
+                    }
+                    const footerContents = bubble.footer?.contents || [];
+                    const buttons = footerContents.filter(c => c.type === 'button');
+                    for (let k = 0; k < buttons.length; k++) {
+                        const btn = buttons[k];
+                        const val = btn.action?.uri || btn.action?.data || btn.action?.text || '';
+                        if (!val.trim()) {
+                            alert(`第 ${i + 1} 則 Flex 訊息 ${bubbleNum}按鈕 #${k + 1} 文字或連結不能為空`);
+                            return;
+                        }
+                    }
                 }
             }
         }
@@ -833,7 +900,7 @@ function Broadcast() {
     );
 
     if (view === 'create') {
-        const isViewOnly = formData.status === 'sent';
+        const isViewOnly = formData.status === 'sent' || formData.status === 'scheduled';
         return (
             <div style={{ maxWidth: '800px', margin: '0 auto', paddingBottom: '100px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
@@ -1008,15 +1075,10 @@ function Broadcast() {
                                     </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: '5px' }}>
-                                    {(bc.status === 'sent' || bc.status === 'scheduled') ? (
-                                        <>
-                                            <Tooltip title="視覺預覽"><IconButton onClick={() => handlePreviewSent(bc)} sx={{ color: '#888' }}><Eye size={18} /></IconButton></Tooltip>
-                                            {bc.status === 'scheduled' && (
-                                                <Tooltip title="繼續編輯"><IconButton onClick={() => handleEdit(bc)} sx={{ color: 'var(--primary-yellow)' }}><Edit2 size={18} /></IconButton></Tooltip>
-                                            )}
-                                        </>
+                                    {bc.status === 'draft' ? (
+                                        <Tooltip title="編輯草稿"><IconButton onClick={() => handleEdit(bc)} sx={{ color: 'var(--primary-yellow)' }}><Edit2 size={18} /></IconButton></Tooltip>
                                     ) : (
-                                        <Tooltip title="繼續編輯"><IconButton onClick={() => handleEdit(bc)} sx={{ color: 'var(--primary-yellow)' }}><Edit2 size={18} /></IconButton></Tooltip>
+                                        <Tooltip title="查看詳情"><IconButton onClick={() => handlePreviewSent(bc)} sx={{ color: '#888' }}><Eye size={18} /></IconButton></Tooltip>
                                     )}
                                     <Tooltip title="刪除廣播"><IconButton onClick={() => handleDelete(bc.id)} sx={{ color: '#ff4d4d' }}><Trash2 size={18} /></IconButton></Tooltip>
                                 </div>

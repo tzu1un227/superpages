@@ -601,7 +601,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                                         style={{ width: '100%', padding: '8px', background: '#333', border: '1px solid #444', borderRadius: '4px', color: '#fff' }}
                                     />
                                     <div style={{ marginTop: '5px' }}>
-                                        <label style={{ display: 'block', color: '#888', fontSize: '12px', marginBottom: '4px' }}>點擊時標註標籤 (可複選)</label>
+                                        <label style={{ display: 'block', color: '#888', fontSize: '12px', marginBottom: '4px' }}>點擊時標註標籤</label>
                                         <TagInput
                                             tags={currentCard.imageAction.tags || []}
                                             onChange={newTags => updateCurrentCard('imageAction', { ...currentCard.imageAction, tags: newTags })}

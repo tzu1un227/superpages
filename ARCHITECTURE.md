@@ -49,12 +49,19 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 - **Editor Behavior**: The frontend detects this prefix to open the advanced visual editor instead of a plain text input.
 - **Image Upload**: The Flex Message Editor includes an upload button that allows users to upload images directly to a configured GitHub repository. The backend handles the GitHub API integration and returns the raw image URL.
 
-### UI/UX 優化與 Loading 狀態管理 [2026-03-06]
-- **LoadingSpinner**: 實作全局通用載入組件，廣泛應用於 `Projects`, `MessageCenter`, `Broadcast` 頁面。
-- **訊息編輯器內容檢查**: 
-    - 強化 `Projects.jsx` 中的 `handleSave` 驗證，透過深度解析 Flex JSON 確保各類 Component (Image, Button, Text) 內容非空且符合規範。
-    - 統一圖片、影片、音檔訊息的網址必填驗證。
-- **捲軸行為最佳化**: 針對 `MessageCenter.jsx` 的 7 秒自動輪詢更新，導入位置保護機制與 `isAtBottom` 智慧判斷，解決畫面跳動與自動下拉至底部的困擾。
+### UI/UX 優化與內容驗證 (UI/UX Optimization & Content Validation) [2026-03-10]
+- **Loading 狀態管理**: 
+    - 實作 `Projects.jsx` 中的 `pageLoading` 狀態，當切換「自動旅程」分頁或選取不同專案時，會觸發 `LoadingSpinner` 並在 API 回傳前清空舊數據。
+    - 確保用戶在切換專案時，排程列表與統計數據不會出現跨專案的殘留顯示。
+- **進階訊息編輯器深度驗證**: 
+    - 強化 `Projects.jsx` (RichMessageModal) 與 `Broadcast.jsx` 的儲存驗證邏輯。
+    - 深度解析 Flex Message JSON 結構，針對所有卡片 (Bubbles) 的「圖片點擊動作 (Hero Action)」與「按鈕動作 (Footer Buttons)」進行非空檢查。
+    - 若連結 (URI)、回傳文字 (Text/Data) 為空，系統將會攔截儲存並提示使用者補齊。
+- **參與用戶列表優化**:
+    - **隱私與簡潔**: 移除主清單與手動加入清單中的 User ID 顯示，優先顯示使用者名稱，若無則顯示「未命名」。
+    - **標籤解析**: 針對手動加入彈窗 (`UserSelectModal`) 中的標籤顯示，實作了兼容 JSON List (`["A","B"]`) 與 Pipe 分隔標記 (`|A|B|`) 的強健解析邏輯，確保標籤能作為獨立欄位美觀呈現。
+
+- **捲軸行為最佳化 (Message Center)**: 針對 `MessageCenter.jsx` 的 7 秒自動輪詢更新，導入位置保護機制與 `isAtBottom` 智慧判斷，解決畫面跳動與自動下拉至底部的困擾。
 - **廣播預覽**: 實作前端 `messages` 列表預覽邏輯，提取各類訊息特徵（Type Icon + 文字截斷）顯示於廣播歷史清單中。
 
  ### User Tagging (用戶標註)

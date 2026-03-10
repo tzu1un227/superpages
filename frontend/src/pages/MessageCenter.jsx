@@ -70,22 +70,36 @@ function MessageCenter() {
             const resp = await api.get(`/history/${userId}`);
             setMessages(resp.data);
             if (!isPolling) {
-                api.post(`/users/${userId}/read`).catch(e => console.error("Failed to mark as read", e));
+                api.post(`/users/${userId}/read`).then(() => {
+                    // Update local unread count immediately
+                    setUsers(prev => prev.map(u => u.user_id === userId ? { ...u, unread_count: 0 } : u));
+                }).catch(e => console.error("Failed to mark as read", e));
             }
         } catch (err) {
             console.error('Error fetching history:', err);
         }
     };
 
-    // 7 秒自動更新
+    // 自動更新：歷史訊息 7 秒一次，用戶清單 15 秒一次
     useEffect(() => {
-        const interval = setInterval(() => {
+        const historyInterval = setInterval(() => {
             if (selectedUser) {
                 fetchHistory(selectedUser, true);
             }
-        }, 7000); // Polling every 7 seconds
-        return () => clearInterval(interval);
-    }, [selectedUser]);
+        }, 7000);
+
+        const usersInterval = setInterval(() => {
+            // 只有在沒有特定搜尋時才自動更新清單內容，避免干擾使用者輸入
+            if (!searchQuery) {
+                fetchUsers(searchQuery, selectedTagFilters);
+            }
+        }, 15000);
+
+        return () => {
+            clearInterval(historyInterval);
+            clearInterval(usersInterval);
+        };
+    }, [selectedUser, searchQuery, selectedTagFilters]);
 
     // 捲軸功能與新訊息偵測
     const messagesEndRef = useRef(null);
@@ -202,6 +216,11 @@ function MessageCenter() {
             });
             alert(`已新增標籤: ${tagInput}`);
             setTagInput('');
+            // Update local state immediately for better UX
+            setUsers(prev => prev.map(u => u.user_id === selectedUser ? {
+                ...u,
+                tags: u.tags ? (typeof u.tags === 'string' ? (u.tags.includes('|') ? `${u.tags}|${tagInput}` : `${u.tags},${tagInput}`) : [...u.tags, tagInput]) : tagInput
+            } : u));
             setTimeout(() => {
                 fetchUsers(searchQuery, selectedTagFilters);
                 fetchAvailableTags();
@@ -222,6 +241,15 @@ function MessageCenter() {
                 api_index: 0
             });
             alert(`已刪除標籤: ${tagName}`);
+            // Update local state immediately
+            setUsers(prev => prev.map(u => {
+                if (u.user_id === selectedUser) {
+                    const currentTags = getCurrentUserTags(u);
+                    const newTags = currentTags.filter(t => t !== tagName).join('|');
+                    return { ...u, tags: newTags };
+                }
+                return u;
+            }));
             setTimeout(() => fetchUsers(searchQuery, selectedTagFilters), 1000);
         } catch (err) {
             alert('刪除標籤失敗');
@@ -485,6 +513,20 @@ function MessageCenter() {
             <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0', position: 'relative' }}>
                 {selectedUser ? (
                     <>
+                        {/* 延遲提醒 */}
+                        <div style={{
+                            backgroundColor: 'rgba(255, 215, 0, 0.1)',
+                            borderBottom: '1px solid rgba(255, 215, 0, 0.2)',
+                            padding: '8px 20px',
+                            color: 'var(--primary-yellow)',
+                            fontSize: '13px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                        }}>
+                            <Info size={14} /> 新訊息將於 5-10 秒鐘延遲收到
+                        </div>
+
                         {/* 聊天室 Header：用戶名 + 標籤 + 新增標籤 */}
                         <div style={{ padding: '20px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                             <div>
@@ -633,23 +675,52 @@ function MessageCenter() {
                                     // 內部元件：處理帶有 Token 的圖片載入
                                     const AuthenticatedImage = ({ src, alt, style, onClick }) => {
                                         const [imgUrl, setImgUrl] = useState(null);
+                                        const [error, setError] = useState(false);
+                                        const [retryCount, setRetryCount] = useState(0);
+
                                         useEffect(() => {
                                             let isMounted = true;
-                                            api.get(src, { responseType: 'blob' })
+                                            setError(false);
+
+                                            api.get(src, { responseType: 'blob', timeout: 10000 })
                                                 .then(response => {
                                                     if (isMounted) {
                                                         const url = URL.createObjectURL(response.data);
                                                         setImgUrl(url);
                                                     }
                                                 })
-                                                .catch(err => console.error("Failed to load authenticated image:", err));
+                                                .catch(err => {
+                                                    console.error("Failed to load authenticated image:", err);
+                                                    if (isMounted) {
+                                                        setError(true);
+                                                        // 自動重試一次
+                                                        if (retryCount < 1) {
+                                                            setTimeout(() => setRetryCount(c => c + 1), 2000);
+                                                        }
+                                                    }
+                                                });
                                             return () => {
                                                 isMounted = false;
+                                                // 這裡不立即 revoke，交給下一次 effect 或元件卸載處理，避免閃爍或載入中斷
+                                            };
+                                        }, [src, retryCount]);
+
+                                        // 卸載時清理
+                                        useEffect(() => {
+                                            return () => {
                                                 if (imgUrl) URL.revokeObjectURL(imgUrl);
                                             };
-                                        }, [src]);
+                                        }, [imgUrl]);
 
-                                        if (!imgUrl) return <div style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#222', color: '#666', fontSize: '10px' }}>載入中...</div>;
+                                        if (error && retryCount >= 1) return (
+                                            <div style={{ ...style, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#333', color: '#888', padding: '10px' }}>
+                                                <ImageIcon size={20} />
+                                                <div style={{ fontSize: '10px', marginTop: '5px' }}>圖片載入失敗</div>
+                                                <button onClick={() => setRetryCount(0)} style={{ fontSize: '10px', marginTop: '5px', padding: '2px 8px' }}>重試</button>
+                                            </div>
+                                        );
+
+                                        if (!imgUrl) return <div style={{ ...style, width: '150px', height: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#222', color: '#666', fontSize: '10px' }}>載入中...</div>;
                                         return <img src={imgUrl} alt={alt} style={style} onClick={onClick} />;
                                     };
 
