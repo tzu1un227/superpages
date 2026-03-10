@@ -136,7 +136,12 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - **Total Calculation**: The backend now also returns `total_counts` for the selected period. The "Effective Friend Count" card displays a strictly distinct user count for the entire duration, avoiding double-counting of recurring active users.
     - **Unfollow Tracking**: The Line-Bot engine captures `UnfollowEvent` and records it in history as an `Unfollow` category, which is then aggregated by the dashboard.
     - **Keyword Ranking**: Fetches data from `/api/statistics/keywords` (Top keyword rankings).
-    - **LINE Insight Integration**: The backend fetches "Total Followers" (總好友數) from the LINE Messaging API with a 2-day fallback logic.
+    - **WebSocket Dynamic Resolution**: `send_socket_event` resolves `bot_name` and `namespace` from `OAConfig`, defaulting to `websoc`. This ensures compatibility with both local and Heroku-hosted bot engines without hardcoding.
+- **WebSocket Stability (Heroku)**: Uses single-namespace connection handshakes to avoid Heroku's multi-namespace connection failures.
+- **Message Center UI Enhancements**:
+  - Integrated `useToast` for reliable 5-second auto-hide notifications.
+  - Implemented immediate state updates for tag addition/deletion to prevent UI lag.
+  - Resolved `ReferenceError`s caused by deprecated `showToast` calls.
 
 ### Visualization
 - Uses `recharts` for LineCharts (Trend Analysis) and BarCharts (Keyword Ranking).

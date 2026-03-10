@@ -1,8 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
-import api from '../api';
 import { Send, User, Info, Search, Tag, X, Image as ImageIcon, Mic, Video, Smile, ArrowDown, RefreshCw } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { useToast } from '../contexts/ToastContext';
 
 function MessageCenter() {
     const location = useLocation();
@@ -12,6 +10,7 @@ function MessageCenter() {
     const [input, setInput] = useState('');
     const [tagInput, setTagInput] = useState('');
     const [loading, setLoading] = useState(false);
+    const { toast } = useToast();
 
     // --- 搜尋與篩選狀態 ---
     const [searchQuery, setSearchQuery] = useState('');          // 用戶清單搜尋（user_id / 名稱）
@@ -198,8 +197,9 @@ function MessageCenter() {
             });
             setMessages([...messages, { content: input, timestamp: new Date(), category: 'Message', user_id: 'yzuadmin' }]);
             setInput('');
+            setInput('');
         } catch (err) {
-            showToast('發送失敗: ' + err.message, 'error');
+            toast('發送失敗: ' + err.message, 'error');
         } finally {
             setLoading(false);
         }
@@ -214,19 +214,25 @@ function MessageCenter() {
                 type: 'Sensor',
                 api_index: 0
             });
-            showToast(`已新增標籤: ${tagInput}`, 'success');
+            toast(`已新增標籤: ${tagInput}`, 'success');
             setTagInput('');
             // Update local state immediately for better UX
-            setUsers(prev => prev.map(u => u.user_id === selectedUser ? {
-                ...u,
-                tags: u.tags ? (typeof u.tags === 'string' ? (u.tags.includes('|') ? `${u.tags}|${tagInput}` : `${u.tags},${tagInput}`) : [...u.tags, tagInput]) : tagInput
-            } : u));
+            setUsers(prev => prev.map(u => {
+                if (u.user_id === selectedUser) {
+                    const currentTags = getCurrentUserTags(u);
+                    if (!currentTags.includes(tagInput)) {
+                        const newTags = [...currentTags, tagInput].join('|');
+                        return { ...u, tags: newTags };
+                    }
+                }
+                return u;
+            }));
             setTimeout(() => {
                 fetchUsers(searchQuery, selectedTagFilters);
                 fetchAvailableTags();
-            }, 1000);
+            }, 1500);
         } catch (err) {
-            showToast('新增標籤失敗', 'error');
+            toast('新增標籤失敗', 'error');
         }
     };
 
@@ -240,7 +246,7 @@ function MessageCenter() {
                 type: 'Sensor',
                 api_index: 0
             });
-            showToast(`已刪除標籤: ${tagName}`, 'success');
+            toast(`已刪除標籤: ${tagName}`, 'success');
             // Update local state immediately
             setUsers(prev => prev.map(u => {
                 if (u.user_id === selectedUser) {
@@ -250,9 +256,9 @@ function MessageCenter() {
                 }
                 return u;
             }));
-            setTimeout(() => fetchUsers(searchQuery, selectedTagFilters), 1000);
+            setTimeout(() => fetchUsers(searchQuery, selectedTagFilters), 1500);
         } catch (err) {
-            alert('刪除標籤失敗');
+            toast('刪除標籤失敗', 'error');
         }
     };
 

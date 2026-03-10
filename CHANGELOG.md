@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **訊息中心與 WebSocket 通訊強化 (Message Center & WebSocket Enhancements)** [2026-03-10]:
+  - **訊息中心 UI/UX 優化**：
+    - **標籤管理修復**：修正新增標籤不即時顯示的問題；實作標籤刪除後的即時狀態更新與伺服器同步。
+    - **通知系統整合**：實作 `useToast` 替換傳統 `alert` 與未定義的 `showToast` 函式，提供 5 秒自動隱藏的視覺回饋。
+    - **防錯機制**：修正標籤刪除時因 `ReferenceError` 導致的虛假失敗提示（實則資料庫已成功刪除）。
+  - **WebSocket 動態路由與穩定性**：
+    - **動態 Namespace 解析**：後端 `send_socket_event` 支援根據 `OAConfig` 自動解析 `bot_name` 與 `namespace`，優先順序為 `socket_name` > `websoc` (預設) > `app_name`。
+    - **連線機制優化**：針對 Heroku 環境，將 WebSocket 連線改為單一 Namespace 握手模式，解決「One or more namespaces failed to connect」之連線中斷問題。
+    - **跨環境相容性**：統一專案預設 WebSocket 名稱為 `websoc`，與 5013 及 yzulabuse 機器人引擎保持一致。
 - **自動旅程與廣播 UI/UX 深度優化 (Journey & Broadcast UI/UX Refinement)** [2026-03-10]:
   - **進階訊息編輯器驗證強化**：
     - 實作 Flex 訊息深度驗證：在「自動旅程」與「廣播訊息」中，儲存或發送前會檢查 Flex 卡片的圖片點擊動作、按鈕連結及回傳文字，確保不為空值，防止發送失敗。
