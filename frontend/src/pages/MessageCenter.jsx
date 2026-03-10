@@ -302,6 +302,33 @@ function MessageCenter() {
         return uniqueTags;
     };
 
+    // 輔助函式：格式化側邊欄的最後一則訊息
+    const formatSidebarMessage = (msgString) => {
+        if (!msgString) return '';
+        try {
+            const parsed = JSON.parse(msgString);
+            if (parsed && typeof parsed === 'object' && parsed.type) {
+                switch (parsed.type) {
+                    case 'text': return parsed.text || '[文字訊息]';
+                    case 'image': return '[圖片訊息]';
+                    case 'video': return '[影片訊息]';
+                    case 'audio': return '[語音訊息]';
+                    case 'location': return '[位置訊息]';
+                    case 'sticker': return '[貼圖訊息]';
+                    case 'flex': return '[Flex 訊息]';
+                    case 'template': return '[樣板訊息]';
+                    default: return `[${parsed.type}訊息]`;
+                }
+            }
+        } catch (e) {
+            // 解析失敗，非 JSON 格式
+        }
+        if (typeof msgString === 'string' && msgString.startsWith('MSG|')) {
+            return msgString.substring(4);
+        }
+        return msgString;
+    };
+
     // 輔助函式：提取訊息的可搜尋文本（解決 JSON Unicode 編碼問題）
     const getSearchableText = (m) => {
         let content = m.content || '';
@@ -495,7 +522,7 @@ function MessageCenter() {
                                             {u.name && (
                                                 <p style={{ fontSize: '11px', color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.user_id}</p>
                                             )}
-                                            <p style={{ fontSize: '12px', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.last_message || '尚無訊息'}</p>
+                                            <p style={{ fontSize: '12px', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatSidebarMessage(u.last_message) || '尚無訊息'}</p>
                                             {userTags.length > 0 && (
                                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', marginTop: '4px' }}>
                                                     {userTags.slice(0, 3).map((t, i) => (

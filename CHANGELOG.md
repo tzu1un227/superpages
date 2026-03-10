@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 - **訊息中心與 WebSocket 通訊強化 (Message Center & WebSocket Enhancements)** [2026-03-10]:
   - **訊息中心 UI/UX 優化**：
     - **標籤管理修復**：修正新增標籤不即時顯示的問題；實作標籤刪除後的即時狀態更新與伺服器同步。
+    - **側邊欄訊息解析**：實作系統推播訊息 (sys_reply) 解析，將原始 JSON 載荷轉化為可讀文字（如：[圖片訊息] 或實際文字），提升介面友善度。
     - **通知系統整合**：實作 `useToast` 替換傳統 `alert` 與未定義的 `showToast` 函式，提供 5 秒自動隱藏的視覺回饋。
     - **防錯機制**：修正標籤刪除時因 `ReferenceError` 導致的虛假失敗提示（實則資料庫已成功刪除）。
   - **WebSocket 動態路由與穩定性**：
