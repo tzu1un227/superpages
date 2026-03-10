@@ -1620,7 +1620,7 @@ def mark_user_as_read(user_id):
         # Reset unread_count to 0
         cur.execute(f'UPDATE "Private_var:{app_id}" SET value = \'0\' WHERE user_id = %s AND name = \'unread_count\'', (user_id,))
         if cur.rowcount == 0:
-            cur.execute(f'INSERT INTO "Private_var:{app_id}" (user_id, name, value) VALUES (%s, \'unread_count\', \'0\')', (user_id, 'unread_count', '0'))
+            cur.execute(f'INSERT INTO "Private_var:{app_id}" (user_id, name, value) VALUES (%s, \'unread_count\', \'0\')', (user_id,))
         conn.commit()
         cur.close()
         conn.close()
