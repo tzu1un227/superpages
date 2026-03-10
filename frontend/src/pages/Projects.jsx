@@ -6,6 +6,7 @@ import FlexMessageEditor from '../components/FlexMessageEditor';
 import JourneyPreview from '../components/JourneyPreview';
 import { downloadCSV } from '../utils/csvUtils';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { useToast } from '../contexts/ToastContext';
 import {
     LineChart,
     Line,
@@ -21,6 +22,7 @@ import {
 
 const ProjectsManagement = () => {
     const location = useLocation();
+    const { showToast } = useToast();
 
     // Project Preview State & Handlers
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
@@ -81,39 +83,39 @@ const ProjectsManagement = () => {
                 const msgNum = i + 1;
                 if (m.OTYPE === 'TextSendMessage') {
                     if (!m.text || !m.text.trim()) {
-                        alert(`第 ${msgNum} 則文字訊息內容不能為空`);
+                        showToast(`第 ${msgNum} 則文字訊息內容不能為空`, 'warning');
                         return;
                     }
                     if (m.text.length > 3000) {
-                        alert(`第 ${msgNum} 則文字訊息內容不能超過 3000 字`);
+                        showToast(`第 ${msgNum} 則文字訊息內容不能超過 3000 字`, 'warning');
                         return;
                     }
                 } else if (m.OTYPE === 'ImageSendMessage') {
                     if (!m.original_content_url || !m.original_content_url.trim()) {
-                        alert(`第 ${msgNum} 則圖片訊息網址不能為空`);
+                        showToast(`第 ${msgNum} 則圖片訊息網址不能為空`, 'warning');
                         return;
                     }
                 } else if (m.OTYPE === 'VideoSendMessage') {
                     if (!m.original_content_url || !m.original_content_url.trim()) {
-                        alert(`第 ${msgNum} 則影片訊息網址不能為空`);
+                        showToast(`第 ${msgNum} 則影片訊息網址不能為空`, 'warning');
                         return;
                     }
                     if (!m.preview_image_url || !m.preview_image_url.trim()) {
-                        alert(`第 ${msgNum} 則影片預覽圖網址不能為空`);
+                        showToast(`第 ${msgNum} 則影片預覽圖網址不能為空`, 'warning');
                         return;
                     }
                 } else if (m.OTYPE === 'AudioSendMessage') {
                     if (!m.original_content_url || !m.original_content_url.trim()) {
-                        alert(`第 ${msgNum} 則音檔訊息網址不能為空`);
+                        showToast(`第 ${msgNum} 則音檔訊息網址不能為空`, 'warning');
                         return;
                     }
                 } else if (m.OTYPE === 'FlexSendMessage') {
                     if (!m.alt_text || !m.alt_text.trim()) {
-                        alert(`第 ${msgNum} 則 Flex 訊息替代文字不能為空`);
+                        showToast(`第 ${msgNum} 則 Flex 訊息替代文字不能為空`, 'warning');
                         return;
                     }
                     if (!m.contents) {
-                        alert(`第 ${msgNum} 則 Flex 訊息內容不能為空`);
+                        showToast(`第 ${msgNum} 則 Flex 訊息內容不能為空`, 'warning');
                         return;
                     }
                 }
@@ -121,7 +123,7 @@ const ProjectsManagement = () => {
 
             setPreviewSteps(steps);
         } catch (err) {
-            alert('預覽生成失敗: ' + err.message);
+            showToast('預覽生成失敗: ' + err.message, 'error');
         } finally {
             setPreviewLoading(false);
         }
@@ -400,7 +402,7 @@ const ProjectsManagement = () => {
             linkElement.setAttribute('download', exportFileDefaultName);
             linkElement.click();
         } catch (err) {
-            alert('匯出失敗: ' + err.message);
+            showToast('匯出失敗: ' + err.message, 'error');
         }
     };
 
@@ -422,10 +424,10 @@ const ProjectsManagement = () => {
             try {
                 const jsonData = JSON.parse(event.target.result);
                 await api.post(`/projects/${selectedProjectId}/schedules/import`, jsonData);
-                alert('匯入成功');
+                showToast('匯入成功', 'success');
                 fetchSchedules();
             } catch (err) {
-                alert('匯入失敗: ' + err.message);
+                showToast('匯入失敗: ' + err.message, 'error');
             }
         };
         reader.readAsText(file);
@@ -443,7 +445,7 @@ const ProjectsManagement = () => {
         // Restrict user addition if no schedules are created for the selected project
         const projectSchedules = schedules.filter(s => s.project_id == selectedProjectId);
         if (projectSchedules.length === 0) {
-            alert('此專案尚未設定任何排程步驟，請先新增排程後再加入用戶。');
+            showToast('此專案尚未設定任何排程步驟，請先新增排程後再加入用戶。', 'warning');
             return;
         }
         setIsUserSelectModalOpen(true);
@@ -453,11 +455,11 @@ const ProjectsManagement = () => {
         try {
             // Call backend restart endpoint directly - this inserts cron_table with status='active'
             await api.post(`/projects/${selectedProjectId}/users/${userId}/restart`);
-            alert(`已成功加入用戶 (User: ${userId}, Project: ${selectedProjectId})`);
+            showToast(`已成功加入用戶 (User: ${userId})`, 'success');
             setIsUserSelectModalOpen(false);
             setTimeout(() => fetchProjectUsers(selectedProjectId), 1000);
         } catch (err) {
-            alert('加入用戶失敗: ' + (err.response?.data?.message || err.message));
+            showToast('加入用戶失敗: ' + (err.response?.data?.message || err.message), 'error');
         }
     };
 
@@ -467,7 +469,7 @@ const ProjectsManagement = () => {
             await api.delete(`/projects/${selectedProjectId}/users/${userId}`);
             fetchProjectUsers(selectedProjectId);
         } catch (err) {
-            alert('移除失敗: ' + (err.response?.data?.message || err.message));
+            showToast('移除失敗: ' + (err.response?.data?.message || err.message), 'error');
         }
     };
 
@@ -476,9 +478,9 @@ const ProjectsManagement = () => {
         try {
             await api.post(`/projects/${selectedProjectId}/users/${userId}/restart`);
             fetchProjectUsers(selectedProjectId);
-            alert('已重置用戶進度');
+            showToast('已重置用戶進度', 'success');
         } catch (err) {
-            alert('重置失敗: ' + (err.response?.data?.message || err.message));
+            showToast('重置失敗: ' + (err.response?.data?.message || err.message), 'error');
         }
     };
 
@@ -1475,7 +1477,7 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
             if (err.response && err.response.status === 404) {
                 setMessages([createEmptyMsg()]);
             } else {
-                alert('讀取失敗: ' + err.message);
+                showToast('讀取失敗: ' + err.message, 'error');
             }
         } finally {
             setLoading(false);
@@ -1559,7 +1561,7 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
             onSave(tag, previewText, payloadMessages.length > 1);
             onClose();
         } catch (err) {
-            alert('儲存失敗: ' + err.message);
+            showToast('儲存失敗: ' + err.message, 'error');
         } finally {
             setLoading(false);
         }

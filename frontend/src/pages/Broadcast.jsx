@@ -17,10 +17,12 @@ import {
 import FlexMessageEditor from '../components/FlexMessageEditor';
 import JourneyPreview from '../components/JourneyPreview';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { useToast } from '../contexts/ToastContext';
 
 function Broadcast() {
     const { oaId } = useParams();
     const location = useLocation();
+    const { showToast } = useToast();
 
     // View state
     const [view, setView] = useState('list'); // 'list' or 'create'
@@ -378,9 +380,9 @@ function Broadcast() {
                 const res = await api.post('/broadcast/', payload);
                 setFormData({ ...formData, id: res.data.id, message_tag: msgTag });
             }
-            alert('草稿已儲存');
+            showToast('草稿已儲存', 'success');
         } catch (err) {
-            alert('儲存失敗: ' + err.message);
+            showToast('儲存失敗: ' + err.message, 'error');
         } finally {
             setLoading(false);
         }
@@ -388,7 +390,7 @@ function Broadcast() {
 
     const finishBroadcast = async () => {
         if (formData.send_type === 'scheduled' && !formData.scheduled_at) {
-            alert('請選擇預約時間');
+            showToast('請選擇預約時間', 'warning');
             return;
         }
 
@@ -397,21 +399,21 @@ function Broadcast() {
             const msg = formData.messages[i];
             if (msg.OTYPE === 'TextSendMessage') {
                 if (!msg.text || !msg.text.trim()) {
-                    alert(`第 ${i + 1} 則文字訊息內容不能為空`);
+                    showToast(`第 ${i + 1} 則文字訊息內容不能為空`, 'warning');
                     return;
                 }
                 if (msg.text.length > 3000) {
-                    alert(`第 ${i + 1} 則文字訊息內容不能超過 3000 字`);
+                    showToast(`第 ${i + 1} 則文字訊息內容不能超過 3000 字`, 'warning');
                     return;
                 }
             } else if (msg.OTYPE === 'ImageSendMessage' || msg.OTYPE === 'VideoSendMessage' || msg.OTYPE === 'AudioSendMessage') {
                 if (!msg.original_content_url) {
-                    alert(`第 ${i + 1} 則訊息網址（URL）不能為空`);
+                    showToast(`第 ${i + 1} 則訊息網址（URL）不能為空`, 'warning');
                     return;
                 }
             } else if (msg.OTYPE === 'FlexSendMessage') {
                 if (!msg.contents || (typeof msg.contents === 'object' && Object.keys(msg.contents).length === 0)) {
-                    alert(`第 ${i + 1} 則 Flex 訊息內容未設定`);
+                    showToast(`第 ${i + 1} 則 Flex 訊息內容未設定`, 'warning');
                     return;
                 }
                 // Deep validation for Flex links/return text
@@ -423,7 +425,7 @@ function Broadcast() {
                     if (bubble.hero?.action) {
                         const val = bubble.hero.action.uri || bubble.hero.action.data || bubble.hero.action.text || '';
                         if (!val.trim()) {
-                            alert(`第 ${i + 1} 則 Flex 訊息 ${bubbleNum}圖片點擊內容不能為空`);
+                            showToast(`第 ${i + 1} 則 Flex 訊息 ${bubbleNum}圖片點擊內容不能為空`, 'warning');
                             return;
                         }
                     }
@@ -433,7 +435,7 @@ function Broadcast() {
                         const btn = buttons[k];
                         const val = btn.action?.uri || btn.action?.data || btn.action?.text || '';
                         if (!val.trim()) {
-                            alert(`第 ${i + 1} 則 Flex 訊息 ${bubbleNum}按鈕 #${k + 1} 文字或連結不能為空`);
+                            showToast(`第 ${i + 1} 則 Flex 訊息 ${bubbleNum}按鈕 #${k + 1} 文字或連結不能為空`, 'warning');
                             return;
                         }
                     }
@@ -472,11 +474,11 @@ function Broadcast() {
             // 3. Initiate sending/scheduling
             await api.post(`/broadcast/${bcId}/execute`);
 
-            alert(formData.send_type === 'scheduled' ? '已成功預約發送！' : '群發訊息已成功送出！');
+            showToast(formData.send_type === 'scheduled' ? '已成功預約發送！' : '群發訊息已成功送出！', 'success');
             setView('list');
             fetchBroadcasts();
         } catch (err) {
-            alert('操作失敗: ' + err.message);
+            showToast('操作失敗: ' + (err.response?.data?.message || err.message), 'error');
         } finally {
             setLoading(false);
         }
@@ -750,7 +752,7 @@ function Broadcast() {
                                                     msgs[idx].preview_image_url = res.data.url;
                                                     setFormData({ ...formData, messages: msgs });
                                                 } catch (err) {
-                                                    alert('上傳失敗');
+                                                    showToast('上傳失敗', 'error');
                                                 } finally {
                                                     e.target.value = ''; // Reset input to allow re-uploading same file
                                                 }
@@ -796,9 +798,14 @@ function Broadcast() {
                                         setEditingMsgIndex(idx);
                                         setIsPreviewOpen(true);
                                     }}>
-                                        <Eye size={16} /> 預覽內容
+                                        <Eye size={16} /> 視窗預覽
                                     </button>
                                 </div>
+                                {msg.contents && (
+                                    <div style={{ marginTop: '20px', backgroundColor: '#8CAEC5', padding: '15px', borderRadius: '8px', transform: 'scale(0.8)', transformOrigin: 'top center' }}>
+                                        <JourneyPreview steps={[{ OTYPE: 'FlexSendMessage', contents: msg.contents }]} />
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

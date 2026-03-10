@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import api from '../api';
-import { Send, User, Search, Tag, X, Image as ImageIcon, Mic, Video, Smile, ArrowDown, RefreshCw } from 'lucide-react';
+import { Send, User, Info, Search, Tag, X, Image as ImageIcon, Mic, Video, Smile, ArrowDown, RefreshCw } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 function MessageCenter() {

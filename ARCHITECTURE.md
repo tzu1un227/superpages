@@ -49,6 +49,12 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 - **Editor Behavior**: The frontend detects this prefix to open the advanced visual editor instead of a plain text input.
 - **Image Upload**: The Flex Message Editor includes an upload button that allows users to upload images directly to a configured GitHub repository. The backend handles the GitHub API integration and returns the raw image URL.
 
+### UI/UX Optimization & Content Validation
+- **Global Toast Notification**: A centralized `ToastContext` and `Toast` component handle system notifications, providing non-blocking feedback that auto-hides after 5 seconds.
+- **Broadcast Content Preview**: The backend `/broadcast/` list endpoint performs on-the-fly reconciliation and fetches message summaries from the OA's `QA_bank` for responsive frontend previews.
+- **Inline Flex Preview**: The broadcast editor incorporates a scaled-down `JourneyPreview` to provide immediate visual feedback for Flex message structures without context switching.
+- **Rich Menu Localization**: TERMINOLOGY in the Rich Menu module is standardized to Chinese to improve usability for non-English speakers.
+
 ### UI/UX 優化與內容驗證 (UI/UX Optimization & Content Validation) [2026-03-10]
 - **Loading 狀態管理**: 
     - 實作 `Projects.jsx` 中的 `pageLoading` 狀態，當切換「自動旅程」分頁或選取不同專案時，會觸發 `LoadingSpinner` 並在 API 回傳前清空舊數據。

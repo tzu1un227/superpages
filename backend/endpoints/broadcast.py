@@ -107,8 +107,41 @@ def list_broadcasts():
             print(f"Reconciliation error: {e}")
     # --- End Status Reconciliation ---
     
-    return jsonify({
-        'broadcasts': [{
+    # Fetch message summaries for preview
+    broadcast_list = []
+    for b in broadcasts:
+        summary = []
+        if b.message_tag and oa.db_url:
+            try:
+                conn = get_db_connection(oa.db_url)
+                # Use RealDictCursor to handle JSON more easily
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("SELECT msg_rpy FROM qa_bank WHERE tag = %s", (b.message_tag,))
+                    row = cur.fetchone()
+                    if row and row['msg_rpy']:
+                        msgs = row['msg_rpy']
+                        if isinstance(msgs, str):
+                            msgs = json.loads(msgs)
+                        
+                        for m in msgs[:3]: # Return up to 3 for preview
+                            # Normalize message structure
+                            msg_obj = m
+                            if isinstance(m, str):
+                                try: msg_obj = json.loads(m)
+                                except: msg_obj = {"OTYPE": "TextSendMessage", "text": m}
+                            
+                            if "Line" in msg_obj: msg_obj = msg_obj["Line"]
+                            
+                            summary.append({
+                                "OTYPE": msg_obj.get("OTYPE", "TextSendMessage"),
+                                "text": msg_obj.get("text", "")[:50] if msg_obj.get("text") else "",
+                                "contents": msg_obj.get("contents") # For flex preview
+                            })
+                conn.close()
+            except Exception as e:
+                print(f"Error fetching summary for {b.message_tag}: {e}")
+
+        broadcast_list.append({
             'id': b.id,
             'name': b.name,
             'target_type': b.target_type,
@@ -117,8 +150,12 @@ def list_broadcasts():
             'send_type': b.send_type,
             'status': b.status,
             'scheduled_at': b.scheduled_at.isoformat() if b.scheduled_at else None,
-            'created_at': b.created_at.isoformat()
-        } for b in broadcasts]
+            'created_at': b.created_at.isoformat(),
+            'messages': summary # Added for preview
+        })
+    
+    return jsonify({
+        'broadcasts': broadcast_list
     })
 
 @broadcast_bp.route('/', methods=['POST'])

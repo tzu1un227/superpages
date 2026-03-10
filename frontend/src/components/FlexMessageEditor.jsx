@@ -636,7 +636,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                                 {/* Buttons */}
                                 <div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                        <label style={{ display: 'block', color: '#aaa', fontSize: '13px' }}>按鈕 (1-3個)</label>
+                                        <label style={{ display: 'block', color: '#aaa', fontSize: '13px' }}>按鈕 (0-3個)</label>
                                         {currentCard.buttons.length < 3 && (
                                             <button onClick={addCardButton} style={{ fontSize: '12px', color: 'var(--primary-yellow)', background: 'transparent', border: '1px dashed #666', padding: '2px 8px', cursor: 'pointer' }}>+ 新增按鈕</button>
                                         )}
@@ -647,7 +647,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                                             <div key={idx} style={{ padding: '10px', background: '#333', borderRadius: '8px', border: '1px solid #444' }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
                                                     <span style={{ fontSize: '12px', color: '#888' }}>按鈕 {idx + 1}</span>
-                                                    {currentCard.buttons.length > 1 && <X size={14} color="#FF4D4D" onClick={() => removeCardButton(idx)} style={{ cursor: 'pointer' }} />}
+                                                    <X size={14} color="#FF4D4D" onClick={() => removeCardButton(idx)} style={{ cursor: 'pointer' }} />
                                                 </div>
                                                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '10px', marginBottom: '5px' }}>
                                                     <input

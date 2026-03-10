@@ -13,6 +13,8 @@ import RichMenu from './pages/RichMenu';
 import AdminPage from './pages/AdminPage';
 import Questionnaire from './pages/Questionnaire';
 import api from './api';
+import { ToastProvider, useToast } from './contexts/ToastContext';
+import Toast from './components/Toast';
 import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send, Gift, Shield, LayoutGrid, ClipboardList } from 'lucide-react';
 
 const GOOGLE_CLIENT_ID = "909213734319-feblc4e1vhgu7e0r340e43h9aabc8iqf.apps.googleusercontent.com";
@@ -182,9 +184,12 @@ const AppContent = () => {
 function App() {
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <AppContent />
+          <Toast />
+        </AuthProvider>
+      </ToastProvider>
     </GoogleOAuthProvider>
   );
 }

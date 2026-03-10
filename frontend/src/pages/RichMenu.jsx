@@ -5,8 +5,10 @@ import {
     Plus, Trash2, Save, Image as ImageIcon, Settings,
     MousePointer2, Move, Maximize, Check, X, AlertCircle,
     ChevronDown, ChevronUp, ExternalLink, MessageSquare,
-    CreditCard, Repeat, Eye
+    CreditCard, Repeat, Eye, Edit2, RefreshCw, ChevronLeft, ChevronRight, LayoutGrid
 } from 'lucide-react';
+import LoadingSpinner from '../components/LoadingSpinner';
+import { useToast } from '../contexts/ToastContext';
 
 const ACTION_TYPES = [
     { value: 'message', label: '傳送文字', icon: MessageSquare },
@@ -17,6 +19,7 @@ const ACTION_TYPES = [
 
 function RichMenu() {
     const { oaId } = useParams();
+    const { showToast } = useToast();
     const [menus, setMenus] = useState([]);
     const [loading, setLoading] = useState(false);
     const [view, setView] = useState('list'); // 'list' or 'edit'
@@ -64,6 +67,7 @@ function RichMenu() {
             setAllAliases((aliasRes.data.aliases || []).map(a => a.richMenuAliasId));
         } catch (err) {
             console.error('Failed to fetch menus or aliases:', err);
+            showToast('載入圖文選單失敗', 'error');
         } finally {
             setLoading(false);
         }
@@ -82,6 +86,7 @@ function RichMenu() {
             return URL.createObjectURL(response.data);
         } catch (err) {
             console.error('Failed to fetch image with auth:', err);
+            showToast('載入圖片失敗', 'error');
             return null;
         }
     };
@@ -141,13 +146,13 @@ function RichMenu() {
 
         // 1. Check file type
         if (!file.type.startsWith('image/')) {
-            alert('錯誤：必須為圖片檔 (JPEG/PNG)');
+            showToast('錯誤：必須為圖片檔 (JPEG/PNG)', 'error');
             return;
         }
 
         // 2. Check file size (1MB)
         if (file.size > 1024 * 1024) {
-            alert('錯誤：檔案大小不可大於 1MB');
+            showToast('錯誤：檔案大小不可大於 1MB', 'error');
             return;
         }
 
@@ -159,7 +164,7 @@ function RichMenu() {
                 const { width, height } = img;
                 const isValidSize = (width === 2500 && (height === 1686 || height === 843));
                 if (!isValidSize) {
-                    alert('錯誤：圖片尺寸必須為 2500x1686 或 2500x843px');
+                    showToast('錯誤：圖片尺寸必須為 2500x1686 或 2500x843px', 'error');
                     return;
                 }
 
@@ -170,7 +175,7 @@ function RichMenu() {
                     size: { width, height } // Sync menu size with image
                 });
             };
-            img.onerror = () => alert('錯誤：無法讀取圖片');
+            img.onerror = () => showToast('錯誤：無法讀取圖片', 'error');
             img.src = event.target.result;
         };
         reader.readAsDataURL(file);
@@ -179,11 +184,11 @@ function RichMenu() {
     const saveMenu = async () => {
         if (viewOnly) return;
         if (!currentMenu.name || !currentMenu.chatBarText) {
-            alert('請填寫選單名稱和標題');
+            showToast('請填寫選單名稱和標題', 'warning');
             return;
         }
         if (currentMenu.chatBarText.length > 14) {
-            alert('聊天欄標題長度不能超過 14 個字');
+            showToast('聊天欄標題長度不能超過 14 個字', 'warning');
             return;
         }
 
@@ -218,7 +223,7 @@ function RichMenu() {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
             } else {
-                alert('建立新選單時必須上傳底圖！');
+                showToast('建立新選單時必須上傳底圖！', 'warning');
                 setLoading(false);
                 return;
             }
@@ -232,10 +237,11 @@ function RichMenu() {
                     });
                 } catch (aliasErr) {
                     console.warn('Alias creation failed:', aliasErr);
+                    showToast('別名建立失敗，可能已被使用', 'warning');
                 }
             }
 
-            alert('圖文選單已成功同步至 Line！');
+            showToast('圖文選單已成功同步至 Line！', 'success');
             setView('list');
         } catch (err) {
             console.error('Save failed details:', err.response?.data);
@@ -243,7 +249,7 @@ function RichMenu() {
             let msg = '儲存失敗';
             if (errorInfo?.message) msg += `: ${errorInfo.message}`;
             if (errorInfo?.line_error) msg += `\nLine API 錯誤: ${JSON.stringify(errorInfo.line_error)}`;
-            alert(msg);
+            showToast(msg, 'error');
         } finally {
             setLoading(false);
         }
@@ -254,18 +260,22 @@ function RichMenu() {
         try {
             await api.delete(`/richmenu/${id}`);
             fetchMenus();
+            showToast('圖文選單已成功刪除！', 'success');
         } catch (err) {
-            alert('刪除失敗');
+            showToast('刪除失敗', 'error');
         }
     };
 
     const setDefault = async (id) => {
+        setLoading(true);
         try {
             await api.post(`/richmenu/set-default/${id}`);
             fetchMenus();
-            alert('已成功設為預設選單！');
+            showToast('已成功設為預設選單！', 'success');
         } catch (err) {
-            alert('設定失敗: ' + (err.response?.data?.line_error || err.message));
+            showToast('設定失敗: ' + (err.response?.data?.line_error || err.message), 'error');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -388,7 +398,7 @@ function RichMenu() {
                             <h3 style={{ marginBottom: '15px' }}>選單設定</h3>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                 <div><label className="label">選單名稱</label><input type="text" disabled={viewOnly} value={currentMenu.name} onChange={e => setCurrentMenu({ ...currentMenu, name: e.target.value })} /></div>
-                                <div><label className="label">別名 (Alias)</label><input type="text" disabled={viewOnly} value={currentMenu.alias || ''} placeholder="例如: main_menu" onChange={e => setCurrentMenu({ ...currentMenu, alias: e.target.value })} /></div>
+                                <div><label className="label">選單別名 (Alias)</label><input type="text" disabled={viewOnly} value={currentMenu.alias || ''} placeholder="例如: main_menu" onChange={e => setCurrentMenu({ ...currentMenu, alias: e.target.value })} /></div>
                                 <div><label className="label">聊天欄標題</label><input type="text" disabled={viewOnly} value={currentMenu.chatBarText} onChange={e => setCurrentMenu({ ...currentMenu, chatBarText: e.target.value })} /></div>
                                 <div><label className="label">選單高度</label><select disabled={viewOnly} value={currentMenu.size.height} onChange={e => setCurrentMenu({ ...currentMenu, size: { ...currentMenu.size, height: parseInt(e.target.value) } })}><option value={1686}>大型 (1686px)</option><option value={843}>小型 (843px)</option></select></div>
                             </div>
@@ -437,7 +447,7 @@ function RichMenu() {
                                     {currentMenu.areas[selectedAreaIndex].action.type === 'richmenuswitch' && (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                             <div>
-                                                <label className="label">切換目標別名 (Alias)</label>
+                                                <label className="label">切換目標別名 (Target Alias)</label>
                                                 <input
                                                     type="text"
                                                     list="available-aliases"
@@ -493,7 +503,7 @@ function RichMenu() {
                                 <div style={{ height: '120px', backgroundColor: '#222', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: '#666', overflow: 'hidden' }}>
                                     <RichMenuPreview menuId={menu.richMenuId} />
                                 </div>
-                                <div><h4 style={{ marginBottom: '5px' }}>{menu.name}</h4><p style={{ fontSize: '13px', color: '#888' }}>別名: {menu.aliases?.join(', ') || '無'}</p><p style={{ fontSize: '13px', color: '#888' }}>尺寸: {menu.size.width}x{menu.size.height}</p></div>
+                                <div><h4 style={{ marginBottom: '5px' }}>{menu.name}</h4><p style={{ fontSize: '13px', color: '#888' }}>選單別名: {menu.aliases?.join(', ') || '無'}</p><p style={{ fontSize: '13px', color: '#888' }}>尺寸: {menu.size.width}x{menu.size.height}</p></div>
                                 <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                                     <button onClick={() => handleEditMenu(menu)} className="secondary" style={{ flex: 1, padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}><Eye size={14} /> 查看</button>
                                     {menu.status !== 'default' && <button onClick={() => setDefault(menu.richMenuId)} className="secondary" style={{ flex: 1, padding: '8px' }}>設為預設</button>}

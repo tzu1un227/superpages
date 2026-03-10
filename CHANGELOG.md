@@ -159,7 +159,20 @@ All notable changes to this project will be documented in this file.
 - **Persistent GitHub Configuration**: Migrated GitHub upload settings from `.env` to the database (OA Config). Added management UI in the Admin Page to allow per-OA configuration, ensuring settings persist in Docker environments.
 - **Image Upload to GitHub**: Added ability to upload images directly to GitHub from the Flex Message Editor in Schedule Settings.
 - **Statistics Integration**: Consolidated standalone statistics functionality into the `Projects.jsx` page. Global statistics (Trends, Keywords) are now visible by default in the "stats" tab when no project is selected, alongside project-specific metrics. Removed the redundant `Statistics.jsx` page and associated route from `App.jsx`.
-- **Flex Message Editor Stability**: Fixed oscillating template states and UI flickers using semantic normalization and initialization guards.
+-### Refined Features & Bug Fixes
+- **Message Center**: Fixed black screen issue by correcting missing imports.
+- **Broadcast**:
+  - Implemented backend message summaries for task list preview.
+  - Added inline Flex message preview in creation/detail view (Step 2).
+  - Enhanced validation for Flex message content.
+- **Rich Menu**:
+  - Translated "Alias" labels to Chinese ("選單別名").
+  - Improved alias management and autocomplete.
+- **Flex Message Editor**:
+  - Updated "Option" template to allow 0-3 buttons.
+- **Global UI**:
+  - Implemented a global Toast notification system with 5-second auto-hide.
+  - Replaced most browser alerts with the new toast system for better UX.
 - **Flex Message Editor Fix**: Improved auto-save reliability to prevent infinite loops.
 - **Improved Project Page UI**: Replaced CSS Grid with Flexbox in "Add Project" form to prevent overlapping of fields at high zoom levels (150%+), ensuring a responsive layout.
 - Fixed bug in Advanced Message Editor: Prevented overwriting of QA tag with preview text during schedule editing, ensuring saved Rich Messages can be correctly reloading and edited.
