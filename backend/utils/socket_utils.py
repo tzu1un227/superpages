@@ -27,16 +27,17 @@ def send_socket_event(data, namespace=None):
                 if settings.get('socket_url'):
                     target_ws_url = settings['socket_url']
                 
-                # Resolve bot name: Priority: socket_name > DEFAULT (websoc) > app_name
-                # Usually test_tool in Line-Bot-Main is 'websoc'
+                # Resolve bot name: 
+                # According to user, project standard is 'websoc' regardless of app_name.
+                # Priority: 1. socket_name (explicit override) 2. DEFAULT_BOT_NAME ('websoc')
                 bot_name = settings.get('socket_name') or DEFAULT_BOT_NAME
                 
         except Exception as e:
             print(f"DEBUG: send_socket_event | Error reading from g.current_oa_config: {e}")
 
 
-    # Fallback to DB query if ID provided but config not in g or names missing
-    if (target_ws_url == WS_URL or bot_name == DEFAULT_BOT_NAME) and current_oa_id:
+    # Fallback to DB query if ID provided but names missing in g
+    if (bot_name == DEFAULT_BOT_NAME) and current_oa_id:
         try:
             oa = OAConfig.query.get(int(current_oa_id))
             if oa and oa.other_settings:
@@ -44,7 +45,7 @@ def send_socket_event(data, namespace=None):
                 if target_ws_url == WS_URL and settings.get('socket_url'):
                     target_ws_url = settings['socket_url']
                 if bot_name == DEFAULT_BOT_NAME:
-                    bot_name = settings.get('socket_name') or settings.get('app_name') or DEFAULT_BOT_NAME
+                    bot_name = settings.get('socket_name') or DEFAULT_BOT_NAME
         except Exception as e:
             print(f"DEBUG: send_socket_event | Error querying OAConfig: {e}")
 
