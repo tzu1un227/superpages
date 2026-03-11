@@ -936,6 +936,12 @@ function MessageCenter() {
                                     const globalIndex = messages.indexOf(m);
                                     const stableKey = m.timestamp ? `${m.timestamp}-${messages.length - globalIndex}` : i;
 
+                                    const handleMediaLoad = () => {
+                                        if (isAtBottom) {
+                                            scrollToBottom(false);
+                                        }
+                                    };
+
                                     const renderMessageContent = () => {
                                         if (m.category === 'Image') {
                                             const imageUrl = `/line/content/${m.content}`;
@@ -950,6 +956,7 @@ function MessageCenter() {
                                                         });
                                                     }}
                                                     alt="Line Image"
+                                                    onLoad={handleMediaLoad}
                                                 />
                                             );
                                         }
@@ -960,7 +967,7 @@ function MessageCenter() {
                                                 // Handle content like '{"packageId": "1", "stickerId": "1"}' or just ID
                                                 const match = m.content.match(/"stickerId":\s*"(\d+)"/);
                                                 const stickerId = match ? match[1] : (m.content.match(/^\d+$/) ? m.content : null);
-                                                if (stickerId) return <img src={`https://stickershop.line-scdn.net/stickershop/v1/sticker/${stickerId}/android/sticker.png`} style={{ width: '120px' }} alt="Sticker" />;
+                                                if (stickerId) return <img src={`https://stickershop.line-scdn.net/stickershop/v1/sticker/${stickerId}/android/sticker.png`} style={{ width: '120px' }} alt="Sticker" onLoad={handleMediaLoad} />;
                                             } catch (e) { }
                                             return <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'inherit' }}><Smile size={16} /> [貼圖訊息]</div>;
                                         }
@@ -970,11 +977,11 @@ function MessageCenter() {
                                                 const parsed = JSON.parse(m.content);
                                                 if (parsed.type === 'text' && parsed.text) return highlightText(parsed.text);
                                                 if (parsed.type === 'image') return (
-                                                    <img src={parsed.previewImageUrl || parsed.originalContentUrl} style={{ maxWidth: '200px', borderRadius: '8px', cursor: 'pointer' }} onClick={() => window.open(parsed.originalContentUrl, '_blank')} />
+                                                    <img src={parsed.previewImageUrl || parsed.originalContentUrl} style={{ maxWidth: '200px', borderRadius: '8px', cursor: 'pointer' }} onClick={() => window.open(parsed.originalContentUrl, '_blank')} onLoad={handleMediaLoad} />
                                                 );
                                                 if (parsed.type === 'video') return (
                                                     <div style={{ maxWidth: '200px' }}>
-                                                        <video src={parsed.originalContentUrl} controls poster={parsed.previewImageUrl} style={{ width: '100%', borderRadius: '8px' }} />
+                                                        <video src={parsed.originalContentUrl} controls poster={parsed.previewImageUrl} style={{ width: '100%', borderRadius: '8px' }} onLoadedData={handleMediaLoad} />
                                                     </div>
                                                 );
                                                 if (parsed.type === 'audio') return (
@@ -988,7 +995,7 @@ function MessageCenter() {
                                                         const imageUrl = hero.url;
                                                         return (
                                                             <div style={{ backgroundColor: '#fff', color: '#000', borderRadius: '8px', overflow: 'hidden', width: '200px', fontSize: '12px' }}>
-                                                                {imageUrl && <img src={imageUrl} style={{ width: '100%', height: '100px', objectFit: 'cover' }} />}
+                                                                {imageUrl && <img src={imageUrl} style={{ width: '100%', height: '100px', objectFit: 'cover' }} onLoad={handleMediaLoad} />}
                                                                 <div style={{ padding: '8px' }}>
                                                                     {title && <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{title}</div>}
                                                                     <div style={{ color: '#666' }}>[Flex 訊息]</div>
