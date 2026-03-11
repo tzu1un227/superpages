@@ -237,6 +237,7 @@ function MessageCenter() {
     }, [selectedUser]);
 
     const abortControllerRef = useRef(null);
+    const layoutRef = useRef({ scrollHeight: 0, scrollTop: 0, isUpdatingHistory: false });
 
     const fetchHistory = async (userId, isPolling = false) => {
         try {
@@ -258,8 +259,33 @@ function MessageCenter() {
 
             // 隨後抓取所有歷史紀錄 (或如果是輪詢的話就直接全抓)
             const resp = await api.get(`/history/${userId}`, { signal });
-            if (selectedUserRef.current === userId || isPolling) {
-                setMessages(resp.data);
+            if (selectedUserRef.current === userId) {
+                if (chatContainerRef.current) {
+                    layoutRef.current.scrollHeight = chatContainerRef.current.scrollHeight;
+                    layoutRef.current.scrollTop = chatContainerRef.current.scrollTop;
+                }
+                setMessages(prev => {
+                    if (isPolling && prev.length > 0 && resp.data.length > 0) {
+                        const lastPrev = prev[prev.length - 1];
+                        const lastNew = resp.data[resp.data.length - 1];
+                        if (prev.length === resp.data.length && lastPrev.timestamp === lastNew.timestamp) {
+                            return prev; // No new messages, completely skip React render
+                        }
+                    }
+
+                    if (prev.length > 0 && resp.data.length > prev.length) {
+                        const lastPrev = prev[prev.length - 1];
+                        const lastNew = resp.data[resp.data.length - 1];
+                        if (lastPrev && lastNew && lastPrev.timestamp === lastNew.timestamp) {
+                            layoutRef.current.isUpdatingHistory = true;
+                        } else {
+                            layoutRef.current.isUpdatingHistory = false;
+                        }
+                    } else {
+                        layoutRef.current.isUpdatingHistory = false;
+                    }
+                    return resp.data;
+                });
                 setLoadingChat(false);
             }
 
@@ -381,21 +407,34 @@ function MessageCenter() {
         }
     };
 
+    React.useLayoutEffect(() => {
+        if (layoutRef.current.isUpdatingHistory && chatContainerRef.current) {
+            const container = chatContainerRef.current;
+            const heightDiff = container.scrollHeight - layoutRef.current.scrollHeight;
+            container.scrollTop = layoutRef.current.scrollTop + heightDiff;
+        }
+    }, [messages]);
+
     useEffect(() => {
         if (messages.length > 0) {
             const isInitialLoad = prevMessagesLengthRef.current === 0;
             const hasNewMessages = messages.length > prevMessagesLengthRef.current;
+            const isHistoryLoad = layoutRef.current.isUpdatingHistory;
 
             if (isInitialLoad) {
                 setTimeout(() => scrollToBottom(false), 50);
+            } else if (isHistoryLoad) {
+                // Do nothing, scroll handled by useLayoutEffect
             } else if (isAtBottom && hasNewMessages) {
                 setTimeout(() => scrollToBottom(true), 50);
             } else if (hasNewMessages) {
                 setShowNewMsgBtn(true);
             }
             prevMessagesLengthRef.current = messages.length;
+            layoutRef.current.isUpdatingHistory = false;
         } else {
             prevMessagesLengthRef.current = 0;
+            layoutRef.current.isUpdatingHistory = false;
         }
     }, [messages]);
 
@@ -875,7 +914,7 @@ function MessageCenter() {
                         <div
                             ref={chatContainerRef}
                             onScroll={handleScroll}
-                            style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}
+                            style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px', overflowAnchor: 'auto' }}
                         >
                             {loadingChat ? (
                                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -895,9 +934,7 @@ function MessageCenter() {
                                     }
 
                                     const globalIndex = messages.indexOf(m);
-                                    // ...
-
-
+                                    const stableKey = m.timestamp ? `${m.timestamp}-${messages.length - globalIndex}` : i;
 
                                     const renderMessageContent = () => {
                                         if (m.category === 'Image') {
@@ -979,7 +1016,7 @@ function MessageCenter() {
                                     };
 
                                     return (
-                                        <React.Fragment key={i}>
+                                        <React.Fragment key={stableKey}>
                                             {showDateHeader && (
                                                 <div style={{ textAlign: 'center', margin: '20px 0', position: 'relative' }}>
                                                     <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: '1px', backgroundColor: '#333', zIndex: 0 }}></div>
