@@ -383,6 +383,7 @@ function MessageCenter() {
     const messagesEndRef = useRef(null);
     const chatContainerRef = useRef(null);
     const [isAtBottom, setIsAtBottom] = useState(true);
+    const isAtBottomRef = useRef(true);
     const [showNewMsgBtn, setShowNewMsgBtn] = useState(false);
     const prevMessagesLengthRef = useRef(0);
     const userScrollPositionsRef = useRef({});
@@ -396,6 +397,7 @@ function MessageCenter() {
             });
         }
         setIsAtBottom(true);
+        isAtBottomRef.current = true;
         setShowNewMsgBtn(false);
     };
 
@@ -404,6 +406,7 @@ function MessageCenter() {
         const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
         const bottom = distanceFromBottom < 100;
         setIsAtBottom(bottom);
+        isAtBottomRef.current = bottom;
         if (bottom) setShowNewMsgBtn(false);
 
         if (selectedUser && e.target && messages.length > 0) {
@@ -468,9 +471,12 @@ function MessageCenter() {
         // 切換用戶時，檢查是否有舊紀錄來決定 isAtBottom 的初始狀態
         const savedScroll = userScrollPositionsRef.current[selectedUser];
         if (savedScroll !== undefined) {
-            setIsAtBottom(savedScroll.distanceFromBottom < 100);
+            const bottom = savedScroll.distanceFromBottom < 100;
+            setIsAtBottom(bottom);
+            isAtBottomRef.current = bottom;
         } else {
             setIsAtBottom(true);
+            isAtBottomRef.current = true;
         }
 
         setShowNewMsgBtn(false);
@@ -969,16 +975,10 @@ function MessageCenter() {
                                     const stableKey = m.timestamp ? `${m.timestamp}-${messages.length - globalIndex}` : i;
 
                                     const handleMediaLoad = () => {
-                                        setTimeout(() => {
-                                            const savedScroll = userScrollPositionsRef.current[selectedUser];
-                                            const distance = savedScroll ? savedScroll.distanceFromBottom : undefined;
-
-                                            // 剛切換過去的第一次自動載入 (undefined) 或是原本就在底部的半徑 200px 範圍內
-                                            // 過 1 秒後往下拉一次
-                                            if (distance === undefined || distance < 200 || isAtBottom) {
-                                                scrollToBottom(true);
-                                            }
-                                        }, 1000);
+                                        // 使用 Ref 避免 React closure 造成的狀態過期問題
+                                        if (isAtBottomRef.current) {
+                                            scrollToBottom(true);
+                                        }
                                     };
 
                                     const renderMessageContent = () => {
