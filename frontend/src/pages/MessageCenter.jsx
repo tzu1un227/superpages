@@ -249,7 +249,11 @@ function MessageCenter() {
             const signal = isPolling ? undefined : abortControllerRef.current.signal;
 
             // 初次載入先抓取最新的 100 筆，達成極速畫面渲染的錯覺
-            if (!isPolling) {
+            // 但如果用戶之前是在向上滑看舊訊息，就跳過極速載入，直接等待完整紀錄，否則會破壞捲動記憶
+            const savedScroll = userScrollPositionsRef.current[userId];
+            const isScrolledUp = savedScroll !== undefined && savedScroll.distanceFromBottom >= 100;
+
+            if (!isPolling && !isScrolledUp) {
                 const fastResp = await api.get(`/history/${userId}?limit=100`, { signal });
                 if (selectedUserRef.current === userId) {
                     setMessages(fastResp.data);
@@ -404,7 +408,11 @@ function MessageCenter() {
 
         if (selectedUser && e.target && messages.length > 0) {
             // 記錄距離底部的距離，判斷此用戶是否在往上滑看舊訊息
-            userScrollPositionsRef.current[selectedUser] = distanceFromBottom;
+            // 同時記錄 scrollTop，以便切回時恢復原本瀏覽位置
+            userScrollPositionsRef.current[selectedUser] = {
+                distanceFromBottom,
+                scrollTop
+            };
         }
     };
 
@@ -423,8 +431,22 @@ function MessageCenter() {
             const isHistoryLoad = layoutRef.current.isUpdatingHistory;
 
             if (isInitialLoad) {
-                setTimeout(() => scrollToBottom(false), 50);
-                setTimeout(() => scrollToBottom(false), 300); // 加上雙重保險，防止圖片微距變化
+                // 檢查是否有前次停留的捲動紀錄
+                const savedScroll = userScrollPositionsRef.current[selectedUser];
+                if (savedScroll !== undefined && chatContainerRef.current) {
+                    // 如果有紀錄，且距離底部超過 100px (代表原本在往上看舊訊息)
+                    // 就恢復到原本停留的高度
+                    if (savedScroll.distanceFromBottom >= 100) {
+                        chatContainerRef.current.scrollTop = savedScroll.scrollTop;
+                    } else {
+                        // 原本就在底部，就乖乖置底
+                        setTimeout(() => scrollToBottom(false), 50);
+                    }
+                } else {
+                    // 如果沒有紀錄 (第一次點進這個聊天室)
+                    setTimeout(() => scrollToBottom(false), 50);
+                    setTimeout(() => scrollToBottom(false), 300); // 加上雙重保險，防止圖片微距變化
+                }
             } else if (isHistoryLoad) {
                 // Do nothing, scroll handled by useLayoutEffect
             } else if (isAtBottom && hasNewMessages) {
@@ -442,7 +464,15 @@ function MessageCenter() {
 
     useEffect(() => {
         prevMessagesLengthRef.current = 0;
-        setIsAtBottom(true);
+
+        // 切換用戶時，檢查是否有舊紀錄來決定 isAtBottom 的初始狀態
+        const savedScroll = userScrollPositionsRef.current[selectedUser];
+        if (savedScroll !== undefined) {
+            setIsAtBottom(savedScroll.distanceFromBottom < 100);
+        } else {
+            setIsAtBottom(true);
+        }
+
         setShowNewMsgBtn(false);
     }, [selectedUser]);
 
@@ -940,7 +970,9 @@ function MessageCenter() {
 
                                     const handleMediaLoad = () => {
                                         setTimeout(() => {
-                                            const distance = userScrollPositionsRef.current[selectedUser];
+                                            const savedScroll = userScrollPositionsRef.current[selectedUser];
+                                            const distance = savedScroll ? savedScroll.distanceFromBottom : undefined;
+
                                             // 剛切換過去的第一次自動載入 (undefined) 或是原本就在底部的半徑 200px 範圍內
                                             // 過 1 秒後往下拉一次
                                             if (distance === undefined || distance < 200 || isAtBottom) {
