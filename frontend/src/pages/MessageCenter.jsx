@@ -397,13 +397,14 @@ function MessageCenter() {
 
     const handleScroll = (e) => {
         const { scrollTop, scrollHeight, clientHeight } = e.target;
-        const bottom = scrollHeight - scrollTop - clientHeight < 100;
+        const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+        const bottom = distanceFromBottom < 100;
         setIsAtBottom(bottom);
         if (bottom) setShowNewMsgBtn(false);
 
         if (selectedUser && e.target && messages.length > 0) {
-            // 記錄距離底部的距離，這樣圖片載入撐開高度時才不會讓畫面跳掉
-            userScrollPositionsRef.current[selectedUser] = scrollHeight - scrollTop;
+            // 記錄距離底部的距離，判斷此用戶是否在往上滑看舊訊息
+            userScrollPositionsRef.current[selectedUser] = distanceFromBottom;
         }
     };
 
@@ -423,6 +424,7 @@ function MessageCenter() {
 
             if (isInitialLoad) {
                 setTimeout(() => scrollToBottom(false), 50);
+                setTimeout(() => scrollToBottom(false), 300); // 加上雙重保險，防止圖片微距變化
             } else if (isHistoryLoad) {
                 // Do nothing, scroll handled by useLayoutEffect
             } else if (isAtBottom && hasNewMessages) {
@@ -937,9 +939,13 @@ function MessageCenter() {
                                     const stableKey = m.timestamp ? `${m.timestamp}-${messages.length - globalIndex}` : i;
 
                                     const handleMediaLoad = () => {
-                                        if (isAtBottom) {
-                                            scrollToBottom(false);
-                                        }
+                                        setTimeout(() => {
+                                            const distance = userScrollPositionsRef.current[selectedUser];
+                                            // 如果從未滑動過 (undefined) 或仍在底部範圍內，則強制置底
+                                            if (distance === undefined || distance < 200 || isAtBottom) {
+                                                scrollToBottom(false);
+                                            }
+                                        }, 100);
                                     };
 
                                     const renderMessageContent = () => {
