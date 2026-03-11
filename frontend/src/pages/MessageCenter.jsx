@@ -65,13 +65,19 @@ function MessageCenter() {
     const [input, setInput] = useState('');
     const [tagInput, setTagInput] = useState('');
     const [loading, setLoading] = useState(false);
-    const { toast } = useToast();
+    const [loadingChat, setLoadingChat] = useState(false);
+    const { showToast } = useToast();
+    const lastSendTimeRef = useRef(0);
 
     // --- 搜尋與篩選狀態 ---
     const [searchQuery, setSearchQuery] = useState('');          // 用戶清單搜尋（user_id / 名稱）
     const [selectedTagFilters, setSelectedTagFilters] = useState([]); // 標籤篩選
     const [messageSearch, setMessageSearch] = useState('');       // 對話內容搜尋
     const [fetchUsersInterval, setFetchUsersInterval] = useState(15000); // 用戶列表抓取間隔
+    const [localUnreadCounts, setLocalUnreadCounts] = useState(() => {
+        const saved = localStorage.getItem('localUnreadCounts');
+        return saved ? JSON.parse(saved) : {};
+    });
 
     // 用來對 searchQuery 做 debounce，避免每一個字都打 API
     const searchTimer = useRef(null);
@@ -88,6 +94,7 @@ function MessageCenter() {
 
     useEffect(() => {
         if (selectedUser) {
+            setLoadingChat(true);
             setMessages([]); // 切換用戶時立即清空舊訊息，避免畫面殘留與捲軸誤判
             fetchHistory(selectedUser);
             setMessageSearch(''); // 切換用戶時清除對話搜尋
@@ -109,9 +116,38 @@ function MessageCenter() {
             if (q) params.q = q;
             if (tags.length > 0) params.tag = tags.join(',');
             const resp = await api.get('/users', { params });
-            setUsers(resp.data);
-            if (resp.data.length > 0 && !selectedUser) {
-                setSelectedUser(resp.data[0].user_id);
+            const newUsers = resp.data;
+            setLocalUnreadCounts(prev => {
+                const newCounts = { ...prev };
+                const cachedTimes = JSON.parse(localStorage.getItem('user_last_times') || '{}');
+                let countsChanged = false;
+
+                newUsers.forEach(u => {
+                    if (u.user_id === selectedUser) {
+                        if (newCounts[u.user_id] !== 0) {
+                            newCounts[u.user_id] = 0;
+                            countsChanged = true;
+                        }
+                        cachedTimes[u.user_id] = u.last_time;
+                    } else if (u.last_time && cachedTimes[u.user_id] !== u.last_time) {
+                        if (new Date(u.last_time) > new Date(cachedTimes[u.user_id] || 0)) {
+                            newCounts[u.user_id] = (newCounts[u.user_id] || 0) + 1;
+                        }
+                        cachedTimes[u.user_id] = u.last_time;
+                        countsChanged = true;
+                    }
+                });
+
+                if (countsChanged) {
+                    localStorage.setItem('localUnreadCounts', JSON.stringify(newCounts));
+                    localStorage.setItem('user_last_times', JSON.stringify(cachedTimes));
+                    return newCounts;
+                }
+                return prev;
+            });
+            setUsers(newUsers);
+            if (newUsers.length > 0 && !selectedUser) {
+                setSelectedUser(newUsers[0].user_id);
             }
         } catch (err) {
             console.error('Error fetching users:', err);
@@ -162,6 +198,7 @@ function MessageCenter() {
         try {
             const resp = await api.get(`/history/${userId}`);
             setMessages(resp.data);
+            setLoadingChat(false);
             if (!isPolling) {
                 api.post(`/users/${userId}/read`).then(() => {
                     // Update local unread count immediately
@@ -179,6 +216,8 @@ function MessageCenter() {
         users.forEach(u => {
             localStorage.setItem(`lastRead_${u.user_id}`, now);
         });
+        setLocalUnreadCounts({});
+        localStorage.setItem('localUnreadCounts', '{}');
         // 強制重新渲染排序
         setFetchUsersInterval(100); // 縮短下次抓取時間來觸發更新
         setTimeout(() => setFetchUsersInterval(15000), 1000);
@@ -214,16 +253,22 @@ function MessageCenter() {
     useEffect(() => {
         if (selectedUser) {
             localStorage.setItem(`lastRead_${selectedUser}`, new Date().toISOString());
+            setLocalUnreadCounts(prev => {
+                if (prev[selectedUser] === 0) return prev;
+                const updated = { ...prev, [selectedUser]: 0 };
+                localStorage.setItem('localUnreadCounts', JSON.stringify(updated));
+                return updated;
+            });
         }
     }, [selectedUser, messages]);
 
-    // 自動更新：歷史訊息 7 秒一次，用戶清單 15 秒一次
+    // 自動更新：歷史訊息 1 秒一次，用戶清單 15 秒一次
     useEffect(() => {
         const historyInterval = setInterval(() => {
-            if (selectedUser) {
+            if (selectedUser && (Date.now() - lastSendTimeRef.current > 2000)) {
                 fetchHistory(selectedUser, true);
             }
-        }, 7000);
+        }, 1000);
 
         const usersInterval = setInterval(() => {
             // 只有在沒有特定搜尋時才自動更新清單內容，避免干擾使用者輸入
@@ -276,19 +321,7 @@ function MessageCenter() {
             const hasNewMessages = messages.length > prevMessagesLengthRef.current;
 
             if (isInitialLoad) {
-                const savedPos = userScrollPositionsRef.current[selectedUser];
-                if (savedPos !== undefined && chatContainerRef.current) {
-                    setTimeout(() => {
-                        if (chatContainerRef.current) {
-                            const { scrollHeight, clientHeight } = chatContainerRef.current;
-                            chatContainerRef.current.scrollTop = scrollHeight - savedPos;
-                            const newScrollTop = chatContainerRef.current.scrollTop;
-                            setIsAtBottom(scrollHeight - newScrollTop - clientHeight < 150);
-                        }
-                    }, 50);
-                } else {
-                    setTimeout(() => scrollToBottom(false), 50);
-                }
+                setTimeout(() => scrollToBottom(false), 50);
             } else if (isAtBottom && hasNewMessages) {
                 setTimeout(() => scrollToBottom(true), 50);
             } else if (hasNewMessages) {
@@ -333,10 +366,11 @@ function MessageCenter() {
                 type: 'Sensor',
                 api_index: 0
             });
-            setMessages([...messages, { content: input, timestamp: new Date(), category: 'Message', user_id: 'yzuadmin' }]);
+            setMessages([...messages, { content: input, timestamp: new Date().toISOString(), category: 'Message', user_id: 'yzuadmin' }]);
             setInput('');
+            lastSendTimeRef.current = Date.now();
         } catch (err) {
-            toast('發送失敗: ' + err.message, 'error');
+            showToast('發送失敗: ' + err.message, 'error');
         } finally {
             setLoading(false);
         }
@@ -351,7 +385,7 @@ function MessageCenter() {
                 type: 'Sensor',
                 api_index: 0
             });
-            toast(`已新增標籤: ${tagInput}`, 'success');
+            showToast(`已新增標籤: ${tagInput}`, 'success');
             setTagInput('');
             // Update local state immediately for better UX
             setUsers(prev => prev.map(u => {
@@ -369,7 +403,7 @@ function MessageCenter() {
                 fetchAvailableTags();
             }, 1500);
         } catch (err) {
-            toast('新增標籤失敗', 'error');
+            showToast('新增標籤失敗', 'error');
         }
     };
 
@@ -383,7 +417,7 @@ function MessageCenter() {
                 type: 'Sensor',
                 api_index: 0
             });
-            toast(`已刪除標籤: ${tagName}`, 'success');
+            showToast(`已刪除標籤: ${tagName}`, 'success');
             // Update local state immediately
             setUsers(prev => prev.map(u => {
                 if (u.user_id === selectedUser) {
@@ -395,7 +429,7 @@ function MessageCenter() {
             }));
             setTimeout(() => fetchUsers(searchQuery, selectedTagFilters), 1500);
         } catch (err) {
-            toast('刪除標籤失敗', 'error');
+            showToast('刪除標籤失敗', 'error');
         }
     };
 
@@ -420,8 +454,11 @@ function MessageCenter() {
         } catch (e) {
             // 解析失敗，非 JSON 格式
         }
-        if (typeof msgString === 'string' && msgString.startsWith('MSG|')) {
-            return msgString.substring(4);
+        if (typeof msgString === 'string') {
+            if (msgString.startsWith('MSG|')) return msgString.substring(4);
+            if (msgString === 'image' || msgString.startsWith('image|')) return '[圖片訊息]';
+            if (msgString === 'video' || msgString.startsWith('video|')) return '[影片訊息]';
+            if (msgString === 'audio' || msgString.startsWith('audio|')) return '[語音訊息]';
         }
         return msgString;
     };
@@ -628,11 +665,18 @@ function MessageCenter() {
                                             top: '12px',
                                             backgroundColor: '#ff4d4f',
                                             color: 'white',
-                                            borderRadius: '50%',
-                                            width: '8px',
-                                            height: '8px',
+                                            borderRadius: '12px',
+                                            minWidth: '16px',
+                                            height: '16px',
+                                            fontSize: '10px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            padding: '0 4px',
                                             boxShadow: '0 0 5px rgba(255,77,79,0.5)'
-                                        }} />
+                                        }}>
+                                            {localUnreadCounts[u.user_id] || 1}
+                                        </div>
                                     )}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                         <div style={{ backgroundColor: '#333', padding: '8px', borderRadius: '50%', flexShrink: 0 }}>
@@ -666,20 +710,6 @@ function MessageCenter() {
             <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0', position: 'relative' }}>
                 {selectedUser ? (
                     <>
-                        {/* 延遲提醒 */}
-                        <div style={{
-                            backgroundColor: 'rgba(255, 215, 0, 0.1)',
-                            borderBottom: '1px solid rgba(255, 215, 0, 0.2)',
-                            padding: '8px 20px',
-                            color: 'var(--primary-yellow)',
-                            fontSize: '13px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px'
-                        }}>
-                            <Info size={14} /> 新訊息將於 5-10 秒鐘延遲收到
-                        </div>
-
                         {/* 聊天室 Header：用戶名 + 標籤 + 新增標籤 */}
                         <div style={{ padding: '20px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                             <div>
@@ -809,7 +839,11 @@ function MessageCenter() {
                             onScroll={handleScroll}
                             style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}
                         >
-                            {(() => {
+                            {loadingChat ? (
+                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <LoadingSpinner message="載入對話中..." />
+                                </div>
+                            ) : (() => {
                                 let lastDate = null;
                                 return displayedMessages.map((m, i) => {
                                     const mDate = new Date(m.timestamp).toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' });
