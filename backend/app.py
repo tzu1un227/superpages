@@ -1260,13 +1260,25 @@ def get_statistics_keywords():
 def get_user_history(user_id):
     try:
         app_id = get_current_app_id()
+        limit = request.args.get('limit', type=int)
+        
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(
-            f'SELECT * FROM "history:{app_id}" WHERE user_id = %s ORDER BY timestamp ASC',
-            (user_id,)
-        )
-        history = cur.fetchall()
+        
+        if limit:
+            cur.execute(
+                f'SELECT * FROM "history:{app_id}" WHERE user_id = %s ORDER BY timestamp DESC LIMIT %s',
+                (user_id, limit)
+            )
+            history = cur.fetchall()
+            history.reverse()
+        else:
+            cur.execute(
+                f'SELECT * FROM "history:{app_id}" WHERE user_id = %s ORDER BY timestamp ASC',
+                (user_id,)
+            )
+            history = cur.fetchall()
+            
         cur.close()
         conn.close()
         return json_response(history)
@@ -1421,6 +1433,14 @@ def get_users_list():
                        ORDER BY timestamp DESC 
                        LIMIT 1
                    ) as last_message,
+                   (
+                       SELECT category 
+                       FROM "history:{app_id}" 
+                       WHERE user_id = sub.user_id 
+                         AND (category NOT IN ('Sensor', 'Postback') OR category IS NULL)
+                       ORDER BY timestamp DESC 
+                       LIMIT 1
+                   ) as last_message_category,
                    sub.last_time,
                     (SELECT string_agg(value, '|') FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'tag') as tags,
                     (SELECT value FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'name' LIMIT 1) as name,

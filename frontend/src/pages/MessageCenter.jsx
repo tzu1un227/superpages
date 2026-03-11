@@ -194,11 +194,75 @@ function MessageCenter() {
         return uniqueTags;
     };
 
+    // --- 輔助：格式化側邊欄的最後一則訊息 ---
+    const formatSidebarMessage = (userObj) => {
+        const msgString = userObj.last_message;
+        const category = userObj.last_message_category;
+
+        if (category === 'Image') return '[圖片訊息]';
+        if (category === 'Video') return '[影片訊息]';
+        if (category === 'Audio') return '[語音訊息]';
+
+        if (!msgString) return '';
+        try {
+            const parsed = JSON.parse(msgString);
+            if (parsed && typeof parsed === 'object' && parsed.type) {
+                switch (parsed.type) {
+                    case 'text': return parsed.text || '[文字訊息]';
+                    case 'image': return '[圖片訊息]';
+                    case 'video': return '[影片訊息]';
+                    case 'audio': return '[語音訊息]';
+                    case 'location': return '[位置訊息]';
+                    case 'sticker': return '[貼圖訊息]';
+                    case 'flex': return '[Flex 訊息]';
+                    case 'template': return '[樣板訊息]';
+                    case 'carousel': return '[輪播訊息]';
+                    case 'imagemap': return '[圖片選單]';
+                    default: return `[${parsed.type}]`;
+                }
+            }
+        } catch (e) {
+            // 解析失敗，非 JSON 格式
+        }
+        if (typeof msgString === 'string') {
+            if (msgString.startsWith('MSG|')) return msgString.substring(4);
+            // 舊版 `formatSidebarMessage` 已經整合移至頂部，因為它跟 fetchHistory 在相近的範疇，以下原本重複的即被移除
+        }
+        return msgString;
+    };
+
+    const selectedUserRef = useRef(selectedUser);
+    useEffect(() => {
+        selectedUserRef.current = selectedUser;
+    }, [selectedUser]);
+
+    const abortControllerRef = useRef(null);
+
     const fetchHistory = async (userId, isPolling = false) => {
         try {
-            const resp = await api.get(`/history/${userId}`);
-            setMessages(resp.data);
-            setLoadingChat(false);
+            if (!isPolling) {
+                if (abortControllerRef.current) abortControllerRef.current.abort();
+                abortControllerRef.current = new AbortController();
+            }
+
+            const signal = isPolling ? undefined : abortControllerRef.current.signal;
+
+            // 初次載入先抓取最新的 100 筆，達成極速畫面渲染的錯覺
+            if (!isPolling) {
+                const fastResp = await api.get(`/history/${userId}?limit=100`, { signal });
+                if (selectedUserRef.current === userId) {
+                    setMessages(fastResp.data);
+                    setLoadingChat(false);
+                }
+            }
+
+            // 隨後抓取所有歷史紀錄 (或如果是輪詢的話就直接全抓)
+            const resp = await api.get(`/history/${userId}`, { signal });
+            if (selectedUserRef.current === userId || isPolling) {
+                setMessages(resp.data);
+                setLoadingChat(false);
+            }
+
             if (!isPolling) {
                 api.post(`/users/${userId}/read`).then(() => {
                     // Update local unread count immediately
@@ -206,7 +270,9 @@ function MessageCenter() {
                 }).catch(e => console.error("Failed to mark as read", e));
             }
         } catch (error) {
-            console.error('Error marking as read:', error);
+            if (error.name !== 'CanceledError') {
+                console.error('Error fetching history:', error);
+            }
         }
     };
 
@@ -433,35 +499,7 @@ function MessageCenter() {
         }
     };
 
-    // 輔助函式：格式化側邊欄的最後一則訊息
-    const formatSidebarMessage = (msgString) => {
-        if (!msgString) return '';
-        try {
-            const parsed = JSON.parse(msgString);
-            if (parsed && typeof parsed === 'object' && parsed.type) {
-                switch (parsed.type) {
-                    case 'text': return parsed.text || '[文字訊息]';
-                    case 'image': return '[圖片訊息]';
-                    case 'video': return '[影片訊息]';
-                    case 'audio': return '[語音訊息]';
-                    case 'location': return '[位置訊息]';
-                    case 'sticker': return '[貼圖訊息]';
-                    case 'flex': return '[Flex 訊息]';
-                    case 'template': return '[樣板訊息]';
-                    default: return `[${parsed.type}訊息]`;
-                }
-            }
-        } catch (e) {
-            // 解析失敗，非 JSON 格式
-        }
-        if (typeof msgString === 'string') {
-            if (msgString.startsWith('MSG|')) return msgString.substring(4);
-            if (msgString === 'image' || msgString.startsWith('image|')) return '[圖片訊息]';
-            if (msgString === 'video' || msgString.startsWith('video|')) return '[影片訊息]';
-            if (msgString === 'audio' || msgString.startsWith('audio|')) return '[語音訊息]';
-        }
-        return msgString;
-    };
+    // 舊版 `formatSidebarMessage` 已經整合移至頂部，以下原本重複的即被移除
 
     // 輔助函式：提取訊息的可搜尋文本（解決 JSON Unicode 編碼問題）
     const getSearchableText = (m) => {
@@ -684,7 +722,7 @@ function MessageCenter() {
                                         </div>
                                         <div style={{ flex: 1, overflow: 'hidden' }}>
                                             <p style={{ fontWeight: '600', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name || u.user_id}</p>
-                                            <p style={{ fontSize: '12px', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatSidebarMessage(u.last_message) || '尚無訊息'}</p>
+                                            <p style={{ fontSize: '12px', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatSidebarMessage(u) || '尚無訊息'}</p>
                                             {userTags.length > 0 && (
                                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', marginTop: '4px' }}>
                                                     {userTags.slice(0, 3).map((t, i) => (
