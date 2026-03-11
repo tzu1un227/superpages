@@ -941,11 +941,12 @@ function MessageCenter() {
                                     const handleMediaLoad = () => {
                                         setTimeout(() => {
                                             const distance = userScrollPositionsRef.current[selectedUser];
-                                            // 如果從未滑動過 (undefined) 或仍在底部範圍內，則強制置底
+                                            // 剛切換過去的第一次自動載入 (undefined) 或是原本就在底部的半徑 200px 範圍內
+                                            // 過 1 秒後往下拉一次
                                             if (distance === undefined || distance < 200 || isAtBottom) {
-                                                scrollToBottom(false);
+                                                scrollToBottom(true);
                                             }
-                                        }, 100);
+                                        }, 1000);
                                     };
 
                                     const renderMessageContent = () => {
