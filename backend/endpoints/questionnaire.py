@@ -455,9 +455,11 @@ def get_questionnaire_detail(note):
         
         # First question content
         try:
-            m0 = json.loads(entry_rule['msg_rpy'][0])
+            m0 = entry_rule['msg_rpy'][0]
+            # m0 might be a dict if parsed by psycopg2, or a string
+            if isinstance(m0, str): m0 = json.loads(m0)
             all_questions.append({'content': m0['Line']['text']})
-        except: all_questions.append({'content': '解析失敗'})
+        except: all_questions.append({'content': '解析失敗 (入口)'})
 
         for i, r in enumerate(unique_q_rules):
             # Parse condition
@@ -487,9 +489,10 @@ def get_questionnaire_detail(note):
             # if r is not the last question
             if i < len(unique_q_rules) - 1:
                 try:
-                    m_next = json.loads(r['msg_rpy'][0])
+                    m_next = r['msg_rpy'][0]
+                    if isinstance(m_next, str): m_next = json.loads(m_next)
                     all_questions.append({'content': m_next['Line']['text']})
-                except: all_questions.append({'content': '解析失敗'})
+                except: all_questions.append({'content': f'解析失敗 (Q{i+2})'})
         
         # 3. Finish Msg & Enable Review
         enable_review = any(r['state_out'].endswith('99') for r in rows)
@@ -499,7 +502,8 @@ def get_questionnaire_detail(note):
         finish_msg = "感謝您的填寫！"
         if finish_rule:
             try:
-                m_fin = json.loads(finish_rule['msg_rpy'][0])
+                m_fin = finish_rule['msg_rpy'][0]
+                if isinstance(m_fin, str): m_fin = json.loads(m_fin)
                 finish_msg = m_fin['Line']['text']
             except: pass
 
