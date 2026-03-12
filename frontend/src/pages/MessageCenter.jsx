@@ -437,6 +437,7 @@ function MessageCenter() {
     const [showNewMsgBtn, setShowNewMsgBtn] = useState(false);
     const prevMessagesLengthRef = useRef(0);
     const userScrollPositionsRef = useRef({});
+    const isRestoringRef = useRef(false);
 
     const scrollToBottom = (smooth = true) => {
         if (chatContainerRef.current) {
@@ -454,10 +455,12 @@ function MessageCenter() {
     const handleScroll = (e) => {
         const { scrollTop, scrollHeight, clientHeight } = e.target;
         const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-        const bottom = distanceFromBottom < 200; // 增加閾值，防止圖片載入期間的輕微跳動導致置底失效
-        setIsAtBottom(bottom);
-        isAtBottomRef.current = bottom;
-        if (bottom) setShowNewMsgBtn(false);
+        const bottom = distanceFromBottom < 200;
+        if (!isRestoringRef.current) {
+            setIsAtBottom(bottom);
+            isAtBottomRef.current = bottom;
+            if (bottom) setShowNewMsgBtn(false);
+        }
 
         if (selectedUser && e.target && messages.length > 0) {
             // 記錄距離底部的距離，判斷此用戶是否在往上滑看舊訊息
@@ -484,28 +487,31 @@ function MessageCenter() {
             const isHistoryLoad = layoutRef.current.isUpdatingHistory;
 
             if (isInitialLoad) {
+                isRestoringRef.current = true;
                 // 檢查是否有前次停留的捲動紀錄
                 const savedScroll = userScrollPositionsRef.current[selectedUser];
                 if (savedScroll !== undefined && chatContainerRef.current) {
-                    // 如果有紀錄，且距離底部超過 200px (代表原本在往上看舊訊息)
-                    // 就恢復到原本停留的高度
                     if (savedScroll.distanceFromBottom >= 200) {
                         chatContainerRef.current.scrollTop = savedScroll.scrollTop;
-                        // 雙重恢復機制：防止瀏覽器在佈局尚未完全展開時剪裁了 scrollTop
                         setTimeout(() => {
                             if (chatContainerRef.current) {
                                 chatContainerRef.current.scrollTop = savedScroll.scrollTop;
                             }
-                        }, 50);
+                            isRestoringRef.current = false;
+                        }, 150);
                     } else {
-                        // 原本就在底部，就乖乖置底
                         setTimeout(() => scrollToBottom(false), 50);
-                        setTimeout(() => scrollToBottom(false), 200);
+                        setTimeout(() => {
+                            scrollToBottom(false);
+                            isRestoringRef.current = false;
+                        }, 250);
                     }
                 } else {
-                    // 如果沒有紀錄 (第一次點進這個聊天室)
                     setTimeout(() => scrollToBottom(false), 50);
-                    setTimeout(() => scrollToBottom(false), 300); // 加上雙重保險，防止圖片微距變化
+                    setTimeout(() => {
+                        scrollToBottom(false);
+                        isRestoringRef.current = false;
+                    }, 350);
                 }
             } else if (isHistoryLoad) {
                 // Do nothing, scroll handled by useLayoutEffect
@@ -1033,7 +1039,7 @@ function MessageCenter() {
 
                                     const handleMediaLoad = () => {
                                         // 使用 Ref 避免 React closure 造成的狀態過期問題
-                                        if (isAtBottomRef.current) {
+                                        if (isAtBottomRef.current && !isRestoringRef.current) {
                                             // 給延遲確保 DOM 已渲染完畢
                                             setTimeout(() => scrollToBottom(true), 100);
                                         }

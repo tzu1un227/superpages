@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
   - **自動旅程 (Auto Journey) 與群發 (Broadcast) 優化** [2026-03-12]:
-    - **訊息編輯器強化**：補回 Projects 編輯器遺失的圖片/影片 URL 欄位，並為 Projects 與 Broadcast 兩者加入「文字/連結/Flex 不能為空」的防錯驗證。
+    - **訊息編輯器強化**：補回 Projects 編輯器遺失的圖片/影片 URL 欄位，並為 Projects 與 Broadcast 兩者加入「文字/連結/Flex 不能為空」的深層防錯驗證（精確檢查 URI 連結與回傳文字）。
     - **排程安全性提升**：禁止刪除排程中的最後一則訊息（確保每則排程包含 1-5 則訊息），並加入「未選取專案時不能新增排程」的提示。
     - **手動加入用戶優化**：重構 `UserSelectModal`，將名稱與標籤搜尋分離，並提供標籤選擇介面。通知訊息改為顯示用戶姓名。
 - **訊息中心與 WebSocket 通訊強化 (Message Center & WebSocket Enhancements)** [2026-03-12]:
@@ -12,7 +12,7 @@ All notable changes to this project will be documented in this file.
     - **捲軸行為與防跳動 (useLayoutEffect)**：修復載入舊訊息或背景輪詢時畫面跳動問題，引進 `useLayoutEffect` 與穩定 DOM `key` 定位技術，確保檢視舊對話時位置完全固定。
     - **圖片/媒體載入同步化 (LazyImage)**：實作 `LazyImage` 與 `AuthenticatedImage` 的預載機制，圖片在背景載入完成後才顯示，解決非同步媒體產生的版面推擠。
     - **即時置底優化**：移除延遲 1 秒置底，改为在媒體載入後的瞬間即時判斷並置底。
-    - **對話清單捲動記憶**：實作跨用戶的捲軸位置記憶。當離開聊天室時會紀錄停留高度，切回時即時恢復。
+    - **對話清單捲動記憶與穩定性 (Restoration Guard)**：實作跨用戶的捲軸位置記憶，並新增「恢復期間防護旗標」，解決位置恢復後被非同步載入圖片拉回底部的跳動問題。
     - **極速載入策略調整**：針對已有「向上捲動紀錄」的用戶自動跳過 `limit=100` 快取載入，改為直接載入完整歷史以確保捲軸定位精確。
     - **極速載入與防錯亂 (AbortController & 嚴格狀態鎖定)**：解決快速點擊聊天室導致的對話錯亂與跳回。導入 `AbortController` 中斷過期請求，並設定嚴格狀態鎖定。
     - **訊息看圖優化（修復閃爍）**：修復了當用戶傳送圖片時，因 React 內部元件未獨立抽離導致圖片會不斷變回「載入中」並重複發送大量 `GET` 請求的問題。現在圖片順利載入後將會穩定顯示。
