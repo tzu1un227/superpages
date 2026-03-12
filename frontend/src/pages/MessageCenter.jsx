@@ -447,7 +447,7 @@ function MessageCenter() {
     const handleScroll = (e) => {
         const { scrollTop, scrollHeight, clientHeight } = e.target;
         const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-        const bottom = distanceFromBottom < 100;
+        const bottom = distanceFromBottom < 200; // 增加閾值，防止圖片載入期間的輕微跳動導致置底失效
         setIsAtBottom(bottom);
         isAtBottomRef.current = bottom;
         if (bottom) setShowNewMsgBtn(false);
@@ -1020,7 +1020,8 @@ function MessageCenter() {
                                     const handleMediaLoad = () => {
                                         // 使用 Ref 避免 React closure 造成的狀態過期問題
                                         if (isAtBottomRef.current) {
-                                            scrollToBottom(true);
+                                            // 給延遲確保 DOM 已渲染完畢
+                                            setTimeout(() => scrollToBottom(true), 100);
                                         }
                                     };
 
