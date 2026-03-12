@@ -196,7 +196,7 @@ def build_questionnaire_direct(data: dict, app_id: str, conn, quest_id: int) -> 
 
         # Check condition for this question
         check_str = _parse_condition(q.get('cond', '1'), q.get('cond_detail', ''))
-        save_fn = f"pri_set('ans_{note}_Q{curr_q_idx}', sys.content(m))"
+        save_fn = f"pri_set('ans_{note}_Q{curr_q_idx}', m.content)"
 
         # Correct answer rule
         if is_last:
@@ -207,7 +207,7 @@ def build_questionnaire_direct(data: dict, app_id: str, conn, quest_id: int) -> 
                 # We need to construct the summary message
                 summary_parts = [f"📝 {note} - 答題確認", "----------------"]
                 for j, qq in enumerate(questions):
-                    summary_parts.append(f"Q{j+1}. {qq['content']}\n答：{{sys.pri_get('ans_{note}_Q{j+1}')}}")
+                    summary_parts.append(f"Q{j+1}. {qq['content']}\n答：<%pri('ans_{note}_Q{j+1}')%>")
                 summary_parts.append("----------------")
                 summary_parts.append("請確認以上內容：\n1. 確認送出\n2. 重新填寫")
                 summary_msg = "\n".join(summary_parts)
