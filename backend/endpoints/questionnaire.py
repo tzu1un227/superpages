@@ -183,7 +183,7 @@ def build_questionnaire_direct(data: dict, app_id: str, conn, quest_id: int) -> 
         INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
         VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s, %s)
     """, (
-        [trigger], 'Message', [], [time_check],
+        ['*'], 'Message', [trigger], [time_check],
         [_text_msg_json(questions[0]['content'])],
         first_state, '', True, note
     ))
