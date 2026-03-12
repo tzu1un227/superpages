@@ -452,15 +452,20 @@ const ProjectsManagement = () => {
         setIsUserSelectModalOpen(true);
     };
 
-    const onUserSelected = async (userId, userName) => {
+    const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+
+    const handleBatchAdd = async (userIds) => {
+        if (!userIds || userIds.length === 0) return;
+        setIsBatchProcessing(true);
         try {
-            // Call backend restart endpoint directly - this inserts cron_table with status='active'
-            await api.post(`/projects/${selectedProjectId}/users/${userId}/restart`);
-            showToast(`已成功加入用戶 ${userName || '未命名'}`, 'success');
+            await api.post(`/projects/${selectedProjectId}/users/batch-restart`, { user_ids: userIds });
+            showToast(`已成功批次加入 ${userIds.length} 位用戶`, 'success');
             setIsUserSelectModalOpen(false);
             setTimeout(() => fetchProjectUsers(selectedProjectId), 1000);
         } catch (err) {
-            showToast('加入用戶失敗: ' + (err.response?.data?.message || err.message), 'error');
+            showToast('批次加入失敗: ' + (err.response?.data?.message || err.message), 'error');
+        } finally {
+            setIsBatchProcessing(false);
         }
     };
 
@@ -1424,7 +1429,7 @@ const ProjectsManagement = () => {
             <UserSelectModal
                 isOpen={isUserSelectModalOpen}
                 onClose={() => setIsUserSelectModalOpen(false)}
-                onSelect={onUserSelected}
+                onSelectBatch={handleBatchAdd}
                 existingUsers={Array.isArray(projectUsers) ? projectUsers.map(u => u.user_id) : []}
             />
             {/* Preview Modal */}
@@ -1781,16 +1786,19 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
     );
 };
 
-const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
+const UserSelectModal = ({ isOpen, onClose, onSelectBatch, existingUsers = [] }) => {
     const [users, setUsers] = useState([]);
     const [allTags, setAllTags] = useState([]);
     const [loading, setLoading] = useState(false);
     const [nameSearch, setNameSearch] = useState('');
     const [selectedTags, setSelectedTags] = useState([]);
+    const [selectedUserIds, setSelectedUserIds] = useState([]);
+    const [processing, setProcessing] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
             setLoading(true);
+            setSelectedUserIds([]); // Reset selection when opening
             Promise.all([
                 api.get('/registered-users?source=private_var'),
                 api.get('/tags')
@@ -1808,6 +1816,12 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
     const toggleTag = (tag) => {
         setSelectedTags(prev =>
             prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+        );
+    };
+
+    const toggleUserSelection = (userId) => {
+        setSelectedUserIds(prev =>
+            prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
         );
     };
 
@@ -1842,72 +1856,147 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
         return true;
     });
 
+    const handleSelectAll = () => {
+        setSelectedUserIds(filteredUsers.map(u => u.user_id));
+    };
+
+    const handleDeselectAll = () => {
+        setSelectedUserIds([]);
+    };
+
+    const handleSubmit = async () => {
+        if (selectedUserIds.length === 0) {
+            alert('請先選取至少一位用戶');
+            return;
+        }
+        setProcessing(true);
+        try {
+            await onSelectBatch(selectedUserIds);
+        } finally {
+            setProcessing(false);
+        }
+    };
+
     if (!isOpen) return null;
 
     return (
-        <Dialog open={isOpen} onClose={onClose} maxWidth="sm" fullWidth PaperProps={{ style: { backgroundColor: '#1A1A1A', color: '#fff' } }}>
+        <Dialog open={isOpen} onClose={processing ? null : onClose} maxWidth="sm" fullWidth PaperProps={{ style: { backgroundColor: '#1A1A1A', color: '#fff' } }}>
             <DialogTitle style={{ borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                手動將用戶加入專案
-                <X style={{ cursor: 'pointer' }} onClick={onClose} />
+                手動將用戶加入專案 (批次選擇)
+                {!processing && <X style={{ cursor: 'pointer' }} onClick={onClose} />}
             </DialogTitle>
             <DialogContent style={{ paddingTop: '20px' }}>
-                <div style={{ marginBottom: '20px' }}>
-                    <input
-                        type="text"
-                        placeholder="搜尋用戶名稱..."
-                        value={nameSearch}
-                        onChange={(e) => setNameSearch(e.target.value)}
-                        style={{ width: '100%', padding: '8px', background: '#333', border: '1px solid #555', borderRadius: '4px', color: '#fff' }}
-                    />
-                </div>
-                <div style={{ marginBottom: '20px' }}>
-                    <div style={{ color: '#aaa', marginBottom: '10px' }}>篩選標籤:</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', maxHeight: '100px', overflowY: 'auto' }}>
-                        {allTags.map(tag => (
-                            <span
-                                key={tag}
-                                onClick={() => toggleTag(tag)}
-                                style={{
-                                    padding: '6px 12px',
-                                    borderRadius: '20px',
-                                    backgroundColor: selectedTags.includes(tag) ? 'var(--primary-yellow)' : '#444',
-                                    color: selectedTags.includes(tag) ? '#000' : '#fff',
-                                    cursor: 'pointer',
-                                    fontSize: '14px',
-                                    whiteSpace: 'nowrap'
-                                }}
-                            >
-                                {tag}
-                            </span>
-                        ))}
+                {processing ? (
+                    <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+                        <LoadingSpinner message="正在批次加入用戶中，請耐心等待..." />
+                        <div style={{ marginTop: '10px', color: '#aaa' }}>這可能需要一段時間，請勿關閉視窗</div>
                     </div>
-                </div>
-                <div style={{ maxHeight: '300px', overflowY: 'auto', borderTop: '1px solid #333', paddingTop: '10px' }}>
-                    {loading ? (
-                        <div style={{ textAlign: 'center', padding: '20px' }}><LoadingSpinner message="載入用戶中..." /></div>
-                    ) : filteredUsers.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>無符合條件的用戶</div>
-                    ) : (
-                        <div>
-                            {filteredUsers.map(u => (
-                                <div key={u.user_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #222' }}>
-                                    <div>
-                                        <div style={{ fontWeight: 'bold' }}>{u.name || '未命名用戶'}</div>
-                                    </div>
-                                    <button
-                                        onClick={() => onSelect(u.user_id, u.name)}
-                                        style={{ background: 'var(--primary-yellow)', border: 'none', borderRadius: '4px', padding: '6px 15px', color: '#000', fontWeight: 'bold', cursor: 'pointer' }}
-                                    >
-                                        加入
-                                    </button>
-                                </div>
-                            ))}
+                ) : (
+                    <>
+                        <div style={{ marginBottom: '20px' }}>
+                            <input
+                                type="text"
+                                placeholder="搜尋用戶名稱..."
+                                value={nameSearch}
+                                onChange={(e) => setNameSearch(e.target.value)}
+                                style={{ width: '100%', padding: '10px', background: '#333', border: '1px solid #555', borderRadius: '4px', color: '#fff' }}
+                            />
                         </div>
-                    )}
-                </div>
+                        <div style={{ marginBottom: '20px' }}>
+                            <div style={{ color: '#aaa', marginBottom: '10px', display: 'flex', justifyContent: 'space-between' }}>
+                                <span>篩選標籤:</span>
+                                {selectedTags.length > 0 && <span style={{ color: 'var(--primary-yellow)', cursor: 'pointer', fontSize: '12px' }} onClick={() => setSelectedTags([])}>清除篩選</span>}
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', maxHeight: '80px', overflowY: 'auto' }}>
+                                {allTags.map(tag => (
+                                    <span
+                                        key={tag}
+                                        onClick={() => toggleTag(tag)}
+                                        style={{
+                                            padding: '4px 10px',
+                                            borderRadius: '20px',
+                                            backgroundColor: selectedTags.includes(tag) ? 'var(--primary-yellow)' : '#444',
+                                            color: selectedTags.includes(tag) ? '#000' : '#fff',
+                                            cursor: 'pointer',
+                                            fontSize: '12px',
+                                            whiteSpace: 'nowrap'
+                                        }}
+                                    >
+                                        {tag}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                            <button onClick={handleSelectAll} style={{ padding: '4px 10px', background: '#333', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}>全選目前過濾結果</button>
+                            <button onClick={handleDeselectAll} style={{ padding: '4px 10px', background: '#333', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}>取消全選</button>
+                        </div>
+
+                        <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid #333', borderRadius: '4px', background: '#111' }}>
+                            {loading ? (
+                                <div style={{ textAlign: 'center', padding: '20px' }}><LoadingSpinner message="載入用戶中..." /></div>
+                            ) : filteredUsers.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>無符合條件的用戶</div>
+                            ) : (
+                                <div style={{ padding: '0 10px' }}>
+                                    {filteredUsers.map(u => (
+                                        <div
+                                            key={u.user_id}
+                                            onClick={() => toggleUserSelection(u.user_id)}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                padding: '10px 0',
+                                                borderBottom: '1px solid #222',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            <div style={{
+                                                width: '18px',
+                                                height: '18px',
+                                                border: '2px solid' + (selectedUserIds.includes(u.user_id) ? 'var(--primary-yellow)' : '#555'),
+                                                backgroundColor: selectedUserIds.includes(u.user_id) ? 'var(--primary-yellow)' : 'transparent',
+                                                borderRadius: '3px',
+                                                marginRight: '12px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center'
+                                            }}>
+                                                {selectedUserIds.includes(u.user_id) && <span style={{ color: '#000', fontSize: '14px', fontWeight: 'bold' }}>✓</span>}
+                                            </div>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ fontWeight: 'bold', color: selectedUserIds.includes(u.user_id) ? 'var(--primary-yellow)' : '#fff' }}>{u.name || '未命名用戶'}</div>
+                                                <div style={{ fontSize: '11px', color: '#666' }}>{u.tags?.replace(/\|/g, ', ') || '無標籤'}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        <div style={{ marginTop: '10px', textAlign: 'right', fontSize: '12px', color: '#888' }}>
+                            已選取 {selectedUserIds.length} 位用戶
+                        </div>
+                    </>
+                )}
             </DialogContent>
-            <DialogActions>
-                <button onClick={onClose} style={{ background: '#444', color: '#fff', padding: '8px 20px', borderRadius: '4px', border: 'none' }}>關閉</button>
+            <DialogActions style={{ borderTop: '1px solid #333', padding: '15px' }}>
+                <button onClick={onClose} disabled={processing} style={{ background: '#444', color: '#fff', padding: '8px 20px', borderRadius: '4px', border: 'none', cursor: 'pointer' }}>取消</button>
+                <button
+                    onClick={handleSubmit}
+                    disabled={processing || selectedUserIds.length === 0}
+                    style={{
+                        background: selectedUserIds.length > 0 ? 'var(--primary-yellow)' : '#333',
+                        color: selectedUserIds.length > 0 ? '#000' : '#888',
+                        padding: '8px 20px',
+                        borderRadius: '4px',
+                        border: 'none',
+                        fontWeight: 'bold',
+                        cursor: selectedUserIds.length > 0 ? 'pointer' : 'not-allowed'
+                    }}
+                >
+                    {processing ? '處理中...' : `加入已選取用戶 (${selectedUserIds.length})`}
+                </button>
             </DialogActions>
         </Dialog>
     );

@@ -876,19 +876,6 @@ def restart_project_user(id, user_id):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
-        # Ensure required tables exist
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS user_project_status (
-                id SERIAL PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                project_id INTEGER NOT NULL,
-                status TEXT DEFAULT 'active',
-                updated_at TIMESTAMP DEFAULT NOW(),
-                UNIQUE(user_id, project_id)
-            );
-        """)
-        conn.commit()
-        
         # 1. Fetch Project and Anchor Config
         cur.execute("SELECT anchor_config FROM projects WHERE project_id = %s", (id,))
         project = cur.fetchone()
@@ -903,13 +890,11 @@ def restart_project_user(id, user_id):
         # 2. Calculate Base Start Time (Aligned with Anchor)
         now = datetime.now()
         base_start_time = now
-        
         if anchor_conf and anchor_conf.get('time'):
             try:
                 target_time = datetime.strptime(anchor_conf['time'], "%H:%M").time()
                 a_type = anchor_conf.get('type', 'daily')
                 day_param = anchor_conf.get('day', 1)
-                
                 today_date = now.date()
                 if a_type == 'daily':
                     candidate = datetime.combine(today_date, target_time)
@@ -941,48 +926,128 @@ def restart_project_user(id, user_id):
         steps = cur.fetchall()
         
         if steps:
-            # 4. Clear existing tasks for this user/project to avoid duplicates or incomplete state
+            # 4. Clear existing tasks
             cur.execute("DELETE FROM cron_table WHERE project_id = %s AND user_id = %s", (id, user_id))
             
-            # 5. Insert All Steps with Cumulative Delay
+            # 5. Insert All Steps
             current_push_time = base_start_time
             for step in steps:
                 s_id = step['step_id']
-                # cumulative interval: Step N push_time = Previous Step push_time + Step N interval
                 interval = float(step['interval_hours']) if step['interval_hours'] else 0
                 msg = step['message_content']
-                
                 current_push_time += timedelta(hours=interval)
-                
                 cur.execute("INSERT INTO cron_table (user_id, project_id, step_id, message_content, push_time, status) VALUES (%s, %s, %s, %s, %s, 'active')",
                             (user_id, id, s_id, msg, current_push_time))
             
-            # 6. Update user_project_status
-            cur.execute("SELECT 1 FROM user_project_status WHERE user_id = %s AND project_id = %s", (user_id, id))
-            if cur.fetchone():
-                cur.execute("UPDATE user_project_status SET status = 'active', updated_at = NOW() WHERE user_id = %s AND project_id = %s", (user_id, id))
-            else:
-                cur.execute("INSERT INTO user_project_status (user_id, project_id, status, updated_at) VALUES (%s, %s, 'active', NOW())", (user_id, id))
+            # 6. Update status
+            cur.execute("INSERT INTO user_project_status (user_id, project_id, status, updated_at) VALUES (%s, %s, 'active', NOW()) ON CONFLICT (user_id, project_id) DO UPDATE SET status = 'active', updated_at = NOW()",
+                        (user_id, id))
 
-            # 7. Update Stats - Increment Total Trigger Count (ttc)
+            # 7. Update Stats
             try:
                 oa_id = get_current_oa_id()
-                if oa_id:
-                    increment_project_stat(id, 'ttc', oa_id)
-                else:
-                    print(f"WARNING: restart_project_user cannot increment stat - No OA ID in context")
-            except Exception as se:
-                print(f"Error incrementing restart stat: {se}")
+                if oa_id: increment_project_stat(id, 'ttc', oa_id)
+            except: pass
 
             conn.commit()
             cur.close()
             conn.close()
-            return jsonify({"status": "success", "message": f"Project restarted with {len(steps)} steps scheduled."})
+            return jsonify({"status": "success", "message": f"Project restarted for user {user_id}."})
         else:
             cur.close()
             conn.close()
             return jsonify({"status": "error", "message": "No schedules found for this project"}), 404
     except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/projects/<int:id>/users/batch-restart', methods=['POST'])
+def batch_restart_project_users(id):
+    try:
+        data = request.json
+        user_ids = data.get('user_ids', [])
+        if not user_ids:
+            return jsonify({"status": "error", "message": "No users selected"}), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # 1. Fetch Project and Anchor Config
+        cur.execute("SELECT anchor_config FROM projects WHERE project_id = %s", (id,))
+        project = cur.fetchone()
+        if not project:
+            return jsonify({"status": "error", "message": "Project not found"}), 404
+
+        anchor_conf = project['anchor_config']
+        if isinstance(anchor_conf, str):
+            try: anchor_conf = json.loads(anchor_conf)
+            except: anchor_conf = {}
+
+        # 2. Calculate Base Start Time
+        now = datetime.now()
+        base_start_time = now
+        if anchor_conf and anchor_conf.get('time'):
+            try:
+                target_time = datetime.strptime(anchor_conf['time'], "%H:%M").time()
+                a_type = anchor_conf.get('type', 'daily')
+                day_param = anchor_conf.get('day', 1)
+                today_date = now.date()
+                if a_type == 'daily':
+                    candidate = datetime.combine(today_date, target_time)
+                    if candidate <= now: candidate += timedelta(days=1)
+                    base_start_time = candidate
+                elif a_type == 'weekly':
+                    target_weekday = int(day_param) - 1
+                    current_weekday = today_date.weekday()
+                    days_ahead = target_weekday - current_weekday
+                    if days_ahead < 0: days_ahead += 7
+                    candidate = datetime.combine(today_date + timedelta(days=days_ahead), target_time)
+                    if candidate <= now: candidate += timedelta(days=7)
+                    base_start_time = candidate
+                elif a_type == 'monthly':
+                    target_day = int(day_param)
+                    try: candidate = datetime(today_date.year, today_date.month, target_day, target_time.hour, target_time.minute)
+                    except: candidate = datetime(today_date.year, today_date.month, 1, target_time.hour, target_time.minute)
+                    if candidate <= now:
+                        m_next = today_date.month + 1 if today_date.month < 12 else 1
+                        y_next = today_date.year if today_date.month < 12 else today_date.year + 1
+                        try: candidate = datetime(y_next, m_next, target_day, target_time.hour, target_time.minute)
+                        except: candidate = datetime(y_next, m_next, 1, target_time.hour, target_time.minute)
+                    base_start_time = candidate
+            except Exception as e:
+                print(f"Anchor error in batch_restart: {e}")
+
+        # 3. Fetch All Steps
+        cur.execute("SELECT step_id, interval_hours, message_content FROM project_schedules WHERE project_id = %s ORDER BY step_id ASC", (id,))
+        steps = cur.fetchall()
+        if not steps:
+            cur.close()
+            conn.close()
+            return jsonify({"status": "error", "message": "No schedules found for this project"}), 404
+
+        # 4. Process each user
+        oa_id = get_current_oa_id()
+        for user_id in user_ids:
+            cur.execute("DELETE FROM cron_table WHERE project_id = %s AND user_id = %s", (id, user_id))
+            current_push_time = base_start_time
+            for step in steps:
+                s_id = step['step_id']
+                interval = float(step['interval_hours']) if step['interval_hours'] else 0
+                msg = step['message_content']
+                current_push_time += timedelta(hours=interval)
+                cur.execute("INSERT INTO cron_table (user_id, project_id, step_id, message_content, push_time, status) VALUES (%s, %s, %s, %s, %s, 'active')",
+                            (user_id, id, s_id, msg, current_push_time))
+            cur.execute("INSERT INTO user_project_status (user_id, project_id, status, updated_at) VALUES (%s, %s, 'active', NOW()) ON CONFLICT (user_id, project_id) DO UPDATE SET status = 'active', updated_at = NOW()",
+                        (user_id, id))
+            if oa_id:
+                try: increment_project_stat(id, 'ttc', oa_id)
+                except: pass
+
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"status": "success", "message": f"Successfully added {len(user_ids)} users to project."})
+    except Exception as e:
+        print(f"Batch restart error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 def cron_scheduler_processor():

@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
     - **訊息編輯器強化**：補回 Projects 編輯器遺失的圖片/影片 URL 欄位，並為 Projects 與 Broadcast 兩者加入「文字/連結/Flex 不能為空」的深層防錯驗證（精確檢查 URI 連結與回傳文字）。
     - **排程安全性提升**：禁止刪除排程中的最後一則訊息（確保每則排程包含 1-5 則訊息），並加入「未選取專案時不能新增排程」的提示。
     - **手動加入用戶優化**：重構 `UserSelectModal`，將名稱與標籤搜尋分離，並提供標籤選擇介面。通知訊息改為顯示用戶姓名。
+    - **自動旅程批量加入用戶**：支援一鍵勾選多位用戶並批量加入專案。後端新增專用的批次介面以提昇執行效率，前端同步加入「處理中」的耐心等待提示，顯著提升大批量操作時的使用者體驗。
 - **訊息中心與 WebSocket 通訊強化 (Message Center & WebSocket Enhancements)** [2026-03-12]:
   - **訊息中心 UI/UX 深度優化**：
     - **捲軸行為與防跳動 (useLayoutEffect)**：修復載入舊訊息或背景輪詢時畫面跳動問題，引進 `useLayoutEffect` 與穩定 DOM `key` 定位技術，確保檢視舊對話時位置完全固定。
