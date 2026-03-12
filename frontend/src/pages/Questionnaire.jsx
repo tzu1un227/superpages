@@ -3,7 +3,7 @@ import {
     Box, Typography, Button, Divider, IconButton, TextField,
     Select, MenuItem, FormControl, InputLabel, Paper, Chip,
     Stepper, Step, StepLabel, Dialog, DialogTitle, DialogContent,
-    DialogActions, CircularProgress, Alert, Tooltip
+    DialogActions, CircularProgress, Alert, Tooltip, Switch, FormControlLabel
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
@@ -162,6 +162,9 @@ export default function Questionnaire() {
     const [trigger, setTrigger] = useState('');
     const [finishMsg, setFinishMsg] = useState('感謝您的填寫！');
     const [questions, setQuestions] = useState([emptyQuestion()]);
+    const [enableReview, setEnableReview] = useState(false);
+    const [startTime, setStartTime] = useState('');
+    const [endTime, setEndTime] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [alert, setAlert] = useState(null);
 
@@ -228,13 +231,18 @@ export default function Questionnaire() {
         try {
             const res = await api.post('/questionnaire/build', {
                 note, trigger, finish_msg: finishMsg,
-                questions: questions.map(q => ({ content: q.content, cond: q.cond, cond_detail: q.cond_detail }))
+                questions: questions.map(q => ({ content: q.content, cond: q.cond, cond_detail: q.cond_detail })),
+                enable_review: enableReview,
+                start_time: startTime,
+                end_time: endTime
             }, authHeaders);
             setAlert({ severity: 'success', msg: res.data.message || `問卷「${note}」已成功建立！` });
             fetchList();
             // Reset form
             setNote(''); setTrigger(''); setFinishMsg('感謝您的填寫！');
-            setQuestions([emptyQuestion()]); setActiveStep(0);
+            setQuestions([emptyQuestion()]); setEnableReview(false);
+            setStartTime(''); setEndTime('');
+            setActiveStep(0);
         } catch (e) {
             setAlert({ severity: 'error', msg: e.response?.data?.error || '建立失敗' });
         } finally {
@@ -334,9 +342,52 @@ export default function Questionnaire() {
                             onChange={e => setFinishMsg(e.target.value)}
                             helperText="使用者完成全部問題後顯示的訊息"
                             FormHelperTextProps={{ sx: { color: '#666' } }}
-                            sx={sx}
+                            sx={{ ...sx, mb: 3 }}
                             InputLabelProps={{ sx: { color: '#B0B0B0' } }}
                         />
+
+                        <Divider sx={{ borderColor: '#444', mb: 3 }} />
+
+                        <Typography sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', mb: 1 }}>進階設定</Typography>
+
+                        <FormControlLabel
+                            control={
+                                <Switch
+                                    checked={enableReview}
+                                    onChange={e => setEnableReview(e.target.checked)}
+                                    sx={{
+                                        '& .MuiSwitch-switchBase.Mui-checked': { color: 'var(--primary-yellow)' },
+                                        '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: 'var(--primary-yellow)' }
+                                    }}
+                                />
+                            }
+                            label="啟用答案檢查步驟 (使用者最後可預覽並確認答案)"
+                            sx={{ color: '#B0B0B0', mb: 2, display: 'block' }}
+                        />
+
+                        <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
+                            <TextField
+                                fullWidth
+                                label="問卷開始時間"
+                                type="datetime-local"
+                                value={startTime}
+                                onChange={e => setStartTime(e.target.value)}
+                                sx={sx}
+                                InputLabelProps={{ shrink: true, sx: { color: '#B0B0B0' } }}
+                            />
+                            <TextField
+                                fullWidth
+                                label="問卷結束時間"
+                                type="datetime-local"
+                                value={endTime}
+                                onChange={e => setEndTime(e.target.value)}
+                                sx={sx}
+                                InputLabelProps={{ shrink: true, sx: { color: '#B0B0B0' } }}
+                            />
+                        </Box>
+                        <Typography sx={{ color: '#666', fontSize: '0.8rem', mt: 1 }}>
+                            若不設定時間，則問卷將持續有效。
+                        </Typography>
                     </Box>
                 )}
 
@@ -372,7 +423,17 @@ export default function Questionnaire() {
                             <Typography sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', mb: 1 }}>基本資訊</Typography>
                             <Typography sx={{ color: 'white', mb: 0.5 }}>問卷名稱：<Chip label={note} size="small" sx={{ background: '#444', color: 'white' }} /></Typography>
                             <Typography sx={{ color: 'white', mb: 0.5 }}>觸發指令：<Chip label={trigger} size="small" sx={{ background: '#444', color: 'white' }} /></Typography>
-                            <Typography sx={{ color: 'white' }}>完成訊息：{finishMsg}</Typography>
+                            <Typography sx={{ color: 'white', mb: 0.5 }}>完成訊息：{finishMsg}</Typography>
+                            <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #333' }}>
+                                <Typography sx={{ color: 'white', mb: 0.5, fontSize: '0.9rem' }}>
+                                    答案檢查：{enableReview ? <Chip label="已開啟" size="small" color="success" /> : <Chip label="未開啟" size="small" variant="outlined" sx={{ color: '#888' }} />}
+                                </Typography>
+                                {(startTime || endTime) && (
+                                    <Typography sx={{ color: '#aaa', fontSize: '0.9rem', mt: 1 }}>
+                                        有效時段：{startTime || '不限'} ~ {endTime || '不限'}
+                                    </Typography>
+                                )}
+                            </Box>
                         </Paper>
                         <Paper sx={{ p: 2, background: '#222', border: '1px solid #444' }}>
                             <Typography sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', mb: 1 }}>題目列表（共 {questions.length} 題）</Typography>

@@ -149,9 +149,33 @@ def build_questionnaire_direct(data: dict, app_id: str, conn, quest_id: int) -> 
     trigger = data.get('trigger')
     finish_msg = data.get('finish_msg', '問卷已完成，謝謝您的參與！')
     questions = data.get('questions', [])
+    enable_review = data.get('enable_review', False)
+    start_time = data.get('start_time', '').strip()
+    end_time = data.get('end_time', '').strip()
 
     cur = conn.cursor()
     table = f"Q_bank:{app_id}"
+
+    # 0. Availability Check (Time Limits)
+    time_check = ''
+    start_ts = None
+    end_ts = None
+    
+    if start_time:
+        try:
+            start_ts = int(datetime.strptime(start_time, '%Y-%m-%dT%H:%M').timestamp())
+        except: pass
+    if end_time:
+        try:
+            end_ts = int(datetime.strptime(end_time, '%Y-%m-%dT%H:%M').timestamp())
+        except: pass
+
+    if start_ts and end_ts:
+        time_check = f"sys.now() >= {start_ts} and sys.now() <= {end_ts}"
+    elif start_ts:
+        time_check = f"sys.now() >= {start_ts}"
+    elif end_ts:
+        time_check = f"sys.now() <= {end_ts}"
 
     # 1. Entry Rule (Trigger -> First Question)
     first_state = _make_state(quest_id, 1)
@@ -159,7 +183,7 @@ def build_questionnaire_direct(data: dict, app_id: str, conn, quest_id: int) -> 
         INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
         VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s, %s)
     """, (
-        [trigger], 'Message', [], [''],
+        [trigger], 'Message', [], [time_check],
         [_text_msg_json(questions[0]['content'])],
         first_state, '', True, note
     ))
@@ -176,15 +200,36 @@ def build_questionnaire_direct(data: dict, app_id: str, conn, quest_id: int) -> 
 
         # Correct answer rule
         if is_last:
-            # Last question -> Finish
-            cur.execute(f"""
-                INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
-                VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s, %s)
-            """, (
-                [curr_state], 'Message', ['*'], [check_str],
-                [_text_msg_json(finish_msg)],
-                '00000', save_fn, True, note
-            ))
+            if enable_review:
+                # Go to Review State
+                review_state = f"Q{quest_id:02d}99"
+                
+                # We need to construct the summary message
+                summary_parts = [f"📝 {note} - 答題確認", "----------------"]
+                for j, qq in enumerate(questions):
+                    summary_parts.append(f"Q{j+1}. {qq['content']}\n答：{{sys.pri_get('ans_{note}_Q{j+1}')}}")
+                summary_parts.append("----------------")
+                summary_parts.append("請確認以上內容：\n1. 確認送出\n2. 重新填寫")
+                summary_msg = "\n".join(summary_parts)
+
+                cur.execute(f"""
+                    INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
+                    VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s, %s)
+                """, (
+                    [curr_state], 'Message', ['*'], [check_str],
+                    [_text_msg_json(summary_msg)],
+                    review_state, save_fn, True, note
+                ))
+            else:
+                # Finish directly
+                cur.execute(f"""
+                    INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
+                    VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s, %s)
+                """, (
+                    [curr_state], 'Message', ['*'], [check_str],
+                    [_text_msg_json(finish_msg)],
+                    '00000', save_fn, True, note
+                ))
         else:
             # Next question
             next_state = _make_state(quest_id, curr_q_idx + 1)
@@ -197,17 +242,51 @@ def build_questionnaire_direct(data: dict, app_id: str, conn, quest_id: int) -> 
                 next_state, save_fn, True, note
             ))
 
-        # Fallback/error rule (only if there IS a condition to check)
+        # Fallback/error rule
         if check_str:
             error_msg = _build_error_msg(q['cond'], q.get('cond_detail', ''), q['content'])
             cur.execute(f"""
                 INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
                 VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s, %s)
             """, (
-                [curr_state], 'Message', ['*'], [''], # No check = catches everything (fallback)
+                [curr_state], 'Message', ['*'], [''],
                 [_text_msg_json(error_msg)],
-                curr_state, '', True, note # state_out = same state (re-ask)
+                curr_state, '', True, note
             ))
+
+    # 3. Review State Rules (if enabled)
+    if enable_review:
+        review_state = f"Q{quest_id:02d}99"
+        
+        # Confirm -> Finish
+        cur.execute(f"""
+            INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
+            VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s, %s)
+        """, (
+            [review_state], 'Message', ['確認送出', '1'], [''],
+            [_text_msg_json(finish_msg)],
+            '00000', '', True, note
+        ))
+
+        # Restart -> Q0101
+        cur.execute(f"""
+            INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
+            VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s, %s)
+        """, (
+            [review_state], 'Message', ['重新填寫', '2'], [''],
+            [_text_msg_json(questions[0]['content'])],
+            _make_state(quest_id, 1), '', True, note
+        ))
+
+        # Fallback Review
+        cur.execute(f"""
+            INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
+            VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s, %s)
+        """, (
+            [review_state], 'Message', ['*'], [''],
+            [_text_msg_json("請選擇「確認送出」或「重新填寫」來完成問卷。")],
+            review_state, '', True, note
+        ))
 
     conn.commit()
     cur.close()
@@ -305,6 +384,9 @@ def build_questionnaire():
     note = data.get('note', '').strip()
     trigger = data.get('trigger', '').strip()
     questions = data.get('questions', [])
+    enable_review = data.get('enable_review', False)
+    start_time = data.get('start_time', '').strip()
+    end_time = data.get('end_time', '').strip()
 
     if not note:
         return jsonify({'error': '問卷名稱不能為空'}), 400

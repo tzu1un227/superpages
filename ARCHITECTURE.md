@@ -106,6 +106,10 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - **訊息編輯器 (RichMessageModal)**: 支援文字、圖片、影片、語音與 Flex 訊息。包含欄位完整度驗證（防止空內容）。
     - **排程邏輯**: 確保 Step 0 作為旅程起點不可刪除，維護流程完整性。
     - **用戶管理 (UserSelectModal)**: 整合 `/api/registered-users` 與 `/api/tags`，支援複合式（名稱 + 標籤）搜尋，提供視覺化標籤篩選控制項。
+  - **問卷管理 (Questionnaire)**:
+    - **動態狀態產生**: 系統自動產生 `Q[ID][SEQ]` 模式的狀態。若啟用「答案檢查」，則會額外產生一個跳轉至 `Q[ID]99` 的回顧狀態。
+    - **時間限制邏輯**: 利用 `sys.now_between` 或 `sys.now()` 比較邏輯，在問卷入口規則的 `check` 欄位中實現時段判斷。
+    - **資料持久化**: 每一題的答案會透過 `pri_set` 儲存於 `ans_{問卷名稱}_Q{題號}`，並在回顧階段透過 `sys.pri_get` 動態讀取呈現。
   - **群發訊息 (Broadcast)**:
     - **發送驗證**: 在發送或儲存草稿前進行深度訊息內容檢測（包含 Flex 內的連結與按鈕動作）。
   - **用戶清單搜尋 (User List Search)**:
