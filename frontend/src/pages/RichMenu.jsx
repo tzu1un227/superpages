@@ -9,6 +9,13 @@ import {
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useToast } from '../contexts/ToastContext';
+import { Tooltip as MuiTooltip } from '@mui/material';
+
+// Styled or aliased Tooltip to avoid conflict
+const Tooltip = ({ title, children }) => {
+    if (!title) return children;
+    return <MuiTooltip title={title} arrow placement="top">{children}</MuiTooltip>;
+};
 
 const ACTION_TYPES = [
     { value: 'message', label: '傳送文字', icon: MessageSquare },
@@ -190,27 +197,32 @@ function RichMenu() {
         reader.readAsDataURL(file);
     };
 
-    const isFormValid = () => {
-        if (!currentMenu) return false;
-        if (!currentMenu.name.trim() || !currentMenu.chatBarText.trim()) return false;
-        if (!backgroundImage) return false; // Must have image
-        if (currentMenu.areas.length === 0) return false; // Must have at least one area
+    const getValidationErrors = () => {
+        const errors = [];
+        if (!currentMenu) return ["系統錯誤"];
+        if (!currentMenu.name?.trim()) errors.push("請輸入選單名稱");
+        if (!currentMenu.chatBarText?.trim()) errors.push("請輸入聊天欄標題");
+        if (!backgroundImage) errors.push("請上傳底圖");
+        if (currentMenu.areas.length === 0) errors.push("請至少新增一個區塊");
 
-        // Check if all areas have required action data
-        return currentMenu.areas.every(a => {
+        currentMenu.areas.forEach((a, idx) => {
             const { type } = a.action;
-            if (type === 'message') return !!a.action.text?.trim();
-            if (type === 'uri') return !!a.action.uri?.trim();
-            if (type === 'postback') return !!a.action.data?.trim();
-            if (type === 'richmenuswitch') return !!a.action.richMenuAliasId?.trim();
-            return false;
+            const prefix = `區塊 ${idx + 1}: `;
+            if (type === 'message' && !a.action.text?.trim()) errors.push(prefix + "請輸入訊息文字");
+            if (type === 'uri' && !a.action.uri?.trim()) errors.push(prefix + "請輸入網址");
+            if (type === 'postback' && !a.action.data?.trim()) errors.push(prefix + "請輸入 Postback 資料");
+            if (type === 'richmenuswitch' && !a.action.richMenuAliasId?.trim()) errors.push(prefix + "請選擇目標別名");
         });
+        return errors;
     };
+
+    const isFormValid = () => getValidationErrors().length === 0;
 
     const saveMenu = async () => {
         if (viewOnly) return;
-        if (!currentMenu.name || !currentMenu.chatBarText) {
-            showToast('請填寫選單名稱和標題', 'warning');
+        const errors = getValidationErrors();
+        if (errors.length > 0) {
+            showToast(`無法儲存：\n${errors.slice(0, 3).join('\n')}${errors.length > 3 ? '...' : ''}`, 'warning');
             return;
         }
         if (currentMenu.chatBarText.length > 14) {
@@ -394,9 +406,19 @@ function RichMenu() {
                     </div>
                     {!viewOnly && (
                         <div style={{ display: 'flex', gap: '15px' }}>
-                            <button onClick={saveMenu} className="primary" disabled={loading || !isFormValid()}>
-                                <Save size={18} /> {loading ? '儲存中...' : '儲存並同步'}
-                            </button>
+                            <Tooltip title={!isFormValid() ? getValidationErrors().join(' | ') : ''}>
+                                <button
+                                    onClick={saveMenu}
+                                    className="primary"
+                                    disabled={loading}
+                                    style={{
+                                        opacity: !isFormValid() ? 0.6 : 1,
+                                        cursor: !isFormValid() ? 'not-allowed' : 'pointer'
+                                    }}
+                                >
+                                    <Save size={18} /> {loading ? '儲存中...' : '儲存並同步'}
+                                </button>
+                            </Tooltip>
                         </div>
                     )}
                 </div>
@@ -486,7 +508,6 @@ function RichMenu() {
                                                     {allAliases.map(a => <option key={a} value={a} />)}
                                                 </datalist>
                                             </div>
-                                            <div><label className="label">Data (由系統自動生成)</label><input type="text" disabled={true} value={currentMenu.areas[selectedAreaIndex].action.data || ''} /></div>
                                         </div>
                                     )}
 
