@@ -6,6 +6,8 @@ import {
     DialogActions, CircularProgress, Alert, Tooltip, Switch, FormControlLabel
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
@@ -168,6 +170,7 @@ export default function Questionnaire() {
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [isEditing, setIsEditing] = useState(null); // original note name if editing
 
     const authHeaders = { headers: { Authorization: `Bearer ${token}`, 'X-OA-ID': oaId } };
 
@@ -190,10 +193,45 @@ export default function Questionnaire() {
         setExpandedNote(n);
         setLoadingPreview(true);
         try {
-            const res = await api.get(`/questionnaire/${n}`, authHeaders);
-            setPreviewRows(res.data);
+            const res = await api.get(`/questionnaire/detail/${n}`, authHeaders);
+            setPreviewRows(res.data.questions || []);
         } catch (e) { console.error(e); }
         finally { setLoadingPreview(false); }
+    };
+
+    const handleEdit = async (n) => {
+        try {
+            const res = await api.get(`/questionnaire/detail/${n}`, authHeaders);
+            const d = res.data;
+            setNote(d.note);
+            setTrigger(d.trigger);
+            setFinishMsg(d.finish_msg);
+            setEnableReview(d.enable_review);
+            setStartTime(d.start_time);
+            setEndTime(d.end_time);
+            setQuestions(d.questions.map(q => {
+                // Parse cond_detail for UI compatibility
+                let extra = { _min: '', _max: '' };
+                if (q.cond === '4') {
+                    const parts = q.cond_detail.split(',');
+                    extra._min = parts[0] || '0';
+                    extra._max = parts[1] || '-1';
+                }
+                return { ...q, ...extra };
+            }));
+            setIsEditing(n);
+            setActiveStep(0);
+            showToast(`正在編輯問卷：${n}`, 'info');
+        } catch (e) {
+            showToast('讀取詳情失敗', 'error');
+        }
+    };
+
+    const handleCopy = async (n) => {
+        await handleEdit(n);
+        setIsEditing(null);
+        setNote(prev => prev + ' - 副本');
+        showToast('已載入問卷副本，請修改名稱後建立。', 'info');
     };
 
     const handleDelete = async () => {
@@ -230,6 +268,11 @@ export default function Questionnaire() {
     const handleSubmit = async () => {
         setSubmitting(true);
         try {
+            // If editing, we first delete the old one
+            if (isEditing) {
+                await api.delete(`/questionnaire/${isEditing}`, authHeaders);
+            }
+
             const res = await api.post('/questionnaire/build', {
                 note, trigger, finish_msg: finishMsg,
                 questions: questions.map(q => ({ content: q.content, cond: q.cond, cond_detail: q.cond_detail })),
@@ -237,15 +280,16 @@ export default function Questionnaire() {
                 start_time: startTime,
                 end_time: endTime
             }, authHeaders);
-            showToast(res.data.message || `問卷「${note}」已成功建立！`, 'success');
+
+            showToast(isEditing ? `問卷「${note}」已更新！` : (res.data.message || `問卷「${note}」已成功建立！`), 'success');
             fetchList();
             // Reset form
             setNote(''); setTrigger(''); setFinishMsg('感謝您的填寫！');
             setQuestions([emptyQuestion()]); setEnableReview(false);
-            setStartTime(''); setEndTime('');
+            setStartTime(''); setEndTime(''); setIsEditing(null);
             setActiveStep(0);
         } catch (e) {
-            showToast(e.response?.data?.error || '建立失敗', 'error');
+            showToast(e.response?.data?.error || '儲存失敗', 'error');
         } finally {
             setSubmitting(false);
         }
@@ -263,31 +307,66 @@ export default function Questionnaire() {
                 ) : questionnaires.length === 0 ? (
                     <Typography sx={{ color: '#666', fontSize: '0.9rem' }}>尚無問卷，請在右側建立。</Typography>
                 ) : questionnaires.map(q => (
-                    <Paper key={q.note} sx={{ mb: 1, background: '#222', border: '1px solid #444' }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', px: 2, py: 1 }}>
+                    <Paper key={q.note} sx={{ mb: 1, background: '#222', border: '1px solid #444', overflow: 'hidden' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', px: 2, py: 1.5 }}>
                             <Box sx={{ flex: 1, cursor: 'pointer', '&:hover': { color: 'var(--primary-yellow)' } }} onClick={() => handleExpandNote(q.note)}>
-                                <Typography sx={{ color: 'white', fontWeight: 'bold' }}>
+                                <Typography sx={{ color: 'white', fontWeight: 'bold', fontSize: '1rem' }}>
                                     {q.note}
                                 </Typography>
-                                <Typography sx={{ color: '#666', fontSize: '0.75rem' }}>
-                                    ID: {q.id} | {q.rules_count} 條法則
-                                </Typography>
+                                <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5, flexWrap: 'wrap' }}>
+                                    <Chip label={`ID: ${q.id}`} size="small" sx={{ height: 18, fontSize: '0.65rem', background: '#333', color: '#888' }} />
+                                    {q.enable_review && <Chip label="檢查" size="small" sx={{ height: 18, fontSize: '0.65rem', background: '#2e7d32', color: 'white' }} />}
+                                    {(q.start_time || q.end_time) && <Chip label="定時" size="small" sx={{ height: 18, fontSize: '0.65rem', background: '#0288d1', color: 'white' }} />}
+                                </Box>
                             </Box>
                             <IconButton size="small" onClick={() => handleExpandNote(q.note)} sx={{ color: '#888' }}>
                                 {expandedNote === q.note ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                             </IconButton>
-                            <IconButton size="small" onClick={() => setDeleteDialog({ open: true, note: q.note })} sx={{ color: '#e57373' }}>
-                                <DeleteIcon fontSize="small" />
-                            </IconButton>
                         </Box>
                         {expandedNote === q.note && (
-                            <Box sx={{ px: 2, pb: 2 }}>
-                                <Divider sx={{ borderColor: '#333', mb: 1 }} />
-                                {loadingPreview ? <CircularProgress size={16} sx={{ color: '#888' }} /> : (
-                                    <Typography sx={{ color: '#aaa', fontSize: '0.78rem' }}>
-                                        共 {previewRows.length} 條法則（含防呆）
-                                    </Typography>
+                            <Box sx={{ px: 2, pb: 2, background: '#1a1a1a' }}>
+                                <Divider sx={{ borderColor: '#333', mb: 1.5 }} />
+
+                                {loadingPreview ? (
+                                    <CircularProgress size={16} sx={{ color: '#888', my: 1 }} />
+                                ) : (
+                                    <Box sx={{ mb: 2 }}>
+                                        <Typography sx={{ color: '#888', fontSize: '0.75rem', mb: 1 }}>題目概覽：</Typography>
+                                        {previewRows.map((pq, pi) => (
+                                            <Typography key={pi} sx={{ color: '#aaa', fontSize: '0.75rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                {pi + 1}. {pq.content}
+                                            </Typography>
+                                        ))}
+                                        {q.start_time && (
+                                            <Typography sx={{ color: '#0288d1', fontSize: '0.7rem', mt: 1 }}>
+                                                起：{q.start_time}
+                                            </Typography>
+                                        )}
+                                        {q.end_time && (
+                                            <Typography sx={{ color: '#d32f2f', fontSize: '0.7rem' }}>
+                                                止：{q.end_time}
+                                            </Typography>
+                                        )}
+                                    </Box>
                                 )}
+
+                                <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 1 }}>
+                                    <Tooltip title="編輯問卷">
+                                        <IconButton size="small" onClick={() => handleEdit(q.note)} sx={{ color: '#4fc3f7' }}>
+                                            <EditIcon fontSize="small" />
+                                        </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="複製問卷">
+                                        <IconButton size="small" onClick={() => handleCopy(q.note)} sx={{ color: '#81c784' }}>
+                                            <ContentCopyIcon fontSize="small" />
+                                        </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="刪除問卷">
+                                        <IconButton size="small" onClick={() => setDeleteDialog({ open: true, note: q.note })} sx={{ color: '#e57373' }}>
+                                            <DeleteIcon fontSize="small" />
+                                        </IconButton>
+                                    </Tooltip>
+                                </Box>
                             </Box>
                         )}
                     </Paper>
@@ -297,7 +376,7 @@ export default function Questionnaire() {
             {/* ─── Right: Builder ─── */}
             <Box sx={{ flex: 1 }}>
                 <Typography variant="h6" sx={{ color: 'var(--primary-yellow)', mb: 3, fontWeight: 'bold' }}>
-                    建立新問卷
+                    {isEditing ? `編輯問卷：${isEditing}` : '建立新問卷'}
                 </Typography>
 
                 <Stepper activeStep={activeStep} sx={{
@@ -471,7 +550,7 @@ export default function Questionnaire() {
                             onClick={handleSubmit}
                             sx={{ backgroundColor: 'var(--primary-yellow)', color: '#2A2A2A', fontWeight: 'bold', '&:hover': { backgroundColor: '#e6c200' } }}
                         >
-                            {submitting ? <CircularProgress size={20} /> : '建立問卷'}
+                            {submitting ? <CircularProgress size={20} /> : (isEditing ? '儲存修改' : '建立問卷')}
                         </Button>
                     )}
                 </Box>

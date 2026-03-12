@@ -314,21 +314,21 @@ def _build_error_msg(cond_id: str, cond_detail: str, question_text: str) -> str:
 
 @questionnaire_bp.route('/list', methods=['GET'])
 def list_questionnaires():
-    """GET /api/questionnaire/list — Return all distinct notes (questionnaire series) in Q_bank."""
+    """GET /api/questionnaire/list — Return all unique questionnaires with metadata."""
     try:
         conn = get_db_connection()
         app_id = get_app_id()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         table = f"Q_bank:{app_id}"
         
-        # Group by note to find unique questionnaires
-        # Extract ID from state_in[1] where it matches our Q[ID][SEQ] pattern
+        # We need: note, q_id, enable_review, start/end time (from entry rule check)
         cur.execute(f"""
-            SELECT note, 
-                   (SELECT state_in[1] FROM "{table}" AS sub 
-                    WHERE sub.note = t.note AND sub.state_in[1] LIKE 'Q____' 
-                    LIMIT 1) as sample_state,
-                   count(*) as rules_count
+            SELECT 
+                note,
+                (SELECT state_in[1] FROM "{table}" sub WHERE sub.note = t.note AND sub.state_in[1] LIKE 'Q____' LIMIT 1) as sample_state,
+                (SELECT "check"[1] FROM "{table}" sub WHERE sub.note = t.note AND sub.state_in @> ARRAY['*'] LIMIT 1) as entry_check,
+                EXISTS(SELECT 1 FROM "{table}" sub WHERE sub.note = t.note AND sub.state_out LIKE 'Q__99') as has_review,
+                count(*) as rules_count
             FROM "{table}" AS t
             WHERE note IS NOT NULL 
             GROUP BY note
@@ -337,15 +337,29 @@ def list_questionnaires():
         
         questionnaires = []
         for r in results:
-            # Attempt to extract ID from sample_state like 'Q0101'
             q_id = "00"
             if r['sample_state'] and len(r['sample_state']) == 5:
                 q_id = r['sample_state'][1:3]
-                
+            
+            # Parse time from entry_check: "sys.now() >= 1741752000 and sys.now() <= 1741755600"
+            start_time = ""
+            end_time = ""
+            check_str = r['entry_check'] or ""
+            
+            ts_matches = re.findall(r'>= (\d+)', check_str)
+            if ts_matches:
+                start_time = datetime.fromtimestamp(int(ts_matches[0])).strftime('%Y-%m-%dT%H:%M')
+            ts_matches = re.findall(r'<= (\d+)', check_str)
+            if ts_matches:
+                end_time = datetime.fromtimestamp(int(ts_matches[0])).strftime('%Y-%m-%dT%H:%M')
+
             questionnaires.append({
                 'id': q_id,
                 'note': r['note'],
-                'rules_count': r['rules_count'] # Total rules for this questionnaire
+                'rules_count': r['rules_count'],
+                'enable_review': r['has_review'],
+                'start_time': start_time,
+                'end_time': end_time
             })
             
         cur.close()
@@ -355,20 +369,152 @@ def list_questionnaires():
         return jsonify({'error': str(e)}), 500
 
 
-@questionnaire_bp.route('/<note>', methods=['GET'])
-def get_questionnaire(note):
-    """GET /api/questionnaire/<note> — Return all Q_bank rows for a specific note."""
+@questionnaire_bp.route('/detail/<note>', methods=['GET'])
+def get_questionnaire_detail(note):
+    """GET /api/questionnaire/detail/<note> — Reconstruct full object for editing."""
     try:
         conn = get_db_connection()
         app_id = get_app_id()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         table = f"Q_bank:{app_id}"
+        
         cur.execute(f'SELECT * FROM "{table}" WHERE note = %s ORDER BY id', (note,))
         rows = cur.fetchall()
         cur.close()
         conn.close()
-        return jsonify(list(rows))
+        
+        if not rows:
+            return jsonify({'error': '找不到該問卷'}), 404
+
+        # 1. Basic Info & Entry Rule
+        entry_rule = next((r for r in rows if '*' in r['state_in']), None)
+        if not entry_rule:
+             return jsonify({'error': '問卷資料不完整 (遺失入口規則)'}), 500
+
+        trigger = entry_rule['content'][0] if entry_rule['content'] else ""
+        
+        # Parse Time
+        start_time = ""
+        end_time = ""
+        check_str = entry_rule['check'][0] if entry_rule['check'] else ""
+        ts_matches = re.findall(r'>= (\d+)', check_str)
+        if ts_matches: start_time = datetime.fromtimestamp(int(ts_matches[0])).strftime('%Y-%m-%dT%H:%M')
+        ts_matches = re.findall(r'<= (\d+)', check_str)
+        if ts_matches: end_time = datetime.fromtimestamp(int(ts_matches[0])).strftime('%Y-%m-%dT%H:%M')
+
+        # 2. Questions
+        # Every question rule has state_in like ['Q0101'] and is NOT the entry/review rule
+        # We sort them by their sequence number
+        q_rules = [r for r in rows if r['state_in'][0].startswith('Q') and r['state_in'][0][3:5] != '99']
+        # Distinct by state_in[0] since we have fallback rules
+        seen_states = set()
+        unique_q_rules = []
+        for r in q_rules:
+            s = r['state_in'][0]
+            if s not in seen_states:
+                seen_states.add(s)
+                unique_q_rules.append(r)
+        
+        # Sort by sequence
+        unique_q_rules.sort(key=lambda r: int(r['state_in'][0][3:5]))
+        
+        questions = []
+        for r in unique_q_rules:
+            # Reconstruct condition from 'check' column
+            check = r['check'][0] if r['check'] else "1"
+            cond = '1'
+            cond_detail = ''
+            
+            if 'int(sys.content(m))' in check: cond = '2'
+            elif 'sys.content(m, 0) in' in check:
+                cond = '3'
+                match = re.search(r'in \[(.*)\]', check)
+                if match: cond_detail = match.group(1).replace("'", "").replace(" ", "")
+            elif 'len(sys.content(m)) >=' in check:
+                cond = '4'
+                min_m = re.search(r'>= (\d+)', check)
+                max_m = re.search(r'<= (\d+)', check)
+                min_val = min_m.group(1) if min_m else "0"
+                max_val = max_m.group(1) if max_m else "-1"
+                cond_detail = f"{min_val},{max_val}"
+            elif '09' in check and 'len' in check: cond = '5'
+            elif '@' in check: cond = '6'
+            elif 're.match' in check: cond = '7'
+            
+            # Content is in next rule's msg_rpy or this rule's msg_rpy if it's the sequence start
+            # Actually, the QUESTION content is the TEXT sent TO the user.
+            # Q1 text is in the entry_rule msg_rpy.
+            # Q2 text is in Q1 successful answer rule msg_rpy.
+            # This is tricky. Let's get it from the state-sequence.
+            pass
+
+        # Simplified approach: The questions are in order.
+        # Q1 text is in Entry Rule's msg_rpy
+        # Q(i) text is in Q(i-1) success rule's msg_rpy
+        all_questions = []
+        
+        # First question content
+        try:
+            m0 = json.loads(entry_rule['msg_rpy'][0])
+            all_questions.append({'content': m0['Line']['text']})
+        except: all_questions.append({'content': '解析失敗'})
+
+        for i, r in enumerate(unique_q_rules):
+            # Parse condition
+            check = r['check'][0] if r['check'] else "1"
+            cond = '1'
+            cond_detail = ''
+            if 'int(sys.content' in check: cond = '2'
+            elif 'in [' in check:
+                cond = '3'
+                match = re.search(r'in \[(.*)\]', check)
+                if match: cond_detail = match.group(1).replace("'", "").replace(" ", "")
+            elif 'len(' in check and '>=' in check:
+                cond = '4'
+                min_m = re.search(r'>= (\d+)', check)
+                max_m = re.search(r'<= (\d+)', check)
+                min_val = min_m.group(1) if min_m else "0"
+                max_val = max_m.group(1) if max_m else "-1"
+                cond_detail = f"{min_val},{max_val}"
+            elif '09' in check and 'len' in check: cond = '5'
+            elif r"@" in check: cond = '6'
+            elif 're.match' in check: cond = '7'
+            
+            all_questions[i]['cond'] = cond
+            all_questions[i]['cond_detail'] = cond_detail
+            
+            # Get next question content from msg_rpy of success rule (the one with check)
+            # if r is not the last question
+            if i < len(unique_q_rules) - 1:
+                try:
+                    m_next = json.loads(r['msg_rpy'][0])
+                    all_questions.append({'content': m_next['Line']['text']})
+                except: all_questions.append({'content': '解析失敗'})
+        
+        # 3. Finish Msg & Enable Review
+        enable_review = any(r['state_out'].endswith('99') for r in rows)
+        
+        # finish_msg is in the rule that leads to '00000'
+        finish_rule = next((r for r in rows if r['state_out'] == '00000'), None)
+        finish_msg = "感謝您的填寫！"
+        if finish_rule:
+            try:
+                m_fin = json.loads(finish_rule['msg_rpy'][0])
+                finish_msg = m_fin['Line']['text']
+            except: pass
+
+        return jsonify({
+            'note': note,
+            'trigger': trigger,
+            'start_time': start_time,
+            'end_time': end_time,
+            'enable_review': enable_review,
+            'finish_msg': finish_msg,
+            'questions': all_questions
+        })
     except Exception as e:
+        import traceback
+        print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 
