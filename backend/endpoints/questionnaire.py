@@ -3,6 +3,7 @@ from psycopg2.extras import RealDictCursor
 import psycopg2
 import json
 import re
+from datetime import datetime
 from models import OAConfig
 
 questionnaire_bp = Blueprint('questionnaire', __name__)
