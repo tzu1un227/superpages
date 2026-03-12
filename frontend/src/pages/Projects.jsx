@@ -1543,9 +1543,11 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                         if (!bubble) continue;
                         const bubbleNum = (contents && contents.type === 'carousel') ? `卡片 #${j + 1}: ` : '';
                         if (bubble.hero?.action) {
-                            const val = bubble.hero.action.uri || bubble.hero.action.data || bubble.hero.action.text || '';
+                            const action = bubble.hero.action;
+                            const val = action.uri || action.data || action.text || '';
                             if (!val.trim()) {
-                                showToast(`第 ${i + 1} 則 Flex 訊息 ${bubbleNum}圖片點擊內容不能為空`, 'warning');
+                                const typeLabel = (action.type === 'uri' || action.uri) ? '連結' : '回傳文字';
+                                showToast(`第 ${i + 1} 則 Flex 訊息 ${bubbleNum}圖片點擊的${typeLabel}不能為空`, 'warning');
                                 setLoading(false);
                                 return;
                             }
@@ -1556,7 +1558,8 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                             const btn = buttons[k];
                             const val = btn.action?.uri || btn.action?.data || btn.action?.text || '';
                             if (!val.trim()) {
-                                showToast(`第 ${i + 1} 則 Flex 訊息 ${bubbleNum}按鈕 #${k + 1} 文字或連結不能為空`, 'warning');
+                                const typeLabel = (btn.action?.type === 'uri' || btn.action?.uri) ? '連結' : '回傳文字';
+                                showToast(`第 ${i + 1} 則 Flex 訊息 ${bubbleNum}按鈕 #${k + 1} 的${typeLabel}不能為空`, 'warning');
                                 setLoading(false);
                                 return;
                             }

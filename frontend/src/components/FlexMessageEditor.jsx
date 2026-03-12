@@ -138,13 +138,23 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                     const btn = card.buttons[j];
                     const btnNum = j + 1;
                     if (!btn.text?.trim()) return `${cardPrefix}按鈕 #${btnNum} 文字不可為空白`;
-                    if (!btn.value?.trim()) return `${cardPrefix}按鈕 #${btnNum} 內容/網址不可為空白`;
+                    if (btn.action === 'uri' && !btn.value?.trim()) {
+                        return `${cardPrefix}按鈕 #${btnNum} 的連結連結 (URL) 不可為空白`;
+                    }
+                    if (btn.action === 'message' && !btn.value?.trim()) {
+                        return `${cardPrefix}按鈕 #${btnNum} 的回傳文字不可為空白`;
+                    }
                 }
             } else {
                 // Image template
                 if (!card.imageUrl?.trim()) return `${cardPrefix}圖片網址不可為空白`;
-                if (card.imageAction.type !== 'none' && !card.imageAction.value?.trim()) {
-                    return `${cardPrefix}圖片點擊內容不可為空白`;
+                if (card.imageAction.type !== 'none') {
+                    if (card.imageAction.type === 'uri' && !card.imageAction.value?.trim()) {
+                        return `${cardPrefix}圖片點擊的連結連結 (URL) 不可為空白`;
+                    }
+                    if (card.imageAction.type === 'message' && !card.imageAction.value?.trim()) {
+                        return `${cardPrefix}圖片點擊的回傳文字不可為空白`;
+                    }
                 }
             }
         }

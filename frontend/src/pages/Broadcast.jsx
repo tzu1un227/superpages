@@ -1003,7 +1003,42 @@ function Broadcast() {
                         />
                     </DialogContent>
                     <DialogActions sx={{ borderTop: '1px solid #333', p: 2 }}>
-                        <Button onClick={() => setIsFlexEditorOpen(false)} sx={{ color: '#888' }}>完成並返回</Button>
+                        <Button onClick={() => {
+                            const currentMsg = formData.messages[editingMsgIndex];
+                            if (currentMsg && currentMsg.OTYPE === 'FlexSendMessage') {
+                                const contents = currentMsg.contents;
+                                const bubbles = (contents && contents.type === 'carousel') ? contents.contents : [contents];
+                                for (let j = 0; j < bubbles.length; j++) {
+                                    const bubble = bubbles[j];
+                                    if (!bubble) continue;
+                                    const cardNum = j + 1;
+                                    const cardPrefix = contents.type === 'carousel' ? `卡片 #${cardNum}: ` : '';
+
+                                    if (bubble.hero?.action) {
+                                        const action = bubble.hero.action;
+                                        const val = action.uri || action.data || action.text || '';
+                                        if (!val.trim()) {
+                                            const typeLabel = action.type === 'uri' ? '連結' : '回傳文字';
+                                            showToast(`${cardPrefix}圖片點擊的${typeLabel}不能為空`, 'warning');
+                                            return;
+                                        }
+                                    }
+
+                                    const footerContents = bubble.footer?.contents || [];
+                                    const buttons = footerContents.filter(c => c && c.type === 'button');
+                                    for (let k = 0; k < buttons.length; k++) {
+                                        const btn = buttons[k];
+                                        const val = btn.action?.uri || btn.action?.data || btn.action?.text || '';
+                                        if (!val.trim()) {
+                                            const typeLabel = btn.action?.type === 'uri' ? '連結' : '回傳文字';
+                                            showToast(`${cardPrefix}按鈕 #${k + 1} 的${typeLabel}不能為空`, 'warning');
+                                            return;
+                                        }
+                                    }
+                                }
+                            }
+                            setIsFlexEditorOpen(false);
+                        }} sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold' }}>完成並返回</Button>
                     </DialogActions>
                 </Dialog>
 
