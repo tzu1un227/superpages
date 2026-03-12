@@ -491,9 +491,16 @@ function MessageCenter() {
                     // 就恢復到原本停留的高度
                     if (savedScroll.distanceFromBottom >= 200) {
                         chatContainerRef.current.scrollTop = savedScroll.scrollTop;
+                        // 雙重恢復機制：防止瀏覽器在佈局尚未完全展開時剪裁了 scrollTop
+                        setTimeout(() => {
+                            if (chatContainerRef.current) {
+                                chatContainerRef.current.scrollTop = savedScroll.scrollTop;
+                            }
+                        }, 50);
                     } else {
                         // 原本就在底部，就乖乖置底
                         setTimeout(() => scrollToBottom(false), 50);
+                        setTimeout(() => scrollToBottom(false), 200);
                     }
                 } else {
                     // 如果沒有紀錄 (第一次點進這個聊天室)

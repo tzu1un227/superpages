@@ -1620,16 +1620,14 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                         {messages.map((m, i) => (
                             <div key={i} onClick={() => setActiveMsgIndex(i)} style={{ padding: '10px', backgroundColor: activeMsgIndex === i ? '#444' : '#333', borderRadius: '8px', cursor: 'pointer', border: activeMsgIndex === i ? '1px solid var(--primary-yellow)' : '1px solid transparent', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <span style={{ fontSize: '14px' }}>#{i + 1} {m.OTYPE.replace('SendMessage', '')}</span>
-                                <Trash2 size={14} color="#FF4D4D" onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (messages.length <= 1) {
-                                        showToast('每個排程至少需要有一則訊息', 'warning');
-                                        return;
-                                    }
-                                    const next = messages.filter((_, idx) => idx !== i);
-                                    setMessages(next);
-                                    if (activeMsgIndex >= next.length) setActiveMsgIndex(Math.max(0, next.length - 1));
-                                }} />
+                                {messages.length > 1 && (
+                                    <Trash2 size={14} color="#FF4D4D" onClick={(e) => {
+                                        e.stopPropagation();
+                                        const next = messages.filter((_, idx) => idx !== i);
+                                        setMessages(next);
+                                        if (activeMsgIndex >= next.length) setActiveMsgIndex(Math.max(0, next.length - 1));
+                                    }} />
+                                )}
                             </div>
                         ))}
                         {messages.length < 5 && <button onClick={() => { setMessages([...messages, createEmptyMsg()]); setActiveMsgIndex(messages.length); }} style={{ border: '1px dashed #666', background: 'transparent', padding: '10px', color: '#888' }}>+ 新增訊息</button>}
