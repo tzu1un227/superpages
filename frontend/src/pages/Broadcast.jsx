@@ -418,10 +418,11 @@ function Broadcast() {
                 }
                 // Deep validation for Flex links/return text
                 const contents = msg.contents;
-                const bubbles = contents.type === 'carousel' ? contents.contents : [contents];
+                const bubbles = (contents && contents.type === 'carousel') ? contents.contents : [contents];
                 for (let j = 0; j < bubbles.length; j++) {
                     const bubble = bubbles[j];
-                    const bubbleNum = contents.type === 'carousel' ? `卡片 #${j + 1}: ` : '';
+                    if (!bubble) continue;
+                    const bubbleNum = (contents && contents.type === 'carousel') ? `卡片 #${j + 1}: ` : '';
                     if (bubble.hero?.action) {
                         const val = bubble.hero.action.uri || bubble.hero.action.data || bubble.hero.action.text || '';
                         if (!val.trim()) {
@@ -430,7 +431,7 @@ function Broadcast() {
                         }
                     }
                     const footerContents = bubble.footer?.contents || [];
-                    const buttons = footerContents.filter(c => c.type === 'button');
+                    const buttons = footerContents.filter(c => c && c.type === 'button');
                     for (let k = 0; k < buttons.length; k++) {
                         const btn = buttons[k];
                         const val = btn.action?.uri || btn.action?.data || btn.action?.text || '';

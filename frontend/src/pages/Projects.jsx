@@ -452,11 +452,11 @@ const ProjectsManagement = () => {
         setIsUserSelectModalOpen(true);
     };
 
-    const onUserSelected = async (userId) => {
+    const onUserSelected = async (userId, userName) => {
         try {
             // Call backend restart endpoint directly - this inserts cron_table with status='active'
             await api.post(`/projects/${selectedProjectId}/users/${userId}/restart`);
-            showToast(`已成功加入用戶 (User: ${userId})`, 'success');
+            showToast(`已成功加入用戶 ${userName || '未命名'}`, 'success');
             setIsUserSelectModalOpen(false);
             setTimeout(() => fetchProjectUsers(selectedProjectId), 1000);
         } catch (err) {
@@ -493,7 +493,7 @@ const ProjectsManagement = () => {
 
     // try {
     // Fetch schedules again or use state? Use state `schedules` but ensure it's up to date?
-    // `schedules` state might be filtered or not? 
+    // `schedules` state might be filtered or not?
     // `fetchSchedules` fetches by `selectedProjectId` if set.
     // Let's rely on `schedules` but sort it.
 
@@ -521,7 +521,7 @@ const ProjectsManagement = () => {
     } else if (content) {
         msg = { OTYPE: 'TextSendMessage', text: content };
     }
-    
+
     if (msg) {
         // Format delay
         const delay = `Step ${s.step_id} (間隔 ${s.interval_hours} hr)`;
@@ -689,6 +689,10 @@ const ProjectsManagement = () => {
     };
 
     const handleCreateSchedule = async () => {
+        if (!selectedProjectId) {
+            showToast('請先選擇您的旅程', 'warning');
+            return;
+        }
         const errors = validateScheduleForm(newSchedule);
         if (Object.keys(errors).length > 0) {
             setFormErrors(errors);
@@ -736,7 +740,7 @@ const ProjectsManagement = () => {
             '進行中': '#4CAF50', // Green
             '已暫停': '#FF9800', // Orange
             '已完成': '#2196F3', // Blue
-            '已終止': '#F44336', // Red
+            '已終止': '#F4436', // Red
             '未知': '#666'
         };
         const color = colors[status] || '#666';
@@ -1291,7 +1295,7 @@ const ProjectsManagement = () => {
                                                     ) : (
                                                         <div style={{ display: 'flex', gap: '15px' }}>
                                                             <Edit2 size={18} style={{ cursor: 'pointer', color: '#B0B0B0' }} onClick={() => handleEditScheduleClick(s)} />
-                                                            <Trash2 size={18} style={{ cursor: 'pointer', color: '#FF4D4D' }} onClick={() => handleDeleteSchedule(s.schedule_id)} />
+                                                            <Trash2 size={18} style={{ cursor: 'pointer', color: '#FF4D4D' }} onClick={() => handleDeleteSchedule(s.schedule_id, s.step_id)} />
                                                         </div>
                                                     )}
                                                 </td>
@@ -1513,37 +1517,46 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                 return m;
             });
 
-            // Validation: Ensure Flex links/return text are not empty if present
+            // Validation: Ensure text is not empty
             for (let i = 0; i < payloadMessages.length; i++) {
                 const m = payloadMessages[i];
-                if (m.OTYPE === 'FlexSendMessage') {
-                    const contents = m.contents;
-                    const bubbles = contents.type === 'carousel' ? contents.contents : [contents];
-
+                if (m.OTYPE === 'TextSendMessage' && (!m.text || !m.text.trim())) {
+                    showToast(`訊息 #${i + 1} 內容不能空白`, 'warning');
+                    setLoading(false);
+                    return;
+                }
+                if ((msg.OTYPE === 'ImageSendMessage' || msg.OTYPE === 'VideoSendMessage' || msg.OTYPE === 'AudioSendMessage') && !msg.original_content_url?.trim()) {
+                    showToast(`訊息 #${i + 1} 的 URL 連結不能空白`, 'warning');
+                    setLoading(false);
+                    return;
+                } else if (msg.OTYPE === 'FlexSendMessage') {
+                    if (!msg.contents || (typeof msg.contents === 'object' && Object.keys(msg.contents).length === 0)) {
+                        showToast(`第 ${i + 1} 則 Flex 訊息內容未設定`, 'warning');
+                        setLoading(false);
+                        return;
+                    }
+                    // Deep validation for Flex links/return text
+                    const contents = msg.contents;
+                    const bubbles = (contents && contents.type === 'carousel') ? contents.contents : [contents];
                     for (let j = 0; j < bubbles.length; j++) {
                         const bubble = bubbles[j];
-                        const bubbleNum = contents.type === 'carousel' ? `卡片 #${j + 1}: ` : '';
-
-                        // Check hero action (usually "open link")
+                        if (!bubble) continue;
+                        const bubbleNum = (contents && contents.type === 'carousel') ? `卡片 #${j + 1}: ` : '';
                         if (bubble.hero?.action) {
-                            const act = bubble.hero.action;
-                            const val = act.uri || act.data || act.text || '';
+                            const val = bubble.hero.action.uri || bubble.hero.action.data || bubble.hero.action.text || '';
                             if (!val.trim()) {
-                                showToast(`${bubbleNum}圖片點擊動作內容不能為空`, 'warning');
+                                showToast(`第 ${i + 1} 則 Flex 訊息 ${bubbleNum}圖片點擊內容不能為空`, 'warning');
                                 setLoading(false);
                                 return;
                             }
                         }
-
-                        // Check buttons (usually "return text" or "open link")
                         const footerContents = bubble.footer?.contents || [];
-                        const buttons = footerContents.filter(c => c.type === 'button');
+                        const buttons = footerContents.filter(c => c && c.type === 'button');
                         for (let k = 0; k < buttons.length; k++) {
                             const btn = buttons[k];
-                            const act = btn.action || {};
-                            const val = act.uri || act.data || act.text || '';
+                            const val = btn.action?.uri || btn.action?.data || btn.action?.text || '';
                             if (!val.trim()) {
-                                showToast(`${bubbleNum}按鈕 #${k + 1} 的內容或連結不能為空`, 'warning');
+                                showToast(`第 ${i + 1} 則 Flex 訊息 ${bubbleNum}按鈕 #${k + 1} 文字或連結不能為空`, 'warning');
                                 setLoading(false);
                                 return;
                             }
@@ -1607,7 +1620,16 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                         {messages.map((m, i) => (
                             <div key={i} onClick={() => setActiveMsgIndex(i)} style={{ padding: '10px', backgroundColor: activeMsgIndex === i ? '#444' : '#333', borderRadius: '8px', cursor: 'pointer', border: activeMsgIndex === i ? '1px solid var(--primary-yellow)' : '1px solid transparent', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <span style={{ fontSize: '14px' }}>#{i + 1} {m.OTYPE.replace('SendMessage', '')}</span>
-                                <Trash2 size={14} color="#FF4D4D" onClick={(e) => { e.stopPropagation(); const next = messages.filter((_, idx) => idx !== i); setMessages(next); if (activeMsgIndex >= next.length) setActiveMsgIndex(Math.max(0, next.length - 1)); }} />
+                                <Trash2 size={14} color="#FF4D4D" onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (messages.length <= 1) {
+                                        showToast('每個排程至少需要有一則訊息', 'warning');
+                                        return;
+                                    }
+                                    const next = messages.filter((_, idx) => idx !== i);
+                                    setMessages(next);
+                                    if (activeMsgIndex >= next.length) setActiveMsgIndex(Math.max(0, next.length - 1));
+                                }} />
                             </div>
                         ))}
                         {messages.length < 5 && <button onClick={() => { setMessages([...messages, createEmptyMsg()]); setActiveMsgIndex(messages.length); }} style={{ border: '1px dashed #666', background: 'transparent', padding: '10px', color: '#888' }}>+ 新增訊息</button>}
@@ -1631,6 +1653,30 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                         <textarea value={messages[activeMsgIndex].text} onChange={(e) => updateMessage(activeMsgIndex, 'text', e.target.value)} rows={8} style={{ width: '100%', padding: '10px', background: '#222', border: 'none', color: '#fff' }} />
                                     </div>
                                 )}
+                                {(messages[activeMsgIndex].OTYPE === 'ImageSendMessage' || messages[activeMsgIndex].OTYPE === 'VideoSendMessage') && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                        <div>
+                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>檔案連結 (URL)</label>
+                                            <input type="text" value={messages[activeMsgIndex].original_content_url} onChange={(e) => updateMessage(activeMsgIndex, 'original_content_url', e.target.value)} style={{ width: '100%', padding: '10px', background: '#222', border: 'none', color: '#fff' }} placeholder="https://..." />
+                                        </div>
+                                        <div>
+                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>預覽圖連結 (Preview URL)</label>
+                                            <input type="text" value={messages[activeMsgIndex].preview_image_url} onChange={(e) => updateMessage(activeMsgIndex, 'preview_image_url', e.target.value)} style={{ width: '100%', padding: '10px', background: '#222', border: 'none', color: '#fff' }} placeholder="https://..." />
+                                        </div>
+                                    </div>
+                                )}
+                                {messages[activeMsgIndex].OTYPE === 'AudioSendMessage' && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                        <div>
+                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>音檔連結 (URL)</label>
+                                            <input type="text" value={messages[activeMsgIndex].original_content_url} onChange={(e) => updateMessage(activeMsgIndex, 'original_content_url', e.target.value)} style={{ width: '100%', padding: '10px', background: '#222', border: 'none', color: '#fff' }} placeholder="https://..." />
+                                        </div>
+                                        <div>
+                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>長度 (毫秒)</label>
+                                            <input type="number" value={messages[activeMsgIndex].duration} onChange={(e) => updateMessage(activeMsgIndex, 'duration', parseInt(e.target.value) || 0)} style={{ width: '100%', padding: '10px', background: '#222', border: 'none', color: '#fff' }} />
+                                        </div>
+                                    </div>
+                                )}
                                 {messages[activeMsgIndex].OTYPE === 'FlexSendMessage' && (
                                     <div style={{ height: '500px', border: '1px solid #444' }}>
                                         <FlexMessageEditor initialContent={messages[activeMsgIndex].contents} onSave={(val) => updateMessage(activeMsgIndex, 'contents', val)} onCancel={() => { }} />
@@ -1651,89 +1697,133 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
 
 const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
     const [users, setUsers] = useState([]);
+    const [allTags, setAllTags] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [nameSearch, setNameSearch] = useState('');
+    const [selectedTags, setSelectedTags] = useState([]);
 
     useEffect(() => {
         if (isOpen) {
             setLoading(true);
-            api.get('/registered-users?source=private_var').then(res => {
-                const data = Array.isArray(res.data) ? res.data : [];
-                setUsers(data.filter(u => u && u.user_id)); // Filter out any completely invalid/null rows
+            Promise.all([
+                api.get('/registered-users?source=private_var'),
+                api.get('/tags')
+            ]).then(([userRes, tagRes]) => {
+                const userData = Array.isArray(userRes.data) ? userRes.data : [];
+                setUsers(userData.filter(u => u && u.user_id));
+                const tagData = Array.isArray(tagRes.data) ? tagRes.data : [];
+                setAllTags(tagData.sort());
             }).catch(err => {
-                console.error("Failed to load users for modal:", err);
-                setUsers([]);
+                console.error("Failed to load modal data:", err);
             }).finally(() => setLoading(false));
         }
     }, [isOpen]);
 
+    const toggleTag = (tag) => {
+        setSelectedTags(prev =>
+            prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+        );
+    };
+
     const filteredUsers = users.filter(u => {
         if (existingUsers.includes(u?.user_id)) return false;
-        const term = searchTerm.toLowerCase();
-        if (!term) return true;
-        const nameMatch = String(u?.name || '').toLowerCase().includes(term);
-        // Simple string coercion works well enough for array/JSON string formats for a raw text search
-        const tagMatch = String(u?.tags || '').toLowerCase().includes(term);
-        return nameMatch || tagMatch;
+
+        // Name Search
+        const nTerm = nameSearch.toLowerCase();
+        if (nTerm) {
+            if (!String(u?.name || '').toLowerCase().includes(nTerm)) return false;
+        }
+
+        // Tag Search (AND logic)
+        if (selectedTags.length > 0) {
+            let userTags = [];
+            try {
+                let tagStr = u.tags || '';
+                if (typeof tagStr !== 'string') {
+                    if (Array.isArray(tagStr)) tagStr = JSON.stringify(tagStr);
+                    else tagStr = String(tagStr);
+                }
+                if (tagStr.startsWith('[') && tagStr.endsWith(']')) {
+                    userTags = JSON.parse(tagStr.replace(/'/g, '"'));
+                } else {
+                    userTags = tagStr.split('|').map(t => t.trim()).filter(t => t);
+                }
+            } catch (e) { userTags = []; }
+
+            if (!selectedTags.every(st => userTags.includes(st))) return false;
+        }
+
+        return true;
     });
 
     if (!isOpen) return null;
 
     return (
         <Dialog open={isOpen} onClose={onClose} maxWidth="sm" fullWidth PaperProps={{ style: { backgroundColor: '#1A1A1A', color: '#fff' } }}>
-            <DialogTitle style={{ borderBottom: '1px solid #333' }}>手動將用戶加入專案</DialogTitle>
+            <DialogTitle style={{ borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                手動將用戶加入專案
+                <X style={{ cursor: 'pointer' }} onClick={onClose} />
+            </DialogTitle>
             <DialogContent style={{ paddingTop: '20px' }}>
-                <TextField fullWidth placeholder="搜尋..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} sx={{ marginBottom: '20px', input: { color: '#fff' } }} />
-                <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                    {loading ? <CircularProgress /> : filteredUsers.map((u, index) => {
-                        if (!u) return null;
-                        const uKey = u.user_id || `temp-key-${index}`;
-                        return (
-                            <div key={uKey} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderBottom: '1px solid #333' }}>
-                                <div style={{ flex: 1, overflow: 'hidden' }}>
-                                    <div style={{ fontWeight: 'bold' }}>{String(u.name || '未命名')}</div>
-                                    <div style={{ fontSize: '12px', color: '#888' }}>{String(u.user_id || '')}</div>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
-                                        {(() => {
-                                            try {
-                                                let tagStr = u.tags || '';
-                                                if (typeof tagStr !== 'string') {
-                                                    if (Array.isArray(tagStr)) tagStr = JSON.stringify(tagStr);
-                                                    else tagStr = String(tagStr);
-                                                }
-                                                let tagList = [];
-                                                if (tagStr.startsWith('[') && tagStr.endsWith(']')) {
-                                                    try {
-                                                        // Handle JSON list format ["AA", "BB"]
-                                                        tagList = JSON.parse(tagStr.replace(/'/g, '"'));
-                                                        if (!Array.isArray(tagList)) tagList = [tagList];
-                                                    } catch (e) {
-                                                        tagList = tagStr.replace(/[\[\]"']/g, '').split(',').map(t => t.trim());
-                                                    }
-                                                } else {
-                                                    // Handle pipe format |AA|BB|
-                                                    tagList = tagStr.split('|').map(t => t.trim());
-                                                }
-                                                return tagList.filter(t => t).map((t, idx) => {
-                                                    const displayText = typeof t === 'object' ? JSON.stringify(t) : String(t);
-                                                    return (
-                                                        <span key={idx} style={{ fontSize: '10px', background: '#333', color: 'var(--primary-yellow)', padding: '2px 6px', borderRadius: '4px' }}>{displayText}</span>
-                                                    );
-                                                });
-                                            } catch (err) {
-                                                console.error("Tag render error for user:", u, err);
-                                                return <span style={{ fontSize: '10px', color: 'red' }}>標籤解析錯誤</span>;
-                                            }
-                                        })()}
+                <div style={{ marginBottom: '20px' }}>
+                    <input
+                        type="text"
+                        placeholder="搜尋用戶名稱..."
+                        value={nameSearch}
+                        onChange={(e) => setNameSearch(e.target.value)}
+                        style={{ width: '100%', padding: '8px', background: '#333', border: '1px solid #555', borderRadius: '4px', color: '#fff' }}
+                    />
+                </div>
+                <div style={{ marginBottom: '20px' }}>
+                    <div style={{ color: '#aaa', marginBottom: '10px' }}>篩選標籤:</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', maxHeight: '100px', overflowY: 'auto' }}>
+                        {allTags.map(tag => (
+                            <span
+                                key={tag}
+                                onClick={() => toggleTag(tag)}
+                                style={{
+                                    padding: '6px 12px',
+                                    borderRadius: '20px',
+                                    backgroundColor: selectedTags.includes(tag) ? 'var(--primary-yellow)' : '#444',
+                                    color: selectedTags.includes(tag) ? '#000' : '#fff',
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    whiteSpace: 'nowrap'
+                                }}
+                            >
+                                {tag}
+                            </span>
+                        ))}
+                    </div>
+                </div>
+                <div style={{ maxHeight: '300px', overflowY: 'auto', borderTop: '1px solid #333', paddingTop: '10px' }}>
+                    {loading ? (
+                        <div style={{ textAlign: 'center', padding: '20px' }}><LoadingSpinner message="載入用戶中..." /></div>
+                    ) : filteredUsers.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>無符合條件的用戶</div>
+                    ) : (
+                        <div>
+                            {filteredUsers.map(u => (
+                                <div key={u.user_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #222' }}>
+                                    <div>
+                                        <div style={{ fontWeight: 'bold' }}>{u.name || '未命名用戶'}</div>
+                                        <div style={{ fontSize: '12px', color: '#aaa' }}>ID: {u.user_id}</div>
                                     </div>
+                                    <button
+                                        onClick={() => onSelect(u.user_id, u.name)}
+                                        style={{ background: 'var(--primary-yellow)', border: 'none', borderRadius: '4px', padding: '6px 15px', color: '#000', fontWeight: 'bold', cursor: 'pointer' }}
+                                    >
+                                        加入
+                                    </button>
                                 </div>
-                                <button className="primary" onClick={() => onSelect(u.user_id)} style={{ padding: '6px 12px', marginLeft: '10px' }}>加入</button>
-                            </div>
-                        );
-                    })}
+                            ))}
+                        </div>
+                    )}
                 </div>
             </DialogContent>
-            <DialogActions><button onClick={onClose} style={{ background: '#444', color: '#fff', padding: '8px 20px', borderRadius: '4px', border: 'none' }}>關閉</button></DialogActions>
+            <DialogActions>
+                <button onClick={onClose} style={{ background: '#444', color: '#fff', padding: '8px 20px', borderRadius: '4px', border: 'none' }}>關閉</button>
+            </DialogActions>
         </Dialog>
     );
 };

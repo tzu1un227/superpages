@@ -102,6 +102,12 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 - **Frontend**: `MessageCenter.jsx`.
   - Displays list of users and their chat history.
   - Supports sending messages and managing tags.
+  - **自動旅程管理 (Projects Management)**:
+    - **訊息編輯器 (RichMessageModal)**: 支援文字、圖片、影片、語音與 Flex 訊息。包含欄位完整度驗證（防止空內容）。
+    - **排程邏輯**: 確保 Step 0 作為旅程起點不可刪除，維護流程完整性。
+    - **用戶管理 (UserSelectModal)**: 整合 `/api/registered-users` 與 `/api/tags`，支援複合式（名稱 + 標籤）搜尋，提供視覺化標籤篩選控制項。
+  - **群發訊息 (Broadcast)**:
+    - **發送驗證**: 在發送或儲存草稿前進行深度訊息內容檢測（包含 Flex 內的連結與按鈕動作）。
   - **用戶清單搜尋 (User List Search)**:
     - 搜尋框綁定 `searchQuery` state，透過 debounce（300ms）後發送 API 請求，支援依 `user_id` 與使用者名稱搜尋。
     - 搜尋框具備即時清除按鈕（X）。
