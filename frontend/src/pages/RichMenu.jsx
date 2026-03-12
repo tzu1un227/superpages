@@ -122,21 +122,30 @@ function RichMenu() {
         if (viewOnly) return;
         const newAreas = currentMenu.areas.filter((_, i) => i !== index);
         setCurrentMenu({ ...currentMenu, areas: newAreas });
-        if (selectedAreaIndex === index) setSelectedAreaIndex(null);
+        setSelectedAreaIndex(null); // Reset selection to be safe
     };
 
     const updateAreaBounds = (index, bounds) => {
         if (viewOnly) return;
         const newAreas = [...currentMenu.areas];
-        newAreas[index].bounds = { ...newAreas[index].bounds, ...bounds };
-        setCurrentMenu({ ...currentMenu, areas: newAreas });
+        if (newAreas[index]) {
+            newAreas[index].bounds = { ...newAreas[index].bounds, ...bounds };
+            setCurrentMenu({ ...currentMenu, areas: newAreas });
+        }
     };
 
     const updateAreaAction = (index, action) => {
         if (viewOnly) return;
         const newAreas = [...currentMenu.areas];
-        newAreas[index].action = { ...newAreas[index].action, ...action };
-        setCurrentMenu({ ...currentMenu, areas: newAreas });
+        if (newAreas[index]) {
+            const updatedAction = { ...newAreas[index].action, ...action };
+            // Auto-fill data for richmenuswitch
+            if (updatedAction.type === 'richmenuswitch' && action.richMenuAliasId) {
+                updatedAction.data = `switch-to-${action.richMenuAliasId}`;
+            }
+            newAreas[index].action = updatedAction;
+            setCurrentMenu({ ...currentMenu, areas: newAreas });
+        }
     };
 
     const handleImageUpload = (e) => {
@@ -179,6 +188,23 @@ function RichMenu() {
             img.src = event.target.result;
         };
         reader.readAsDataURL(file);
+    };
+
+    const isFormValid = () => {
+        if (!currentMenu) return false;
+        if (!currentMenu.name.trim() || !currentMenu.chatBarText.trim()) return false;
+        if (!backgroundImage) return false; // Must have image
+        if (currentMenu.areas.length === 0) return false; // Must have at least one area
+
+        // Check if all areas have required action data
+        return currentMenu.areas.every(a => {
+            const { type } = a.action;
+            if (type === 'message') return !!a.action.text?.trim();
+            if (type === 'uri') return !!a.action.uri?.trim();
+            if (type === 'postback') return !!a.action.data?.trim();
+            if (type === 'richmenuswitch') return !!a.action.richMenuAliasId?.trim();
+            return false;
+        });
     };
 
     const saveMenu = async () => {
@@ -328,6 +354,7 @@ function RichMenu() {
             e.stopPropagation();
             onSelect(index);
             if (viewOnly) return;
+            if (!bounds) return;
             setDragInfo({ index, type, startX: e.clientX, startY: e.clientY, initialBounds: { ...bounds } });
         };
         return (
@@ -367,7 +394,7 @@ function RichMenu() {
                     </div>
                     {!viewOnly && (
                         <div style={{ display: 'flex', gap: '15px' }}>
-                            <button onClick={saveMenu} className="primary" disabled={loading}>
+                            <button onClick={saveMenu} className="primary" disabled={loading || !isFormValid()}>
                                 <Save size={18} /> {loading ? '儲存中...' : '儲存並同步'}
                             </button>
                         </div>
@@ -425,26 +452,26 @@ function RichMenu() {
                                                 <button key={type.value} disabled={viewOnly} onClick={() => updateAreaAction(selectedAreaIndex, { type: type.value })}
                                                     style={{
                                                         padding: '8px', fontSize: '12px', whiteSpace: 'nowrap', color: 'white',
-                                                        backgroundColor: currentMenu.areas[selectedAreaIndex].action.type === type.value ? 'rgba(255, 215, 0, 0.2)' : '#222',
-                                                        border: currentMenu.areas[selectedAreaIndex].action.type === type.value ? '1px solid #FFD700' : '1px solid #444'
+                                                        backgroundColor: currentMenu.areas[selectedAreaIndex]?.action?.type === type.value ? 'rgba(255, 215, 0, 0.2)' : '#222',
+                                                        border: currentMenu.areas[selectedAreaIndex]?.action?.type === type.value ? '1px solid #FFD700' : '1px solid #444'
                                                     }}>{type.label}</button>
                                             ))}
                                         </div>
                                     </div>
 
-                                    {currentMenu.areas[selectedAreaIndex].action.type === 'message' && (
+                                    {currentMenu.areas[selectedAreaIndex]?.action?.type === 'message' && (
                                         <div><label className="label">傳送訊息文字</label><input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.text || ''} onChange={e => updateAreaAction(selectedAreaIndex, { text: e.target.value })} /></div>
                                     )}
-                                    {currentMenu.areas[selectedAreaIndex].action.type === 'uri' && (
+                                    {currentMenu.areas[selectedAreaIndex]?.action?.type === 'uri' && (
                                         <div><label className="label">網址 (URL)</label><input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.uri || ''} onChange={e => updateAreaAction(selectedAreaIndex, { uri: e.target.value })} /></div>
                                     )}
-                                    {currentMenu.areas[selectedAreaIndex].action.type === 'postback' && (
+                                    {currentMenu.areas[selectedAreaIndex]?.action?.type === 'postback' && (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                             <div><label className="label">Postback Data</label><input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.data || ''} onChange={e => updateAreaAction(selectedAreaIndex, { data: e.target.value })} /></div>
                                             <div><label className="label">顯示文字 (displayText)</label><input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.displayText || ''} onChange={e => updateAreaAction(selectedAreaIndex, { displayText: e.target.value })} /></div>
                                         </div>
                                     )}
-                                    {currentMenu.areas[selectedAreaIndex].action.type === 'richmenuswitch' && (
+                                    {currentMenu.areas[selectedAreaIndex]?.action?.type === 'richmenuswitch' && (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                             <div>
                                                 <label className="label">切換目標別名 (Target Alias)</label>
@@ -459,15 +486,15 @@ function RichMenu() {
                                                     {allAliases.map(a => <option key={a} value={a} />)}
                                                 </datalist>
                                             </div>
-                                            <div><label className="label">Data (必填)</label><input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.data || ''} onChange={e => updateAreaAction(selectedAreaIndex, { data: e.target.value })} /></div>
+                                            <div><label className="label">Data (由系統自動生成)</label><input type="text" disabled={true} value={currentMenu.areas[selectedAreaIndex].action.data || ''} /></div>
                                         </div>
                                     )}
 
                                     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '10px' }}>
-                                        <div><label className="label">X (px)</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].bounds.x} onChange={e => updateAreaBounds(selectedAreaIndex, { x: parseInt(e.target.value) || 0 })} /></div>
-                                        <div><label className="label">Y (px)</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].bounds.y} onChange={e => updateAreaBounds(selectedAreaIndex, { y: parseInt(e.target.value) || 0 })} /></div>
-                                        <div><label className="label">寬 (px)</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].bounds.width} onChange={e => updateAreaBounds(selectedAreaIndex, { width: parseInt(e.target.value) || 0 })} /></div>
-                                        <div><label className="label">高 (px)</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].bounds.height} onChange={e => updateAreaBounds(selectedAreaIndex, { height: parseInt(e.target.value) || 0 })} /></div>
+                                        <div><label className="label">X (px)</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex]?.bounds?.x || 0} onChange={e => updateAreaBounds(selectedAreaIndex, { x: parseInt(e.target.value) || 0 })} /></div>
+                                        <div><label className="label">Y (px)</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex]?.bounds?.y || 0} onChange={e => updateAreaBounds(selectedAreaIndex, { y: parseInt(e.target.value) || 0 })} /></div>
+                                        <div><label className="label">寬 (px)</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex]?.bounds?.width || 0} onChange={e => updateAreaBounds(selectedAreaIndex, { width: parseInt(e.target.value) || 0 })} /></div>
+                                        <div><label className="label">高 (px)</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex]?.bounds?.height || 0} onChange={e => updateAreaBounds(selectedAreaIndex, { height: parseInt(e.target.value) || 0 })} /></div>
                                     </div>
                                 </div>
                             ) : (
