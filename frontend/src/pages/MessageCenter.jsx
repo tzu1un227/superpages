@@ -6,14 +6,16 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import { useToast } from '../contexts/ToastContext';
 
 // 內部元件：處理帶有 Token 的圖片載入
-const AuthenticatedImage = ({ src, alt, style, onClick }) => {
+const AuthenticatedImage = ({ src, alt, style, onClick, onLoad }) => {
     const [imgUrl, setImgUrl] = useState(null);
     const [error, setError] = useState(false);
     const [retryCount, setRetryCount] = useState(0);
+    const [isLoaded, setIsLoaded] = useState(false);
 
     useEffect(() => {
         let isMounted = true;
         setError(false);
+        setIsLoaded(false);
 
         api.get(src, { responseType: 'blob', timeout: 10000 })
             .then(response => {
@@ -26,7 +28,6 @@ const AuthenticatedImage = ({ src, alt, style, onClick }) => {
                 console.error("Failed to load authenticated image:", err);
                 if (isMounted) {
                     setError(true);
-                    // 自動重試一次
                     if (retryCount < 1) {
                         setTimeout(() => setRetryCount(c => c + 1), 2000);
                     }
@@ -34,11 +35,9 @@ const AuthenticatedImage = ({ src, alt, style, onClick }) => {
             });
         return () => {
             isMounted = false;
-            // 這裡不立即 revoke，交給下一次 effect 或元件卸載處理，避免閃爍或載入中斷
         };
     }, [src, retryCount]);
 
-    // 卸載時清理
     useEffect(() => {
         return () => {
             if (imgUrl) URL.revokeObjectURL(imgUrl);
@@ -53,8 +52,52 @@ const AuthenticatedImage = ({ src, alt, style, onClick }) => {
         </div>
     );
 
-    if (!imgUrl) return <div style={{ ...style, width: '150px', height: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#222', color: '#666', fontSize: '10px' }}>載入中...</div>;
-    return <img src={imgUrl} alt={alt} style={style} onClick={onClick} />;
+    const handleImgLoad = () => {
+        setIsLoaded(true);
+        if (onLoad) onLoad();
+    };
+
+    return (
+        <div style={{ position: 'relative', display: 'inline-block' }}>
+            {(!imgUrl || !isLoaded) && (
+                <div style={{ ...style, width: '150px', height: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#222', color: '#666', fontSize: '10px' }}>
+                    載入中...
+                </div>
+            )}
+            {imgUrl && (
+                <img
+                    src={imgUrl}
+                    alt={alt}
+                    style={{ ...style, display: isLoaded ? 'block' : 'none' }}
+                    onLoad={handleImgLoad}
+                    onClick={onClick}
+                />
+            )}
+        </div>
+    );
+};
+
+const LazyImage = ({ src, alt, style, onLoad, onClick }) => {
+    const [isLoaded, setIsLoaded] = useState(false);
+    return (
+        <div style={{ position: 'relative', display: 'inline-block' }}>
+            {!isLoaded && (
+                <div style={{ ...style, width: style.width || '120px', height: style.height || '100px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#222', color: '#666', fontSize: '10px', borderRadius: style.borderRadius || '0' }}>
+                    載入中...
+                </div>
+            )}
+            <img
+                src={src}
+                alt={alt}
+                style={{ ...style, display: isLoaded ? 'block' : 'none' }}
+                onLoad={() => {
+                    setIsLoaded(true);
+                    if (onLoad) onLoad();
+                }}
+                onClick={onClick}
+            />
+        </div>
+    );
 };
 
 function MessageCenter() {
@@ -1006,7 +1049,14 @@ function MessageCenter() {
                                                 // Handle content like '{"packageId": "1", "stickerId": "1"}' or just ID
                                                 const match = m.content.match(/"stickerId":\s*"(\d+)"/);
                                                 const stickerId = match ? match[1] : (m.content.match(/^\d+$/) ? m.content : null);
-                                                if (stickerId) return <img src={`https://stickershop.line-scdn.net/stickershop/v1/sticker/${stickerId}/android/sticker.png`} style={{ width: '120px' }} alt="Sticker" onLoad={handleMediaLoad} />;
+                                                if (stickerId) return (
+                                                    <LazyImage
+                                                        src={`https://stickershop.line-scdn.net/stickershop/v1/sticker/${stickerId}/android/sticker.png`}
+                                                        style={{ width: '120px' }}
+                                                        alt="Sticker"
+                                                        onLoad={handleMediaLoad}
+                                                    />
+                                                );
                                             } catch (e) { }
                                             return <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'inherit' }}><Smile size={16} /> [貼圖訊息]</div>;
                                         }
@@ -1016,7 +1066,12 @@ function MessageCenter() {
                                                 const parsed = JSON.parse(m.content);
                                                 if (parsed.type === 'text' && parsed.text) return highlightText(parsed.text);
                                                 if (parsed.type === 'image') return (
-                                                    <img src={parsed.previewImageUrl || parsed.originalContentUrl} style={{ maxWidth: '200px', borderRadius: '8px', cursor: 'pointer' }} onClick={() => window.open(parsed.originalContentUrl, '_blank')} onLoad={handleMediaLoad} />
+                                                    <LazyImage
+                                                        src={parsed.previewImageUrl || parsed.originalContentUrl}
+                                                        style={{ maxWidth: '200px', borderRadius: '8px', cursor: 'pointer' }}
+                                                        onClick={() => window.open(parsed.originalContentUrl, '_blank')}
+                                                        onLoad={handleMediaLoad}
+                                                    />
                                                 );
                                                 if (parsed.type === 'video') return (
                                                     <div style={{ maxWidth: '200px' }}>
@@ -1034,7 +1089,13 @@ function MessageCenter() {
                                                         const imageUrl = hero.url;
                                                         return (
                                                             <div style={{ backgroundColor: '#fff', color: '#000', borderRadius: '8px', overflow: 'hidden', width: '200px', fontSize: '12px' }}>
-                                                                {imageUrl && <img src={imageUrl} style={{ width: '100%', height: '100px', objectFit: 'cover' }} onLoad={handleMediaLoad} />}
+                                                                {imageUrl && (
+                                                                    <LazyImage
+                                                                        src={imageUrl}
+                                                                        style={{ width: '100%', height: '100px', objectFit: 'cover' }}
+                                                                        onLoad={handleMediaLoad}
+                                                                    />
+                                                                )}
                                                                 <div style={{ padding: '8px' }}>
                                                                     {title && <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{title}</div>}
                                                                     <div style={{ color: '#666' }}>[Flex 訊息]</div>

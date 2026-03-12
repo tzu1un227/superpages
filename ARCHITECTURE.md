@@ -108,6 +108,14 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
   - **標籤篩選 (Tag Filtering)**:
     - 載入所有可用標籤並顯示為可點選的標籤按鈕列表（含「全部」選項）。
     - 點選標籤後，以 `tag` query parameter 傳入 `/api/users`，僅回傳擁有該標籤的用戶。
+  - **捲軸位置管理與防跳動 (Scroll Management)**:
+    - **位置持久化 (Scroll Persistence)**: 使用 `userScrollPositionsRef` (Mutable Ref) 紀錄每個用戶的 `distanceFromBottom` 與 `scrollTop`。
+    - **智慧置底與記憶恢復**: 切換用戶時，若有大於 100px 的向上捲動紀錄，則恢復 `scrollTop`；否則執行 `scrollToBottom`。
+    - **防跳動定位 (useLayoutEffect)**: 當載入剩餘歷史訊息（向上撐開）時，利用 `React.useLayoutEffect` 在瀏覽器重繪前計算 `scrollHeight` 差值並補齊 `scrollTop`，實現視覺上的無縫定位。
+    - **穩定 DOM Key**: 訊息列表使用結合 `timestamp` 與 `index` 的穩定字串作為 `key`，防止 React 在更新時銷毀重建 DOM 節點導致捲軸遺失。
+  - **圖片/媒體載入同步化 (LazyImage)**:
+    - **核心機制**: 為了解決非同步媒體載入導致的版面推擠（Layout Shift），導入 `LazyImage` 元件。媒體元件在瀏覽器觸發 `onLoad` 完成渲染前，將以隱形狀態結合佔位框顯示，確保容器高度在可見前已確定。
+    - **即時置底**: 媒體載入完畢後，若 `isAtBottomRef` 為真，則立刻調用 `scrollToBottom`。
   ### 訊息中心與內容代理 (Message Center & Content Proxy)
 為了確保能正常顯示 LINE 伺服端的使用者媒體（如圖片、影片），系統實作了後端 Proxy 路由：
 - `/api/line/content/<message_id>`: 會附帶官方帳號的 `line_token` 請求 LINE API 並回傳二進位資料。
