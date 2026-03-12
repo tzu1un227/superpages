@@ -139,6 +139,13 @@ function MessageCenter() {
         if (selectedUser) {
             setLoadingChat(true);
             setMessages([]); // 切換用戶時立即清空舊訊息，避免畫面殘留與捲軸誤判
+
+            // 預置捲軸狀態，防止舊用戶的「置底」狀態干擾新用戶的記憶位置恢復
+            const savedScroll = userScrollPositionsRef.current[selectedUser];
+            const wasAtBottom = !savedScroll || savedScroll.distanceFromBottom < 200;
+            setIsAtBottom(wasAtBottom);
+            isAtBottomRef.current = wasAtBottom;
+
             fetchHistory(selectedUser);
             setMessageSearch(''); // 切換用戶時清除對話搜尋
         }
@@ -294,7 +301,7 @@ function MessageCenter() {
             // 初次載入先抓取最新的 100 筆，達成極速畫面渲染的錯覺
             // 但如果用戶之前是在向上滑看舊訊息，就跳過極速載入，直接等待完整紀錄，否則會破壞捲動記憶
             const savedScroll = userScrollPositionsRef.current[userId];
-            const isScrolledUp = savedScroll !== undefined && savedScroll.distanceFromBottom >= 100;
+            const isScrolledUp = savedScroll !== undefined && savedScroll.distanceFromBottom >= 200;
 
             if (!isPolling && !isScrolledUp) {
                 const fastResp = await api.get(`/history/${userId}?limit=100`, { signal });
@@ -480,9 +487,9 @@ function MessageCenter() {
                 // 檢查是否有前次停留的捲動紀錄
                 const savedScroll = userScrollPositionsRef.current[selectedUser];
                 if (savedScroll !== undefined && chatContainerRef.current) {
-                    // 如果有紀錄，且距離底部超過 100px (代表原本在往上看舊訊息)
+                    // 如果有紀錄，且距離底部超過 200px (代表原本在往上看舊訊息)
                     // 就恢復到原本停留的高度
-                    if (savedScroll.distanceFromBottom >= 100) {
+                    if (savedScroll.distanceFromBottom >= 200) {
                         chatContainerRef.current.scrollTop = savedScroll.scrollTop;
                     } else {
                         // 原本就在底部，就乖乖置底

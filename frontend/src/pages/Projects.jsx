@@ -1519,8 +1519,8 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
 
             // Validation: Ensure text is not empty
             for (let i = 0; i < payloadMessages.length; i++) {
-                const m = payloadMessages[i];
-                if (m.OTYPE === 'TextSendMessage' && (!m.text || !m.text.trim())) {
+                const msg = payloadMessages[i];
+                if (msg.OTYPE === 'TextSendMessage' && (!msg.text || !msg.text.trim())) {
                     showToast(`訊息 #${i + 1} 內容不能空白`, 'warning');
                     setLoading(false);
                     return;
@@ -1650,18 +1650,86 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                 {messages[activeMsgIndex].OTYPE === 'TextSendMessage' && (
                                     <div>
                                         <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>內容</label>
-                                        <textarea value={messages[activeMsgIndex].text} onChange={(e) => updateMessage(activeMsgIndex, 'text', e.target.value)} rows={8} style={{ width: '100%', padding: '10px', background: '#222', border: 'none', color: '#fff' }} />
+                                        <textarea value={messages[activeMsgIndex].text} onChange={(e) => updateMessage(activeMsgIndex, 'text', e.target.value)} rows={12} style={{ width: '100%', padding: '10px', background: '#222', border: 'none', color: '#fff' }} />
                                     </div>
                                 )}
-                                {(messages[activeMsgIndex].OTYPE === 'ImageSendMessage' || messages[activeMsgIndex].OTYPE === 'VideoSendMessage') && (
+                                {messages[activeMsgIndex].OTYPE === 'ImageSendMessage' && (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                         <div>
-                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>檔案連結 (URL)</label>
-                                            <input type="text" value={messages[activeMsgIndex].original_content_url} onChange={(e) => updateMessage(activeMsgIndex, 'original_content_url', e.target.value)} style={{ width: '100%', padding: '10px', background: '#222', border: 'none', color: '#fff' }} placeholder="https://..." />
+                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>圖片連結 (URL)</label>
+                                            <div style={{ display: 'flex', gap: '10px' }}>
+                                                <input type="text" value={messages[activeMsgIndex].original_content_url} onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    const msgs = [...messages];
+                                                    msgs[activeMsgIndex].original_content_url = val;
+                                                    msgs[activeMsgIndex].preview_image_url = val;
+                                                    setMessages(msgs);
+                                                }} style={{ flex: 1, padding: '10px', background: '#222', border: 'none', color: '#fff' }} placeholder="https://..." />
+                                                <label style={{ padding: '10px 15px', background: 'var(--primary-yellow)', color: '#000', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold' }}>
+                                                    <Upload size={16} /> 上傳
+                                                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => {
+                                                        const file = e.target.files[0];
+                                                        if (!file) return;
+                                                        const formData = new FormData();
+                                                        formData.append('file', file);
+                                                        try {
+                                                            const res = await api.post('/upload/github', formData);
+                                                            const msgs = [...messages];
+                                                            msgs[activeMsgIndex].original_content_url = res.data.url;
+                                                            msgs[activeMsgIndex].preview_image_url = res.data.url;
+                                                            setMessages(msgs);
+                                                        } catch (err) {
+                                                            alert('上傳失敗: ' + (err.response?.data?.message || err.message));
+                                                        }
+                                                    }} />
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                {messages[activeMsgIndex].OTYPE === 'VideoSendMessage' && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                        <div>
+                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>影片連結 (URL)</label>
+                                            <div style={{ display: 'flex', gap: '10px' }}>
+                                                <input type="text" value={messages[activeMsgIndex].original_content_url} onChange={(e) => updateMessage(activeMsgIndex, 'original_content_url', e.target.value)} style={{ flex: 1, padding: '10px', background: '#222', border: 'none', color: '#fff' }} placeholder="https://..." />
+                                                <label style={{ padding: '10px 15px', background: 'var(--primary-yellow)', color: '#000', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold' }}>
+                                                    <Upload size={16} /> 上傳
+                                                    <input type="file" accept="video/*" style={{ display: 'none' }} onChange={async (e) => {
+                                                        const file = e.target.files[0];
+                                                        if (!file) return;
+                                                        const formData = new FormData();
+                                                        formData.append('file', file);
+                                                        try {
+                                                            const res = await api.post('/upload/github', formData);
+                                                            updateMessage(activeMsgIndex, 'original_content_url', res.data.url);
+                                                        } catch (err) {
+                                                            alert('上傳失敗: ' + (err.response?.data?.message || err.message));
+                                                        }
+                                                    }} />
+                                                </label>
+                                            </div>
                                         </div>
                                         <div>
-                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>預覽圖連結 (Preview URL)</label>
-                                            <input type="text" value={messages[activeMsgIndex].preview_image_url} onChange={(e) => updateMessage(activeMsgIndex, 'preview_image_url', e.target.value)} style={{ width: '100%', padding: '10px', background: '#222', border: 'none', color: '#fff' }} placeholder="https://..." />
+                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>影片預覽圖連結 (Preview Image URL)</label>
+                                            <div style={{ display: 'flex', gap: '10px' }}>
+                                                <input type="text" value={messages[activeMsgIndex].preview_image_url} onChange={(e) => updateMessage(activeMsgIndex, 'preview_image_url', e.target.value)} style={{ flex: 1, padding: '10px', background: '#222', border: 'none', color: '#fff' }} placeholder="https://..." />
+                                                <label style={{ padding: '10px 15px', background: 'var(--primary-yellow)', color: '#000', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold' }}>
+                                                    <Upload size={16} /> 上傳
+                                                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => {
+                                                        const file = e.target.files[0];
+                                                        if (!file) return;
+                                                        const formData = new FormData();
+                                                        formData.append('file', file);
+                                                        try {
+                                                            const res = await api.post('/upload/github', formData);
+                                                            updateMessage(activeMsgIndex, 'preview_image_url', res.data.url);
+                                                        } catch (err) {
+                                                            alert('上傳失敗: ' + (err.response?.data?.message || err.message));
+                                                        }
+                                                    }} />
+                                                </label>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -1669,7 +1737,24 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                         <div>
                                             <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>音檔連結 (URL)</label>
-                                            <input type="text" value={messages[activeMsgIndex].original_content_url} onChange={(e) => updateMessage(activeMsgIndex, 'original_content_url', e.target.value)} style={{ width: '100%', padding: '10px', background: '#222', border: 'none', color: '#fff' }} placeholder="https://..." />
+                                            <div style={{ display: 'flex', gap: '10px' }}>
+                                                <input type="text" value={messages[activeMsgIndex].original_content_url} onChange={(e) => updateMessage(activeMsgIndex, 'original_content_url', e.target.value)} style={{ flex: 1, padding: '10px', background: '#222', border: 'none', color: '#fff' }} placeholder="https://..." />
+                                                <label style={{ padding: '10px 15px', background: 'var(--primary-yellow)', color: '#000', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold' }}>
+                                                    <Upload size={16} /> 上傳
+                                                    <input type="file" accept="audio/*" style={{ display: 'none' }} onChange={async (e) => {
+                                                        const file = e.target.files[0];
+                                                        if (!file) return;
+                                                        const formData = new FormData();
+                                                        formData.append('file', file);
+                                                        try {
+                                                            const res = await api.post('/upload/github', formData);
+                                                            updateMessage(activeMsgIndex, 'original_content_url', res.data.url);
+                                                        } catch (err) {
+                                                            alert('上傳失敗: ' + (err.response?.data?.message || err.message));
+                                                        }
+                                                    }} />
+                                                </label>
+                                            </div>
                                         </div>
                                         <div>
                                             <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>長度 (毫秒)</label>
@@ -1807,7 +1892,6 @@ const UserSelectModal = ({ isOpen, onClose, onSelect, existingUsers = [] }) => {
                                 <div key={u.user_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #222' }}>
                                     <div>
                                         <div style={{ fontWeight: 'bold' }}>{u.name || '未命名用戶'}</div>
-                                        <div style={{ fontSize: '12px', color: '#aaa' }}>ID: {u.user_id}</div>
                                     </div>
                                     <button
                                         onClick={() => onSelect(u.user_id, u.name)}
