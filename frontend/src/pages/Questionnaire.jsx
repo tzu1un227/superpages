@@ -12,6 +12,7 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import { useParams } from 'react-router-dom';
 import api from '../api';
 
@@ -146,6 +147,7 @@ const STEPS = ['基本資訊', '新增題目', '確認送出'];
 
 export default function Questionnaire() {
     const { token } = useAuth();
+    const { showToast } = useToast();
     const { oaId } = useParams();
 
     // List state
@@ -166,7 +168,6 @@ export default function Questionnaire() {
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
     const [submitting, setSubmitting] = useState(false);
-    const [alert, setAlert] = useState(null);
 
     const authHeaders = { headers: { Authorization: `Bearer ${token}`, 'X-OA-ID': oaId } };
 
@@ -200,9 +201,10 @@ export default function Questionnaire() {
             await api.delete(`/questionnaire/${deleteDialog.note}`, authHeaders);
             setDeleteDialog({ open: false, note: '' });
             if (expandedNote === deleteDialog.note) setExpandedNote(null);
+            showToast(`問卷「${deleteDialog.note}」已成功刪除`, 'success');
             fetchList();
         } catch (e) {
-            setAlert({ severity: 'error', msg: '刪除失敗: ' + (e.response?.data?.error || e.message) });
+            showToast('刪除失敗: ' + (e.response?.data?.error || e.message), 'error');
         }
     };
 
@@ -227,7 +229,6 @@ export default function Questionnaire() {
 
     const handleSubmit = async () => {
         setSubmitting(true);
-        setAlert(null);
         try {
             const res = await api.post('/questionnaire/build', {
                 note, trigger, finish_msg: finishMsg,
@@ -236,7 +237,7 @@ export default function Questionnaire() {
                 start_time: startTime,
                 end_time: endTime
             }, authHeaders);
-            setAlert({ severity: 'success', msg: res.data.message || `問卷「${note}」已成功建立！` });
+            showToast(res.data.message || `問卷「${note}」已成功建立！`, 'success');
             fetchList();
             // Reset form
             setNote(''); setTrigger(''); setFinishMsg('感謝您的填寫！');
@@ -244,7 +245,7 @@ export default function Questionnaire() {
             setStartTime(''); setEndTime('');
             setActiveStep(0);
         } catch (e) {
-            setAlert({ severity: 'error', msg: e.response?.data?.error || '建立失敗' });
+            showToast(e.response?.data?.error || '建立失敗', 'error');
         } finally {
             setSubmitting(false);
         }
@@ -298,12 +299,6 @@ export default function Questionnaire() {
                 <Typography variant="h6" sx={{ color: 'var(--primary-yellow)', mb: 3, fontWeight: 'bold' }}>
                     建立新問卷
                 </Typography>
-
-                {alert && (
-                    <Alert severity={alert.severity} sx={{ mb: 2 }} onClose={() => setAlert(null)}>
-                        {alert.msg}
-                    </Alert>
-                )}
 
                 <Stepper activeStep={activeStep} sx={{
                     mb: 4,
