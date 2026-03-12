@@ -251,6 +251,15 @@ const ProjectsManagement = () => {
     useEffect(() => {
         if (selectedProjectId && selectedProjectId !== prevProjectIdRef.current) {
             prevProjectIdRef.current = selectedProjectId;
+
+            // Project Switching Safety: Reset all unsaved editing states
+            setEditingScheduleId(null);
+            setEditScheduleFormData({});
+            setShowAddScheduleForm(false);
+            setNewSchedule({ project_id: '', step_id: '', interval_hours: '', message_content: '' });
+            setFormErrors({});
+            setError('');
+
             const project = projects.find(p => p.project_id == selectedProjectId);
             if (project) {
                 setStatsDateRange({
