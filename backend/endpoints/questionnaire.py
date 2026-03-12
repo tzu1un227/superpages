@@ -157,24 +157,24 @@ def build_questionnaire_direct(data: dict, app_id: str, conn, quest_id: int) -> 
     table = f"Q_bank:{app_id}"
 
     # 0. Availability Check (Time Limits)
-    time_check = ''
-    start_ts = None
-    end_ts = None
-    
-    if start_time:
-        try:
-            start_ts = int(datetime.strptime(start_time, '%Y-%m-%dT%H:%M').timestamp())
-        except: pass
-    if end_time:
-        try:
-            end_ts = int(datetime.strptime(end_time, '%Y-%m-%dT%H:%M').timestamp())
-        except: pass
+    def parse_time(ts_str):
+        if not ts_str: return None
+        for fmt in ('%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M'):
+            try:
+                return int(datetime.strptime(ts_str, fmt).timestamp())
+            except ValueError:
+                continue
+        return None
 
-    if start_ts and end_ts:
+    time_check = ''
+    start_ts = parse_time(start_time)
+    end_ts = parse_time(end_time)
+
+    if start_ts is not None and end_ts is not None:
         time_check = f"sys.now() >= {start_ts} and sys.now() <= {end_ts}"
-    elif start_ts:
+    elif start_ts is not None:
         time_check = f"sys.now() >= {start_ts}"
-    elif end_ts:
+    elif end_ts is not None:
         time_check = f"sys.now() <= {end_ts}"
 
     # 1. Entry Rule (Trigger -> First Question)
