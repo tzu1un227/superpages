@@ -58,6 +58,14 @@ app.register_blueprint(broadcast_bp, url_prefix='/api/broadcast')
 from endpoints.questionnaire import questionnaire_bp
 app.register_blueprint(questionnaire_bp, url_prefix='/api/questionnaire')
 
+# Register Rule Designer Blueprint
+from endpoints.rule_designer import rule_designer_bp
+app.register_blueprint(rule_designer_bp, url_prefix='/api/rule-designer')
+
+# Register DB Viewer Blueprint
+from endpoints.db_viewer import db_viewer_bp
+app.register_blueprint(db_viewer_bp, url_prefix='/api/db')
+
 with app.app_context():
     db.create_all()
 
@@ -73,7 +81,9 @@ with app.app_context():
             {'name': 'ScheduledEvents', 'description': '定時排程'},
             {'name': 'PrizeStatus', 'description': '抽獎管理'},
             {'name': 'RichMenu', 'description': '圖文選單'},
-            {'name': 'Questionnaire', 'description': '問卷管理'}
+            {'name': 'Questionnaire', 'description': '問卷管理'},
+            {'name': 'RuleDesigner', 'description': '法則表設計'},
+            {'name': 'DatabaseViewer', 'description': '資料庫檢視'}
         ]
         
         for p in default_pages:

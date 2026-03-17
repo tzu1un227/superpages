@@ -201,6 +201,23 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - Integrates with `QA_bank` for message storage and `cron_table` for scheduling.
     - Audience count logic uses `Private_var` for tag/all logic and calculates coverage ratio.
 
+### Rule Designer (法則表設計)
+- **Frontend**: `RuleDesigner.jsx`. (Route: `/ruledesigner`).
+    - Unified UI for `Q_bank` and `QA_bank` management.
+    - Features: Multi-message decomposition, Live Preview (LINE simulation), Flex Message Editor integration.
+    - Flowchart: Displays rule logic flow based on `state_in` and `state_out`.
+- **Backend**: `endpoints/rule_designer.py`.
+    - Unified API for rule CRUD. Handles serialization/deserialization of `msg_rpy` arrays.
+    - Automatically manages different bank tables based on request parameters.
+
+### Database Viewer (資料庫檢視)
+- **Frontend**: `DatabaseViewer.jsx`. (Route: `/dbviewer`).
+    - Dynamic data browser for all public tables and views.
+    - Features: Chunked loading (300 rows/step), Search, Client-side caching.
+- **Backend**: `endpoints/db_viewer.py`.
+    - Provides metadata (table list) and data fetching with limit/offset and search capabilities.
+    - Search is implemented using `ILIKE` across text-based columns.
+
 ## Environment Specific Configurations (環境特定配置)
 
 ### yzulabuse 環境

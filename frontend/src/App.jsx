@@ -15,7 +15,9 @@ import Questionnaire from './pages/Questionnaire';
 import api from './api';
 import { ToastProvider, useToast } from './contexts/ToastContext';
 import Toast from './components/Toast';
-import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send, Gift, Shield, LayoutGrid, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send, Gift, Shield, LayoutGrid, ClipboardList, Workflow, Database } from 'lucide-react';
+import RuleDesigner from './pages/RuleDesigner';
+import DatabaseViewer from './pages/DatabaseViewer';
 
 const GOOGLE_CLIENT_ID = "909213734319-feblc4e1vhgu7e0r340e43h9aabc8iqf.apps.googleusercontent.com";
 
@@ -41,7 +43,9 @@ const PAGE_ROUTE_MAP = {
   'PrizeStatus': 'prizes',
   'Statistics': 'statistics',
   'RichMenu': 'richmenu',
-  'Questionnaire': 'questionnaire'
+  'Questionnaire': 'questionnaire',
+  'RuleDesigner': 'ruledesigner',
+  'DatabaseViewer': 'dbviewer'
 };
 
 const PAGE_ICON_MAP = {
@@ -52,7 +56,9 @@ const PAGE_ICON_MAP = {
   'PrizeStatus': Gift,
   'Statistics': BarChart3,
   'RichMenu': LayoutGrid,
-  'Questionnaire': ClipboardList
+  'Questionnaire': ClipboardList,
+  'RuleDesigner': Workflow,
+  'DatabaseViewer': Database
 };
 
 const MainLayout = () => {
@@ -104,7 +110,9 @@ const MainLayout = () => {
                     const displayName = page.name === 'PrizeStatus' ? '抽獎管理' :
                       page.name === 'Projects' ? '自動旅程' :
                         page.name === 'Questionnaire' ? '問卷管理' :
-                          page.description;
+                          page.name === 'RuleDesigner' ? '法則表設計' :
+                            page.name === 'DatabaseViewer' ? '資料庫檢視' :
+                              page.description;
 
                     return (
                       <li key={page.id} style={{ marginBottom: '5px' }}>
@@ -159,6 +167,8 @@ const MainLayout = () => {
           <Route path="/oa/:oaId/statistics" element={<ProtectedRoute><Statistics /></ProtectedRoute>} />
           <Route path="/oa/:oaId/richmenu" element={<ProtectedRoute><RichMenu /></ProtectedRoute>} />
           <Route path="/oa/:oaId/questionnaire" element={<ProtectedRoute><Questionnaire /></ProtectedRoute>} />
+          <Route path="/oa/:oaId/ruledesigner" element={<ProtectedRoute><RuleDesigner /></ProtectedRoute>} />
+          <Route path="/oa/:oaId/dbviewer" element={<ProtectedRoute><DatabaseViewer /></ProtectedRoute>} />
 
           <Route path="/" element={
             isAuthenticated && myOAs.length > 0 ? (
