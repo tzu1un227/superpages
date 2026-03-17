@@ -146,7 +146,7 @@ function RuleDesigner() {
             // Recompose msg_rpy
             const ruleToSave = { ...editedRule, msg_rpy: msgRpyList };
             let res;
-            if (ruleToSave.id) {
+            if (ruleToSave.id !== undefined && ruleToSave.id !== null) {
                 res = await api.put(`/rule-designer/rules/${ruleToSave.id}`, {
                     bank_type: bankType,
                     rule: ruleToSave
@@ -161,7 +161,7 @@ function RuleDesigner() {
             if (res.data.status === 'success') {
                 showToast('規則已儲存', 'success');
                 setIsEditing(false);
-                await fetchRules(ruleToSave.id || res.data.id);
+                await fetchRules((ruleToSave.id !== undefined && ruleToSave.id !== null) ? ruleToSave.id : res.data.id);
             }
         } catch (err) {
             showToast('儲存失敗', 'error');
@@ -354,7 +354,13 @@ function RuleDesigner() {
                                             <button onClick={handleSave} className="primary" style={{ padding: '5px 12px' }}>儲存</button>
                                         </>
                                     )}
-                                    <button onClick={() => handleDelete(editedRule.id)} className="secondary" style={{ padding: '5px', color: '#ff4d4d' }}><Trash2 size={18} /></button>
+                                    <button onClick={() => {
+                                        if (editedRule.id !== undefined && editedRule.id !== null) {
+                                            handleDelete(editedRule.id);
+                                        } else {
+                                            showToast('無法刪除未儲存的規則', 'warning');
+                                        }
+                                    }} className="secondary" style={{ padding: '5px', color: '#ff4d4d' }}><Trash2 size={18} /></button>
                                 </div>
                             )}
                         </div>
