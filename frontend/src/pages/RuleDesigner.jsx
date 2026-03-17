@@ -40,11 +40,28 @@ function RuleDesigner() {
         fetchRules();
     }, [bankType, oaId]);
 
-    const fetchRules = async () => {
+    const fetchRules = async (reselectId = null) => {
         setLoading(true);
         try {
             const res = await api.get(`/rule-designer/rules?type=${bankType}`);
-            setRules(res.data.rules || []);
+            const newRules = res.data.rules || [];
+            setRules(newRules);
+            if (reselectId) {
+                const found = newRules.find(r => r.id === reselectId);
+                if (found) {
+                    setSelectedRule(found);
+                    setEditedRule(JSON.parse(JSON.stringify(found)));
+                    
+                    // Decompose msg_rpy
+                    try {
+                        const rawMsg = found.msg_rpy || [];
+                        const parsedMsg = rawMsg.map(m => (typeof m === 'string' ? JSON.parse(m) : m));
+                        setMsgRpyList(parsedMsg);
+                    } catch (e) {
+                        setMsgRpyList([]);
+                    }
+                }
+            }
         } catch (err) {
             showToast('載入規則失敗', 'error');
         } finally {
@@ -144,10 +161,7 @@ function RuleDesigner() {
             if (res.data.status === 'success') {
                 showToast('規則已儲存', 'success');
                 setIsEditing(false);
-                fetchRules();
-                if (!ruleToSave.id && res.data.id) {
-                    // It was a new rule, select it? Actually fetchRules will reset it.
-                }
+                await fetchRules(ruleToSave.id || res.data.id);
             }
         } catch (err) {
             showToast('儲存失敗', 'error');
