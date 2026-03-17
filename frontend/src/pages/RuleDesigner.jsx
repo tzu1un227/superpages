@@ -179,9 +179,14 @@ function RuleDesigner() {
             const note = r.note || '';
             const tag = r.tag || '';
             const content = Array.isArray(r.content) ? r.content.join(' ') : '';
+            const stateIn = Array.isArray(r.state_in) ? r.state_in.join(' ') : '';
+            const stateOut = r.state_out || '';
+            
             return note.toLowerCase().includes(lowSearch) || 
                    tag.toLowerCase().includes(lowSearch) || 
-                   content.toLowerCase().includes(lowSearch);
+                   content.toLowerCase().includes(lowSearch) ||
+                   stateIn.toLowerCase().includes(lowSearch) ||
+                   stateOut.toLowerCase().includes(lowSearch);
         });
     }, [rules, searchTerm]);
 

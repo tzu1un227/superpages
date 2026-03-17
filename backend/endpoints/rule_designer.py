@@ -34,7 +34,7 @@ def list_rules():
         if not cur.fetchone():
             return jsonify({'rules': []})
             
-        cur.execute(f'SELECT * FROM "{table_name}" ORDER BY id DESC')
+        cur.execute(f'SELECT * FROM "{table_name}" ORDER BY id ASC')
         rules = cur.fetchall()
         
         cur.close()
