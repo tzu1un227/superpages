@@ -12,7 +12,8 @@ def send_socket_event(data, namespace=None):
     Ensures thread-safe connection by creating a new client instance per call.
     """
     # Create a fresh client for every call to prevent concurrency race conditions
-    local_sio = socketio.Client()
+    # ssl_verify=False is needed due to internal Docker/Proxy cert issues
+    local_sio = socketio.Client(ssl_verify=False)
     
     target_ws_url = WS_URL
     bot_name = DEFAULT_BOT_NAME
@@ -61,8 +62,8 @@ def send_socket_event(data, namespace=None):
     print(f"DEBUG: [SOCKET_INIT] Target: {target_ws_url} | BotName: {bot_name} | Namespace: {final_namespace} | OA_ID: {current_oa_id}")
     
     try:
-        # Default Socket.IO behavior: try websocket, fallback to polling
-        transports = ['websocket', 'polling'] 
+        # Use polling for better robustness across proxies and faster connection in one-off calls
+        transports = ['polling'] 
         
         # Connect to *only* the specific namespace needed to avoid "One or more namespaces failed" error
         # Some servers/load balancers (especially on Heroku) are picky about multi-namespace requests
