@@ -483,7 +483,6 @@ def get_my_oas():
                 all_configs = OAConfig.query.all()
                 configs = [c for c in all_configs if str(c.id) in [str(x) for x in allowed]]
 
-        print(f"DEBUG: Found {len(configs)} configs for user {user.id}")
         
         # Build hierarchical response
         oa_list = []
