@@ -94,6 +94,14 @@ def create_rule():
         conn.commit()
         cur.close()
         conn.close()
+
+        # Notify via WebSocket
+        try:
+            from utils.socket_utils import send_socket_event
+            send_socket_event({'userId': 'yzuadmin', 'message': 'SQL|True', 'type': 'Message'})
+        except Exception as se:
+            print(f"[RULE_DESIGNER] Socket notification error: {se}")
+
         return jsonify({'status': 'success', 'id': new_id})
     except Exception as e:
         print(f"[RULE_DESIGNER] Create error: {str(e)}")
@@ -147,6 +155,14 @@ def update_rule(rule_id):
         conn.commit()
         cur.close()
         conn.close()
+
+        # Notify via WebSocket
+        try:
+            from utils.socket_utils import send_socket_event
+            send_socket_event({'userId': 'yzuadmin', 'message': 'SQL|True', 'type': 'Message'})
+        except Exception as se:
+            print(f"[RULE_DESIGNER] Socket notification error: {se}")
+
         return jsonify({'status': 'success'})
     except Exception as e:
         print(f"[RULE_DESIGNER] Update error: {str(e)}")
@@ -166,6 +182,14 @@ def delete_rule(rule_id):
         conn.commit()
         cur.close()
         conn.close()
+
+        # Notify via WebSocket
+        try:
+            from utils.socket_utils import send_socket_event
+            send_socket_event({'userId': 'yzuadmin', 'message': 'SQL|True', 'type': 'Message'})
+        except Exception as se:
+            print(f"[RULE_DESIGNER] Socket notification error: {se}")
+
         return jsonify({'status': 'success'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
