@@ -98,7 +98,7 @@ def create_rule():
         # Notify via WebSocket
         try:
             from utils.socket_utils import send_socket_event
-            send_socket_event({'userId': 'yzuadmin', 'message': 'SQL|True', 'type': 'Message'})
+            send_socket_event({'user': 'yzuadmin', 'message': 'SQL|True', 'type': 'Sensor'})
         except Exception as se:
             print(f"[RULE_DESIGNER] Socket notification error: {se}")
 
@@ -159,7 +159,7 @@ def update_rule(rule_id):
         # Notify via WebSocket
         try:
             from utils.socket_utils import send_socket_event
-            send_socket_event({'userId': 'yzuadmin', 'message': 'SQL|True', 'type': 'Message'})
+            send_socket_event({'user': 'yzuadmin', 'message': 'SQL|True', 'type': 'Sensor'})
         except Exception as se:
             print(f"[RULE_DESIGNER] Socket notification error: {se}")
 
