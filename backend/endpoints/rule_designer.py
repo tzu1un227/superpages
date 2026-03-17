@@ -18,6 +18,36 @@ def get_app_id():
         return path_part.split('?')[0].strip()
     return '5013'
 
+def trigger_sql_reload():
+    """
+    Send SQL|True Sensor event to the Line Bot server so it reloads Q_bank
+    rule_table from DB at runtime. Pattern follows questionnaire.py.
+    """
+    try:
+        from utils.socket_utils import send_socket_event
+        oa_id = getattr(g, 'current_oa_id', None)
+        socket_url = None
+        
+        if oa_id:
+            from models import OAConfig
+            oa = OAConfig.query.get(int(oa_id))
+            if oa and oa.other_settings:
+                socket_url = oa.other_settings.get('socket_url')
+        
+        data = {
+            'user': 'yzuadmin',
+            'type': 'Sensor',
+            'message': 'SQL|True',
+        }
+        if socket_url:
+            data['target_ws_url'] = socket_url
+        
+        print(f"[RULE_DESIGNER] Triggering SQL reload: {data}")
+        send_socket_event(data, namespace='/websoc')
+        print(f"[RULE_DESIGNER] SQL reload triggered successfully")
+    except Exception as e:
+        print(f"[RULE_DESIGNER] SQL reload trigger failed: {e}")
+
 @rule_designer_bp.route('/rules', methods=['GET'])
 def list_rules():
     """List rules from both Q_bank and QA_bank."""
@@ -96,11 +126,7 @@ def create_rule():
         conn.close()
 
         # Notify via WebSocket
-        try:
-            from utils.socket_utils import send_socket_event
-            send_socket_event({'user': 'yzuadmin', 'message': 'SQL|True', 'type': 'Sensor'})
-        except Exception as se:
-            print(f"[RULE_DESIGNER] Socket notification error: {se}")
+        trigger_sql_reload()
 
         return jsonify({'status': 'success', 'id': new_id})
     except Exception as e:
@@ -157,11 +183,7 @@ def update_rule(rule_id):
         conn.close()
 
         # Notify via WebSocket
-        try:
-            from utils.socket_utils import send_socket_event
-            send_socket_event({'user': 'yzuadmin', 'message': 'SQL|True', 'type': 'Sensor'})
-        except Exception as se:
-            print(f"[RULE_DESIGNER] Socket notification error: {se}")
+        trigger_sql_reload()
 
         return jsonify({'status': 'success'})
     except Exception as e:
@@ -184,11 +206,7 @@ def delete_rule(rule_id):
         conn.close()
 
         # Notify via WebSocket
-        try:
-            from utils.socket_utils import send_socket_event
-            send_socket_event({'userId': 'yzuadmin', 'message': 'SQL|True', 'type': 'Message'})
-        except Exception as se:
-            print(f"[RULE_DESIGNER] Socket notification error: {se}")
+        trigger_sql_reload()
 
         return jsonify({'status': 'success'})
     except Exception as e:
