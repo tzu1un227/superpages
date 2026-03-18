@@ -14,6 +14,7 @@ import FlexMessageEditor from '../components/FlexMessageEditor';
 
 const BANK_TYPES = [
     { id: 'q_bank', label: 'Q_bank (核心規則)', color: '#FFD700' },
+    { id: 'ad_bank', label: 'AD_bank (管理員規則)', color: '#FF9800' },
     { id: 'qa_bank', label: 'QA_bank (回覆庫)', color: '#4CAF50' }
 ];
 
@@ -24,14 +25,16 @@ function RuleDesigner() {
     // State
     const [bankType, setBankType] = useState('q_bank');
     const [rules, setRules] = useState([]);
+    const [draftRules, setDraftRules] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedRule, setSelectedRule] = useState(null);
-    const [isEditing, setIsEditing] = useState(false);
     
-    // Editor State
-    const [editedRule, setEditedRule] = useState(null);
-    const [msgRpyList, setMsgRpyList] = useState([]); // Decomposed msg_rpy
+    // Modal State for msg_rpy
+    const [isMsgModalOpen, setIsMsgModalOpen] = useState(false);
+    const [editingRowIndex, setEditingRowIndex] = useState(null);
+    const [msgRpyList, setMsgRpyList] = useState([]); 
+    
+    // Flex Editor State
     const [showFlexEditor, setShowFlexEditor] = useState(false);
     const [flexEditorIndex, setFlexEditorIndex] = useState(null);
 
@@ -40,28 +43,13 @@ function RuleDesigner() {
         fetchRules();
     }, [bankType, oaId]);
 
-    const fetchRules = async (reselectId = null) => {
+    const fetchRules = async () => {
         setLoading(true);
         try {
             const res = await api.get(`/rule-designer/rules?type=${bankType}`);
             const newRules = res.data.rules || [];
             setRules(newRules);
-            if (reselectId) {
-                const found = newRules.find(r => r.id === reselectId);
-                if (found) {
-                    setSelectedRule(found);
-                    setEditedRule(JSON.parse(JSON.stringify(found)));
-                    
-                    // Decompose msg_rpy
-                    try {
-                        const rawMsg = found.msg_rpy || [];
-                        const parsedMsg = rawMsg.map(m => (typeof m === 'string' ? JSON.parse(m) : m));
-                        setMsgRpyList(parsedMsg);
-                    } catch (e) {
-                        setMsgRpyList([]);
-                    }
-                }
-            }
+            setDraftRules(JSON.parse(JSON.stringify(newRules)).map(r => ({ ...r, _isDirty: false })));
         } catch (err) {
             showToast('載入規則失敗', 'error');
         } finally {
@@ -69,23 +57,8 @@ function RuleDesigner() {
         }
     };
 
-    const handleSelectRule = (rule) => {
-        setSelectedRule(rule);
-        setEditedRule(JSON.parse(JSON.stringify(rule)));
-        
-        // Decompose msg_rpy
-        try {
-            const rawMsg = rule.msg_rpy || [];
-            const parsedMsg = rawMsg.map(m => (typeof m === 'string' ? JSON.parse(m) : m));
-            setMsgRpyList(parsedMsg);
-        } catch (e) {
-            setMsgRpyList([]);
-        }
-        setIsEditing(false);
-    };
-
     const handleNewRule = () => {
-        const newRule = bankType === 'q_bank' ? {
+        const newRule = ['q_bank', 'ad_bank'].includes(bankType) ? {
             state_in: ['*'],
             type: 'Message',
             content: [''],
@@ -94,7 +67,9 @@ function RuleDesigner() {
             state_out: '00000',
             function: '',
             history: true,
-            note: '新規則'
+            note: '新規則',
+            _isDirty: true,
+            _isNew: true
         } : {
             tag: 'new_tag',
             msg_rpy: [],
@@ -102,14 +77,51 @@ function RuleDesigner() {
             check: [''],
             function: '',
             ans: [''],
-            type: 'Message'
+            type: 'Message',
+            _isDirty: true,
+            _isNew: true
         };
-        setSelectedRule(null);
-        setEditedRule(newRule);
-        setMsgRpyList([]);
-        setIsEditing(true);
+        setDraftRules([newRule, ...draftRules]);
+        // 為了將畫面拉到最上方，可以延遲觸發捲動，或由使用者自行往上捲
     };
 
+    const handleFieldChange = (index, field, value) => {
+        const newDrafts = [...draftRules];
+        
+        // 陣列欄位特殊處理 (以逗號分隔字串轉換為陣列)
+        if (field === 'state_in' || field === 'content' || field === 'check' || field === 'ans') {
+            newDrafts[index][field] = value.split(',').map(s => s.trim());
+        } else {
+            newDrafts[index][field] = value;
+        }
+        
+        newDrafts[index]._isDirty = true;
+        setDraftRules(newDrafts);
+    };
+
+    const handleOpenMsgModal = (index) => {
+        setEditingRowIndex(index);
+        const rawMsg = draftRules[index].msg_rpy || [];
+        try {
+            const parsedMsg = rawMsg.map(m => (typeof m === 'string' ? JSON.parse(m) : m));
+            setMsgRpyList(parsedMsg);
+        } catch (e) {
+            setMsgRpyList([]);
+        }
+        setIsMsgModalOpen(true);
+    };
+
+    const handleSaveMsgModal = () => {
+        if (editingRowIndex === null) return;
+        const newDrafts = [...draftRules];
+        newDrafts[editingRowIndex].msg_rpy = msgRpyList;
+        newDrafts[editingRowIndex]._isDirty = true;
+        setDraftRules(newDrafts);
+        setIsMsgModalOpen(false);
+        setEditingRowIndex(null);
+    };
+
+    // --- Message Editor inside Modal ---
     const handleAddMessage = (type = 'TextSendMessage') => {
         let newMsg = { OTYPE: type };
         if (type === 'TextSendMessage') newMsg.text = '新訊息';
@@ -121,32 +133,29 @@ function RuleDesigner() {
             newMsg.original_content_url = 'https://via.placeholder.com/800x400';
             newMsg.preview_image_url = 'https://via.placeholder.com/800x400';
         }
-
-        const newList = [...msgRpyList, newMsg];
-        setMsgRpyList(newList);
-        setEditedRule({ ...editedRule, msg_rpy: newList });
+        setMsgRpyList([...msgRpyList, newMsg]);
     };
 
     const handleRemoveMessage = (index) => {
-        const newList = msgRpyList.filter((_, i) => i !== index);
-        setMsgRpyList(newList);
-        setEditedRule({ ...editedRule, msg_rpy: newList });
+        setMsgRpyList(msgRpyList.filter((_, i) => i !== index));
     };
 
     const handleUpdateMessage = (index, field, value) => {
         const newList = [...msgRpyList];
         newList[index] = { ...newList[index], [field]: value };
         setMsgRpyList(newList);
-        setEditedRule({ ...editedRule, msg_rpy: newList });
     };
+    // ------------------------------------
 
-    const handleSave = async () => {
+    const handleSaveRow = async (index) => {
         setLoading(true);
+        const ruleToSave = { ...draftRules[index] };
+        delete ruleToSave._isDirty;
+        delete ruleToSave._isNew;
+
         try {
-            // Recompose msg_rpy
-            const ruleToSave = { ...editedRule, msg_rpy: msgRpyList };
             let res;
-            if (ruleToSave.id !== undefined && ruleToSave.id !== null) {
+            if (ruleToSave.id !== undefined && ruleToSave.id !== null && !draftRules[index]._isNew) {
                 res = await api.put(`/rule-designer/rules/${ruleToSave.id}`, {
                     bank_type: bankType,
                     rule: ruleToSave
@@ -160,8 +169,13 @@ function RuleDesigner() {
 
             if (res.data.status === 'success') {
                 showToast('規則已儲存', 'success');
-                setIsEditing(false);
-                await fetchRules((ruleToSave.id !== undefined && ruleToSave.id !== null) ? ruleToSave.id : res.data.id);
+                // 將該列的狀態標記為已非髒狀態，並更新 ID (若是新增)
+                const newDrafts = [...draftRules];
+                newDrafts[index]._isDirty = false;
+                newDrafts[index]._isNew = false;
+                if (res.data.id) newDrafts[index].id = res.data.id;
+                setDraftRules(newDrafts);
+                fetchRules(); // 同步回原始資料
             }
         } catch (err) {
             showToast('儲存失敗', 'error');
@@ -170,14 +184,24 @@ function RuleDesigner() {
         }
     };
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('確定要刪除此規則嗎？')) return;
+    const handleDeleteRow = async (index) => {
+        const ruleTarget = draftRules[index];
+        if (ruleTarget._isNew) {
+            // 如果是剛新增還沒存過，直接拔除 draft
+            const newDrafts = [...draftRules];
+            newDrafts.splice(index, 1);
+            setDraftRules(newDrafts);
+            return;
+        }
+
+        if (!window.confirm(`確定要刪除規則 ${ruleTarget.id} 嗎？`)) return;
         setLoading(true);
         try {
-            await api.delete(`/rule-designer/rules/${id}?type=${bankType}`);
+            await api.delete(`/rule-designer/rules/${ruleTarget.id}?type=${bankType}`);
             showToast('規則已刪除', 'success');
-            setSelectedRule(null);
-            setEditedRule(null);
+            const newDrafts = [...draftRules];
+            newDrafts.splice(index, 1);
+            setDraftRules(newDrafts);
             fetchRules();
         } catch (err) {
             showToast('刪除失敗', 'error');
@@ -186,66 +210,44 @@ function RuleDesigner() {
         }
     };
 
-    const filteredRules = useMemo(() => {
-        if (!searchTerm) return rules;
-        const lowSearch = searchTerm.toLowerCase();
-        return rules.filter(r => {
-            const note = r.note || '';
-            const tag = r.tag || '';
-            const content = Array.isArray(r.content) ? r.content.join(' ') : '';
-            const stateIn = Array.isArray(r.state_in) ? r.state_in.join(' ') : '';
-            const stateOut = r.state_out || '';
-            
-            return note.toLowerCase().includes(lowSearch) || 
-                   tag.toLowerCase().includes(lowSearch) || 
-                   content.toLowerCase().includes(lowSearch) ||
-                   stateIn.toLowerCase().includes(lowSearch) ||
-                   stateOut.toLowerCase().includes(lowSearch);
-        });
-    }, [rules, searchTerm]);
+    const matchesSearch = (r, search) => {
+        const lowSearch = search.toLowerCase();
+        const note = r.note || '';
+        const tag = r.tag || '';
+        const content = Array.isArray(r.content) ? r.content.join(' ') : (r.content || '');
+        const stateIn = Array.isArray(r.state_in) ? r.state_in.join(' ') : (r.state_in || '');
+        const stateOut = r.state_out || '';
+        
+        return note.toLowerCase().includes(lowSearch) || 
+               tag.toLowerCase().includes(lowSearch) || 
+               content.toLowerCase().includes(lowSearch) ||
+               stateIn.toLowerCase().includes(lowSearch) ||
+               stateOut.toLowerCase().includes(lowSearch);
+    };
 
     const previewPayload = useMemo(() => {
         return msgRpyList.map(m => {
-            // JourneyPreview expects steps to have OTYPE at root level, but our DB stores them as {Line: {...}} often?
-            // Wait, questionnaire.py serializes as {"Line": {"OTYPE": "...", ...}}
-            // app.py create_qa_entry serializes as json.dumps(m)
-            // Projects.jsx JourneyPreview expects: [{ OTYPE: 'FlexSendMessage', contents: previewJson }]
-            // Let's normalize it for the preview components
             if (m.Line) return m.Line;
             return m;
         });
     }, [msgRpyList]);
 
-    // Simple Flowchart View (Rule Connections)
-    const FlowchartView = () => {
-        // Find connections for Q_bank: state_in -> state_out
-        if (bankType !== 'q_bank') return <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>Flowchart 僅支援 Q_bank</div>;
-        
-        return (
-            <div style={{ padding: '20px', overflow: 'auto', height: '100%', backgroundColor: '#000' }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '30px', justifyContent: 'center' }}>
-                    {rules.slice(0, 50).map(r => (
-                        <div key={r.id} style={{ 
-                            padding: '12px', 
-                            border: '1px solid #333', 
-                            borderRadius: '8px', 
-                            backgroundColor: '#222',
-                            minWidth: '150px',
-                            position: 'relative',
-                            textAlign: 'center'
-                        }}>
-                            <div style={{ fontSize: '10px', color: '#FFD700', marginBottom: '5px' }}>{r.state_in.join(', ')}</div>
-                            <div style={{ fontSize: '12px', fontWeight: 'bold' }}>{r.note || r.content[0] || '無名稱'}</div>
-                            <div style={{ fontSize: '10px', color: '#888', marginTop: '5px' }}>
-                                <ArrowRight size={12} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
-                                {r.state_out}
-                            </div>
-                        </div>
-                    ))}
-                    {rules.length > 50 && <div style={{ color: '#444', alignSelf: 'center' }}>+ {rules.length - 50} more...</div>}
-                </div>
-            </div>
-        );
+    // Table Input Styles
+    const inputStyle = {
+        width: '100%',
+        padding: '6px 8px',
+        border: '1px solid transparent', // 隱藏邊框，像文字一樣
+        backgroundColor: 'transparent',
+        color: '#eee',
+        fontSize: '13px',
+        transition: 'all 0.2s',
+        minWidth: '100px',
+        borderRadius: '4px'
+    };
+    const inputFocusStyle = {
+        border: '1px solid #555',
+        backgroundColor: '#222',
+        outline: 'none'
     };
 
     return (
@@ -257,14 +259,14 @@ function RuleDesigner() {
                         <Workflow size={32} className="text-yellow" />
                         法則表設計
                     </h1>
-                    <p style={{ color: '#B0B0B0' }}>編輯核心回應規則與 QA 資料庫，支援分解訊息與預覽</p>
+                    <p style={{ color: '#B0B0B0' }}>在表格中直接瀏覽、編輯法則與 QA 規則</p>
                 </div>
                 
                 <div style={{ display: 'flex', gap: '10px' }}>
                     {BANK_TYPES.map(bank => (
                         <button
                             key={bank.id}
-                            onClick={() => { setBankType(bank.id); setSelectedRule(null); setEditedRule(null); }}
+                            onClick={() => { setBankType(bank.id); }}
                             style={{
                                 padding: '8px 20px',
                                 border: 'none',
@@ -282,282 +284,382 @@ function RuleDesigner() {
                 </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '350px 1fr 320px', flex: 1, minHeight: 0, gap: '20px' }}>
-                
-                {/* Left: Rule List */}
-                <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: 0 }}>
-                    <div style={{ padding: '15px', borderBottom: '1px solid #333' }}>
-                        <div className="search-box" style={{ width: '100%', position: 'relative' }}>
-                            <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
-                            <input 
-                                type="text" 
-                                placeholder="搜尋規則..." 
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                                style={{ paddingLeft: '35px', width: '100%', fontSize: '13px' }}
-                            />
-                        </div>
-                        <button 
-                            onClick={handleNewRule}
-                            className="primary" 
-                            style={{ width: '100%', marginTop: '10px', fontSize: '13px', padding: '8px' }}
-                        >
-                            <Plus size={16} /> 新增規則
-                        </button>
-                    </div>
-                    
-                    <div style={{ flex: 1, overflowY: 'auto' }}>
-                        {loading && rules.length === 0 ? (
-                            <div style={{ padding: '40px', textAlign: 'center' }}><LoadingSpinner size={24} /></div>
-                        ) : filteredRules.map(r => (
-                            <div 
-                                key={r.id}
-                                onClick={() => handleSelectRule(r)}
-                                style={{
-                                    padding: '12px 15px',
-                                    borderBottom: '1px solid #222',
-                                    cursor: 'pointer',
-                                    backgroundColor: selectedRule?.id === r.id ? '#333' : 'transparent',
-                                    borderLeft: selectedRule?.id === r.id ? '4px solid var(--primary-yellow)' : '4px solid transparent',
-                                    transition: 'background 0.2s'
-                                }}
-                            >
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                    <span style={{ fontSize: '12px', color: bankType === 'q_bank' ? '#FFD700' : '#4CAF50', fontWeight: 'bold' }}>
-                                        {bankType === 'q_bank' ? r.state_in[0] : r.tag}
-                                    </span>
-                                    <span style={{ fontSize: '10px', color: '#666' }}>ID: {r.id}</span>
-                                </div>
-                                <div style={{ fontSize: '13px', color: '#ddd', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {r.note || (bankType === 'q_bank' ? (r.content && r.content[0]) : '') || '(末命名)'}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+            {/* Toolbar */}
+            <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                <div className="search-box" style={{ flex: 1, position: 'relative', maxWidth: '400px' }}>
+                    <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
+                    <input 
+                        type="text" 
+                        placeholder="搜尋規則 (姓名, Tag, 內容, 狀態)..." 
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        style={{ paddingLeft: '35px', width: '100%', fontSize: '13px', borderRadius: '8px', backgroundColor: '#222', border: '1px solid #333', color: '#fff' }}
+                    />
                 </div>
+                <button 
+                    onClick={handleNewRule}
+                    className="primary" 
+                    style={{ fontSize: '13px', padding: '8px 16px', display: 'flex', gap: '6px', alignItems: 'center' }}
+                >
+                    <Plus size={16} />新增空白列
+                </button>
+            </div>
 
-                {/* Middle: Editor */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', overflow: 'hidden' }}>
-                    <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
-                        <div style={{ padding: '15px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h3 style={{ margin: 0, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                {isEditing ? <Edit2 size={18} /> : <Eye size={18} />}
-                                {editedRule ? (isEditing ? '編輯規則' : '規則詳情') : '請選擇或建立規則'}
-                            </h3>
-                            {editedRule && (
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                    {!isEditing ? (
-                                        <button onClick={() => setIsEditing(true)} className="secondary" style={{ padding: '5px 12px' }}>編輯</button>
-                                    ) : (
-                                        <>
-                                            <button onClick={() => { setIsEditing(false); handleSelectRule(selectedRule); }} className="secondary" style={{ padding: '5px 12px', background: 'transparent' }}>取消</button>
-                                            <button onClick={handleSave} className="primary" style={{ padding: '5px 12px' }}>儲存</button>
-                                        </>
-                                    )}
-                                    <button onClick={() => {
-                                        if (editedRule.id !== undefined && editedRule.id !== null) {
-                                            handleDelete(editedRule.id);
-                                        } else {
-                                            showToast('無法刪除未儲存的規則', 'warning');
-                                        }
-                                    }} className="secondary" style={{ padding: '5px', color: '#ff4d4d' }}><Trash2 size={18} /></button>
-                                </div>
-                            )}
-                        </div>
+            {/* Table Area */}
+            <div className="card" style={{ flex: 1, padding: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+                {loading && draftRules.length === 0 ? (
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+                        <LoadingSpinner size={32} message="載入法則中..." />
+                    </div>
+                ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                        <thead style={{ position: 'sticky', top: 0, backgroundColor: '#1a1a1a', zIndex: 10, boxShadow: '0 1px 0 #333' }}>
+                            <tr style={{ color: '#888', fontSize: '13px' }}>
+                                <th style={{ padding: '12px', width: '60px' }}>ID</th>
+                                {['q_bank', 'ad_bank'].includes(bankType) ? (
+                                    <>
+                                        <th style={{ padding: '4px', width: '8%' }}>state_in</th>
+                                        <th style={{ padding: '4px', width: '15%' }}>content</th>
+                                        <th style={{ padding: '4px', width: '12%' }}>note</th>
+                                        <th style={{ padding: '4px', width: '8%' }}>state_out</th>
+                                        <th style={{ padding: '4px', width: '10%' }}>check</th>
+                                        <th style={{ padding: '4px', width: '10%' }}>function</th>
+                                        <th style={{ padding: '4px', width: '8%' }}>type</th>
+                                        <th style={{ padding: '4px', width: '6%' }}>history</th>
+                                    </>
+                                ) : (
+                                    <>
+                                        <th style={{ padding: '4px', width: '15%' }}>tag</th>
+                                        <th style={{ padding: '4px', width: '10%' }}>io</th>
+                                        <th style={{ padding: '4px', width: '10%' }}>check</th>
+                                        <th style={{ padding: '4px', width: '15%' }}>ans</th>
+                                        <th style={{ padding: '4px', width: '10%' }}>function</th>
+                                        <th style={{ padding: '4px', width: '8%' }}>type</th>
+                                    </>
+                                )}
+                                <th style={{ padding: '4px', width: '10%' }}>msg_rpy</th>
+                                <th style={{ padding: '4px', width: '100px', textAlign: 'right' }}>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {draftRules.map((rule, idx) => {
+                                if (searchTerm && !matchesSearch(rule, searchTerm)) return null;
+                                
+                                const msgCount = Array.isArray(rule.msg_rpy) ? rule.msg_rpy.length : 0;
+                                const trStyle = {
+                                    borderBottom: '1px solid #222',
+                                    backgroundColor: rule._isDirty ? 'rgba(255, 215, 0, 0.05)' : 'transparent',
+                                    transition: 'background 0.2s'
+                                };
 
-                        <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-                            {!editedRule ? (
-                                <div style={{ height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column', color: '#444' }}>
-                                    <LayersIcon size={64} opacity={0.3} />
-                                    <p style={{ marginTop: '15px' }}>點選左側規則進行編輯</p>
-                                </div>
-                            ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                                    {/* Core Fields */}
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                                        {bankType === 'q_bank' ? (
+                                return (
+                                    <tr key={rule.id || `draft-${idx}`} style={trStyle}>
+                                        <td style={{ padding: '12px', color: '#666', fontSize: '12px' }}>
+                                            {rule._isNew ? <span style={{ color: '#FFD700' }}>[新]</span> : rule.id}
+                                        </td>
+                                        
+                                        {['q_bank', 'ad_bank'].includes(bankType) ? (
                                             <>
-                                                <div>
-                                                    <label className="label">流入狀態 (state_in)</label>
+                                                <td style={{ padding: '4px' }}>
                                                     <input 
-                                                        type="text" 
-                                                        disabled={!isEditing} 
-                                                        value={editedRule.state_in.join(', ')} 
-                                                        onChange={e => setEditedRule({ ...editedRule, state_in: e.target.value.split(',').map(s => s.trim()) })}
+                                                        style={inputStyle} 
+                                                        value={Array.isArray(rule.state_in) ? rule.state_in.join(', ') : (rule.state_in || '')}
+                                                        onChange={e => handleFieldChange(idx, 'state_in', e.target.value)}
+                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
+                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
                                                     />
-                                                </div>
-                                                <div>
-                                                    <label className="label">匹配內容 (content)</label>
+                                                </td>
+                                                <td style={{ padding: '4px' }}>
                                                     <input 
-                                                        type="text" 
-                                                        disabled={!isEditing} 
-                                                        value={editedRule.content.join(', ')} 
-                                                        onChange={e => setEditedRule({ ...editedRule, content: e.target.value.split(',').map(s => s.trim()) })}
+                                                        style={inputStyle} 
+                                                        value={Array.isArray(rule.content) ? rule.content.join(', ') : (rule.content || '')}
+                                                        onChange={e => handleFieldChange(idx, 'content', e.target.value)}
+                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
+                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
                                                     />
-                                                </div>
-                                                <div>
-                                                    <label className="label">備註名稱 (note)</label>
+                                                </td>
+                                                <td style={{ padding: '4px' }}>
                                                     <input 
-                                                        type="text" 
-                                                        disabled={!isEditing} 
-                                                        value={editedRule.note || ''} 
-                                                        onChange={e => setEditedRule({ ...editedRule, note: e.target.value })}
+                                                        style={inputStyle} 
+                                                        value={rule.note || ''}
+                                                        onChange={e => handleFieldChange(idx, 'note', e.target.value)}
+                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
+                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
                                                     />
-                                                </div>
-                                                <div>
-                                                    <label className="label">跳轉狀態 (state_out)</label>
+                                                </td>
+                                                <td style={{ padding: '4px' }}>
                                                     <input 
-                                                        type="text" 
-                                                        disabled={!isEditing} 
-                                                        value={editedRule.state_out} 
-                                                        onChange={e => setEditedRule({ ...editedRule, state_out: e.target.value })}
+                                                        style={inputStyle} 
+                                                        value={rule.state_out || ''}
+                                                        onChange={e => handleFieldChange(idx, 'state_out', e.target.value)}
+                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
+                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
                                                     />
-                                                </div>
+                                                </td>
+                                                <td style={{ padding: '4px' }}>
+                                                    <input 
+                                                        style={inputStyle} 
+                                                        value={Array.isArray(rule.check) ? rule.check.join(', ') : (rule.check || '')}
+                                                        onChange={e => handleFieldChange(idx, 'check', e.target.value)}
+                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
+                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
+                                                    />
+                                                </td>
+                                                <td style={{ padding: '4px' }}>
+                                                    <input 
+                                                        style={inputStyle} 
+                                                        value={rule.function || ''}
+                                                        onChange={e => handleFieldChange(idx, 'function', e.target.value)}
+                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
+                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
+                                                    />
+                                                </td>
+                                                <td style={{ padding: '4px' }}>
+                                                    <input 
+                                                        style={inputStyle} 
+                                                        value={rule.type || ''}
+                                                        onChange={e => handleFieldChange(idx, 'type', e.target.value)}
+                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
+                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
+                                                    />
+                                                </td>
+                                                <td style={{ padding: '4px', textAlign: 'center' }}>
+                                                    <input 
+                                                        type="checkbox"
+                                                        checked={!!rule.history}
+                                                        onChange={e => handleFieldChange(idx, 'history', e.target.checked)}
+                                                        style={{ cursor: 'pointer' }}
+                                                    />
+                                                </td>
                                             </>
                                         ) : (
                                             <>
-                                                <div style={{ gridColumn: 'span 2' }}>
-                                                    <label className="label">識別標籤 (Tag)</label>
+                                                <td style={{ padding: '4px' }}>
                                                     <input 
-                                                        type="text" 
-                                                        disabled={!isEditing} 
-                                                        value={editedRule.tag} 
-                                                        onChange={e => setEditedRule({ ...editedRule, tag: e.target.value })}
+                                                        style={inputStyle} 
+                                                        value={rule.tag || ''}
+                                                        onChange={e => handleFieldChange(idx, 'tag', e.target.value)}
+                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
+                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
                                                     />
-                                                </div>
+                                                </td>
+                                                <td style={{ padding: '4px' }}>
+                                                    <input 
+                                                        style={inputStyle} 
+                                                        value={rule.io || ''}
+                                                        onChange={e => handleFieldChange(idx, 'io', e.target.value)}
+                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
+                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
+                                                    />
+                                                </td>
+                                                <td style={{ padding: '4px' }}>
+                                                    <input 
+                                                        style={inputStyle} 
+                                                        value={Array.isArray(rule.check) ? rule.check.join(', ') : (rule.check || '')}
+                                                        onChange={e => handleFieldChange(idx, 'check', e.target.value)}
+                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
+                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
+                                                    />
+                                                </td>
+                                                <td style={{ padding: '4px' }}>
+                                                    <input 
+                                                        style={inputStyle} 
+                                                        value={Array.isArray(rule.ans) ? rule.ans.join(', ') : (rule.ans || '')}
+                                                        onChange={e => handleFieldChange(idx, 'ans', e.target.value)}
+                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
+                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
+                                                    />
+                                                </td>
+                                                <td style={{ padding: '4px' }}>
+                                                    <input 
+                                                        style={inputStyle} 
+                                                        value={rule.function || ''}
+                                                        onChange={e => handleFieldChange(idx, 'function', e.target.value)}
+                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
+                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
+                                                    />
+                                                </td>
+                                                <td style={{ padding: '4px' }}>
+                                                    <input 
+                                                        style={inputStyle} 
+                                                        value={rule.type || ''}
+                                                        onChange={e => handleFieldChange(idx, 'type', e.target.value)}
+                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
+                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
+                                                    />
+                                                </td>
                                             </>
                                         )}
-                                    </div>
+                                        
+                                        <td style={{ padding: '8px' }}>
+                                            <button 
+                                                onClick={() => handleOpenMsgModal(idx)}
+                                                className="secondary" 
+                                                style={{ 
+                                                    padding: '6px 12px', fontSize: '11px', width: '100%', 
+                                                    backgroundColor: msgCount > 0 ? 'rgba(76, 175, 80, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                                                    color: msgCount > 0 ? '#4CAF50' : '#aaa',
+                                                    border: `1px solid ${msgCount > 0 ? 'rgba(76, 175, 80, 0.3)' : '#333'}`
+                                                }}
+                                            >
+                                                編輯訊息 ({msgCount}則)
+                                            </button>
+                                        </td>
+                                        
+                                        <td style={{ padding: '8px', textAlign: 'right' }}>
+                                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                                {rule._isDirty && (
+                                                    <button onClick={() => handleSaveRow(idx)} className="primary" style={{ padding: '4px 8px', fontSize: '11px' }}>
+                                                        <Save size={14} />
+                                                    </button>
+                                                )}
+                                                <button onClick={() => handleDeleteRow(idx)} className="secondary" style={{ padding: '4px 8px', fontSize: '11px', color: '#ff4d4d', backgroundColor: 'transparent', border: 'none' }}>
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                )}
+            </div>
 
-                                    {/* Message Reply List */}
-                                    <div style={{ marginTop: '10px' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                                            <h4 style={{ margin: 0, fontSize: '14px', color: '#888' }}>回應訊息內容 (msg_rpy)</h4>
-                                            {isEditing && (
-                                                <div style={{ display: 'flex', gap: '8px' }}>
-                                                    <button onClick={() => handleAddMessage('TextSendMessage')} style={{ fontSize: '11px', padding: '4px 8px' }} className="secondary">+ 文字</button>
-                                                    <button onClick={() => handleAddMessage('ImageSendMessage')} style={{ fontSize: '11px', padding: '4px 8px' }} className="secondary">+ 圖片</button>
-                                                    <button onClick={() => handleAddMessage('FlexSendMessage')} style={{ fontSize: '11px', padding: '4px 8px' }} className="secondary">+ Flex</button>
+            {/* Message Editor Modal (reusing previous editor logic) */}
+            {isMsgModalOpen && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'stretch', padding: '40px' }}>
+                    
+                    <div className="card" style={{ flex: 1, maxWidth: '1200px', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
+                        {/* Modal Header */}
+                        <div style={{ padding: '15px 20px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#111' }}>
+                            <h3 style={{ margin: 0, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <MessageSquare size={18} className="text-yellow" />
+                                編輯回應訊息
+                                <span style={{ fontSize: '12px', color: '#666', fontWeight: 'normal' }}>
+                                    (法則 ID: {draftRules[editingRowIndex]?.id || '新建'})
+                                </span>
+                            </h3>
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                                <button onClick={() => setIsMsgModalOpen(false)} className="secondary" style={{ background: 'transparent' }}>取消</button>
+                                <button onClick={handleSaveMsgModal} className="primary">確認並套用至表格</button>
+                            </div>
+                        </div>
+
+                        {/* Modal Body (2 columns: Editor | Preview) */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', flex: 1, minHeight: 0 }}>
+                            {/* Editor Column */}
+                            <div style={{ padding: '20px', overflowY: 'auto' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                                    <h4 style={{ margin: 0, fontSize: '14px', color: '#ccc' }}>訊息封包清單</h4>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button onClick={() => handleAddMessage('TextSendMessage')} style={{ fontSize: '11px', padding: '4px 8px' }} className="secondary">+ 文字</button>
+                                        <button onClick={() => handleAddMessage('ImageSendMessage')} style={{ fontSize: '11px', padding: '4px 8px' }} className="secondary">+ 圖片</button>
+                                        <button onClick={() => handleAddMessage('FlexSendMessage')} style={{ fontSize: '11px', padding: '4px 8px' }} className="secondary">+ Flex</button>
+                                    </div>
+                                </div>
+                                
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                    {msgRpyList.map((msg, idx) => (
+                                        <div key={idx} className="card" style={{ padding: '15px', backgroundColor: '#1a1a1a', border: '1px solid #333' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', alignItems: 'center' }}>
+                                                <span style={{ fontSize: '12px', padding: '2px 8px', backgroundColor: '#333', borderRadius: '4px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                                    <span>#{idx + 1}</span>
+                                                    <span style={{ color: '#FFD700' }}>{msg.OTYPE || (msg.Line?.OTYPE)}</span>
+                                                </span>
+                                                <Trash2 size={16} className="text-red" style={{ cursor: 'pointer', opacity: 0.7 }} onClick={() => handleRemoveMessage(idx)} />
+                                            </div>
+                                            
+                                            {/* Editor for Text */}
+                                            {(msg.OTYPE === 'TextSendMessage' || msg.Line?.OTYPE === 'TextSendMessage') && (
+                                                <textarea 
+                                                    value={msg.text || msg.Line?.text || ''}
+                                                    onChange={e => handleUpdateMessage(idx, 'text', e.target.value)}
+                                                    rows={3}
+                                                    style={{ width: '100%', fontSize: '13px', backgroundColor: '#000', border: '1px solid #333', padding: '10px', borderRadius: '6px' }}
+                                                    placeholder="輸入文字內容..."
+                                                />
+                                            )}
+                                            
+                                            {/* Editor for Image */}
+                                            {(msg.OTYPE === 'ImageSendMessage' || msg.Line?.OTYPE === 'ImageSendMessage') && (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="圖片原圖網址 (original_content_url)" 
+                                                        value={msg.original_content_url || msg.Line?.original_content_url || ''}
+                                                        onChange={e => handleUpdateMessage(idx, 'original_content_url', e.target.value)}
+                                                        style={{ width: '100%', fontSize: '12px', backgroundColor: '#000', border: '1px solid #333', padding: '8px', borderRadius: '4px' }}
+                                                    />
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="預覽圖網址 (preview_image_url)" 
+                                                        value={msg.preview_image_url || msg.Line?.preview_image_url || ''}
+                                                        onChange={e => handleUpdateMessage(idx, 'preview_image_url', e.target.value)}
+                                                        style={{ width: '100%', fontSize: '12px', backgroundColor: '#000', border: '1px solid #333', padding: '8px', borderRadius: '4px' }}
+                                                    />
+                                                </div>
+                                            )}
+
+                                            {/* Editor for Flex */}
+                                            {(msg.OTYPE === 'FlexSendMessage' || msg.Line?.OTYPE === 'FlexSendMessage') && (
+                                                <div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                                        <span style={{ fontSize: '12px', color: '#888' }}>JSON Payload</span>
+                                                        <button 
+                                                            onClick={() => { setFlexEditorIndex(idx); setShowFlexEditor(true); }}
+                                                            className="secondary" 
+                                                            style={{ fontSize: '11px', padding: '4px 10px', backgroundColor: 'rgba(255, 215, 0, 0.1)', color: '#FFD700', border: '1px solid rgba(255, 215, 0, 0.3)' }}
+                                                        >
+                                                            <Layers size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                                                            打開視覺化編輯器
+                                                        </button>
+                                                    </div>
+                                                    <textarea 
+                                                        value={typeof (msg.contents || msg.Line?.contents) === 'string' ? (msg.contents || msg.Line?.contents) : JSON.stringify(msg.contents || msg.Line?.contents, null, 2)}
+                                                        onChange={e => {
+                                                            try {
+                                                                const val = JSON.parse(e.target.value);
+                                                                handleUpdateMessage(idx, 'contents', val);
+                                                            } catch {
+                                                                handleUpdateMessage(idx, 'contents', e.target.value);
+                                                            }
+                                                        }}
+                                                        rows={6}
+                                                        style={{ width: '100%', fontSize: '11px', fontFamily: 'monospace', backgroundColor: '#000', border: '1px solid #333', padding: '10px', borderRadius: '6px' }}
+                                                    />
                                                 </div>
                                             )}
                                         </div>
-                                        
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                            {msgRpyList.map((msg, idx) => (
-                                                <div key={idx} className="card" style={{ padding: '15px', backgroundColor: '#222', border: '1px solid #333' }}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', alignItems: 'center' }}>
-                                                        <span style={{ fontSize: '12px', padding: '2px 8px', backgroundColor: '#444', borderRadius: '4px' }}>
-                                                            #{idx + 1} - {msg.OTYPE || (msg.Line?.OTYPE)}
-                                                        </span>
-                                                        {isEditing && (
-                                                            <Trash2 size={16} className="text-red" style={{ cursor: 'pointer' }} onClick={() => handleRemoveMessage(idx)} />
-                                                        )}
-                                                    </div>
-                                                    
-                                                    {/* Editor for Text */}
-                                                    {(msg.OTYPE === 'TextSendMessage' || msg.Line?.OTYPE === 'TextSendMessage') && (
-                                                        <textarea 
-                                                            disabled={!isEditing}
-                                                            value={msg.text || msg.Line?.text || ''}
-                                                            onChange={e => handleUpdateMessage(idx, 'text', e.target.value)}
-                                                            rows={3}
-                                                            style={{ width: '100%', fontSize: '13px' }}
-                                                        />
-                                                    )}
-                                                    
-                                                    {/* Editor for Image */}
-                                                    {(msg.OTYPE === 'ImageSendMessage' || msg.Line?.OTYPE === 'ImageSendMessage') && (
-                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                                            <input 
-                                                                type="text" 
-                                                                placeholder="圖片原圖網址" 
-                                                                disabled={!isEditing}
-                                                                value={msg.original_content_url || msg.Line?.original_content_url || ''}
-                                                                onChange={e => handleUpdateMessage(idx, 'original_content_url', e.target.value)}
-                                                            />
-                                                            <input 
-                                                                type="text" 
-                                                                placeholder="預覽圖網址" 
-                                                                disabled={!isEditing}
-                                                                value={msg.preview_image_url || msg.Line?.preview_image_url || ''}
-                                                                onChange={e => handleUpdateMessage(idx, 'preview_image_url', e.target.value)}
-                                                            />
-                                                        </div>
-                                                    )}
-
-                                                    {/* Editor for Flex */}
-                                                    {(msg.OTYPE === 'FlexSendMessage' || msg.Line?.OTYPE === 'FlexSendMessage') && (
-                                                        <div>
-                                                            <div style={{ fontSize: '12px', color: '#666', marginBottom: '10px', backgroundColor: '#181818', padding: '8px', borderRadius: '4px' }}>
-                                                                Flex 訊息內容為 JSON 結構。
-                                                                <button 
-                                                                    onClick={() => { setFlexEditorIndex(idx); setShowFlexEditor(true); }}
-                                                                    className="secondary" 
-                                                                    style={{ marginLeft: '10px', fontSize: '11px', padding: '2px 8px' }}
-                                                                >
-                                                                    打開視覺化編輯器
-                                                                </button>
-                                                            </div>
-                                                            <textarea 
-                                                                disabled={!isEditing}
-                                                                value={typeof (msg.contents || msg.Line?.contents) === 'string' ? (msg.contents || msg.Line?.contents) : JSON.stringify(msg.contents || msg.Line?.contents, null, 2)}
-                                                                onChange={e => {
-                                                                    try {
-                                                                        const val = JSON.parse(e.target.value);
-                                                                        handleUpdateMessage(idx, 'contents', val);
-                                                                    } catch {
-                                                                        handleUpdateMessage(idx, 'contents', e.target.value);
-                                                                    }
-                                                                }}
-                                                                rows={5}
-                                                                style={{ width: '100%', fontSize: '11px', fontFamily: 'monospace' }}
-                                                            />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))}
-                                            {msgRpyList.length === 0 && <div style={{ textAlign: 'center', padding: '20px', color: '#444', border: '1px dashed #333', borderRadius: '8px' }}>暫無回應訊息</div>}
+                                    ))}
+                                    {msgRpyList.length === 0 && (
+                                        <div style={{ textAlign: 'center', padding: '40px', color: '#555', border: '1px dashed #333', borderRadius: '8px', backgroundColor: '#111' }}>
+                                            這條規則目前沒有設定任何回應訊息。
+                                            <br />請點擊右上方按鈕新增。
                                         </div>
-                                    </div>
-                                    
-                                    <div style={{ height: '40px' }}></div> {/* Spacer */}
+                                    )}
                                 </div>
-                            )}
-                        </div>
-                    </div>
+                            </div>
 
-                    {/* Bottom: Flowchart (Optional small area) */}
-                    <div className="card" style={{ height: '200px', padding: 0, position: 'relative' }}>
-                        <div style={{ padding: '8px 15px', borderBottom: '1px solid #333', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                             <SplitSquareVertical size={16} className="text-yellow" />
-                             <span style={{ fontSize: '13px', fontWeight: 'bold' }}>規則流程圖覽</span>
-                        </div>
-                        <FlowchartView />
-                    </div>
-                </div>
-
-                {/* Right: Preview */}
-                <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: 0, backgroundColor: '#111' }}>
-                    <div style={{ padding: '15px', borderBottom: '1px solid #333', fontSize: '14px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                         <Eye size={16} /> 訊息預覽
-                    </div>
-                    <div style={{ flex: 1, padding: '10px', overflow: 'hidden' }}>
-                        <div style={{ 
-                            height: '100%', 
-                            borderRadius: '12px', 
-                            overflow: 'hidden', 
-                            border: '1px solid #333',
-                            backgroundColor: '#000'
-                        }}>
-                             <JourneyPreview steps={previewPayload} />
+                            {/* Preview Column */}
+                            <div style={{ backgroundColor: '#000', borderLeft: '1px solid #333', display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ padding: '15px', borderBottom: '1px solid #222', fontSize: '13px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', color: '#aaa' }}>
+                                    <Eye size={16} /> 即時預覽
+                                </div>
+                                <div style={{ flex: 1, padding: '20px', overflowY: 'auto' }}>
+                                    <div style={{ border: '1px solid #333', borderRadius: '12px', overflow: 'hidden', height: '100%', minHeight: '500px' }}>
+                                        <JourneyPreview steps={previewPayload} />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
+            )}
 
-            {/* Flex Editor Modal */}
+            {/* Flex Editor Nested Modal */}
             {showFlexEditor && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', padding: '40px' }}>
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 2000, display: 'flex', padding: '40px' }}>
                     <div style={{ flex: 1, backgroundColor: '#222', borderRadius: '12px', overflow: 'hidden', position: 'relative' }}>
                         <button 
                             onClick={() => setShowFlexEditor(false)}
@@ -569,7 +671,7 @@ function RuleDesigner() {
                             initialContent={msgRpyList[flexEditorIndex]?.contents || msgRpyList[flexEditorIndex]?.Line?.contents}
                             onSave={(json) => {
                                 handleUpdateMessage(flexEditorIndex, 'contents', JSON.parse(json));
-                                // showToast('Flex 內容已更新', 'success');
+                                setShowFlexEditor(false);    
                             }}
                             onCancel={() => setShowFlexEditor(false)}
                         />

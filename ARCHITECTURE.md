@@ -210,14 +210,15 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - Integrates with `QA_bank` for message storage and `cron_table` for scheduling.
     - Audience count logic uses `Private_var` for tag/all logic and calculates coverage ratio.
 
-### Rule Designer (法則表設計)
+### Rule Designer (法則表設計) [2026-03-18 更新]
 - **Frontend**: `RuleDesigner.jsx`. (Route: `/ruledesigner`).
-    - Unified UI for `Q_bank` and `QA_bank` management.
-    - Features: Multi-message decomposition, Live Preview (LINE simulation), Flex Message Editor integration.
-    - Flowchart: Displays rule logic flow based on `state_in` and `state_out`.
+    - **滿版表格編輯器 (Inline Table Editor)**: 將原本的三欄式介面重構為大表格形式。文字與基本設定欄位 (`state_in`, `content`, `note`, `state_out`, `tag`) 支援在表格列內直接點擊修改。
+    - **支援之規則庫**: 統一支援 `Q_bank` (核心規則)、`AD_bank` (管理員規則) 與 `QA_bank` (回覆庫) 之管理。
+    - **回應訊息彈窗 (Modal)**: 將複雜的 `msg_rpy` (回應訊息陣列) 編輯介面與即時預覽 (JourneyPreview) 抽離為獨立的彈出視窗，確保表格畫面整潔同時不失去預覽能力。
+    - **儲存與刪除**: 提供單列的 `PUT`/`POST` 儲存功能與 `DELETE` 按鈕。
+    - **搜尋與高亮**: 仍保留基於用戶名稱、標籤與內容的即時過濾功能。
 - **Backend**: `endpoints/rule_designer.py`.
-    - Unified API for rule CRUD. Handles serialization/deserialization of `msg_rpy` arrays.
-    - Automatically manages different bank tables based on request parameters.
+    - 統一 API 處理 CRUD。新增 `AD_bank` 之支援。自動處理資料庫的 `msg_rpy` `json[]` 陣列反序列化。
 
 ### Database Viewer (資料庫檢視)
 - **Frontend**: `DatabaseViewer.jsx`. (Route: `/dbviewer`).

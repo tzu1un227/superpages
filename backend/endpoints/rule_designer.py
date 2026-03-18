@@ -57,7 +57,12 @@ def list_rules():
         cur = conn.cursor(cursor_factory=RealDictCursor)
         app_id = get_app_id()
         
-        table_name = f"Q_bank:{app_id}" if bank_type == 'q_bank' else f"QA_bank:{app_id}"
+        if bank_type == 'q_bank':
+            table_name = f"Q_bank:{app_id}"
+        elif bank_type == 'ad_bank':
+            table_name = f"AD_bank:{app_id}"
+        else:
+            table_name = f"QA_bank:{app_id}"
         
         # Check if table exists
         cur.execute("SELECT 1 FROM information_schema.tables WHERE table_name = %s", (table_name,))
@@ -86,7 +91,12 @@ def create_rule():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         app_id = get_app_id()
-        table_name = f"Q_bank:{app_id}" if bank_type == 'q_bank' else f"QA_bank:{app_id}"
+        if bank_type == 'q_bank':
+            table_name = f"Q_bank:{app_id}"
+        elif bank_type == 'ad_bank':
+            table_name = f"AD_bank:{app_id}"
+        else:
+            table_name = f"QA_bank:{app_id}"
         
         # Get actual columns to filter out invalid fields (like 'note' if missing)
         cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = %s", (table_name,))
@@ -148,7 +158,12 @@ def update_rule(rule_id):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         app_id = get_app_id()
-        table_name = f"Q_bank:{app_id}" if bank_type == 'q_bank' else f"QA_bank:{app_id}"
+        if bank_type == 'q_bank':
+            table_name = f"Q_bank:{app_id}"
+        elif bank_type == 'ad_bank':
+            table_name = f"AD_bank:{app_id}"
+        else:
+            table_name = f"QA_bank:{app_id}"
         
         # Get actual columns
         cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = %s", (table_name,))
@@ -197,7 +212,12 @@ def delete_rule(rule_id):
         conn = get_db_connection()
         cur = conn.cursor()
         app_id = get_app_id()
-        table_name = f"Q_bank:{app_id}" if bank_type == 'q_bank' else f"QA_bank:{app_id}"
+        if bank_type == 'q_bank':
+            table_name = f"Q_bank:{app_id}"
+        elif bank_type == 'ad_bank':
+            table_name = f"AD_bank:{app_id}"
+        else:
+            table_name = f"QA_bank:{app_id}"
         
         cur.execute(f'DELETE FROM "{table_name}" WHERE id = %s', (rule_id,))
         
