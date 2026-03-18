@@ -109,14 +109,22 @@ def list_broadcasts():
     
     # Fetch message summaries for preview
     broadcast_list = []
+    
+    # Open connection once for all QA_bank queries
+    shared_conn = None
+    if broadcasts and oa and oa.db_url:
+        try:
+            shared_conn = get_db_connection(oa.db_url)
+        except Exception as e:
+            print(f"Failed to open shared DB connection: {e}")
+
+    app_id = get_logical_app_id(oa) if oa else None
+            
     for b in broadcasts:
         summary = []
-        if b.message_tag and oa.db_url:
+        if b.message_tag and shared_conn and app_id:
             try:
-                conn = get_db_connection(oa.db_url)
-                app_id = get_logical_app_id(oa)
-                # Use RealDictCursor to handle JSON more easily
-                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                with shared_conn.cursor(cursor_factory=RealDictCursor) as cur:
                     cur.execute(f'SELECT msg_rpy FROM "QA_bank:{app_id}" WHERE tag = %s', (b.message_tag,))
                     row = cur.fetchone()
                     if row and row['msg_rpy']:
@@ -138,7 +146,6 @@ def list_broadcasts():
                                 "text": msg_obj.get("text", "")[:50] if msg_obj.get("text") else "",
                                 "contents": msg_obj.get("contents") # For flex preview
                             })
-                conn.close()
             except Exception as e:
                 print(f"Error fetching summary for {b.message_tag}: {e}")
 
@@ -154,7 +161,10 @@ def list_broadcasts():
             'created_at': b.created_at.isoformat(),
             'messages': summary # Added for preview
         })
-    
+        
+    if shared_conn:
+        shared_conn.close()
+
     return jsonify({
         'broadcasts': broadcast_list
     })
