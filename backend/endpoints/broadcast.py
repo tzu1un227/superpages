@@ -114,9 +114,10 @@ def list_broadcasts():
         if b.message_tag and oa.db_url:
             try:
                 conn = get_db_connection(oa.db_url)
+                app_id = get_logical_app_id(oa)
                 # Use RealDictCursor to handle JSON more easily
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute("SELECT msg_rpy FROM qa_bank WHERE tag = %s", (b.message_tag,))
+                    cur.execute(f'SELECT msg_rpy FROM "QA_bank:{app_id}" WHERE tag = %s', (b.message_tag,))
                     row = cur.fetchone()
                     if row and row['msg_rpy']:
                         msgs = row['msg_rpy']
