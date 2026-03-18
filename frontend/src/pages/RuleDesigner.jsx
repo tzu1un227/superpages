@@ -232,22 +232,51 @@ function RuleDesigner() {
         });
     }, [msgRpyList]);
 
-    // Table Input Styles
-    const inputStyle = {
-        width: '100%',
-        padding: '6px 8px',
-        border: '1px solid transparent', // 隱藏邊框，像文字一樣
-        backgroundColor: 'transparent',
-        color: '#eee',
-        fontSize: '13px',
-        transition: 'all 0.2s',
-        minWidth: '100px',
-        borderRadius: '4px'
-    };
-    const inputFocusStyle = {
-        border: '1px solid #555',
-        backgroundColor: '#222',
-        outline: 'none'
+    // Table Input Component that expands on focus
+    const TableCellTextarea = ({ value, onChange }) => {
+        const [focused, setFocused] = useState(false);
+        return (
+            <textarea
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                onFocus={(e) => {
+                    setFocused(true);
+                    e.target.style.height = 'auto';
+                    e.target.style.height = (e.target.scrollHeight + 2) + 'px';
+                }}
+                onBlur={(e) => {
+                    setFocused(false);
+                    e.target.style.height = '32px';
+                }}
+                onInput={(e) => {
+                    if(focused) {
+                        e.target.style.height = 'auto';
+                        e.target.style.height = (e.target.scrollHeight + 2) + 'px';
+                    }
+                }}
+                style={{
+                    width: '100%',
+                    padding: '6px 8px',
+                    border: focused ? '1px solid #555' : '1px solid transparent',
+                    backgroundColor: focused ? '#222' : 'transparent',
+                    color: '#eee',
+                    fontSize: '13px',
+                    transition: 'border 0.2s, background-color 0.2s',
+                    minWidth: '100px',
+                    borderRadius: '4px',
+                    resize: focused ? 'vertical' : 'none',
+                    overflow: focused ? 'auto' : 'hidden',
+                    height: focused ? 'auto' : '32px',
+                    minHeight: '32px',
+                    fontFamily: 'inherit',
+                    lineHeight: '20px',
+                    display: 'block',
+                    position: focused ? 'relative' : 'static',
+                    zIndex: focused ? 10 : 1
+                }}
+                rows={1}
+            />
+        );
     };
 
     return (
@@ -361,66 +390,45 @@ function RuleDesigner() {
                                         {['q_bank', 'ad_bank'].includes(bankType) ? (
                                             <>
                                                 <td style={{ padding: '4px' }}>
-                                                    <input 
-                                                        style={inputStyle} 
+                                                    <TableCellTextarea 
                                                         value={Array.isArray(rule.state_in) ? rule.state_in.join(', ') : (rule.state_in || '')}
-                                                        onChange={e => handleFieldChange(idx, 'state_in', e.target.value)}
-                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
-                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
+                                                        onChange={val => handleFieldChange(idx, 'state_in', val)}
                                                     />
                                                 </td>
                                                 <td style={{ padding: '4px' }}>
-                                                    <input 
-                                                        style={inputStyle} 
+                                                    <TableCellTextarea 
                                                         value={Array.isArray(rule.content) ? rule.content.join(', ') : (rule.content || '')}
-                                                        onChange={e => handleFieldChange(idx, 'content', e.target.value)}
-                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
-                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
+                                                        onChange={val => handleFieldChange(idx, 'content', val)}
                                                     />
                                                 </td>
                                                 <td style={{ padding: '4px' }}>
-                                                    <input 
-                                                        style={inputStyle} 
+                                                    <TableCellTextarea 
                                                         value={rule.note || ''}
-                                                        onChange={e => handleFieldChange(idx, 'note', e.target.value)}
-                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
-                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
+                                                        onChange={val => handleFieldChange(idx, 'note', val)}
                                                     />
                                                 </td>
                                                 <td style={{ padding: '4px' }}>
-                                                    <input 
-                                                        style={inputStyle} 
+                                                    <TableCellTextarea 
                                                         value={rule.state_out || ''}
-                                                        onChange={e => handleFieldChange(idx, 'state_out', e.target.value)}
-                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
-                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
+                                                        onChange={val => handleFieldChange(idx, 'state_out', val)}
                                                     />
                                                 </td>
                                                 <td style={{ padding: '4px' }}>
-                                                    <input 
-                                                        style={inputStyle} 
+                                                    <TableCellTextarea 
                                                         value={Array.isArray(rule.check) ? rule.check.join(', ') : (rule.check || '')}
-                                                        onChange={e => handleFieldChange(idx, 'check', e.target.value)}
-                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
-                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
+                                                        onChange={val => handleFieldChange(idx, 'check', val)}
                                                     />
                                                 </td>
                                                 <td style={{ padding: '4px' }}>
-                                                    <input 
-                                                        style={inputStyle} 
+                                                    <TableCellTextarea 
                                                         value={rule.function || ''}
-                                                        onChange={e => handleFieldChange(idx, 'function', e.target.value)}
-                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
-                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
+                                                        onChange={val => handleFieldChange(idx, 'function', val)}
                                                     />
                                                 </td>
                                                 <td style={{ padding: '4px' }}>
-                                                    <input 
-                                                        style={inputStyle} 
+                                                    <TableCellTextarea 
                                                         value={rule.type || ''}
-                                                        onChange={e => handleFieldChange(idx, 'type', e.target.value)}
-                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
-                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
+                                                        onChange={val => handleFieldChange(idx, 'type', val)}
                                                     />
                                                 </td>
                                                 <td style={{ padding: '4px', textAlign: 'center' }}>
@@ -435,57 +443,39 @@ function RuleDesigner() {
                                         ) : (
                                             <>
                                                 <td style={{ padding: '4px' }}>
-                                                    <input 
-                                                        style={inputStyle} 
+                                                    <TableCellTextarea 
                                                         value={rule.tag || ''}
-                                                        onChange={e => handleFieldChange(idx, 'tag', e.target.value)}
-                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
-                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
+                                                        onChange={val => handleFieldChange(idx, 'tag', val)}
                                                     />
                                                 </td>
                                                 <td style={{ padding: '4px' }}>
-                                                    <input 
-                                                        style={inputStyle} 
+                                                    <TableCellTextarea 
                                                         value={rule.io || ''}
-                                                        onChange={e => handleFieldChange(idx, 'io', e.target.value)}
-                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
-                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
+                                                        onChange={val => handleFieldChange(idx, 'io', val)}
                                                     />
                                                 </td>
                                                 <td style={{ padding: '4px' }}>
-                                                    <input 
-                                                        style={inputStyle} 
+                                                    <TableCellTextarea 
                                                         value={Array.isArray(rule.check) ? rule.check.join(', ') : (rule.check || '')}
-                                                        onChange={e => handleFieldChange(idx, 'check', e.target.value)}
-                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
-                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
+                                                        onChange={val => handleFieldChange(idx, 'check', val)}
                                                     />
                                                 </td>
                                                 <td style={{ padding: '4px' }}>
-                                                    <input 
-                                                        style={inputStyle} 
+                                                    <TableCellTextarea 
                                                         value={Array.isArray(rule.ans) ? rule.ans.join(', ') : (rule.ans || '')}
-                                                        onChange={e => handleFieldChange(idx, 'ans', e.target.value)}
-                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
-                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
+                                                        onChange={val => handleFieldChange(idx, 'ans', val)}
                                                     />
                                                 </td>
                                                 <td style={{ padding: '4px' }}>
-                                                    <input 
-                                                        style={inputStyle} 
+                                                    <TableCellTextarea 
                                                         value={rule.function || ''}
-                                                        onChange={e => handleFieldChange(idx, 'function', e.target.value)}
-                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
-                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
+                                                        onChange={val => handleFieldChange(idx, 'function', val)}
                                                     />
                                                 </td>
                                                 <td style={{ padding: '4px' }}>
-                                                    <input 
-                                                        style={inputStyle} 
+                                                    <TableCellTextarea 
                                                         value={rule.type || ''}
-                                                        onChange={e => handleFieldChange(idx, 'type', e.target.value)}
-                                                        onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
-                                                        onBlur={(e) => Object.assign(e.target.style, inputStyle)}
+                                                        onChange={val => handleFieldChange(idx, 'type', val)}
                                                     />
                                                 </td>
                                             </>
@@ -541,7 +531,7 @@ function RuleDesigner() {
                                 </span>
                             </h3>
                             <div style={{ display: 'flex', gap: '10px' }}>
-                                <button onClick={() => setIsMsgModalOpen(false)} className="secondary" style={{ background: 'transparent' }}>取消</button>
+                                <button onClick={() => setIsMsgModalOpen(false)} className="secondary" style={{ background: 'transparent', color: '#fff' }}>取消</button>
                                 <button onClick={handleSaveMsgModal} className="primary">確認並套用至表格</button>
                             </div>
                         </div>
