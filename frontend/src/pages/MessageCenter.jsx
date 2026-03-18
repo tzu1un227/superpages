@@ -107,7 +107,7 @@ function MessageCenter() {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [tagInput, setTagInput] = useState('');
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [loadingChat, setLoadingChat] = useState(false);
     const { showToast } = useToast();
     const lastSendTimeRef = useRef(0);
