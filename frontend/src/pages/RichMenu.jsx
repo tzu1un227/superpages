@@ -68,16 +68,26 @@ function RichMenu() {
         try {
             const res = await api.get('/richmenu/');
             setMenus(res.data.richmenus || []);
+        } catch (err) {
+            console.error('Failed to fetch menus:', err);
+            const status = err.response?.status;
+            const detail = err.response?.data?.message || err.message;
+            if (status === 400 && detail?.includes('token')) {
+                showToast('載入圖文選單失敗：尚未設定 LINE Token，請至專案設定中配置', 'error');
+            } else {
+                showToast(`載入圖文選單失敗：${detail}`, 'error');
+            }
+        }
 
-            // Also fetch all available aliases for autocomplete
+        // Aliases 獨立載入，失敗不影響主頁面
+        try {
             const aliasRes = await api.get('/richmenu/aliases');
             setAllAliases((aliasRes.data.aliases || []).map(a => a.richMenuAliasId));
         } catch (err) {
-            console.error('Failed to fetch menus or aliases:', err);
-            showToast('載入圖文選單失敗', 'error');
-        } finally {
-            setLoading(false);
+            console.warn('Failed to fetch aliases (non-blocking):', err);
         }
+
+        setLoading(false);
     };
 
     const handleCreateNew = () => {
@@ -432,7 +442,7 @@ function RichMenu() {
                         }} onClick={() => setSelectedAreaIndex(null)}>
                             {!backgroundImage && !viewOnly && (
                                 <div style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: '#666' }}>
-                                    <ImageIcon size={48} /><p>請上傳底圖 (2500x1686)</p>
+                                    <ImageIcon size={48} /><p>請上傳底圖 (2500x1686，≤1MB)</p>
                                     <input type="file" onChange={handleImageUpload} style={{ marginTop: '10px' }} accept="image/*" />
                                 </div>
                             )}

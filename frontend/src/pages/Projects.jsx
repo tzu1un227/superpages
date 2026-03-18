@@ -1804,6 +1804,23 @@ const UserSelectModal = ({ isOpen, onClose, onSelectBatch, existingUsers = [] })
     const [selectedUserIds, setSelectedUserIds] = useState([]);
     const [processing, setProcessing] = useState(false);
 
+    const parseTags = (tagStr) => {
+        if (!tagStr) return [];
+        try {
+            if (typeof tagStr !== 'string') {
+                if (Array.isArray(tagStr)) tagStr = JSON.stringify(tagStr);
+                else tagStr = String(tagStr);
+            }
+            if (tagStr.startsWith('[') && tagStr.endsWith(']')) {
+                return JSON.parse(tagStr.replace(/'/g, '"'));
+            } else {
+                return tagStr.split('|').map(t => t.trim()).filter(t => t);
+            }
+        } catch (e) {
+            return [];
+        }
+    };
+
     useEffect(() => {
         if (isOpen) {
             setLoading(true);
@@ -1845,19 +1862,7 @@ const UserSelectModal = ({ isOpen, onClose, onSelectBatch, existingUsers = [] })
 
         // Tag Search (AND logic)
         if (selectedTags.length > 0) {
-            let userTags = [];
-            try {
-                let tagStr = u.tags || '';
-                if (typeof tagStr !== 'string') {
-                    if (Array.isArray(tagStr)) tagStr = JSON.stringify(tagStr);
-                    else tagStr = String(tagStr);
-                }
-                if (tagStr.startsWith('[') && tagStr.endsWith(']')) {
-                    userTags = JSON.parse(tagStr.replace(/'/g, '"'));
-                } else {
-                    userTags = tagStr.split('|').map(t => t.trim()).filter(t => t);
-                }
-            } catch (e) { userTags = []; }
+            const userTags = parseTags(u.tags);
 
             if (!selectedTags.every(st => userTags.includes(st))) return false;
         }
@@ -1976,7 +1981,24 @@ const UserSelectModal = ({ isOpen, onClose, onSelectBatch, existingUsers = [] })
                                             </div>
                                             <div style={{ flex: 1 }}>
                                                 <div style={{ fontWeight: 'bold', color: selectedUserIds.includes(u.user_id) ? 'var(--primary-yellow)' : '#fff' }}>{u.name || '未命名用戶'}</div>
-                                                <div style={{ fontSize: '11px', color: '#666' }}>{u.tags?.replace(/\|/g, ', ') || '無標籤'}</div>
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+                                                    {parseTags(u.tags).length > 0 ? (
+                                                        parseTags(u.tags).map((t, i) => (
+                                                            <span key={i} style={{
+                                                                fontSize: '10px',
+                                                                color: '#FFD700',
+                                                                backgroundColor: 'rgba(255,215,0,0.1)',
+                                                                padding: '2px 6px',
+                                                                borderRadius: '8px',
+                                                                border: '1px solid rgba(255,215,0,0.2)'
+                                                            }}>
+                                                                {t}
+                                                            </span>
+                                                        ))
+                                                    ) : (
+                                                        <span style={{ fontSize: '11px', color: '#666' }}>無標籤</span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     ))}

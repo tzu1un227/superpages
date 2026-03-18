@@ -117,6 +117,7 @@ function MessageCenter() {
     const [selectedTagFilters, setSelectedTagFilters] = useState([]); // 標籤篩選
     const [messageSearch, setMessageSearch] = useState('');       // 對話內容搜尋
     const [fetchUsersInterval, setFetchUsersInterval] = useState(15000); // 用戶列表抓取間隔
+    const [sidebarDisplayCount, setSidebarDisplayCount] = useState(15); // 側邊欄視覺分頁：一次顯示的用戶數
     const [localUnreadCounts, setLocalUnreadCounts] = useState(() => {
         const saved = localStorage.getItem('localUnreadCounts');
         return saved ? JSON.parse(saved) : {};
@@ -151,8 +152,9 @@ function MessageCenter() {
         }
     }, [selectedUser]);
 
-    // 當搜尋條件改變，debounce 後重新抓取用戶
+    // 當搜尋條件改變，debounce 後重新抓取用戶，並重置側邊欄顯示數量
     useEffect(() => {
+        setSidebarDisplayCount(15); // 搜尋條件變動時重置
         if (searchTimer.current) clearTimeout(searchTimer.current);
         searchTimer.current = setTimeout(() => {
             fetchUsers(searchQuery, selectedTagFilters);
@@ -803,7 +805,12 @@ function MessageCenter() {
                     </div>
                 )}
 
-                <div style={{ flex: 1, overflowY: 'auto', paddingRight: '5px' }}>
+                <div style={{ flex: 1, overflowY: 'auto', paddingRight: '5px' }} onScroll={(e) => {
+                    const { scrollTop, scrollHeight, clientHeight } = e.target;
+                    if (scrollHeight - scrollTop - clientHeight < 50) {
+                        setSidebarDisplayCount(prev => Math.min(prev + 15, sortedUsers.length));
+                    }
+                }}>
                     {loading && users.length === 0 ? (
                         <LoadingSpinner message="載入用戶中..." />
                     ) : users.length === 0 ? (
@@ -811,7 +818,8 @@ function MessageCenter() {
                             {searchQuery || selectedTagFilters.length > 0 ? '找不到符合的用戶' : '尚無用戶'}
                         </div>
                     ) : (
-                        sortedUsers.map(u => {
+                        <>
+                        {sortedUsers.slice(0, sidebarDisplayCount).map(u => {
                             const userTags = getCurrentUserTags(u);
                             const isUnread = isUserUnread(u);
                             return (
@@ -879,7 +887,13 @@ function MessageCenter() {
                                     </div>
                                 </div>
                             );
-                        })
+                        })}
+                        {sidebarDisplayCount < sortedUsers.length && (
+                            <div style={{ textAlign: 'center', padding: '10px', color: '#666', fontSize: '12px' }}>
+                                向下滑動載入更多... ({sidebarDisplayCount}/{sortedUsers.length})
+                            </div>
+                        )}
+                        </>
                     )}
                 </div>
             </div>

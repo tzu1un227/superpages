@@ -56,6 +56,15 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 - **Rich Menu Management**: Standardized to Chinese (Traditional). Implemented form validation (disabling save unless an image and all area actions are properly configured) and fixed runtime crashes using optional chaining and safe state resets.
 - **Rich Menu Localization**: TERMINOLOGY in the Rich Menu module is standardized to Chinese to improve usability for non-English speakers.
 
+### UI/UX 優化與內容驗證 (UI/UX Optimization & Content Validation) [2026-03-18]
+- **圖文選單 (Rich Menu)**:
+    - **載入失敗處理**: 分離主清單 (`/richmenu/`) 與別名清單 (`/richmenu/aliases`) 的 API 錯誤攔截。若主清單失敗，將根據 HTTP 狀態碼提供具體原因（如「尚未設定 LINE Token」）；別名清單失敗則採靜默處理，不阻擋頁面主體渲染。
+    - **上傳提示強化**: 於底圖上傳區明確標示 `≤1MB` 的檔案大小限制。
+- **訊息中心 (Message Center)**:
+    - **側邊欄虛擬分頁 (Virtual Pagination)**: 針對用戶清單實作基於滾動事件的前端虛擬分頁機制。初始載入 15 筆，當使用者向下滑動至底部時動態追加上一頁資料，在不修改後端 API 結構的前提下大幅提升渲染效能與初始讀取感受。
+- **自動旅程 (Projects)**:
+    - **標籤視覺化 (Tag Badges)**: 在手動加入用戶的彈出視窗 (`UserSelectModal`) 中，復用並優化了標籤解析邏輯 (`parseTags`)。將原本以字串拼接形式呈現的原始標籤陣列，轉換為獨立、圓角的 pill/badge 樣式呈現，提升操作介面的直觀性。
+
 ### UI/UX 優化與內容驗證 (UI/UX Optimization & Content Validation) [2026-03-10]
 - **Loading 狀態管理**: 
     - 實作 `Projects.jsx` 中的 `pageLoading` 狀態，當切換「自動旅程」分頁或選取不同專案時，會觸發 `LoadingSpinner` 並在 API 回傳前清空舊數據。
