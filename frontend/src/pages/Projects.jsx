@@ -1089,13 +1089,14 @@ const ProjectsManagement = () => {
                             <h3 style={{ fontSize: '20px' }}>排程步驟設定</h3>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#111', padding: '5px 15px', borderRadius: '8px' }}>
                                 <Filter size={16} className="text-yellow" />
-                                <span style={{ fontSize: '14px' }}>選擇專案:</span>
+                                <span style={{ fontSize: '14px' }}>選擇旅程:</span>
                                 <select
                                     value={selectedProjectId}
                                     onChange={e => setSelectedProjectId(e.target.value)}
-                                    style={{ background: 'transparent', border: 'none', padding: '5px' }}
+                                    disabled={pageLoading}
+                                    style={{ background: 'transparent', border: 'none', padding: '5px', opacity: pageLoading ? 0.5 : 1, cursor: pageLoading ? 'not-allowed' : 'pointer' }}
                                 >
-                                    <option value="">請選擇專案...</option>
+                                    <option value="">請選擇旅程...</option>
                                     {Array.isArray(projects) && projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
                                 </select>
                             </div>
@@ -1330,7 +1331,7 @@ const ProjectsManagement = () => {
                                     ) : (
                                         <tr>
                                             <td colSpan="5" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
-                                                {selectedProjectId ? '此專案尚無排程設定' : '請選擇專案以查看排程'}
+                                                {selectedProjectId ? '此旅程尚無排程設定' : '請選擇旅程以查看排程'}
                                             </td>
                                         </tr>
                                     )}
@@ -1346,13 +1347,14 @@ const ProjectsManagement = () => {
                             <h3 style={{ fontSize: '20px' }}>參與用戶列表</h3>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#111', padding: '5px 15px', borderRadius: '8px' }}>
                                 <Filter size={16} className="text-yellow" />
-                                <span style={{ fontSize: '14px' }}>選擇專案:</span>
+                                <span style={{ fontSize: '14px' }}>選擇旅程:</span>
                                 <select
                                     value={selectedProjectId}
                                     onChange={e => setSelectedProjectId(e.target.value)}
-                                    style={{ background: 'transparent', border: 'none', padding: '5px' }}
+                                    disabled={pageLoading}
+                                    style={{ background: 'transparent', border: 'none', padding: '5px', opacity: pageLoading ? 0.5 : 1, cursor: pageLoading ? 'not-allowed' : 'pointer' }}
                                 >
-                                    <option value="">請選擇專案...</option>
+                                    <option value="">請選擇旅程...</option>
                                     {Array.isArray(projects) && projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
                                 </select>
                             </div>
@@ -1426,7 +1428,7 @@ const ProjectsManagement = () => {
                                     )) : (
                                         <tr>
                                             <td colSpan="4" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
-                                                {selectedProjectId ? '無參與用戶' : '請選擇專案以查看參與用戶'}
+                                                {selectedProjectId ? '無參與用戶' : '請選擇旅程以查看參與用戶'}
                                             </td>
                                         </tr>
                                     )}
