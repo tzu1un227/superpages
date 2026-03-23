@@ -1335,17 +1335,36 @@ def get_user_history(user_id):
     try:
         app_id = get_current_app_id()
         limit = request.args.get('limit', type=int)
+        before = request.args.get('before')  # ISO timestamp cursor - load older messages
+        after = request.args.get('after')    # ISO timestamp cursor - load newer messages (polling)
         
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
-        if limit:
+        if after:
+            # Incremental polling: only fetch messages newer than the given timestamp
             cur.execute(
-                f'SELECT * FROM "history:{app_id}" WHERE user_id = %s ORDER BY timestamp DESC LIMIT %s',
-                (user_id, limit)
+                f'SELECT * FROM "history:{app_id}" WHERE user_id = %s AND timestamp > %s ORDER BY timestamp ASC',
+                (user_id, after)
             )
             history = cur.fetchall()
-            history.reverse()
+        elif limit:
+            if before:
+                # Paginated load: fetch older messages before the given timestamp
+                cur.execute(
+                    f'SELECT * FROM "history:{app_id}" WHERE user_id = %s AND timestamp < %s ORDER BY timestamp DESC LIMIT %s',
+                    (user_id, before, limit)
+                )
+                history = cur.fetchall()
+                history.reverse()  # Return in chronological order
+            else:
+                # Initial load: fetch the latest N messages
+                cur.execute(
+                    f'SELECT * FROM "history:{app_id}" WHERE user_id = %s ORDER BY timestamp DESC LIMIT %s',
+                    (user_id, limit)
+                )
+                history = cur.fetchall()
+                history.reverse()
         else:
             cur.execute(
                 f'SELECT * FROM "history:{app_id}" WHERE user_id = %s ORDER BY timestamp ASC',

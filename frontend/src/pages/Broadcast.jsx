@@ -29,6 +29,8 @@ function Broadcast() {
     const [listTab, setListTab] = useState('all'); // all, scheduled, draft, sent
     const [broadcasts, setBroadcasts] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [executing, setExecuting] = useState(false);
+    const [deletingId, setDeletingId] = useState(null);
 
     // Wizard state
     const [step, setStep] = useState(1);
@@ -291,14 +293,14 @@ function Broadcast() {
 
     const handleDelete = async (id) => {
         if (!window.confirm('確定要刪除此群發記錄嗎？（若為預約中，排程也將一併移除）')) return;
-        setLoading(true);
+        setDeletingId(id);
         try {
             await api.delete(`/broadcast/${id}`);
             fetchBroadcasts();
         } catch (err) {
-            alert('刪除失敗: ' + err.message);
+            showToast('刪除失敗: ' + err.message, 'error');
         } finally {
-            setLoading(false);
+            setDeletingId(null);
         }
     };
 
@@ -444,7 +446,7 @@ function Broadcast() {
             }
         }
 
-        setLoading(true);
+        setExecuting(true);
         try {
             // 1. Save messages to QA_bank (reuse tag)
             const msgTag = formData.message_tag || `bc_${Date.now()}`;
@@ -481,7 +483,7 @@ function Broadcast() {
         } catch (err) {
             showToast('操作失敗: ' + (err.response?.data?.message || err.message), 'error');
         } finally {
-            setLoading(false);
+            setExecuting(false);
         }
     };
 
@@ -977,8 +979,8 @@ function Broadcast() {
                                 setStep(step + 1);
                             }} style={{ padding: '10px 40px' }}>下一步 <ChevronRight size={18} /></button>
                         ) : !isViewOnly && (
-                            <button className="primary" onClick={finishBroadcast} disabled={loading} style={{ padding: '10px 50px', backgroundColor: formData.send_type === 'immediate' ? '#4CAF50' : 'var(--primary-yellow)', color: '#000' }}>
-                                {formData.send_type === 'immediate' ? '立即發送群發' : '確認預約排程'}
+                            <button className="primary" onClick={finishBroadcast} disabled={executing} style={{ padding: '10px 50px', backgroundColor: formData.send_type === 'immediate' ? '#4CAF50' : 'var(--primary-yellow)', color: '#000', opacity: executing ? 0.6 : 1 }}>
+                                {executing ? '處理中...' : (formData.send_type === 'immediate' ? '立即發送群發' : '確認預約排程')}
                             </button>
                         )}
                         {isViewOnly && step === 3 && (
@@ -1060,6 +1062,20 @@ function Broadcast() {
                         />
                     </Box>
                 </Modal>
+                {/* Executing Overlay */}
+                {executing && (
+                    <div style={{
+                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                        backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999,
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '20px'
+                    }}>
+                        <CircularProgress size={48} sx={{ color: 'var(--primary-yellow)' }} />
+                        <p style={{ color: '#fff', fontSize: '18px', fontWeight: 'bold' }}>
+                            {formData.send_type === 'immediate' ? '正在發送群發訊息...' : '正在建立預約排程...'}
+                        </p>
+                        <p style={{ color: '#999', fontSize: '14px' }}>請勿關閉此頁面</p>
+                    </div>
+                )}
             </div>
         );
     }
@@ -1117,7 +1133,7 @@ function Broadcast() {
                                     ) : (
                                         <Tooltip title="查看詳情"><IconButton onClick={() => handlePreviewSent(bc)} sx={{ color: '#888' }}><Eye size={18} /></IconButton></Tooltip>
                                     )}
-                                    <Tooltip title="刪除廣播"><IconButton onClick={() => handleDelete(bc.id)} sx={{ color: '#ff4d4d' }}><Trash2 size={18} /></IconButton></Tooltip>
+                                    <Tooltip title="刪除廣播"><IconButton onClick={() => handleDelete(bc.id)} disabled={deletingId === bc.id} sx={{ color: deletingId === bc.id ? '#888' : '#ff4d4d' }}>{deletingId === bc.id ? <CircularProgress size={18} sx={{ color: '#888' }} /> : <Trash2 size={18} />}</IconButton></Tooltip>
                                 </div>
                             </div>
 
@@ -1192,6 +1208,19 @@ function Broadcast() {
                             <p style={{ color: '#444' }}>點擊右上角「建立群發」開始設計您的推播任務</p>
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* Deleting Overlay */}
+            {deletingId && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '20px'
+                }}>
+                    <CircularProgress size={48} sx={{ color: '#ff4d4d' }} />
+                    <p style={{ color: '#fff', fontSize: '18px', fontWeight: 'bold' }}>刪除中...</p>
+                    <p style={{ color: '#999', fontSize: '14px' }}>請稍候</p>
                 </div>
             )}
 

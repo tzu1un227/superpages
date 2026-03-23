@@ -109,6 +109,9 @@ function MessageCenter() {
     const [tagInput, setTagInput] = useState('');
     const [loading, setLoading] = useState(true);
     const [loadingChat, setLoadingChat] = useState(false);
+    const [hasMoreHistory, setHasMoreHistory] = useState(true);
+    const [loadingOlder, setLoadingOlder] = useState(false);
+    const fullHistoryLoadedRef = useRef(false);
     const { showToast } = useToast();
     const lastSendTimeRef = useRef(0);
 
@@ -149,6 +152,7 @@ function MessageCenter() {
 
             fetchHistory(selectedUser);
             setMessageSearch(''); // 切換用戶時清除對話搜尋
+            fullHistoryLoadedRef.current = false; // 重置全量載入狀態
         }
     }, [selectedUser]);
 
@@ -300,61 +304,66 @@ function MessageCenter() {
 
             const signal = isPolling ? undefined : abortControllerRef.current.signal;
 
-            // 初次載入先抓取最新的 100 筆，達成極速畫面渲染的錯覺
-            // 但如果用戶之前是在向上滑看舊訊息，就跳過極速載入，直接等待完整紀錄，否則會破壞捲動記憶
-            const savedScroll = userScrollPositionsRef.current[userId];
-            const isScrolledUp = savedScroll !== undefined && savedScroll.distanceFromBottom >= 200;
+            if (isPolling) {
+                // 增量式輪詢：只抓最新一筆之後的新訊息
+                const latestTimestamp = messages.length > 0 ? messages[messages.length - 1].timestamp : null;
+                if (!latestTimestamp) return;
 
-            if (!isPolling && !isScrolledUp) {
-                const fastResp = await api.get(`/history/${userId}?limit=100`, { signal });
-                if (selectedUserRef.current === userId) {
-                    setMessages(fastResp.data);
-                    setLoadingChat(false);
+                const resp = await api.get(`/history/${userId}`, {
+                    params: { after: latestTimestamp }
+                });
+
+                if (selectedUserRef.current === userId && resp.data.length > 0) {
+                    setMessages(prev => [...prev, ...resp.data]);
                 }
+                return;
             }
 
-            // 隨後抓取所有歷史紀錄 (或如果是輪詢的話就直接全抓)
-            const resp = await api.get(`/history/${userId}`, { signal });
+            // 初次載入：只抓最新 50 筆（不再發第二次全撈）
+            const resp = await api.get(`/history/${userId}?limit=50`, { signal });
             if (selectedUserRef.current === userId) {
-                if (chatContainerRef.current) {
-                    layoutRef.current.scrollHeight = chatContainerRef.current.scrollHeight;
-                    layoutRef.current.scrollTop = chatContainerRef.current.scrollTop;
-                }
-                setMessages(prev => {
-                    if (isPolling && prev.length > 0 && resp.data.length > 0) {
-                        const lastPrev = prev[prev.length - 1];
-                        const lastNew = resp.data[resp.data.length - 1];
-                        if (prev.length === resp.data.length && lastPrev.timestamp === lastNew.timestamp) {
-                            return prev; // No new messages, completely skip React render
-                        }
-                    }
-
-                    if (prev.length > 0 && resp.data.length > prev.length) {
-                        const lastPrev = prev[prev.length - 1];
-                        const lastNew = resp.data[resp.data.length - 1];
-                        if (lastPrev && lastNew && lastPrev.timestamp === lastNew.timestamp) {
-                            layoutRef.current.isUpdatingHistory = true;
-                        } else {
-                            layoutRef.current.isUpdatingHistory = false;
-                        }
-                    } else {
-                        layoutRef.current.isUpdatingHistory = false;
-                    }
-                    return resp.data;
-                });
+                setMessages(resp.data);
+                setHasMoreHistory(resp.data.length >= 50); // 如果不足 50 筆代表已無更舊的訊息
                 setLoadingChat(false);
             }
 
-            if (!isPolling) {
-                api.post(`/users/${userId}/read`).then(() => {
-                    // Update local unread count immediately
-                    setUsers(prev => prev.map(u => u.user_id === userId ? { ...u, unread_count: 0 } : u));
-                }).catch(e => console.error("Failed to mark as read", e));
-            }
+            // 標記已讀
+            api.post(`/users/${userId}/read`).then(() => {
+                setUsers(prev => prev.map(u => u.user_id === userId ? { ...u, unread_count: 0 } : u));
+            }).catch(e => console.error("Failed to mark as read", e));
         } catch (error) {
             if (error.name !== 'CanceledError') {
                 console.error('Error fetching history:', error);
             }
+        }
+    };
+
+    // 向上滾動時載入更舊的訊息
+    const loadOlderMessages = async () => {
+        if (loadingOlder || !hasMoreHistory || !selectedUser || messages.length === 0) return;
+        setLoadingOlder(true);
+        try {
+            const oldestTimestamp = messages[0].timestamp;
+            const resp = await api.get(`/history/${selectedUser}`, {
+                params: { limit: 50, before: oldestTimestamp }
+            });
+
+            if (selectedUserRef.current === selectedUser && resp.data.length > 0) {
+                // 記錄當前捲軸位置，以便插入舊訊息後保持瀏覽位置
+                if (chatContainerRef.current) {
+                    layoutRef.current.scrollHeight = chatContainerRef.current.scrollHeight;
+                    layoutRef.current.scrollTop = chatContainerRef.current.scrollTop;
+                    layoutRef.current.isUpdatingHistory = true;
+                }
+                setMessages(prev => [...resp.data, ...prev]);
+            }
+            if (resp.data.length < 50) {
+                setHasMoreHistory(false);
+            }
+        } catch (error) {
+            console.error('Error loading older messages:', error);
+        } finally {
+            setLoadingOlder(false);
         }
     };
 
@@ -380,6 +389,22 @@ function MessageCenter() {
         if (!lastReadTime) return true; // 從未讀取過，視為未讀
 
         return new Date(user.last_time) > new Date(lastReadTime);
+    };
+
+    // 搜尋時全撈完整歷史紀錄（確保搜尋能覆蓋所有訊息）
+    const loadFullHistory = async () => {
+        if (fullHistoryLoadedRef.current || !selectedUser) return;
+        fullHistoryLoadedRef.current = true;
+        try {
+            const resp = await api.get(`/history/${selectedUser}`);
+            if (selectedUserRef.current === selectedUser) {
+                setMessages(resp.data);
+                setHasMoreHistory(false);
+            }
+        } catch (error) {
+            console.error('Error loading full history:', error);
+            fullHistoryLoadedRef.current = false; // 失敗時允許重試
+        }
     };
 
     // --- 輔助：排序後的用戶清單 (未讀優先) ---
@@ -464,9 +489,12 @@ function MessageCenter() {
             if (bottom) setShowNewMsgBtn(false);
         }
 
+        // 向上滑到頂部時自動載入更舊的訊息
+        if (scrollTop < 80 && hasMoreHistory && !loadingOlder && !isRestoringRef.current) {
+            loadOlderMessages();
+        }
+
         if (selectedUser && e.target && messages.length > 0) {
-            // 記錄距離底部的距離，判斷此用戶是否在往上滑看舊訊息
-            // 同時記錄 scrollTop，以便切回時恢復原本瀏覽位置
             userScrollPositionsRef.current[selectedUser] = {
                 distanceFromBottom,
                 scrollTop
@@ -959,7 +987,14 @@ function MessageCenter() {
                                 <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#555' }} />
                                 <input
                                     value={messageSearch}
-                                    onChange={e => setMessageSearch(e.target.value)}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        setMessageSearch(val);
+                                        // 開始搜尋時自動全撈完整歷史紀錄
+                                        if (val.trim() && !fullHistoryLoadedRef.current) {
+                                            loadFullHistory();
+                                        }
+                                    }}
                                     placeholder="搜尋對話內容..."
                                     style={{ width: '100%', paddingLeft: '30px', paddingRight: messageSearch ? '30px' : '10px', fontSize: '13px', padding: '6px 10px 6px 30px', boxSizing: 'border-box', backgroundColor: '#252525', border: '1px solid #333', borderRadius: '6px', color: 'inherit' }}
                                 />
@@ -1035,9 +1070,17 @@ function MessageCenter() {
                                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <LoadingSpinner message="載入對話中..." />
                                 </div>
-                            ) : (() => {
-                                let lastDate = null;
-                                return displayedMessages.map((m, i) => {
+                            ) : (
+                                <>
+                                    {loadingOlder && (
+                                        <div style={{ padding: '10px', textAlign: 'center', color: '#888', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+                                            <CircularProgress size={16} sx={{ color: 'var(--primary-yellow)' }} />
+                                            載入更舊的紀錄...
+                                        </div>
+                                    )}
+                                    {(() => {
+                                        let lastDate = null;
+                                        return displayedMessages.map((m, i) => {
                                     const mDate = new Date(m.timestamp).toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' });
                                     const showDateHeader = mDate !== lastDate;
                                     lastDate = mDate;
@@ -1182,6 +1225,8 @@ function MessageCenter() {
                                     );
                                 });
                             })()}
+                                </>
+                            )}
                             <div ref={messagesEndRef} />
                         </div>
 
