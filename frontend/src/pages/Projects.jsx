@@ -175,6 +175,7 @@ const ProjectsManagement = () => {
     const [isCreatingProject, setIsCreatingProject] = useState(false);
     const [isCreatingSchedule, setIsCreatingSchedule] = useState(false);
     const [pageLoading, setPageLoading] = useState(false);
+    const [projectsLoading, setProjectsLoading] = useState(false);
 
     const colors = [
         '#2196F3', '#4CAF50', '#FFD700', '#F44336', '#9C27B0',
@@ -243,7 +244,7 @@ const ProjectsManagement = () => {
         setProjects([]);
         setSchedules([]);
         setSelectedProjectId('');
-        fetchProjects();
+        fetchProjects(true);
     }, [location.pathname]);
 
     const prevProjectIdRef = React.useRef('');
@@ -259,6 +260,10 @@ const ProjectsManagement = () => {
             setNewSchedule({ project_id: '', step_id: '', interval_hours: '', message_content: '' });
             setFormErrors({});
             setError('');
+
+            // CRITICAL FIX: Clear old lists immediately
+            setSchedules([]);
+            setProjectUsers([]);
 
             const project = projects.find(p => p.project_id == selectedProjectId);
             if (project) {
@@ -329,7 +334,7 @@ const ProjectsManagement = () => {
             // Initial fetch is handled by other effects or immediate need
             // But we ensure we Poll
             interval = setInterval(() => {
-                fetchProjects();
+                fetchProjects(false);
             }, 30000);
         }
         return () => {
@@ -337,13 +342,16 @@ const ProjectsManagement = () => {
         };
     }, [activeTab]);
 
-    const fetchProjects = async () => {
+    const fetchProjects = async (showLoader = false) => {
+        if (showLoader) setProjectsLoading(true);
         try {
             // Add timestamp to prevent caching
             const res = await api.get('/projects', { params: { _t: new Date().getTime() } });
             setProjects(Array.isArray(res.data) ? res.data : []);
         } catch (err) {
             setError('無法取得專案列表');
+        } finally {
+            if (showLoader) setProjectsLoading(false);
         }
     };
 
@@ -910,6 +918,9 @@ const ProjectsManagement = () => {
             </div>
 
             {activeTab === 'projects' ? (
+                projectsLoading && projects.length === 0 ? (
+                    <LoadingSpinner message="載入專案資料中..." />
+                ) : (
                 <div className="card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                         <h3 style={{ fontSize: '20px' }}>專案列表</h3>
@@ -1070,6 +1081,7 @@ const ProjectsManagement = () => {
                         </table>
                     </div>
                 </div>
+                )
             ) : activeTab === 'schedules' ? (
                 <div className="card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
