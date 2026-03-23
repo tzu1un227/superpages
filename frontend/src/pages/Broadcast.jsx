@@ -1224,6 +1224,21 @@ function Broadcast() {
                 </div>
             )}
 
+            {/* Executing Overlay */}
+            {executing && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '20px'
+                }}>
+                    <CircularProgress size={48} sx={{ color: 'var(--primary-yellow)' }} />
+                    <p style={{ color: '#fff', fontSize: '18px', fontWeight: 'bold' }}>
+                        {formData.send_type === 'immediate' ? '正在發送群發訊息...' : '正在建立預約排程...'}
+                    </p>
+                    <p style={{ color: '#999', fontSize: '14px' }}>請勿關閉視窗</p>
+                </div>
+            )}
+
             {/* List-view preview modal */}
             {previewBcMessages && (
                 <Modal open={Boolean(previewBcMessages)} onClose={() => setPreviewBcMessages(null)}>
