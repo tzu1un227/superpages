@@ -100,6 +100,42 @@ const LazyImage = ({ src, alt, style, onLoad, onClick }) => {
     );
 };
 
+class MessageCenterErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null, errorInfo: null };
+    }
+
+    static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+    }
+
+    componentDidCatch(error, errorInfo) {
+        console.error("MessageCenter Error caught by Boundary:", error, errorInfo);
+        this.setState({ errorInfo });
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div style={{ padding: '20px', backgroundColor: '#222', color: 'red', height: '100%', overflow: 'auto' }}>
+                    <h2>⚠️ 訊息中心畫面崩潰 (React Crash)</h2>
+                    <p>請將以下紅色錯誤文字完整截圖或複製給工程師：</p>
+                    <pre style={{ backgroundColor: '#111', padding: '15px', color: '#ff4d4d', borderRadius: '8px', fontSize: '13px', whiteSpace: 'pre-wrap' }}>
+                        {this.state.error && this.state.error.toString()}
+                        <br/><br/>
+                        {this.state.errorInfo && this.state.errorInfo.componentStack}
+                    </pre>
+                    <button onClick={() => window.location.reload()} style={{ marginTop: '20px', padding: '10px 20px', backgroundColor: '#444', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
+                        重新載入畫面
+                    </button>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
+
 function MessageCenter() {
     const location = useLocation();
     const [users, setUsers] = useState([]);
@@ -1347,4 +1383,10 @@ function MessageCenter() {
     );
 }
 
-export default MessageCenter;
+export default function MessageCenterBoundary() {
+    return (
+        <MessageCenterErrorBoundary>
+            <MessageCenter />
+        </MessageCenterErrorBoundary>
+    );
+}
