@@ -295,6 +295,16 @@ function MessageCenter() {
     const abortControllerRef = useRef(null);
     const layoutRef = useRef({ scrollHeight: 0, scrollTop: 0, isUpdatingHistory: false });
 
+    // 處理向上加載歷史訊息後的捲軸位置回復
+    React.useLayoutEffect(() => {
+        if (layoutRef.current.isUpdatingHistory && chatContainerRef.current) {
+            const { scrollHeight: prevScrollHeight, scrollTop: prevScrollTop } = layoutRef.current;
+            const currentScrollHeight = chatContainerRef.current.scrollHeight;
+            chatContainerRef.current.scrollTop = prevScrollTop + (currentScrollHeight - prevScrollHeight);
+            layoutRef.current.isUpdatingHistory = false;
+        }
+    }, [messages]);
+
     const fetchHistory = async (userId, isPolling = false) => {
         try {
             if (!isPolling) {
