@@ -176,6 +176,9 @@ const ProjectsManagement = () => {
     const [isCreatingSchedule, setIsCreatingSchedule] = useState(false);
     const [pageLoading, setPageLoading] = useState(false);
     const [projectsLoading, setProjectsLoading] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
+    const [isImporting, setIsImporting] = useState(false);
+    const fileInputRef = React.useRef(null);
 
     const colors = [
         '#2196F3', '#4CAF50', '#FFD700', '#F44336', '#9C27B0',
@@ -341,6 +344,118 @@ const ProjectsManagement = () => {
             if (interval) clearInterval(interval);
         };
     }, [activeTab]);
+
+    const handleExportProject = async (project) => {
+        setIsExporting(true);
+        try {
+            const schedRes = await api.get(`/schedules?project_id=${project.project_id}`);
+            const schedulesData = Array.isArray(schedRes.data) ? schedRes.data : [];
+
+            const schedulesWithQa = await Promise.all(schedulesData.map(async (s) => {
+                const scheduleData = { ...s };
+                if (s.message_content && s.message_content.startsWith('QA|')) {
+                    const tag = s.message_content.substring(3);
+                    try {
+                        const qaRes = await api.get(`/qa-bank/${tag}`);
+                        scheduleData.qa_payload = qaRes.data.msg_rpy || [];
+                    } catch (e) {
+                        console.warn(`Failed to fetch QA content for tag ${tag}`, e);
+                        scheduleData.qa_payload = []; 
+                    }
+                } else {
+                    scheduleData.qa_payload = null;
+                }
+                return scheduleData;
+            }));
+
+            const exportData = {
+                version: "1.0",
+                project: {
+                    project_name: project.project_name,
+                    is_enabled: project.is_enabled,
+                    is_recurring: project.is_recurring,
+                    anchor_config: project.anchor_config,
+                    dormancy_config: project.dormancy_config
+                },
+                schedules: schedulesWithQa
+            };
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", `${project.project_name || 'journey'}_export.json`);
+            document.body.appendChild(downloadAnchorNode); 
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+            showToast('匯出成功！', 'success');
+        } catch (err) {
+            showToast('匯出失敗: ' + (err.response?.data?.message || err.message), 'error');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const handleImportFileChange = async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        setIsImporting(true);
+        try {
+            const fileReader = new FileReader();
+            fileReader.onload = async (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (!data.project || !data.schedules) {
+                        throw new Error("無效的匯入檔格式：缺少 project 或 schedules");
+                    }
+
+                    const newProjectPayload = {
+                        ...data.project,
+                        project_name: `${data.project.project_name} (已匯入)`,
+                        start_date: new Date().toISOString().slice(0, 16),
+                        end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16)
+                    };
+
+                    const createRes = await api.post('/projects', newProjectPayload);
+                    const newProjectId = createRes.data.project_id || createRes.data.id;
+
+                    for (const s of data.schedules) {
+                        let finalMessageContent = s.message_content;
+
+                        if (s.qa_payload && s.qa_payload.length > 0) {
+                            const newTag = `cron_${newProjectId}_${s.step_id}`;
+                            await api.post('/qa-bank', {
+                                tag: newTag,
+                                msg_rpy: s.qa_payload,
+                                type: 'Sensor'
+                            });
+                            finalMessageContent = `QA|${newTag}`;
+                        } 
+
+                        await api.post('/schedules', {
+                            project_id: newProjectId,
+                            step_id: s.step_id,
+                            interval_hours: s.interval_hours,
+                            message_content: finalMessageContent
+                        });
+                    }
+
+                    showToast(`匯入成功！已建立「${newProjectPayload.project_name}」`, 'success');
+                    fetchProjects(true); 
+                } catch (parseErr) {
+                    showToast('讀取或解析檔案失敗: ' + parseErr.message, 'error');
+                } finally {
+                    setIsImporting(false);
+                    if (fileInputRef.current) fileInputRef.current.value = ''; 
+                }
+            };
+            fileReader.readAsText(file);
+        } catch (err) {
+            showToast('匯入失敗: ' + err.message, 'error');
+            setIsImporting(false);
+            if (fileInputRef.current) fileInputRef.current.value = ''; 
+        }
+    };
 
     const fetchProjects = async (showLoader = false) => {
         if (showLoader) setProjectsLoading(true);
@@ -924,9 +1039,15 @@ const ProjectsManagement = () => {
                 <div className="card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                         <h3 style={{ fontSize: '20px' }}>專案列表</h3>
-                        <button className="primary" onClick={() => setShowAddProjectForm(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
-                            <Plus size={18} /> 新增專案
-                        </button>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <input type="file" ref={fileInputRef} onChange={handleImportFileChange} accept=".json" style={{ display: 'none' }} />
+                            <button className="secondary" onClick={() => fileInputRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', background: '#333', color: '#fff', border: '1px solid #555' }} disabled={isImporting}>
+                                <Upload size={18} /> {isImporting ? '匯入中...' : '匯入旅程'}
+                            </button>
+                            <button className="primary" onClick={() => setShowAddProjectForm(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
+                                <Plus size={18} /> 新增專案
+                            </button>
+                        </div>
                     </div>
 
                     {showAddProjectForm && (
@@ -1070,8 +1191,9 @@ const ProjectsManagement = () => {
                                                 </div>
                                             ) : (
                                                 <div style={{ display: 'flex', gap: '15px' }}>
-                                                    <Edit2 size={18} style={{ cursor: 'pointer', color: '#B0B0B0' }} onClick={() => handleEditProjectClick(p)} />
-                                                    <Trash2 size={18} style={{ cursor: 'pointer', color: '#FF4D4D' }} onClick={() => handleDeleteProject(p.project_id)} />
+                                                    <Download size={18} style={{ cursor: isExporting ? 'not-allowed' : 'pointer', color: isExporting ? '#666' : '#2196F3' }} onClick={() => !isExporting && handleExportProject(p)} title="匯出旅程" />
+                                                    <Edit2 size={18} style={{ cursor: 'pointer', color: '#B0B0B0' }} onClick={() => handleEditProjectClick(p)} title="編輯" />
+                                                    <Trash2 size={18} style={{ cursor: 'pointer', color: '#FF4D4D' }} onClick={() => handleDeleteProject(p.project_id)} title="刪除" />
                                                 </div>
                                             )}
                                         </td>
