@@ -1083,7 +1083,9 @@ function MessageCenter() {
                                                             <span style={{ color: m.user_id === 'yzuadmin' ? 'var(--primary-yellow)' : '#aaa' }}>
                                                                 {m.user_id === 'yzuadmin' ? '管理者' : '用戶'}
                                                             </span>
-                                                            <span style={{ color: '#555', fontSize: '10px' }}>{new Date(m.timestamp).toLocaleString()}</span>
+                                                            <span style={{ color: '#555', fontSize: '10px' }}>
+                                                                {m.timestamp && !isNaN(new Date(m.timestamp).getTime()) ? new Date(m.timestamp).toLocaleString() : ''}
+                                                            </span>
                                                         </div>
                                                         <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#eee' }}>
                                                             {getSearchableText(m)}
@@ -1118,7 +1120,8 @@ function MessageCenter() {
                                     {(() => {
                                         let lastDate = null;
                                         return displayedMessages.map((m, i) => {
-                                    const mDate = m.timestamp ? new Date(m.timestamp).toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
+                                    const validDate = m.timestamp && !isNaN(new Date(m.timestamp).getTime());
+                                    const mDate = validDate ? new Date(m.timestamp).toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
                                     const showDateHeader = mDate && mDate !== lastDate;
                                     if (mDate) lastDate = mDate;
 
@@ -1149,6 +1152,7 @@ function MessageCenter() {
                                     };
 
                                     const renderMessageContent = () => {
+                                      try {
                                         if (m.category === 'Image') {
                                             const imageUrl = `/line/content/${m.content}`;
                                             return (
@@ -1244,6 +1248,10 @@ function MessageCenter() {
                                             } catch (e) { return highlightText(displayContent); }
                                         }
                                         return highlightText(displayContent);
+                                      } catch (err) {
+                                        console.error("Render message error:", err, m);
+                                        return <span style={{color: '#ff4d4f', fontSize: '12px'}}>[訊息格式無法解析]</span>;
+                                      }
                                     };
 
                                     return (
@@ -1266,7 +1274,7 @@ function MessageCenter() {
                                                     {renderMessageContent()}
                                                 </div>
                                                 <p style={{ fontSize: '10px', marginTop: '5px', opacity: 0.6 }}>
-                                                    {m.timestamp ? new Date(m.timestamp).toLocaleTimeString() : ''}
+                                                    {m.timestamp && !isNaN(new Date(m.timestamp).getTime()) ? new Date(m.timestamp).toLocaleTimeString() : ''}
                                                 </p>
                                             </div>
                                         </React.Fragment>
