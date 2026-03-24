@@ -766,8 +766,15 @@ function MessageCenter() {
 
     // 輔助函式：高亮搜尋文本
     const highlightText = (text) => {
-        if (!messageSearch.trim() || !text) return text;
-        const parts = String(text).split(new RegExp(`(${messageSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
+        if (!text) return '';
+        if (typeof text === 'object') {
+            try { text = JSON.stringify(text); } catch(e) { text = '[物件]'; }
+        }
+        text = String(text);
+        
+        if (!messageSearch.trim()) return text;
+        
+        const parts = text.split(new RegExp(`(${messageSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
         return (
             <span>
                 {parts.map((part, i) => (
