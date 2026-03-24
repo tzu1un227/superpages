@@ -128,6 +128,9 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
   - **標籤篩選 (Tag Filtering)**:
     - 載入所有可用標籤並顯示為可點選的標籤按鈕列表（含「全部」選項）。
     - 點選標籤後，以 `tag` query parameter 傳入 `/api/users`，僅回傳擁有該標籤的用戶。
+  - **快取與狀態管理 (Cache & State Management)**:
+    - 導入 `messagesCacheRef` 作為切換用戶時的記憶體快取，使得切換回已開啟的聊天室能瞬間載入舊訊息。
+    - 結合 `after` 時間戳的背景輪詢，自動補齊快取後的增量新訊息，實現零等待的無縫切換體驗。
   - **捲軸位置管理與防跳動 (Scroll Management)**:
     - **位置持久化 (Scroll Persistence)**: 使用 `userScrollPositionsRef` (Mutable Ref) 紀錄每個用戶的 `distanceFromBottom` 與 `scrollTop`。
     - **智慧置底與記憶恢復**: 切換用戶時，若有大於 100px 的向上捲動紀錄，則恢復 `scrollTop`；否則執行 `scrollToBottom`。

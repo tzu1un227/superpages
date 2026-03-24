@@ -3,6 +3,9 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+  - **訊息中心快取與無縫切換 (Message Center Cache & Seamless Switching)** [2026-03-24]:
+    - **前端記憶體快取 (In-Memory Cache)**：實作 `messagesCacheRef` 機制。當切換回已開過的聊天室時，將直接取用記憶體瞬間載入對話紀錄，不再發送全量 API，達成「零等待」的切換體驗。
+    - **背景無縫補齊 (Seamless Polling)**：配合既有的增量式輪詢機制，載入快取後系統會自動在背景以最後一筆訊息的時間戳發送 `after` 請求，無縫補齊切換期間漏掉的新訊息。
   - **訊息中心載入效能優化 (Message Center Performance Tuning)** [2026-03-23]:
     - **分頁載入機制**：後端 `/api/history` 實作 `before` 與 `after` 時間戳游標參數。前端初次點入聊天室僅載入最新 50 筆紀錄，取消原本會緊接著發送的「全量歷史撈取」請求，大幅降低後端資料庫與網路傳輸壓力。
     - **滾動載入舊訊息**：當使用者在聊天室向上滑動至頂部時，會自動擷取最舊訊息的 timestamp，向後端發送請求載入更舊的 50 筆紀錄，並提供原生的「載入更舊紀錄...」視覺進度條。

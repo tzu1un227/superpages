@@ -141,7 +141,20 @@ function MessageCenter() {
     const location = useLocation();
     const [users, setUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
-    const [messages, setMessages] = useState([]);
+    const selectedUserRef = useRef(null);
+    const messagesCacheRef = useRef({});
+    const [messages, _setMessages] = useState([]);
+    
+    const setMessages = React.useCallback((action) => {
+        _setMessages(prev => {
+            const nextMsg = typeof action === 'function' ? action(prev) : action;
+            if (selectedUserRef.current && Array.isArray(nextMsg) && nextMsg.length > 0) {
+                messagesCacheRef.current[selectedUserRef.current] = nextMsg;
+            }
+            return nextMsg;
+        });
+    }, []);
+
     const [input, setInput] = useState('');
     const [tagInput, setTagInput] = useState('');
     const [loading, setLoading] = useState(true);
@@ -177,9 +190,9 @@ function MessageCenter() {
     }, [location.pathname]);
 
     useEffect(() => {
+        selectedUserRef.current = selectedUser;
         if (selectedUser) {
             setLoadingChat(true);
-            setMessages([]); // 切換用戶時立即清空舊訊息，避免畫面殘留與捲軸誤判
 
             // 預置捲軸狀態，防止舊用戶的「置底」狀態干擾新用戶的記憶位置恢復
             const savedScroll = userScrollPositionsRef.current[selectedUser];
@@ -187,9 +200,28 @@ function MessageCenter() {
             setIsAtBottom(wasAtBottom);
             isAtBottomRef.current = wasAtBottom;
 
-            fetchHistory(selectedUser);
+            const cachedMessages = messagesCacheRef.current[selectedUser];
+
+            if (cachedMessages && cachedMessages.length > 0) {
+                // 如果快取命中，瞬間載入畫面
+                setMessages(cachedMessages);
+                setLoadingChat(false);
+                fullHistoryLoadedRef.current = false;
+                
+                // 標記已讀
+                api.post(`/users/${selectedUser}/read`).then(() => {
+                    setUsers(prev => prev.map(u => u.user_id === selectedUser ? { ...u, unread_count: 0 } : u));
+                }).catch(e => console.error("Failed to mark as read", e));
+                
+                // 註：這時候不用呼叫 fetchHistory(selectedUser)，因為背景每秒輪詢機制
+                // 會立刻利用這個 cachedMessages 裡最新的 timestamp，自動透過 `after=...` 補齊這段期間的新訊息
+            } else {
+                setMessages([]); // 切換用戶時立即清空舊訊息，避免畫面殘留與捲軸誤判
+                fetchHistory(selectedUser);
+                fullHistoryLoadedRef.current = false; // 重置全量載入狀態
+            }
+
             setMessageSearch(''); // 切換用戶時清除對話搜尋
-            fullHistoryLoadedRef.current = false; // 重置全量載入狀態
         }
     }, [selectedUser]);
 
@@ -323,11 +355,6 @@ function MessageCenter() {
         }
         return msgString;
     };
-
-    const selectedUserRef = useRef(selectedUser);
-    useEffect(() => {
-        selectedUserRef.current = selectedUser;
-    }, [selectedUser]);
 
     const abortControllerRef = useRef(null);
     const layoutRef = useRef({ scrollHeight: 0, scrollTop: 0, isUpdatingHistory: false });
