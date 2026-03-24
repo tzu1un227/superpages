@@ -4,6 +4,7 @@ import api from '../api';
 import { Send, User, Info, Search, Tag, X, Image as ImageIcon, Mic, Video, Smile, ArrowDown, RefreshCw } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useToast } from '../contexts/ToastContext';
+import { CircularProgress } from '@mui/material';
 
 // 內部元件：處理帶有 Token 的圖片載入
 const AuthenticatedImage = ({ src, alt, style, onClick, onLoad }) => {
