@@ -202,7 +202,7 @@ function MessageCenter() {
                 return prev;
             });
             setUsers(newUsers);
-            if (newUsers.length > 0 && !selectedUser) {
+            if (newUsers.length > 0 && !selectedUserRef.current) {
                 setSelectedUser(newUsers[0].user_id);
             }
         } catch (err) {
@@ -339,8 +339,9 @@ function MessageCenter() {
             // 初次載入：只抓最新 50 筆（不再發第二次全撈）
             const resp = await api.get(`/history/${userId}?limit=50`, { signal });
             if (selectedUserRef.current === userId) {
-                setMessages(resp.data);
-                setHasMoreHistory(resp.data.length >= 50); // 如果不足 50 筆代表已無更舊的訊息
+                const loadedMessages = Array.isArray(resp.data) ? resp.data : [];
+                setMessages(loadedMessages);
+                setHasMoreHistory(loadedMessages.length >= 50); // 如果不足 50 筆代表已無更舊的訊息
                 setLoadingChat(false);
             }
 
@@ -427,12 +428,14 @@ function MessageCenter() {
 
     // 搜尋時全撈完整歷史紀錄（確保搜尋能覆蓋所有訊息）
     const loadFullHistory = async () => {
-        if (fullHistoryLoadedRef.current || !selectedUser) return;
+        if (fullHistoryLoadedRef.current || !selectedUserRef.current) return;
         fullHistoryLoadedRef.current = true;
         try {
-            const resp = await api.get(`/history/${selectedUser}`);
-            if (selectedUserRef.current === selectedUser) {
-                setMessages(resp.data);
+            const currentUserId = selectedUserRef.current;
+            const resp = await api.get(`/history/${currentUserId}`);
+            if (selectedUserRef.current === currentUserId) {
+                const fullMessages = Array.isArray(resp.data) ? resp.data : [];
+                setMessages(fullMessages);
                 setHasMoreHistory(false);
             }
         } catch (error) {
