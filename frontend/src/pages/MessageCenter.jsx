@@ -1232,7 +1232,7 @@ function MessageCenter() {
                                                                     />
                                                                 )}
                                                                 <div style={{ padding: '8px' }}>
-                                                                    {title && <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{title}</div>}
+                                                                    {title && <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{typeof title === 'object' ? JSON.stringify(title) : String(title)}</div>}
                                                                     <div style={{ color: '#666' }}>[Flex 訊息]</div>
                                                                 </div>
                                                             </div>
@@ -1251,7 +1251,7 @@ function MessageCenter() {
                                                         return renderFlexBubble(parsed.contents);
                                                     }
                                                 }
-                                                return `[${parsed.type}]`;
+                                                return `[${typeof parsed.type === 'object' ? JSON.stringify(parsed.type) : String(parsed.type)}]`;
                                             } catch (e) { return highlightText(displayContent); }
                                         }
                                         return highlightText(displayContent);
