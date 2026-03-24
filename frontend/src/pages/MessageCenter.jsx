@@ -1127,6 +1127,15 @@ function MessageCenter() {
                                     if (isAdmin && typeof displayContent === 'string' && displayContent.startsWith('MSG|')) {
                                         displayContent = displayContent.substring(4);
                                     }
+                                    
+                                    // 防呆：如果 content 是物件，強制轉為字串避免 React "Objects are not valid" 崩潰
+                                    if (typeof displayContent === 'object' && displayContent !== null) {
+                                        try {
+                                            displayContent = JSON.stringify(displayContent, null, 2);
+                                        } catch(e) {
+                                            displayContent = '[無法解析的複雜物件]';
+                                        }
+                                    }
 
                                     const globalIndex = messages.indexOf(m);
                                     const stableKey = m.timestamp ? `${m.timestamp}-${messages.length - globalIndex}` : i;
@@ -1178,7 +1187,7 @@ function MessageCenter() {
 
                                         if (m.category === 'sys_reply') {
                                             try {
-                                                const parsed = JSON.parse(m.content);
+                                                const parsed = typeof m.content === 'string' ? JSON.parse(m.content) : m.content;
                                                 if (parsed.type === 'text' && parsed.text) return highlightText(parsed.text);
                                                 if (parsed.type === 'image') return (
                                                     <LazyImage
@@ -1232,7 +1241,7 @@ function MessageCenter() {
                                                     }
                                                 }
                                                 return `[${parsed.type}]`;
-                                            } catch (e) { return highlightText(m.content); }
+                                            } catch (e) { return highlightText(displayContent); }
                                         }
                                         return highlightText(displayContent);
                                     };
@@ -1256,7 +1265,9 @@ function MessageCenter() {
                                                 <div style={{ fontSize: '14px' }}>
                                                     {renderMessageContent()}
                                                 </div>
-                                                <p style={{ fontSize: '10px', marginTop: '5px', opacity: 0.6 }}>{new Date(m.timestamp).toLocaleTimeString()}</p>
+                                                <p style={{ fontSize: '10px', marginTop: '5px', opacity: 0.6 }}>
+                                                    {m.timestamp ? new Date(m.timestamp).toLocaleTimeString() : ''}
+                                                </p>
                                             </div>
                                         </React.Fragment>
                                     );
