@@ -323,8 +323,15 @@ function MessageCenter() {
                     params: { after: latestTimestamp }
                 });
 
-                if (selectedUserRef.current === userId && resp.data.length > 0) {
-                    setMessages(prev => [...prev, ...resp.data]);
+                if (selectedUserRef.current === userId && Array.isArray(resp.data) && resp.data.length > 0) {
+                    setMessages(prev => {
+                        const existingKeys = new Set(prev.map(m => m.timestamp + m.content));
+                        const uniqueNew = resp.data.filter(m => m && m.timestamp && !existingKeys.has(m.timestamp + m.content));
+                        if (uniqueNew.length > 0) {
+                            return [...prev, ...uniqueNew];
+                        }
+                        return prev;
+                    });
                 }
                 return;
             }
@@ -353,25 +360,42 @@ function MessageCenter() {
         if (loadingOlder || !hasMoreHistory || !selectedUser || messages.length === 0) return;
         setLoadingOlder(true);
         try {
-            const oldestTimestamp = messages[0].timestamp;
+            const oldestTimestamp = messages[0]?.timestamp;
+            if (!oldestTimestamp) {
+                setHasMoreHistory(false);
+                return;
+            }
+
             const resp = await api.get(`/history/${selectedUser}`, {
                 params: { limit: 50, before: oldestTimestamp }
             });
 
-            if (selectedUserRef.current === selectedUser && resp.data.length > 0) {
-                // 記錄當前捲軸位置，以便插入舊訊息後保持瀏覽位置
-                if (chatContainerRef.current) {
-                    layoutRef.current.scrollHeight = chatContainerRef.current.scrollHeight;
-                    layoutRef.current.scrollTop = chatContainerRef.current.scrollTop;
-                    layoutRef.current.isUpdatingHistory = true;
-                }
-                setMessages(prev => [...resp.data, ...prev]);
+            const newMessages = Array.isArray(resp.data) ? resp.data : [];
+
+            if (selectedUserRef.current === selectedUser && newMessages.length > 0) {
+                setMessages(prev => {
+                    // 過濾掉可能重複的訊息，確保穩定陣列與避免型別錯誤
+                    const existingKeys = new Set(prev.map(m => m.timestamp + m.content));
+                    const uniqueNew = newMessages.filter(m => m && m.timestamp && !existingKeys.has(m.timestamp + m.content));
+                    
+                    if (uniqueNew.length > 0) {
+                        // 記錄當前捲軸位置，以便插入舊訊息後保持瀏覽位置
+                        if (chatContainerRef.current) {
+                            layoutRef.current.scrollHeight = chatContainerRef.current.scrollHeight;
+                            layoutRef.current.scrollTop = chatContainerRef.current.scrollTop;
+                            layoutRef.current.isUpdatingHistory = true;
+                        }
+                        return [...uniqueNew, ...prev];
+                    }
+                    return prev;
+                });
             }
-            if (resp.data.length < 50) {
+            if (!Array.isArray(resp.data) || resp.data.length < 50) {
                 setHasMoreHistory(false);
             }
         } catch (error) {
             console.error('Error loading older messages:', error);
+            setHasMoreHistory(false);
         } finally {
             setLoadingOlder(false);
         }
@@ -1091,9 +1115,9 @@ function MessageCenter() {
                                     {(() => {
                                         let lastDate = null;
                                         return displayedMessages.map((m, i) => {
-                                    const mDate = new Date(m.timestamp).toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' });
-                                    const showDateHeader = mDate !== lastDate;
-                                    lastDate = mDate;
+                                    const mDate = m.timestamp ? new Date(m.timestamp).toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
+                                    const showDateHeader = mDate && mDate !== lastDate;
+                                    if (mDate) lastDate = mDate;
 
                                     const isAdmin = m.user_id === 'yzuadmin' || m.category === 'Response' || m.category === 'sys_reply';
                                     let displayContent = m.content;
