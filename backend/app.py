@@ -1534,6 +1534,16 @@ def get_users_list():
                        ORDER BY timestamp DESC 
                        LIMIT 1
                    ) as last_message_category,
+                   (
+                       SELECT json_agg(msg_data)
+                       FROM (
+                           SELECT * 
+                           FROM "history:{app_id}" 
+                           WHERE user_id = sub.user_id 
+                           ORDER BY timestamp DESC 
+                           LIMIT 10
+                       ) msg_data
+                   ) as recent_messages,
                    sub.last_time,
                     (SELECT string_agg(value, '|') FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'tag') as tags,
                     (SELECT value FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'name' LIMIT 1) as name,

@@ -242,6 +242,14 @@ function MessageCenter() {
             if (tags.length > 0) params.tag = tags.join(',');
             const resp = await api.get('/users', { params });
             const newUsers = resp.data;
+            
+            // 預先寫入最新 10 筆歷史訊息的快取，確保點擊時瞬間載入
+            newUsers.forEach(u => {
+                if (u.recent_messages && Array.isArray(u.recent_messages) && !messagesCacheRef.current[u.user_id]) {
+                    messagesCacheRef.current[u.user_id] = [...u.recent_messages].reverse();
+                }
+            });
+
             setLocalUnreadCounts(prev => {
                 const newCounts = { ...prev };
                 const cachedTimes = JSON.parse(localStorage.getItem('user_last_times') || '{}');
