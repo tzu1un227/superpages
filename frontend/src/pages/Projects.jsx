@@ -180,6 +180,8 @@ const ProjectsManagement = () => {
     const fileInputRef = React.useRef(null);
     const prevProjectIdRef = React.useRef('');
     const selectedProjectIdRef = React.useRef('');
+    const schedulesCacheRef = React.useRef({});
+    const projectUsersCacheRef = React.useRef({});
 
     // Modal & Loading States
     const [isUserSelectModalOpen, setIsUserSelectModalOpen] = useState(false);
@@ -272,9 +274,18 @@ const ProjectsManagement = () => {
             setFormErrors({});
             setError('');
 
-            // CRITICAL FIX: Clear old lists immediately
-            setSchedules([]);
-            setProjectUsers([]);
+            // CRITICAL FIX: Clear old lists immediately OR LOAD FROM CACHE
+            if (schedulesCacheRef.current[selectedProjectId]) {
+                setSchedules(schedulesCacheRef.current[selectedProjectId]);
+            } else {
+                setSchedules([]);
+            }
+
+            if (projectUsersCacheRef.current[selectedProjectId]) {
+                setProjectUsers(projectUsersCacheRef.current[selectedProjectId]);
+            } else {
+                setProjectUsers([]);
+            }
 
             const project = projects.find(p => p.project_id == selectedProjectId);
             if (project) {
@@ -494,9 +505,13 @@ const ProjectsManagement = () => {
         if (activeTab !== 'schedules' || !selectedProjectId) return;
         
         const currentIdWhenStarted = selectedProjectId;
-        setPageLoading(true);
-        // Immediate clear to avoid showing old data before fetch finishes
-        setSchedules([]);
+        
+        // Show loader only if cache is empty
+        const hasCache = schedulesCacheRef.current[selectedProjectId] && schedulesCacheRef.current[selectedProjectId].length > 0;
+        if (!hasCache) {
+            setPageLoading(true);
+            setSchedules([]);
+        }
         
         try {
             const url = `/schedules?project_id=${selectedProjectId}`;
@@ -507,7 +522,8 @@ const ProjectsManagement = () => {
             
             const sortedData = Array.isArray(res.data) ? res.data.sort((a, b) => (parseInt(a.step_id) || 0) - (parseInt(b.step_id) || 0)) : [];
             
-            // To prevent flickering "No schedules found", we ensure schedules are set BEFORE we turn off loading
+            // Always update cache and state
+            schedulesCacheRef.current[selectedProjectId] = sortedData;
             setSchedules(sortedData);
             setPageLoading(false);
         } catch (err) {
@@ -520,15 +536,30 @@ const ProjectsManagement = () => {
     };
 
     const fetchProjectUsers = async (projectId) => {
-        setPageLoading(true);
+        if (!projectId) return;
+        const currentIdWhenStarted = projectId;
+
+        const hasCache = projectUsersCacheRef.current[projectId] && projectUsersCacheRef.current[projectId].length > 0;
+        if (!hasCache) {
+            setPageLoading(true);
+            setProjectUsers([]);
+        }
+
         try {
             const res = await api.get(`/projects/${projectId}/users`);
+            if (selectedProjectIdRef.current !== currentIdWhenStarted) return;
+            
+            projectUsersCacheRef.current[projectId] = res.data;
             setProjectUsers(res.data);
         } catch (err) {
             console.error('No project users found:', err);
-            setProjectUsers([]);
+            if (selectedProjectIdRef.current === currentIdWhenStarted) {
+                setProjectUsers([]);
+            }
         } finally {
-            setPageLoading(false);
+            if (selectedProjectIdRef.current === currentIdWhenStarted) {
+                setPageLoading(false);
+            }
         }
     };
 
@@ -629,6 +660,8 @@ const ProjectsManagement = () => {
         try {
             const scheduleIds = schedules.filter(s => s.project_id == selectedProjectId).map(s => s.schedule_id);
             await api.post(`/projects/${selectedProjectId}/schedules/reorder`, { schedule_ids: scheduleIds });
+            // Invalidate cache
+            delete schedulesCacheRef.current[selectedProjectId];
             showToast('排序已更新', 'success');
             fetchSchedules();
         } catch (err) {
@@ -673,6 +706,8 @@ const ProjectsManagement = () => {
         if (!window.confirm(`確定要將用戶 ${userId} 從此專案移除嗎？`)) return;
         try {
             await api.delete(`/projects/${selectedProjectId}/users/${userId}`);
+            // Invalidate cache
+            delete projectUsersCacheRef.current[selectedProjectId];
             fetchProjectUsers(selectedProjectId);
         } catch (err) {
             showToast('移除失敗: ' + (err.response?.data?.message || err.message), 'error');
@@ -683,6 +718,8 @@ const ProjectsManagement = () => {
         if (!window.confirm(`確定要重新啟動用戶 ${userId} 的專案進度嗎？(將重置回第一步)`)) return;
         try {
             await api.post(`/projects/${selectedProjectId}/users/${userId}/restart`);
+            // Invalidate cache
+            delete projectUsersCacheRef.current[selectedProjectId];
             fetchProjectUsers(selectedProjectId);
             showToast('已重置用戶進度', 'success');
         } catch (err) {
@@ -895,6 +932,8 @@ const ProjectsManagement = () => {
                 message_content: finalMessageContent
             });
 
+            // Invalidate cache
+            delete schedulesCacheRef.current[editScheduleFormData.project_id];
             setEditingScheduleId(null);
             fetchSchedules();
             setError('');
@@ -906,6 +945,8 @@ const ProjectsManagement = () => {
     const handleDeleteSchedule = async (id) => {
         if (window.confirm('確定要刪除此排程嗎？')) {
             await api.delete(`/schedules/${id}`);
+            // Invalidate cache for current project
+            delete schedulesCacheRef.current[selectedProjectId];
             fetchSchedules();
         }
     };
@@ -950,6 +991,8 @@ const ProjectsManagement = () => {
                 message_content: finalMessageContent
             });
 
+            // Invalidate cache
+            delete schedulesCacheRef.current[selectedProjectId];
             setShowAddScheduleForm(false);
             setNewSchedule({ project_id: '', step_id: '', interval_hours: '', message_content: '' });
             fetchSchedules();
