@@ -761,6 +761,32 @@ def get_project_stats(id):
     except Exception as e:
         print(f"Error in get_project_stats: {e}")
         return jsonify({"error": str(e)}), 500
+            
+@app.route('/api/projects/<int:id>/schedules/reorder', methods=['POST'])
+def reorder_project_schedules(id):
+    try:
+        data = request.json
+        schedule_ids = data.get('schedule_ids', [])
+        if not schedule_ids:
+            return jsonify({"status": "error", "message": "No schedules provided"}), 400
+            
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        for index, schedule_id in enumerate(schedule_ids):
+            new_step_id = index + 1
+            cur.execute(
+                "UPDATE project_schedules SET step_id = %s WHERE schedule_id = %s AND project_id = %s",
+                (new_step_id, schedule_id, id)
+            )
+            
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        print(f"Error in reorder_project_schedules: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/projects/<int:id>/schedules/export', methods=['GET'])
 def export_project_schedules(id):

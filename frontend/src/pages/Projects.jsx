@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import api from '../api';
-import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, User, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type, BarChart2, Download, Upload, Play, ExternalLink, TrendingUp, CheckCircle2, Circle, ChevronLeft, ChevronRight, BarChart3, RotateCcw } from 'lucide-react';
+import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, User, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type, BarChart2, Download, Upload, Play, ExternalLink, TrendingUp, CheckCircle2, Circle, ChevronLeft, ChevronRight, BarChart3, RotateCcw, GripVertical } from 'lucide-react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, CircularProgress } from '@mui/material';
 import FlexMessageEditor from '../components/FlexMessageEditor';
 import JourneyPreview from '../components/JourneyPreview';
@@ -173,11 +173,14 @@ const ProjectsManagement = () => {
 
     const [projectStats, setProjectStats] = useState({ tc: 0, cc: 0, ms: 0, mss: 0, msf: 0, completion_rate: 0 });
     const [isCreatingProject, setIsCreatingProject] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [processingMessage, setProcessingMessage] = useState('');
+    const [importProgress, setImportProgress] = useState(0);
+    const [draggedItemIndex, setDraggedItemIndex] = useState(null);
     const [isCreatingSchedule, setIsCreatingSchedule] = useState(false);
     const [pageLoading, setPageLoading] = useState(false);
     const [projectsLoading, setProjectsLoading] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
-    const [isImporting, setIsImporting] = useState(false);
     const fileInputRef = React.useRef(null);
 
     const colors = [
@@ -204,7 +207,6 @@ const ProjectsManagement = () => {
 
     const validateScheduleForm = (data) => {
         const errors = {};
-        if (!data.step_id) errors.step_id = '步驟 ID 必填';
         if (!data.message_content?.trim()) errors.message_content = '訊息內容不能為空';
         return errors;
     };
@@ -251,6 +253,11 @@ const ProjectsManagement = () => {
     }, [location.pathname]);
 
     const prevProjectIdRef = React.useRef('');
+    const selectedProjectIdRef = React.useRef(selectedProjectId);
+    
+    useEffect(() => {
+        selectedProjectIdRef.current = selectedProjectId;
+    }, [selectedProjectId]);
 
     useEffect(() => {
         if (selectedProjectId && selectedProjectId !== prevProjectIdRef.current) {
@@ -399,7 +406,10 @@ const ProjectsManagement = () => {
         const file = event.target.files[0];
         if (!file) return;
 
-        setIsImporting(true);
+        setIsProcessing(true);
+        setImportProgress(0);
+        setProcessingMessage('正在讀取檔案...');
+        
         try {
             const fileReader = new FileReader();
             fileReader.onload = async (e) => {
@@ -416,10 +426,17 @@ const ProjectsManagement = () => {
                         end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16)
                     };
 
+                    setProcessingMessage(`正在建立專案「${newProjectPayload.project_name}」...`);
                     const createRes = await api.post('/projects', newProjectPayload);
                     const newProjectId = createRes.data.project_id || createRes.data.id;
 
-                    for (const s of data.schedules) {
+                    const totalSchedules = data.schedules.length;
+                    for (let i = 0; i < totalSchedules; i++) {
+                        const s = data.schedules[i];
+                        const progress = Math.round(((i + 1) / totalSchedules) * 100);
+                        setImportProgress(progress);
+                        setProcessingMessage(`正在匯入步驟 ${i + 1}/${totalSchedules} (${progress}%)...`);
+                        
                         let finalMessageContent = s.message_content;
 
                         if (s.qa_payload && s.qa_payload.length > 0) {
@@ -445,14 +462,16 @@ const ProjectsManagement = () => {
                 } catch (parseErr) {
                     showToast('讀取或解析檔案失敗: ' + parseErr.message, 'error');
                 } finally {
-                    setIsImporting(false);
+                    setIsProcessing(false);
+                    setImportProgress(0);
                     if (fileInputRef.current) fileInputRef.current.value = ''; 
                 }
             };
             fileReader.readAsText(file);
         } catch (err) {
             showToast('匯入失敗: ' + err.message, 'error');
-            setIsImporting(false);
+            setIsProcessing(false);
+            setImportProgress(0);
             if (fileInputRef.current) fileInputRef.current.value = ''; 
         }
     };
@@ -472,18 +491,31 @@ const ProjectsManagement = () => {
 
     const fetchSchedules = async () => {
         if (activeTab !== 'schedules' || !selectedProjectId) return;
+        
+        const currentIdWhenStarted = selectedProjectId;
         setPageLoading(true);
+        // Immediate clear to avoid showing old data before fetch finishes
+        setSchedules([]);
+        
         try {
             const url = `/schedules?project_id=${selectedProjectId}`;
             const res = await api.get(url);
-            console.log("Fetched schedules:", res.data); // Debugging
+            
+            // Race condition check: only update if the project hasn't changed
+            if (selectedProjectIdRef.current !== currentIdWhenStarted) return;
+            
+            console.log("Fetched schedules:", res.data);
             const sortedData = Array.isArray(res.data) ? res.data.sort((a, b) => (parseInt(a.step_id) || 0) - (parseInt(b.step_id) || 0)) : [];
             setSchedules(sortedData);
         } catch (err) {
-            console.error("Fetch schedules error:", err);
-            setError('無法取得排程資料: ' + (err.response?.data?.error || err.message));
+            if (selectedProjectIdRef.current === currentIdWhenStarted) {
+                console.error("Fetch schedules error:", err);
+                setError('無法取得排程資料: ' + (err.response?.data?.error || err.message));
+            }
         } finally {
-            setPageLoading(false);
+            if (selectedProjectIdRef.current === currentIdWhenStarted) {
+                setPageLoading(false);
+            }
         }
     };
 
@@ -569,6 +601,44 @@ const ProjectsManagement = () => {
 
     // User Selection Modal State
     const [isUserSelectModalOpen, setIsUserSelectModalOpen] = useState(false);
+
+    // Drag and Drop Handlers
+    const handleDragStart = (e, index) => {
+        setDraggedItemIndex(index);
+        e.dataTransfer.effectAllowed = "move";
+        // Ghost image styling or class can be added here
+    };
+
+    const handleDragOver = (e, index) => {
+        e.preventDefault();
+        if (draggedItemIndex === null || draggedItemIndex === index) return;
+
+        const newSchedules = [...schedules];
+        const draggedItem = newSchedules[draggedItemIndex];
+        newSchedules.splice(draggedItemIndex, 1);
+        newSchedules.splice(index, 0, draggedItem);
+        
+        setDraggedItemIndex(index);
+        setSchedules(newSchedules);
+    };
+
+    const handleDragEnd = async () => {
+        if (!selectedProjectId) return;
+        
+        setIsProcessing(true);
+        setProcessingMessage('正在儲存新順序...');
+        try {
+            const scheduleIds = schedules.filter(s => s.project_id == selectedProjectId).map(s => s.schedule_id);
+            await api.post(`/projects/${selectedProjectId}/schedules/reorder`, { schedule_ids: scheduleIds });
+            showToast('排序已更新', 'success');
+            fetchSchedules();
+        } catch (err) {
+            showToast('更新順序失敗: ' + err.message, 'error');
+        } finally {
+            setIsProcessing(false);
+            setDraggedItemIndex(null);
+        }
+    };
 
     const handleAddUserToProject = () => {
         if (!selectedProjectId) {
@@ -715,19 +785,32 @@ const ProjectsManagement = () => {
             return;
         }
         try {
+            setIsProcessing(true);
+            setProcessingMessage('正在更新旅程設定...');
             await api.put(`/projects/${editingProjectId}`, editProjectFormData);
             setEditingProjectId(null);
             fetchProjects();
             setError('');
         } catch (err) {
-            setError(err.response?.data?.message || '專案更新失敗');
+            console.error("Update project error:", err);
+            setError('更新失敗: ' + (err.response?.data?.error || err.message));
+        } finally {
+            setIsProcessing(false);
         }
     };
 
     const handleDeleteProject = async (id) => {
         if (window.confirm('確定要刪除此專案嗎？相關排程也可能受到影響。')) {
-            await api.delete(`/projects/${id}`);
-            fetchProjects();
+            try {
+                setIsProcessing(true);
+                setProcessingMessage('正在刪除旅程...');
+                await api.delete(`/projects/${id}`);
+                fetchProjects();
+            } catch (err) {
+                showToast('刪除失敗: ' + err.message, 'error');
+            } finally {
+                setIsProcessing(false);
+            }
         }
     };
 
@@ -741,6 +824,8 @@ const ProjectsManagement = () => {
         }
 
         setIsCreatingProject(true);
+        setIsProcessing(true);
+        setProcessingMessage('正在建立新旅程...');
         try {
             await api.post('/projects', newProject);
             setShowAddProjectForm(false);
@@ -757,9 +842,11 @@ const ProjectsManagement = () => {
             setFormErrors({});
             setError('');
         } catch (err) {
-            setError(err.response?.data?.message || '新增專案失敗');
+            console.error("Create project error:", err);
+            setError('建立失敗: ' + (err.response?.data?.error || err.message));
         } finally {
             setIsCreatingProject(false);
+            setIsProcessing(false);
         }
     };
 
@@ -841,8 +928,15 @@ const ProjectsManagement = () => {
         setIsCreatingSchedule(true);
         try {
             let finalMessageContent = newSchedule.message_content;
+            
+            // Auto-calculate next step_id (last)
+            const projectSchedules = schedules.filter(s => s.project_id == selectedProjectId);
+            const nextStepId = projectSchedules.length > 0 
+                ? Math.max(...projectSchedules.map(s => parseInt(s.step_id) || 0)) + 1 
+                : 1;
+
             if (finalMessageContent && !finalMessageContent.startsWith('QA|')) {
-                finalMessageContent = await saveAsRichMessage(finalMessageContent, selectedProjectId, newSchedule.step_id);
+                finalMessageContent = await saveAsRichMessage(finalMessageContent, selectedProjectId, nextStepId);
             }
 
             // Ensure interval_hours is valid
@@ -853,6 +947,7 @@ const ProjectsManagement = () => {
             await api.post('/schedules', {
                 ...newSchedule,
                 project_id: selectedProjectId,
+                step_id: nextStepId,
                 interval_hours: safeInterval,
                 message_content: finalMessageContent
             });
@@ -979,8 +1074,33 @@ const ProjectsManagement = () => {
         </>
     );
 
+    const LoadingOverlay = ({ message, progress }) => (
+        <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 9999,
+            backdropFilter: 'blur(4px)'
+        }}>
+            <LoadingSpinner message={message} />
+            {progress > 0 && (
+                <div style={{ width: '300px', height: '10px', backgroundColor: '#333', borderRadius: '5px', marginTop: '20px', overflow: 'hidden' }}>
+                    <div style={{ width: `${progress}%`, height: '100%', backgroundColor: 'var(--primary-yellow)', transition: 'width 0.3s ease' }} />
+                </div>
+            )}
+        </div>
+    );
+
     return (
-        <div>
+        <div style={{ padding: '30px' }}>
+            {isProcessing && <LoadingOverlay message={processingMessage} progress={importProgress} />}
             <div style={{ marginBottom: '40px' }}>
                 <h1 style={{ fontSize: '32px', marginBottom: '10px' }}>自動旅程管理</h1>
                 <p style={{ color: '#B0B0B0' }}>管理自動化推播旅程及其對應的執行排程</p>
@@ -1042,10 +1162,10 @@ const ProjectsManagement = () => {
                         <div style={{ display: 'flex', gap: '10px' }}>
                             <input type="file" ref={fileInputRef} onChange={handleImportFileChange} accept=".json" style={{ display: 'none' }} />
                             <button className="secondary" onClick={() => fileInputRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', background: '#333', color: '#fff', border: '1px solid #555' }} disabled={isImporting}>
-                                <Upload size={18} /> {isImporting ? '匯入中...' : '匯入旅程'}
+                                <Upload size={18} /> {isProcessing && importProgress > 0 ? '匯入中...' : '匯入旅程'}
                             </button>
                             <button className="primary" onClick={() => setShowAddProjectForm(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
-                                <Plus size={18} /> 新增專案
+                                <Plus size={18} /> 新增旅程
                             </button>
                         </div>
                     </div>
@@ -1237,18 +1357,10 @@ const ProjectsManagement = () => {
                         <div style={{ backgroundColor: '#222', padding: '20px', borderRadius: '12px', marginBottom: '25px', border: '1px solid #333' }}>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', alignItems: 'flex-start' }}>
                                 <div style={{ flex: '0 0 100px' }}>
-                                    <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>步驟 (Step)</label>
-                                    <input
-                                        type="number"
-                                        className={formErrors.step_id ? 'error-input' : ''}
-                                        value={newSchedule.step_id}
-                                        onChange={e => {
-                                            setNewSchedule({ ...newSchedule, step_id: e.target.value });
-                                            if (formErrors.step_id) setFormErrors({ ...formErrors, step_id: null });
-                                        }}
-                                        style={{ width: '100%' }}
-                                    />
-                                    {formErrors.step_id && <div style={{ color: '#ff4d4d', fontSize: '11px', marginTop: '4px' }}>{formErrors.step_id}</div>}
+                                    <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>目前排序</label>
+                                    <div style={{ padding: '10px', backgroundColor: '#333', borderRadius: '4px', textAlign: 'center', color: '#888', border: '1px solid #444' }}>
+                                        最後一步
+                                    </div>
                                 </div>
                                 <div style={{ flex: '0 0 250px' }}>
                                     <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>間隔時間</label>
@@ -1346,8 +1458,20 @@ const ProjectsManagement = () => {
                                 </thead>
                                 <tbody>
                                     {Array.isArray(schedules) && schedules.length > 0 ? (
-                                        schedules.map((s) => (
-                                            <tr key={s.schedule_id}>
+                                        schedules.filter(s => s.project_id == selectedProjectId).map((s, index) => (
+                                            <tr 
+                                                key={s.schedule_id}
+                                                draggable={editingScheduleId === null}
+                                                onDragStart={(e) => handleDragStart(e, index)}
+                                                onDragOver={(e) => handleDragOver(e, index)}
+                                                onDragEnd={handleDragEnd}
+                                                style={{ 
+                                                    opacity: draggedItemIndex === index ? 0.5 : 1,
+                                                    cursor: editingScheduleId === null ? 'grab' : 'default',
+                                                    borderLeft: draggedItemIndex === index ? '4px solid var(--primary-yellow)' : 'none',
+                                                    transition: 'all 0.2s ease'
+                                                }}
+                                            >
                                                 <td style={{ fontSize: '13px', color: '#B0B0B0' }}>
                                                     {(() => {
                                                         const pId = parseInt(s.project_id);
@@ -1356,9 +1480,10 @@ const ProjectsManagement = () => {
                                                     })()}
                                                 </td>
                                                 <td>
-                                                    {editingScheduleId === s.schedule_id ? (
-                                                        <input type="number" value={editScheduleFormData.step_id} onChange={e => setEditScheduleFormData({ ...editScheduleFormData, step_id: e.target.value })} style={{ width: '60px' }} />
-                                                    ) : s.step_id}
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                        <GripVertical size={16} style={{ cursor: 'grab', color: '#666' }} />
+                                                        <span>{s.step_id}</span>
+                                                    </div>
                                                 </td>
                                                 <td>
                                                     {editingScheduleId === s.schedule_id ? (
@@ -1602,7 +1727,7 @@ const ProjectsManagement = () => {
                     </div>
                 )
             }
-        </div >
+        </div>
     );
 };
 

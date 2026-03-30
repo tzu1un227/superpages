@@ -69,6 +69,9 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 - **Loading 狀態管理**: 
     - 實作 `Projects.jsx` 中的 `pageLoading` 狀態，當切換「自動旅程」分頁或選取不同專案時，會觸發 `LoadingSpinner` 並在 API 回傳前清空舊數據。
     - 確保用戶在切換專案時，排程列表與統計數據不會出現跨專案的殘留顯示。
+    - **競態條件與資料殘留修復 (2026-03-30)**：
+        - 在 `fetchSchedules` 中加入 `selectedProjectIdRef` 比對鎖，確保異步回傳時若已切換旅程則不更新舊資料。
+        - 在 JSX 渲染層對 `schedules` 列表實施 `filter(s => s.project_id == selectedProjectId)` 之防禦性過濾。
 - **進階訊息編輯器深度驗證**: 
     - 強化 `Projects.jsx` (RichMessageModal) 與 `Broadcast.jsx` 的儲存驗證邏輯。
     - 深度解析 Flex Message JSON 結構，針對所有卡片 (Bubbles) 的「圖片點擊動作 (Hero Action)」與「按鈕動作 (Footer Buttons)」進行非空檢查。
@@ -112,6 +115,7 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 - **Frontend**: `MessageCenter.jsx`.
   - Displays list of users and their chat history.
   - Supports sending messages and managing tags.
+  - **發送連發防護 (Anti-Double Send)**: 實作 `isSendingRef` (Ref Lock) 與 `isSending` (State) 機制。當發送中時會暫時禁用輸入框與按鈕，並攔截後續的 Enter 鍵或點擊事件，防止重複發送。
   - **自動旅程管理 (Projects Management)**:
     - **訊息編輯器 (RichMessageModal)**: 支援文字、圖片、影片、語音與 Flex 訊息。包含欄位完整度驗證（防止空內容）。
     - **排程邏輯**: 確保 Step 0 作為旅程起點不可刪除，維護流程完整性。

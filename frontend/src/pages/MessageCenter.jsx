@@ -164,6 +164,8 @@ function MessageCenter() {
     const fullHistoryLoadedRef = useRef(false);
     const { showToast } = useToast();
     const lastSendTimeRef = useRef(0);
+    const [isSending, setIsSending] = useState(false);
+    const isSendingRef = useRef(false);
 
     // --- 搜尋與篩選狀態 ---
     const [searchQuery, setSearchQuery] = useState('');          // 用戶清單搜尋（user_id / 名稱）
@@ -702,22 +704,30 @@ function MessageCenter() {
     }, []);
 
     const sendMessage = async () => {
-        if (!input.trim() || !selectedUser) return;
+        if (!input.trim() || !selectedUser || isSendingRef.current) return;
+        
+        const messageToSend = input;
         try {
-            setLoading(true);
+            setIsSending(true);
+            isSendingRef.current = true;
+            // Optimistic clear to prevent immediate double-press issues
+            setInput('');
+            
             await api.post('/trigger', {
                 user: selectedUser,
-                message: `MSG|${input}`,
+                message: `MSG|${messageToSend}`,
                 type: 'Sensor',
                 api_index: 0
             });
-            setMessages([...messages, { content: input, timestamp: new Date().toISOString(), category: 'Message', user_id: 'yzuadmin' }]);
-            setInput('');
+            setMessages([...messages, { content: messageToSend, timestamp: new Date().toISOString(), category: 'Message', user_id: 'yzuadmin' }]);
             lastSendTimeRef.current = Date.now();
         } catch (err) {
             showToast('發送失敗: ' + err.message, 'error');
+            // Restore input if failed and it has not been replaced
+            setInput(prev => prev === '' ? messageToSend : prev);
         } finally {
-            setLoading(false);
+            setIsSending(false);
+            isSendingRef.current = false;
         }
     };
 
@@ -1396,14 +1406,15 @@ function MessageCenter() {
                                 value={input}
                                 onChange={e => setInput(e.target.value)}
                                 onKeyPress={e => e.key === 'Enter' && sendMessage()}
-                                placeholder="輸入訊息..."
-                                style={{ flex: 1 }}
+                                placeholder={isSending ? "正在發送..." : "輸入訊息..."}
+                                style={{ flex: 1, cursor: isSending ? 'not-allowed' : 'text', opacity: isSending ? 0.7 : 1 }}
+                                disabled={isSending}
                             />
                             <button
                                 onClick={sendMessage}
                                 className="primary"
                                 style={{ padding: '0 25px' }}
-                                disabled={loading}
+                                disabled={isSending || !input.trim()}
                             >
                                 <Send size={20} />
                             </button>

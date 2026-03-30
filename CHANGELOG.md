@@ -10,6 +10,10 @@ All notable changes to this project will be documented in this file.
     - **獨立語法驗證 API**：新增 `/api/rule-designer/validate-syntax` 端點，供未來前端即時語法檢查使用。
     - **修正輸入焦點遺失**：將 `TableCellTextarea` 元件從 `RuleDesigner` 內部移至模組層級，避免每次狀態更新重新建立元件導致焦點遺失。
     - **修正錯誤訊息殘留**：切換 bank 類型、刪除規則時自動清除對應的錯誤訊息，並正確調整後續列的錯誤索引。
+  - **訊息中心與自動旅程 UI 修復 (Message Center & Journey UI Fixes)** [2026-03-30]:
+    - **訊息中心連發防護**：實作 `isSendingRef` 同步鎖與 `isSending` 狀態，發送期間禁用輸入框與按鈕，解決連按 Enter 或按鈕導致重複發送的問題。
+    - **自動旅程競態條件修復**：在切換旅程時導入 `selectedProjectIdRef` 校驗，解決因網路延遲導致舊旅程資料在載入結束後閃現的問題。
+    - **視覺化優化**：在旅程排程渲染層加入額外過濾邏輯，並確保每次切換時立即清空狀態。
   - **訊息中心快取與無縫切換 (Message Center Cache & Seamless Switching)** [2026-03-24]:
     - **前端記憶體快取 (In-Memory Cache)**：實作 `messagesCacheRef` 機制。當切換回已開過的聊天室時，將直接取用記憶體瞬間載入對話紀錄，不再發送全量 API，達成「零等待」的切換體驗。
     - **背景無縫補齊 (Seamless Polling)**：配合既有的增量式輪詢機制，載入快取後系統會自動在背景以最後一筆訊息的時間戳發送 `after` 請求，無縫補齊切換期間漏掉的新訊息。
