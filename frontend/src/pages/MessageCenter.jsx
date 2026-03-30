@@ -282,7 +282,24 @@ function MessageCenter() {
                 }
                 return prev;
             });
-            setUsers(newUsers);
+            setUsers(prev => {
+                const updatedUsers = newUsers.map(nu => {
+                    // 防呆：如果當前選中的用戶在 local messages 中有更即時的內容，保留 local state，防止被伺服器舊緩存覆蓋
+                    if (nu.user_id === selectedUserRef.current && messages.length > 0) {
+                        const localLatest = messages[messages.length - 1];
+                        if (localLatest.timestamp && nu.last_time && new Date(localLatest.timestamp) > new Date(nu.last_time)) {
+                            return { 
+                                ...nu, 
+                                last_message: localLatest.content, 
+                                last_time: localLatest.timestamp,
+                                last_message_category: localLatest.category || 'Message'
+                            };
+                        }
+                    }
+                    return nu;
+                });
+                return updatedUsers;
+            });
 
             // 同步邏輯：如果選中的用戶在列表獲取時有新時間戳，立刻發起 fetchHistory
             const currentSelectedObj = newUsers.find(u => u.user_id === selectedUserRef.current);
@@ -573,26 +590,26 @@ function MessageCenter() {
         }
     }, [selectedUser, messages]);
 
-    // 自動更新：歷史訊息 1 秒一次，用戶清單 15 秒一次
+    // 整合後的單一輪詢計時器 (1秒循環)
     useEffect(() => {
-        const historyInterval = setInterval(() => {
-            if (selectedUser && (Date.now() - lastSendTimeRef.current > 1000)) {
-                fetchHistory(selectedUser, true);
+        let tickCount = 0;
+        const pollInterval = setInterval(() => {
+            tickCount++;
+            
+            // 1. 每 1 秒檢查當前選中用戶的增量訊息 (1s)
+            if (selectedUserRef.current && (Date.now() - lastSendTimeRef.current > 1000)) {
+                fetchHistory(selectedUserRef.current, true);
+            }
+
+            // 2. 每 5 秒更新一次側邊欄用戶清單 (5s)
+            // 只有在沒有搜尋查詢時才自動更新
+            if (tickCount % 5 === 0 && !searchQuery) {
+                fetchUsers(searchQuery, selectedTagFilters);
             }
         }, 1000);
 
-        const usersInterval = setInterval(() => {
-            // 只有在沒有特定搜尋時才自動更新清單內容，避免干擾使用者輸入
-            if (!searchQuery) {
-                fetchUsers(searchQuery, selectedTagFilters);
-            }
-        }, fetchUsersInterval);
-
-        return () => {
-            clearInterval(historyInterval);
-            clearInterval(usersInterval);
-        };
-    }, [selectedUser, searchQuery, selectedTagFilters, fetchUsersInterval]);
+        return () => clearInterval(pollInterval);
+    }, [selectedUser, searchQuery, selectedTagFilters]);
 
     // 捲軸功能與新訊息偵測
     const messagesEndRef = useRef(null);
