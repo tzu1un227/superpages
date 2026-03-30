@@ -1577,7 +1577,14 @@ const ProjectsManagement = () => {
                                     ) : (
                                         <tr>
                                             <td colSpan="5" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
-                                                {selectedProjectId ? '此旅程尚無排程設定' : '請選擇旅程以查看排程'}
+                                                {pageLoading ? (
+                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                                        <CircularProgress size={16} sx={{ color: 'var(--primary-yellow)' }} />
+                                                        載入排程中...
+                                                    </div>
+                                                ) : (
+                                                    selectedProjectId ? '此旅程尚無排程設定' : '請選擇旅程以查看排程'
+                                                )}
                                             </td>
                                         </tr>
                                     )}

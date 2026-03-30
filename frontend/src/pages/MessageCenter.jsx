@@ -704,12 +704,12 @@ function MessageCenter() {
     }, []);
 
     const sendMessage = async () => {
-        if (!input.trim() || !selectedUser || isSendingRef.current) return;
+        if (isSendingRef.current || !selectedUser || !input.trim()) return;
         
+        isSendingRef.current = true;
         const messageToSend = input;
         try {
             setIsSending(true);
-            isSendingRef.current = true;
             // Optimistic clear to prevent immediate double-press issues
             setInput('');
             
@@ -1405,7 +1405,12 @@ function MessageCenter() {
                             <input
                                 value={input}
                                 onChange={e => setInput(e.target.value)}
-                                onKeyPress={e => e.key === 'Enter' && sendMessage()}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        if (!e.repeat) sendMessage();
+                                    }
+                                }}
                                 placeholder={isSending ? "正在發送..." : "輸入訊息..."}
                                 style={{ flex: 1, cursor: isSending ? 'not-allowed' : 'text', opacity: isSending ? 0.7 : 1 }}
                                 disabled={isSending}
