@@ -28,6 +28,7 @@ function RuleDesigner() {
     const [draftRules, setDraftRules] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [rowErrors, setRowErrors] = useState({}); // { rowIndex: ['error1', 'error2'] }
     
     // Modal State for msg_rpy
     const [isMsgModalOpen, setIsMsgModalOpen] = useState(false);
@@ -97,6 +98,12 @@ function RuleDesigner() {
         
         newDrafts[index]._isDirty = true;
         setDraftRules(newDrafts);
+        // Clear errors for this row when user edits
+        if (rowErrors[index]) {
+            const newErrors = { ...rowErrors };
+            delete newErrors[index];
+            setRowErrors(newErrors);
+        }
     };
 
     const handleOpenMsgModal = (index) => {
@@ -148,6 +155,11 @@ function RuleDesigner() {
     // ------------------------------------
 
     const handleSaveRow = async (index) => {
+        // Clear previous errors for this row
+        const newErrors = { ...rowErrors };
+        delete newErrors[index];
+        setRowErrors(newErrors);
+
         setLoading(true);
         const ruleToSave = { ...draftRules[index] };
         delete ruleToSave._isDirty;
@@ -169,16 +181,23 @@ function RuleDesigner() {
 
             if (res.data.status === 'success') {
                 showToast('規則已儲存', 'success');
-                // 將該列的狀態標記為已非髒狀態，並更新 ID (若是新增)
                 const newDrafts = [...draftRules];
                 newDrafts[index]._isDirty = false;
                 newDrafts[index]._isNew = false;
                 if (res.data.id) newDrafts[index].id = res.data.id;
                 setDraftRules(newDrafts);
-                fetchRules(); // 同步回原始資料
+                fetchRules();
             }
         } catch (err) {
-            showToast('儲存失敗', 'error');
+            // Handle validation errors from backend
+            if (err.response && err.response.status === 400 && err.response.data&& err.response.data.errors) {
+                const updatedErrors = { ...rowErrors };
+                updatedErrors[index] = err.response.data.errors;
+                setRowErrors(updatedErrors);
+                showToast(`偵錯發現 ${err.response.data.errors.length} 個問題，請修正後再儲存`, 'error');
+            } else {
+                showToast('儲存失敗', 'error');
+            }
         } finally {
             setLoading(false);
         }
@@ -384,7 +403,14 @@ function RuleDesigner() {
                                 return (
                                     <tr key={rule.id || `draft-${idx}`} style={trStyle}>
                                         <td style={{ padding: '12px', color: '#666', fontSize: '12px' }}>
-                                            {rule._isNew ? <span style={{ color: '#FFD700' }}>[新]</span> : rule.id}
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                                                {rule._isNew ? <span style={{ color: '#FFD700' }}>[新]</span> : rule.id}
+                                                {rowErrors[idx] && rowErrors[idx].length > 0 && (
+                                                    <div style={{ position: 'relative' }} title={rowErrors[idx].join('\n')}>
+                                                        <AlertCircle size={16} style={{ color: '#ff4d4d', cursor: 'help' }} />
+                                                    </div>
+                                                )}
+                                            </div>
                                         </td>
                                         
                                         {['q_bank', 'ad_bank'].includes(bankType) ? (
@@ -497,15 +523,37 @@ function RuleDesigner() {
                                         </td>
                                         
                                         <td style={{ padding: '8px', textAlign: 'right' }}>
-                                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                                                {rule._isDirty && (
-                                                    <button onClick={() => handleSaveRow(idx)} className="primary" style={{ padding: '4px 8px', fontSize: '11px' }}>
-                                                        <Save size={14} />
-                                                    </button>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                {/* Error banner for this row */}
+                                                {rowErrors[idx] && rowErrors[idx].length > 0 && (
+                                                    <div style={{
+                                                        backgroundColor: 'rgba(255, 77, 77, 0.1)',
+                                                        border: '1px solid rgba(255, 77, 77, 0.3)',
+                                                        borderRadius: '6px',
+                                                        padding: '6px 8px',
+                                                        fontSize: '11px',
+                                                        color: '#ff6b6b',
+                                                        textAlign: 'left',
+                                                        maxWidth: '200px'
+                                                    }}>
+                                                        {rowErrors[idx].map((err, ei) => (
+                                                            <div key={ei} style={{ display: 'flex', gap: '4px', alignItems: 'flex-start', marginBottom: ei < rowErrors[idx].length - 1 ? '3px' : 0 }}>
+                                                                <AlertCircle size={10} style={{ flexShrink: 0, marginTop: '2px' }} />
+                                                                <span>{err}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 )}
-                                                <button onClick={() => handleDeleteRow(idx)} className="secondary" style={{ padding: '4px 8px', fontSize: '11px', color: '#ff4d4d', backgroundColor: 'transparent', border: 'none' }}>
-                                                    <Trash2 size={14} />
-                                                </button>
+                                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                                    {rule._isDirty && (
+                                                        <button onClick={() => handleSaveRow(idx)} className="primary" style={{ padding: '4px 8px', fontSize: '11px' }}>
+                                                            <Save size={14} />
+                                                        </button>
+                                                    )}
+                                                    <button onClick={() => handleDeleteRow(idx)} className="secondary" style={{ padding: '4px 8px', fontSize: '11px', color: '#ff4d4d', backgroundColor: 'transparent', border: 'none' }}>
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>

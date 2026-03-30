@@ -222,6 +222,13 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - **搜尋與高亮**: 仍保留基於用戶名稱、標籤與內容的即時過濾功能。
 - **Backend**: `endpoints/rule_designer.py`.
     - 統一 API 處理 CRUD。新增 `AD_bank` 之支援。自動處理資料庫的 `msg_rpy` `json[]` 陣列反序列化。
+    - **自動偵錯 (Auto-Debugging)**: 在 `create_rule` 與 `update_rule` 流程中整合 `validate_rule_fields` 驗證函數。驗證項目包括：
+        - `state_in` 非空檢查（Q/AD_bank）。
+        - `msg_rpy` 與 `function` 不可同時為空。
+        - `check` 與 `function` 欄位的 Python 語法驗證（使用 `ast.parse`，支援逗號/分號分隔多段式語法，自動略過 `<%...%>` 模板表達式）。
+        - Message 類型的 `content` 非空檢查。
+        - QA_bank 的 `tag` 非空檢查。
+    - **獨立語法驗證端點**: `POST /validate-syntax` 接受 `code` 與 `field` 參數，供前端即時語法檢查使用。
 
 ### Database Viewer (資料庫檢視)
 - **Frontend**: `DatabaseViewer.jsx`. (Route: `/dbviewer`).

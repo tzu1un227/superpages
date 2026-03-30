@@ -2,6 +2,8 @@ from flask import Blueprint, request, jsonify, g
 from psycopg2.extras import RealDictCursor
 import psycopg2
 import json
+import ast
+import re
 
 rule_designer_bp = Blueprint('rule_designer', __name__)
 
@@ -48,6 +50,105 @@ def trigger_sql_reload():
     except Exception as e:
         print(f"[RULE_DESIGNER] SQL reload trigger failed: {e}")
 
+def validate_python_syntax(code_str, field_name):
+    """
+    Validate a Python expression/statement string using ast.parse.
+    Returns None if valid, or an error message string if invalid.
+    """
+    if not code_str or not code_str.strip():
+        return None  # Empty is allowed (optional field)
+    
+    # The check field may contain comma-separated expressions;
+    # the function field may contain semicolon-separated statements.
+    # We validate each segment individually.
+    if field_name == 'check':
+        segments = [s.strip() for s in code_str.split(',') if s.strip()]
+    elif field_name == 'function':
+        segments = [s.strip() for s in code_str.split(';') if s.strip()]
+    else:
+        segments = [code_str.strip()]
+    
+    errors = []
+    for seg in segments:
+        # Skip segments that are only <%...%> template expressions
+        if seg.startswith('<%') and seg.endswith('%>'):
+            continue
+        try:
+            ast.parse(seg, mode='eval')
+        except SyntaxError:
+            try:
+                ast.parse(seg, mode='exec')
+            except SyntaxError as e:
+                errors.append(f"{field_name} 語法錯誤 '{seg}': {e.msg} (第 {e.lineno} 行)")
+    
+    return errors if errors else None
+
+def validate_rule_fields(rule_data, bank_type):
+    """
+    Validate rule fields before saving.
+    Returns a list of error messages, or empty list if all valid.
+    """
+    errors = []
+    
+    # 1. state_in validation (required for q_bank / ad_bank)
+    if bank_type in ('q_bank', 'ad_bank'):
+        state_in = rule_data.get('state_in')
+        if not state_in or (isinstance(state_in, list) and all(not s.strip() for s in state_in)):
+            errors.append('state_in 不能為空：請設定至少一個輸入狀態（例如 * 代表任意狀態）')
+    
+    # 2. msg_rpy validation (warn if empty — rule has no response)
+    msg_rpy = rule_data.get('msg_rpy')
+    function_val = rule_data.get('function', '')
+    if (not msg_rpy or (isinstance(msg_rpy, list) and len(msg_rpy) == 0)) and not function_val:
+        errors.append('msg_rpy 與 function 皆為空：此規則觸發後既不會回覆訊息，也不會執行函數')
+    
+    # 3. check field Python syntax validation
+    check_val = rule_data.get('check')
+    if isinstance(check_val, list):
+        for item in check_val:
+            if item and item.strip():
+                syntax_errors = validate_python_syntax(item, 'check')
+                if syntax_errors:
+                    errors.extend(syntax_errors)
+    elif isinstance(check_val, str) and check_val.strip():
+        syntax_errors = validate_python_syntax(check_val, 'check')
+        if syntax_errors:
+            errors.extend(syntax_errors)
+    
+    # 4. function field Python syntax validation
+    if isinstance(function_val, str) and function_val.strip():
+        syntax_errors = validate_python_syntax(function_val, 'function')
+        if syntax_errors:
+            errors.extend(syntax_errors)
+    
+    # 5. content validation (should not be empty for Message type)
+    if bank_type in ('q_bank', 'ad_bank'):
+        rule_type = rule_data.get('type', '')
+        content = rule_data.get('content')
+        if rule_type and rule_type.lower() == 'message':
+            if not content or (isinstance(content, list) and all(not c.strip() for c in content)):
+                errors.append('content 不能為空：Message 類型的規則必須設定觸發內容')
+    
+    # 6. tag validation (required for qa_bank)
+    if bank_type == 'qa_bank':
+        tag = rule_data.get('tag', '')
+        if not tag or not tag.strip():
+            errors.append('tag 不能為空：QA 規則必須設定標籤以配對 Input/Output')
+    
+    return errors
+
+@rule_designer_bp.route('/validate-syntax', methods=['POST'])
+def validate_syntax():
+    """Validate Python syntax for check/function fields."""
+    data = request.json
+    code = data.get('code', '')
+    field_name = data.get('field', 'check')
+    
+    errors = validate_python_syntax(code, field_name)
+    if errors:
+        return jsonify({'valid': False, 'errors': errors})
+    return jsonify({'valid': True, 'errors': []})
+
 @rule_designer_bp.route('/rules', methods=['GET'])
 def list_rules():
     """List rules from both Q_bank and QA_bank."""
@@ -86,6 +187,11 @@ def create_rule():
     
     if not rule_data:
         return jsonify({'error': 'Rule data is required'}), 400
+    
+    # Validate fields before saving
+    validation_errors = validate_rule_fields(rule_data, bank_type)
+    if validation_errors:
+        return jsonify({'status': 'validation_error', 'errors': validation_errors}), 400
         
     try:
         conn = get_db_connection()
@@ -153,6 +259,11 @@ def update_rule(rule_id):
     
     if not rule_data:
         return jsonify({'error': 'Rule data is required'}), 400
+    
+    # Validate fields before saving
+    validation_errors = validate_rule_fields(rule_data, bank_type)
+    if validation_errors:
+        return jsonify({'status': 'validation_error', 'errors': validation_errors}), 400
         
     try:
         conn = get_db_connection()

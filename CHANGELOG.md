@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+  - **法則表自動偵錯 (Rule Table Auto-Debugging)** [2026-03-30]:
+    - **後端語法驗證**：在 `rule_designer.py` 新增 `validate_python_syntax` 與 `validate_rule_fields` 函數，使用 `ast.parse` 驗證 `check` 與 `function` 欄位的 Python 語法正確性。支援逗號/分號分隔的多段式語法，並自動跳過 `<%...%>` 模板表達式。
+    - **欄位完整性檢查**：儲存前自動驗證 `state_in` 非空（Q/AD_bank）、`msg_rpy` 與 `function` 不同時為空、Message 類型的 `content` 非空、QA_bank 的 `tag` 非空等條件。
+    - **即時錯誤回饋 UI**：前端在儲存失敗時於該列操作欄顯示紅色錯誤面板，詳列每條驗證錯誤原因。ID 欄位同步顯示紅色警示圖示。使用者編輯欄位後錯誤自動清除。
+    - **獨立語法驗證 API**：新增 `/api/rule-designer/validate-syntax` 端點，供未來前端即時語法檢查使用。
   - **訊息中心快取與無縫切換 (Message Center Cache & Seamless Switching)** [2026-03-24]:
     - **前端記憶體快取 (In-Memory Cache)**：實作 `messagesCacheRef` 機制。當切換回已開過的聊天室時，將直接取用記憶體瞬間載入對話紀錄，不再發送全量 API，達成「零等待」的切換體驗。
     - **背景無縫補齊 (Seamless Polling)**：配合既有的增量式輪詢機制，載入快取後系統會自動在背景以最後一筆訊息的時間戳發送 `after` 請求，無縫補齊切換期間漏掉的新訊息。
