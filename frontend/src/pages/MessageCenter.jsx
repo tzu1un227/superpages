@@ -171,8 +171,8 @@ function MessageCenter() {
     const [searchQuery, setSearchQuery] = useState('');          // 用戶清單搜尋（user_id / 名稱）
     const [selectedTagFilters, setSelectedTagFilters] = useState([]); // 標籤篩選
     const [messageSearch, setMessageSearch] = useState('');       // 對話內容搜尋
-    const [fetchUsersInterval, setFetchUsersInterval] = useState(15000); // 用戶列表抓取間隔
-    const [sidebarDisplayCount, setSidebarDisplayCount] = useState(15); // 側邊欄視覺分頁：一次顯示的用戶數
+    const [fetchUsersInterval, setFetchUsersInterval] = useState(5000); // 用戶清單抓取間隔 (15秒 -> 5秒)
+    const [sidebarDisplayCount, setSidebarDisplayCount] = useState(15); // 側邊欄視覺分頁
     const [localUnreadCounts, setLocalUnreadCounts] = useState(() => {
         const saved = localStorage.getItem('localUnreadCounts');
         return saved ? JSON.parse(saved) : {};
@@ -180,6 +180,7 @@ function MessageCenter() {
 
     // 用來對 searchQuery 做 debounce，避免每一個字都打 API
     const searchTimer = useRef(null);
+    const lastKnownTimeRef = useRef({}); // 紀錄每個用戶最後已知的訊息時間，用於比對同步
 
     useEffect(() => {
         setUsers([]);
@@ -282,6 +283,18 @@ function MessageCenter() {
                 return prev;
             });
             setUsers(newUsers);
+
+            // 同步邏輯：如果選中的用戶在列表獲取時有新時間戳，立刻發起 fetchHistory
+            const currentSelectedObj = newUsers.find(u => u.user_id === selectedUserRef.current);
+            if (currentSelectedObj && currentSelectedObj.last_time && lastKnownTimeRef.current[currentSelectedObj.user_id] !== currentSelectedObj.last_time) {
+                lastKnownTimeRef.current[currentSelectedObj.user_id] = currentSelectedObj.last_time;
+                fetchHistory(selectedUserRef.current, true);
+            }
+            
+            // 更新所有用戶的 lastKnownTimeRef
+            newUsers.forEach(u => {
+                if (u.last_time) lastKnownTimeRef.current[u.user_id] = u.last_time;
+            });
             if (newUsers.length > 0 && !selectedUserRef.current) {
                 setSelectedUser(newUsers[0].user_id);
             }
@@ -400,9 +413,20 @@ function MessageCenter() {
 
                 if (selectedUserRef.current === userId && Array.isArray(resp.data) && resp.data.length > 0) {
                     setMessages(prev => {
-                        const existingKeys = new Set(prev.map(m => m.timestamp + m.content));
                         const uniqueNew = resp.data.filter(m => m && m.timestamp && !existingKeys.has(m.timestamp + m.content));
                         if (uniqueNew.length > 0) {
+                            const latest = uniqueNew[uniqueNew.length - 1];
+                            // 同步更新側邊欄用戶狀態
+                            setUsers(currentUsers => currentUsers.map(u => u.user_id === userId ? {
+                                ...u,
+                                last_message: latest.content,
+                                last_time: latest.timestamp,
+                                last_message_category: latest.category
+                            } : u));
+                            
+                            // 更新最後已知時間
+                            lastKnownTimeRef.current[userId] = latest.timestamp;
+
                             return [...prev, ...uniqueNew];
                         }
                         return prev;
@@ -551,7 +575,7 @@ function MessageCenter() {
     // 自動更新：歷史訊息 1 秒一次，用戶清單 15 秒一次
     useEffect(() => {
         const historyInterval = setInterval(() => {
-            if (selectedUser && (Date.now() - lastSendTimeRef.current > 2000)) {
+            if (selectedUser && (Date.now() - lastSendTimeRef.current > 1000)) {
                 fetchHistory(selectedUser, true);
             }
         }, 1000);
