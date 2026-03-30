@@ -144,6 +144,12 @@ function MessageCenter() {
     const selectedUserRef = useRef(null);
     const messagesCacheRef = useRef({});
     const [messages, _setMessages] = useState([]);
+    const messagesRef = useRef([]); // 新增 Ref 用於解決 setInterval 閉包問題
+    
+    // 維持 messagesRef 與 messages state 同步
+    useEffect(() => {
+        messagesRef.current = messages;
+    }, [messages]);
     
     const setMessages = React.useCallback((action) => {
         _setMessages(prev => {
@@ -421,7 +427,9 @@ function MessageCenter() {
 
             if (isPolling) {
                 // 增量式輪詢：只抓最新一筆之後的新訊息
-                const latestTimestamp = messages.length > 0 ? messages[messages.length - 1].timestamp : null;
+                // 使用 Ref 確保在計時器閉包中能抓到最新狀態
+                const currentMsgs = messagesRef.current;
+                const latestTimestamp = currentMsgs.length > 0 ? currentMsgs[currentMsgs.length - 1].timestamp : null;
                 if (!latestTimestamp) return;
 
                 const resp = await api.get(`/history/${userId}`, {
