@@ -413,6 +413,7 @@ function MessageCenter() {
 
                 if (selectedUserRef.current === userId && Array.isArray(resp.data) && resp.data.length > 0) {
                     setMessages(prev => {
+                        const existingKeys = new Set(prev.map(m => m.timestamp + m.content));
                         const uniqueNew = resp.data.filter(m => m && m.timestamp && !existingKeys.has(m.timestamp + m.content));
                         if (uniqueNew.length > 0) {
                             const latest = uniqueNew[uniqueNew.length - 1];
