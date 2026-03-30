@@ -18,6 +18,53 @@ const BANK_TYPES = [
     { id: 'qa_bank', label: 'QA_bank (回覆庫)', color: '#4CAF50' }
 ];
 
+// Moved OUTSIDE RuleDesigner to prevent re-creation on every render (fixes focus loss)
+const TableCellTextarea = ({ value, onChange }) => {
+    const [focused, setFocused] = React.useState(false);
+    return (
+        <textarea
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onFocus={(e) => {
+                setFocused(true);
+                e.target.style.height = 'auto';
+                e.target.style.height = (e.target.scrollHeight + 2) + 'px';
+            }}
+            onBlur={(e) => {
+                setFocused(false);
+                e.target.style.height = '32px';
+            }}
+            onInput={(e) => {
+                if(focused) {
+                    e.target.style.height = 'auto';
+                    e.target.style.height = (e.target.scrollHeight + 2) + 'px';
+                }
+            }}
+            style={{
+                width: '100%',
+                padding: '6px 8px',
+                border: focused ? '1px solid #555' : '1px solid transparent',
+                backgroundColor: focused ? '#222' : 'transparent',
+                color: '#eee',
+                fontSize: '13px',
+                transition: 'border 0.2s, background-color 0.2s',
+                minWidth: '100px',
+                borderRadius: '4px',
+                resize: focused ? 'vertical' : 'none',
+                overflow: focused ? 'auto' : 'hidden',
+                height: focused ? 'auto' : '32px',
+                minHeight: '32px',
+                fontFamily: 'inherit',
+                lineHeight: '20px',
+                display: 'block',
+                position: focused ? 'relative' : 'static',
+                zIndex: focused ? 10 : 1
+            }}
+            rows={1}
+        />
+    );
+};
+
 function RuleDesigner() {
     const { oaId } = useParams();
     const { showToast } = useToast();
@@ -46,6 +93,7 @@ function RuleDesigner() {
 
     const fetchRules = async () => {
         setLoading(true);
+        setRowErrors({}); // Clear all errors on reload/switch
         try {
             const res = await api.get(`/rule-designer/rules?type=${bankType}`);
             const newRules = res.data.rules || [];
@@ -210,6 +258,14 @@ function RuleDesigner() {
             const newDrafts = [...draftRules];
             newDrafts.splice(index, 1);
             setDraftRules(newDrafts);
+            // Clear errors: remove this index and shift subsequent indices
+            const newErrors = {};
+            Object.entries(rowErrors).forEach(([k, v]) => {
+                const ki = parseInt(k);
+                if (ki < index) newErrors[ki] = v;
+                else if (ki > index) newErrors[ki - 1] = v;
+            });
+            setRowErrors(newErrors);
             return;
         }
 
@@ -221,6 +277,14 @@ function RuleDesigner() {
             const newDrafts = [...draftRules];
             newDrafts.splice(index, 1);
             setDraftRules(newDrafts);
+            // Clear errors: remove this index and shift subsequent indices
+            const newErrors = {};
+            Object.entries(rowErrors).forEach(([k, v]) => {
+                const ki = parseInt(k);
+                if (ki < index) newErrors[ki] = v;
+                else if (ki > index) newErrors[ki - 1] = v;
+            });
+            setRowErrors(newErrors);
             fetchRules();
         } catch (err) {
             showToast('刪除失敗', 'error');
@@ -251,52 +315,7 @@ function RuleDesigner() {
         });
     }, [msgRpyList]);
 
-    // Table Input Component that expands on focus
-    const TableCellTextarea = ({ value, onChange }) => {
-        const [focused, setFocused] = useState(false);
-        return (
-            <textarea
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                onFocus={(e) => {
-                    setFocused(true);
-                    e.target.style.height = 'auto';
-                    e.target.style.height = (e.target.scrollHeight + 2) + 'px';
-                }}
-                onBlur={(e) => {
-                    setFocused(false);
-                    e.target.style.height = '32px';
-                }}
-                onInput={(e) => {
-                    if(focused) {
-                        e.target.style.height = 'auto';
-                        e.target.style.height = (e.target.scrollHeight + 2) + 'px';
-                    }
-                }}
-                style={{
-                    width: '100%',
-                    padding: '6px 8px',
-                    border: focused ? '1px solid #555' : '1px solid transparent',
-                    backgroundColor: focused ? '#222' : 'transparent',
-                    color: '#eee',
-                    fontSize: '13px',
-                    transition: 'border 0.2s, background-color 0.2s',
-                    minWidth: '100px',
-                    borderRadius: '4px',
-                    resize: focused ? 'vertical' : 'none',
-                    overflow: focused ? 'auto' : 'hidden',
-                    height: focused ? 'auto' : '32px',
-                    minHeight: '32px',
-                    fontFamily: 'inherit',
-                    lineHeight: '20px',
-                    display: 'block',
-                    position: focused ? 'relative' : 'static',
-                    zIndex: focused ? 10 : 1
-                }}
-                rows={1}
-            />
-        );
-    };
+    // (TableCellTextarea is now defined outside the component)
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '20px' }}>
