@@ -195,6 +195,7 @@ function MessageCenter() {
         selectedUserRef.current = selectedUser;
         if (selectedUser) {
             setLoadingChat(true);
+            setHasMoreHistory(true); // 重置歷史紀錄狀態，確保能向上載入
 
             // 預置捲軸狀態，防止舊用戶的「置底」狀態干擾新用戶的記憶位置恢復
             const savedScroll = userScrollPositionsRef.current[selectedUser];
@@ -1201,6 +1202,25 @@ function MessageCenter() {
                                 </div>
                             ) : (
                                 <>
+                                    {hasMoreHistory && !loadingOlder && (
+                                        <div 
+                                            onClick={loadOlderMessages}
+                                            style={{ 
+                                                padding: '10px', 
+                                                textAlign: 'center', 
+                                                color: '#888', 
+                                                cursor: 'pointer', 
+                                                fontSize: '13px',
+                                                borderBottom: '1px solid #222',
+                                                marginBottom: '15px',
+                                                transition: 'color 0.2s'
+                                            }}
+                                            onMouseEnter={e => e.currentTarget.style.color = 'var(--primary-yellow)'}
+                                            onMouseLeave={e => e.currentTarget.style.color = '#888'}
+                                        >
+                                            點擊查看更舊的訊息
+                                        </div>
+                                    )}
                                     {loadingOlder && (
                                         <div style={{ padding: '10px', textAlign: 'center', color: '#888', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
                                             <CircularProgress size={16} sx={{ color: 'var(--primary-yellow)' }} />
