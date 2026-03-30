@@ -505,16 +505,15 @@ const ProjectsManagement = () => {
             // Race condition check: only update if the project hasn't changed
             if (selectedProjectIdRef.current !== currentIdWhenStarted) return;
             
-            console.log("Fetched schedules:", res.data);
             const sortedData = Array.isArray(res.data) ? res.data.sort((a, b) => (parseInt(a.step_id) || 0) - (parseInt(b.step_id) || 0)) : [];
+            
+            // To prevent flickering "No schedules found", we ensure schedules are set BEFORE we turn off loading
             setSchedules(sortedData);
+            setPageLoading(false);
         } catch (err) {
             if (selectedProjectIdRef.current === currentIdWhenStarted) {
                 console.error("Fetch schedules error:", err);
                 setError('無法取得排程資料: ' + (err.response?.data?.error || err.message));
-            }
-        } finally {
-            if (selectedProjectIdRef.current === currentIdWhenStarted) {
                 setPageLoading(false);
             }
         }
@@ -1089,6 +1088,7 @@ const ProjectsManagement = () => {
             backdropFilter: 'blur(4px)'
         }}>
             <LoadingSpinner message={message} />
+            <p style={{ marginTop: '15px', color: '#FFD700', fontSize: '14px', fontWeight: 'bold' }}>系統正在處理中，請勿關閉或重新整理網頁</p>
             {progress > 0 && (
                 <div style={{ width: '300px', height: '10px', backgroundColor: '#333', borderRadius: '5px', marginTop: '20px', overflow: 'hidden' }}>
                     <div style={{ width: `${progress}%`, height: '100%', backgroundColor: 'var(--primary-yellow)', transition: 'width 0.3s ease' }} />
