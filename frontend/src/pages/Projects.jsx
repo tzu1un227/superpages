@@ -25,10 +25,6 @@ const ProjectsManagement = () => {
     const location = useLocation();
     const { showToast } = useToast();
 
-    // Project Preview State & Handlers
-    const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
-    const [previewSteps, setPreviewSteps] = useState([]);
-    const [previewLoading, setPreviewLoading] = useState(false);
 
     const handlePreviewProject = async () => {
         setPreviewLoading(true);
@@ -182,6 +178,17 @@ const ProjectsManagement = () => {
     const [projectsLoading, setProjectsLoading] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const fileInputRef = React.useRef(null);
+    const prevProjectIdRef = React.useRef('');
+    const selectedProjectIdRef = React.useRef('');
+
+    // Modal & Loading States
+    const [isUserSelectModalOpen, setIsUserSelectModalOpen] = useState(false);
+    const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+    const [isRichModalOpen, setIsRichModalOpen] = useState(false);
+    const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+    const [richModalConfig, setRichModalConfig] = useState({ initialTag: '', projectId: '', stepId: '', onSave: null });
+    const [previewSteps, setPreviewSteps] = useState([]);
+    const [previewLoading, setPreviewLoading] = useState(false);
 
     const colors = [
         '#2196F3', '#4CAF50', '#FFD700', '#F44336', '#9C27B0',
@@ -221,9 +228,6 @@ const ProjectsManagement = () => {
         }, 100);
     };
 
-    // Rich Message Modal State
-    const [isRichModalOpen, setIsRichModalOpen] = useState(false);
-    const [richModalConfig, setRichModalConfig] = useState({ initialTag: '', projectId: '', stepId: '', onSave: null });
 
     const openRichEditor = (currentValue, projectId, stepId, onSave) => {
         let initialTag = '';
@@ -252,9 +256,6 @@ const ProjectsManagement = () => {
         fetchProjects(true);
     }, [location.pathname]);
 
-    const prevProjectIdRef = React.useRef('');
-    const selectedProjectIdRef = React.useRef(selectedProjectId);
-    
     useEffect(() => {
         selectedProjectIdRef.current = selectedProjectId;
     }, [selectedProjectId]);
@@ -600,7 +601,6 @@ const ProjectsManagement = () => {
     };
 
     // User Selection Modal State
-    const [isUserSelectModalOpen, setIsUserSelectModalOpen] = useState(false);
 
     // Drag and Drop Handlers
     const handleDragStart = (e, index) => {
@@ -654,7 +654,6 @@ const ProjectsManagement = () => {
         setIsUserSelectModalOpen(true);
     };
 
-    const [isBatchProcessing, setIsBatchProcessing] = useState(false);
 
     const handleBatchAdd = async (userIds) => {
         if (!userIds || userIds.length === 0) return;
@@ -972,7 +971,7 @@ const ProjectsManagement = () => {
             '進行中': '#4CAF50', // Green
             '已暫停': '#FF9800', // Orange
             '已完成': '#2196F3', // Blue
-            '已終止': '#F4436', // Red
+            '已終止': '#F44336', // Red
             '未知': '#666'
         };
         const color = colors[status] || '#666';
@@ -1161,7 +1160,7 @@ const ProjectsManagement = () => {
                         <h3 style={{ fontSize: '20px' }}>專案列表</h3>
                         <div style={{ display: 'flex', gap: '10px' }}>
                             <input type="file" ref={fileInputRef} onChange={handleImportFileChange} accept=".json" style={{ display: 'none' }} />
-                            <button className="secondary" onClick={() => fileInputRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', background: '#333', color: '#fff', border: '1px solid #555' }} disabled={isImporting}>
+                            <button className="secondary" onClick={() => fileInputRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', background: '#333', color: '#fff', border: '1px solid #555' }} disabled={isProcessing}>
                                 <Upload size={18} /> {isProcessing && importProgress > 0 ? '匯入中...' : '匯入旅程'}
                             </button>
                             <button className="primary" onClick={() => setShowAddProjectForm(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
