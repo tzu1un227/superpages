@@ -426,6 +426,7 @@ function MessageCenter() {
         } catch (error) {
             if (error.name !== 'CanceledError') {
                 console.error('Error fetching history:', error);
+                setLoadingChat(false); // 確保出錯時也會關閉載入中狀態
             }
         }
     };
@@ -1053,7 +1054,7 @@ function MessageCenter() {
             </div>
 
             {/* Chat Area */}
-            <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0', position: 'relative' }}>
+            <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0', position: 'relative', minHeight: 0, overflow: 'hidden' }}>
                 {selectedUser ? (
                     <>
                         {/* 聊天室 Header：用戶名 + 標籤 + 新增標籤 */}
@@ -1192,7 +1193,7 @@ function MessageCenter() {
                         <div
                             ref={chatContainerRef}
                             onScroll={handleScroll}
-                            style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px', overflowAnchor: 'auto' }}
+                            style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px', overflowAnchor: 'auto', minHeight: 0 }}
                         >
                             {loadingChat ? (
                                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
