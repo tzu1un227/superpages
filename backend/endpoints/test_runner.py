@@ -88,8 +88,8 @@ def execute_tests():
         return jsonify({'error': 'No test cases provided'}), 400
 
     results = []
-    # 產生一組給本次測試專用的虛擬 user_id
-    test_user_id = f"test_sys_{str(uuid.uuid4())[:8]}"
+    # 指定測試與切換法則庫使用的使用者 ID
+    test_user_id = "yzuadmin"
     app_id = get_logical_app_id()
 
     try:

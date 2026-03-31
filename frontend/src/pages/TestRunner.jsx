@@ -148,7 +148,7 @@ function TestRunner() {
                     </button>
                     
                     {testUserId && !running && (
-                        <span style={{ fontSize: '13px', color: '#888' }}>上次測試產生之沙盒 UserID: <code style={{color:'#ddd'}}>{testUserId}</code></span>
+                        <span style={{ fontSize: '13px', color: '#888' }}>測試執行綁定之 UserID: <code style={{color:'#ddd'}}>{testUserId}</code></span>
                     )}
                 </div>
 
