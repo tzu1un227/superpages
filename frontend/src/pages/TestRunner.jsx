@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import api from '../api';
 import { 
     Play, Save, Plus, Trash2, RefreshCw, 
-    CheckCircle, XCircle, Database, FileText, AlertCircle
+    CheckCircle, XCircle, Database, FileText, AlertCircle, Zap
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useToast } from '../contexts/ToastContext';
@@ -88,13 +88,61 @@ function TestRunner() {
                 cases: [{ trigger_keyword: commandName, expected_reply_type: '' }] 
             });
             const result = res.data.results[0];
-            if (result.actual_content) {
+            if (result && result.actual_content) {
                 showToast(`機器人回應：${result.actual_content.substring(0, 50)}...`, 'success');
             } else {
                 showToast('指令發送成功，但機器人未回應或重新啟動中', 'info');
             }
         } catch (err) {
             showToast('發送指令失敗', 'error');
+        } finally {
+            setRunning(false);
+        }
+    };
+
+    const handleOneClickTest = async () => {
+        if (testCases.length === 0) {
+            showToast('請先新增至少一筆測試案例', 'error');
+            return;
+        }
+        
+        setRunning(true);
+        setResults([]);
+        
+        try {
+            // 階段 1: 載入測試法則
+            showToast('【階段 1/3】向機器人發送「上傳測試版」，請稍候 10 秒等待同步...', 'info');
+            await api.post('/test-runner/execute', { 
+                cases: [{ trigger_keyword: '上傳測試版', expected_reply_type: '' }] 
+            });
+            await new Promise(r => setTimeout(r, 10000));
+            
+            // 階段 2: 執行全部測試
+            showToast('【階段 2/3】正在自動化執行全部測試...', 'info');
+            const res = await api.post('/test-runner/execute', { cases: testCases });
+            let hasFails = false;
+            
+            if (res.data.results) {
+                setResults(res.data.results);
+                setTestUserId(res.data.test_user_id);
+                const fails = res.data.results.filter(r => r.status === 'Fail').length;
+                hasFails = fails > 0;
+            }
+            
+            // 階段 3: 還原正式法則
+            showToast('【階段 3/3】測試完畢，發送「上傳」指令以還原正式法則庫 (等待10秒)...', 'info');
+            await api.post('/test-runner/execute', { 
+                cases: [{ trigger_keyword: '上傳', expected_reply_type: '' }] 
+            });
+            await new Promise(r => setTimeout(r, 10000));
+            
+            if (hasFails) {
+                showToast('一鍵測試流程完成，但有部分測試失敗 ❌', 'error');
+            } else {
+                showToast('🎉 一鍵自動測試全流程完成，且全數通過 ✅', 'success');
+            }
+        } catch (err) {
+            showToast('一鍵自動化流程中斷: ' + (err.response?.data?.error || err.message), 'error');
         } finally {
             setRunning(false);
         }
@@ -145,6 +193,10 @@ function TestRunner() {
                     <button onClick={handleRunTests} className="primary" disabled={running || loading} style={{ backgroundColor: '#28a745', border: 'none', padding: '10px 25px', fontSize: '16px' }}>
                         {running ? <LoadingSpinner size={20} /> : <Play size={20} />} 
                         {running ? '正在自動執行測試...' : '執行全部測試 ▶'}
+                    </button>
+                    <button onClick={handleOneClickTest} className="primary" disabled={running || loading} style={{ backgroundColor: '#ff9900', border: 'none', padding: '10px 25px', fontSize: '16px', color: '#111', fontWeight: 'bold' }}>
+                        {running ? <LoadingSpinner size={20} /> : <Zap size={20} />} 
+                        一鍵自動完成 (載入➜測試➜還原) 🚀
                     </button>
                     
                     {testUserId && !running && (

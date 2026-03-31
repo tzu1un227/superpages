@@ -20,6 +20,20 @@ def get_logical_app_id():
         return g.current_db_url.split('/')[-1].split('?')[0].strip()
     return '5013'
 
+DEFAULT_TEST_CASES = [
+    {"id": 1, "trigger_keyword": "#測試文字", "expected_reply_type": "text", "expected_state": "00000"},
+    {"id": 2, "trigger_keyword": "#測試狀態跳轉", "expected_reply_type": "text", "expected_state": "TEST01"},
+    {"id": 3, "trigger_keyword": "#確認狀態", "expected_reply_type": "text", "expected_state": "00000"},
+    {"id": 4, "trigger_keyword": "#測試變數", "expected_reply_type": "text", "expected_state": "00000"},
+    {"id": 5, "trigger_keyword": "#測試資料庫", "expected_reply_type": "text", "expected_state": "00000"},
+    {"id": 6, "trigger_keyword": "#測試內建函式", "expected_reply_type": "text", "expected_state": "00000"},
+    {"id": 7, "trigger_keyword": "#測試系統觸發", "expected_reply_type": "text", "expected_state": "00000"},
+    {"id": 8, "trigger_keyword": "#測試隨機產生", "expected_reply_type": "text", "expected_state": "00000"},
+    {"id": 9, "trigger_keyword": "#測試全域變數", "expected_reply_type": "text", "expected_state": "00000"},
+    {"id": 10, "trigger_keyword": "#測試條件成立", "expected_reply_type": "text", "expected_state": "00000"},
+    {"id": 11, "trigger_keyword": "#測試多重條件", "expected_reply_type": "text", "expected_state": "00000"}
+]
+
 @test_runner_bp.route('/test_cases', methods=['GET'])
 def get_test_cases():
     """從 Global_var 讀取測試案例 JSON"""
@@ -45,11 +59,13 @@ def get_test_cases():
         if row and row['value']:
             try:
                 cases = json.loads(row['value'])
+                if not cases:
+                    cases = DEFAULT_TEST_CASES
                 return jsonify({'status': 'success', 'cases': cases})
             except json.JSONDecodeError:
-                return jsonify({'status': 'success', 'cases': []})
+                return jsonify({'status': 'success', 'cases': DEFAULT_TEST_CASES})
         else:
-            return jsonify({'status': 'success', 'cases': []})
+            return jsonify({'status': 'success', 'cases': DEFAULT_TEST_CASES})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
