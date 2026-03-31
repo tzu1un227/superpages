@@ -21,17 +21,18 @@ def get_logical_app_id():
     return '5013'
 
 DEFAULT_TEST_CASES = [
-    {"id": 1, "trigger_keyword": "#測試文字", "expected_reply_type": "text", "expected_state": "00000"},
-    {"id": 2, "trigger_keyword": "#測試狀態跳轉", "expected_reply_type": "text", "expected_state": "TEST01"},
-    {"id": 3, "trigger_keyword": "#確認狀態", "expected_reply_type": "text", "expected_state": "00000"},
-    {"id": 4, "trigger_keyword": "#測試變數", "expected_reply_type": "text", "expected_state": "00000"},
-    {"id": 5, "trigger_keyword": "#測試資料庫", "expected_reply_type": "text", "expected_state": "00000"},
-    {"id": 6, "trigger_keyword": "#測試內建函式", "expected_reply_type": "text", "expected_state": "00000"},
-    {"id": 7, "trigger_keyword": "#測試系統觸發", "expected_reply_type": "text", "expected_state": "00000"},
-    {"id": 8, "trigger_keyword": "#測試隨機產生", "expected_reply_type": "text", "expected_state": "00000"},
-    {"id": 9, "trigger_keyword": "#測試全域變數", "expected_reply_type": "text", "expected_state": "00000"},
-    {"id": 10, "trigger_keyword": "#測試條件成立", "expected_reply_type": "text", "expected_state": "00000"},
-    {"id": 11, "trigger_keyword": "#測試多重條件", "expected_reply_type": "text", "expected_state": "00000"}
+    {"id": 1, "name": "純文字回訊測試", "trigger_keyword": "#測試文字", "expected_reply_type": "text", "expected_state": "00000"},
+    {"id": 2, "name": "狀態跳轉測試-進入", "trigger_keyword": "#測試狀態跳轉", "expected_reply_type": "text", "expected_state": "TEST01"},
+    {"id": 3, "name": "狀態跳轉測試-確認", "trigger_keyword": "#確認狀態", "expected_reply_type": "text", "expected_state": "00000"},
+    {"id": 4, "name": "Smarteval-動態變數測試", "trigger_keyword": "#測試變數", "expected_reply_type": "text", "expected_state": "00000"},
+    {"id": 5, "name": "Smarteval-資料庫存取測試", "trigger_keyword": "#測試資料庫", "expected_reply_type": "text", "expected_state": "00000"},
+    {"id": 6, "name": "Smarteval-系統內建函式", "trigger_keyword": "#測試內建函式", "expected_reply_type": "text", "expected_state": "00000"},
+    {"id": 7, "name": "Sensors模組-更新觸發測試", "trigger_keyword": "#測試系統觸發", "expected_reply_type": "text", "expected_state": "00000"},
+    {"id": 8, "name": "Sensors模組-更新觸發接收", "trigger_keyword": "#被系统喚醒", "expected_reply_type": "", "expected_state": "00000"},
+    {"id": 9, "name": "Sensors模組-隨機數列測試", "trigger_keyword": "#測試隨機產生", "expected_reply_type": "text", "expected_state": "00000"},
+    {"id": 10, "name": "全域廣播與查表測試", "trigger_keyword": "#測試全域變數", "expected_reply_type": "text", "expected_state": "00000"},
+    {"id": 11, "name": "Check條件測試-恆真", "trigger_keyword": "#測試條件成立", "expected_reply_type": "text", "expected_state": "00000"},
+    {"id": 12, "name": "Check條件測試-包含分號多條件", "trigger_keyword": "#測試多重條件", "expected_reply_type": "text", "expected_state": "00000"}
 ]
 
 @test_runner_bp.route('/test_cases', methods=['GET'])
@@ -149,10 +150,10 @@ def execute_tests():
             history_row = None
             state_row = None
             try:
-                # 撈取機器人的最新歷史回應
+                # 撈取機器人的最新歷史回應 (注意移除沒有的 type 欄位)
                 history_table = f"history:{app_id}"
                 cur.execute(f"""
-                    SELECT category, type, content FROM "{history_table}" 
+                    SELECT category, content FROM "{history_table}" 
                     WHERE user_id = %s AND timestamp >= %s AND category IN ('Response', 'sys_reply')
                     ORDER BY timestamp DESC LIMIT 1
                 """, (test_user_id, start_time))
@@ -174,8 +175,13 @@ def execute_tests():
             cur.close()
             conn.close()
 
-            actual_type = history_row['type'].lower() if history_row else 'none'
             actual_content = history_row['content'] if history_row else '無回應'
+            # 如果沒有 history row 或 history 不保存類型，我們藉由實際回應去推導 type
+            if history_row:
+                actual_type = 'flex' if isinstance(actual_content, str) and actual_content.strip().startswith('{') else 'text'
+            else:
+                actual_type = 'none'
+
             actual_state = state_row['state'] if state_row else '00000'
             
             # 檢驗邏輯
@@ -186,11 +192,12 @@ def execute_tests():
             status_text = 'Pass' if is_pass else 'Fail'
             
             reason = []
-            if not pass_type: reason.append(f"預期類型 {expected_type} 但拿到 {actual_type}")
-            if not pass_state: reason.append(f"預期狀態 {expected_state} 但拿到 {actual_state}")
+            if expected_type and not pass_type: reason.append(f"預期類型 {expected_type} 但拿到 {actual_type}")
+            if expected_state and not pass_state: reason.append(f"預期狀態 {expected_state} 但拿到 {actual_state}")
             
             results.append({
                 'id': tc.get('id', idx),
+                'name': tc.get('name', ''),
                 'keyword': trigger,
                 'actual_type': actual_type,
                 'actual_content': actual_content,
