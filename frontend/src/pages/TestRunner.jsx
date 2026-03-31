@@ -176,7 +176,7 @@ function TestRunner() {
 
     const addTestCase = () => {
         const newId = testCases.length > 0 ? Math.max(...testCases.map(t => t.id || 0)) + 1 : 1;
-        setTestCases([...testCases, { id: newId, name: '', trigger_keyword: '', expected_state: '00000' }]);
+        setTestCases([...testCases, { id: newId, trigger_keyword: '', expected_state: '00000' }]);
     };
 
     const removeTestCase = (index) => {
@@ -259,7 +259,6 @@ function TestRunner() {
                                 <thead style={{ position: 'sticky', top: 0, backgroundColor: '#1e1e1e', zIndex: 10 }}>
                                     <tr>
                                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333', width: '30px' }}>#</th>
-                                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>情境名稱</th>
                                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>觸發關鍵字</th>
                                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>預期狀態(選填)</th>
                                         <th style={{ padding: '10px', textAlign: 'center', borderBottom: '1px solid #333', width: '40px' }}>刪除</th>
@@ -269,10 +268,6 @@ function TestRunner() {
                                     {testCases.map((tc, idx) => (
                                         <tr key={idx} style={{ borderBottom: '1px solid #2a2a2a' }}>
                                             <td style={{ padding: '10px', color: '#888' }}>{idx + 1}</td>
-                                            <td style={{ padding: '8px' }}>
-                                                <input type="text" value={tc.name || ''} onChange={e => updateTestCase(idx, 'name', e.target.value)} 
-                                                    style={{ width: '100%', padding: '6px', backgroundColor: '#111', border: '1px solid #444', color: '#fff' }} placeholder="如: 文字測試" />
-                                            </td>
                                             <td style={{ padding: '8px' }}>
                                                 <input type="text" value={tc.trigger_keyword || ''} onChange={e => updateTestCase(idx, 'trigger_keyword', e.target.value)} 
                                                     style={{ width: '100%', padding: '6px', backgroundColor: '#111', border: '1px solid #444', color: '#fff' }} placeholder="#test" />
@@ -318,8 +313,7 @@ function TestRunner() {
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                                 <thead style={{ position: 'sticky', top: 0, backgroundColor: '#1e1e1e', zIndex: 10 }}>
                                     <tr>
-                                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>狀態</th>
-                                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>情境名稱</th>
+                                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333', width: '50px' }}>狀態</th>
                                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>觸發指令</th>
                                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>實際回覆預覽</th>
                                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>實際狀態</th>
@@ -339,7 +333,6 @@ function TestRunner() {
                                                     </div>
                                                 }
                                             </td>
-                                            <td style={{ padding: '10px', color: '#eee', verticalAlign: 'top', fontWeight: 'bold' }}>{res.name}</td>
                                             <td style={{ padding: '10px', color: '#ccc', verticalAlign: 'top', fontWeight: 'bold' }}>{res.keyword}</td>
                                             <td style={{ padding: '10px', color: res.status === 'Fail' ? '#ff9999' : '#aaa' }}>
                                                 <div style={{ wordBreak: 'break-all', maxHeight: '60px', overflowY: 'hidden' }}>{String(res.actual_content).substring(0, 100)}{String(res.actual_content).length > 100 ? '...' : ''}</div>

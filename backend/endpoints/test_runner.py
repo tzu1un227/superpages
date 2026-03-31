@@ -21,17 +21,15 @@ def get_logical_app_id():
     return '5013'
 
 DEFAULT_TEST_CASES = [
-    {"id": 1, "name": "純文字回訊測試", "trigger_keyword": "#測試文字", "expected_state": "00000"},
-    {"id": 2, "name": "狀態跳轉測試-進入", "trigger_keyword": "#測試狀態跳轉", "expected_state": "TEST01"},
-    {"id": 3, "name": "狀態跳轉測試-確認", "trigger_keyword": "#確認狀態", "expected_state": "00000"},
-    {"id": 4, "name": "Smarteval-動態變數測試", "trigger_keyword": "#測試變數", "expected_state": "00000"},
-    {"id": 5, "name": "Smarteval-資料庫存取測試", "trigger_keyword": "#測試資料庫", "expected_state": "00000"},
-    {"id": 6, "name": "Smarteval-系統內建函式", "trigger_keyword": "#測試內建函式", "expected_state": "00000"},
-    {"id": 7, "name": "Sensors模組-更新觸發測試", "trigger_keyword": "#測試系統觸發", "expected_state": "00000"},
-    {"id": 8, "name": "Sensors模組-隨機數列測試", "trigger_keyword": "#測試隨機產生", "expected_state": "00000"},
-    {"id": 9, "name": "全域廣播與查表測試", "trigger_keyword": "#測試全域變數", "expected_state": "00000"},
-    {"id": 10, "name": "Check條件測試-恆真", "trigger_keyword": "#測試條件成立", "expected_state": "00000"},
-    {"id": 11, "name": "Check條件測試-包含分號多條件", "trigger_keyword": "#測試多重條件", "expected_state": "00000"}
+    {"id": 1, "trigger_keyword": "純文字回訊測試", "expected_state": "00000"},
+    {"id": 2, "trigger_keyword": "狀態跳轉測試-進入", "expected_state": "TEST01"},
+    {"id": 3, "trigger_keyword": "狀態跳轉測試-確認", "expected_state": "00000"},
+    {"id": 4, "trigger_keyword": "Smarteval-動態變數測試", "expected_state": "00000"},
+    {"id": 5, "trigger_keyword": "Smarteval-資料庫存取測試", "expected_state": "00000"},
+    {"id": 6, "trigger_keyword": "Smarteval-系統內建函式測試", "expected_state": "00000"},
+    {"id": 7, "trigger_keyword": "更新觸發測試", "expected_state": "00000"},
+    {"id": 9, "trigger_keyword": "Check條件測試-恆真", "expected_state": "00000"},
+    {"id": 10, "trigger_keyword": "Check條件測試-恆假", "expected_state": "00000"},
 ]
 
 @test_runner_bp.route('/test_cases', methods=['GET'])
@@ -188,7 +186,6 @@ def execute_tests():
             
             results.append({
                 'id': tc.get('id', idx),
-                'name': tc.get('name', ''),
                 'keyword': trigger,
                 'actual_content': actual_content,
                 'actual_state': actual_state,
