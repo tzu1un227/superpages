@@ -60,21 +60,33 @@ function TestRunner() {
         setResults([]); // Clear previous results
         
         try {
-            showToast('執行測試中，請稍候...', 'info');
-            const res = await api.post('/test-runner/execute', { cases: testCases }, { timeout: 120000 });
-            if (res.data.results) {
-                setResults(res.data.results);
-                setTestUserId(res.data.test_user_id);
-                
-                const fails = res.data.results.filter(r => r.status === 'Fail').length;
-                if (fails > 0) {
-                    showToast(`測試完成，共有 ${fails} 項失敗`, 'error');
-                } else {
-                    showToast('恭喜！所有測試皆通過 ✅', 'success');
+            showToast('開始逐筆執行測試，請稍候...', 'info');
+            let currentResults = [];
+            for (let i = 0; i < testCases.length; i++) {
+                const tc = testCases[i];
+                try {
+                    const res = await api.post('/test-runner/execute', { cases: [tc] }, { timeout: 30000 });
+                    if (res.data.results && res.data.results.length > 0) {
+                        const r = res.data.results[0];
+                        currentResults.push(r);
+                        setResults([...currentResults]);
+                        setTestUserId(res.data.test_user_id);
+                    }
+                } catch (err) {
+                    currentResults.push({
+                        id: tc.id, keyword: tc.trigger_keyword, status: 'Fail',
+                        reason: 'API錯誤或斷線: ' + err.message, actual_content: '', actual_state: ''
+                    });
+                    setResults([...currentResults]);
                 }
             }
-        } catch (err) {
-            showToast('測試執行失敗: ' + (err.response?.data?.error || err.message), 'error');
+            
+            const fails = currentResults.filter(r => r.status === 'Fail').length;
+            if (fails > 0) {
+                showToast(`測試完成，共有 ${fails} 項失敗`, 'error');
+            } else {
+                showToast('恭喜！所有測試皆通過 ✅', 'success');
+            }
         } finally {
             setRunning(false);
         }
@@ -118,15 +130,29 @@ function TestRunner() {
             await new Promise(r => setTimeout(r, 10000));
             
             // 階段 2: 執行全部測試
-            showToast('【階段 2/3】正在自動化執行全部測試 (可能耗時稍久)...', 'info');
-            const res = await api.post('/test-runner/execute', { cases: testCases }, { timeout: 120000 });
+            showToast('【階段 2/3】正在自動化逐筆執行測試，畫面會即時更新結果...', 'info');
             let hasFails = false;
+            let currentResults = [];
             
-            if (res.data.results) {
-                setResults(res.data.results);
-                setTestUserId(res.data.test_user_id);
-                const fails = res.data.results.filter(r => r.status === 'Fail').length;
-                hasFails = fails > 0;
+            for (let i = 0; i < testCases.length; i++) {
+                const tc = testCases[i];
+                try {
+                    const res = await api.post('/test-runner/execute', { cases: [tc] }, { timeout: 30000 });
+                    if (res.data.results && res.data.results.length > 0) {
+                        const r = res.data.results[0];
+                        if (r.status === 'Fail') hasFails = true;
+                        currentResults.push(r);
+                        setResults([...currentResults]);
+                        setTestUserId(res.data.test_user_id);
+                    }
+                } catch (err) {
+                    hasFails = true;
+                    currentResults.push({
+                        id: tc.id, keyword: tc.trigger_keyword, status: 'Fail',
+                        reason: 'API連接逾時或發送失敗', actual_content: '', actual_state: ''
+                    });
+                    setResults([...currentResults]);
+                }
             }
             
             // 階段 3: 還原正式法則
