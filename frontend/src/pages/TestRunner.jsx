@@ -133,7 +133,7 @@ function TestRunner() {
                     <button onClick={() => runSheetSyncCommand('!更新法則 一般法則_測試版')} className="secondary" disabled={running} title="模擬發送切換法則表指令">
                         <Database size={18} /> 載入測試法則庫
                     </button>
-                    <button onClick={() => runSheetSyncCommand('!更新法則 一般法則')} className="secondary" disabled={running}>
+                    <button onClick={() => runSheetSyncCommand('上傳')} className="secondary" disabled={running}>
                         <RefreshCw size={18} /> 還原正式法則庫
                     </button>
                 </div>
