@@ -15,9 +15,10 @@ import Questionnaire from './pages/Questionnaire';
 import api from './api';
 import { ToastProvider, useToast } from './contexts/ToastContext';
 import Toast from './components/Toast';
-import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send, Gift, Shield, LayoutGrid, ClipboardList, Workflow, Database } from 'lucide-react';
+import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send, Gift, Shield, LayoutGrid, ClipboardList, Workflow, Database, Play } from 'lucide-react';
 import RuleDesigner from './pages/RuleDesigner';
 import DatabaseViewer from './pages/DatabaseViewer';
+import TestRunner from './pages/TestRunner';
 
 const GOOGLE_CLIENT_ID = "909213734319-feblc4e1vhgu7e0r340e43h9aabc8iqf.apps.googleusercontent.com";
 
@@ -45,7 +46,8 @@ const PAGE_ROUTE_MAP = {
   'RichMenu': 'richmenu',
   'Questionnaire': 'questionnaire',
   'RuleDesigner': 'ruledesigner',
-  'DatabaseViewer': 'dbviewer'
+  'DatabaseViewer': 'dbviewer',
+  'TestRunner': 'testrunner'
 };
 
 const PAGE_ICON_MAP = {
@@ -58,7 +60,8 @@ const PAGE_ICON_MAP = {
   'RichMenu': LayoutGrid,
   'Questionnaire': ClipboardList,
   'RuleDesigner': Workflow,
-  'DatabaseViewer': Database
+  'DatabaseViewer': Database,
+  'TestRunner': Play
 };
 
 const MainLayout = () => {
@@ -112,7 +115,8 @@ const MainLayout = () => {
                         page.name === 'Questionnaire' ? '問卷管理' :
                           page.name === 'RuleDesigner' ? '法則表設計' :
                             page.name === 'DatabaseViewer' ? '資料庫檢視' :
-                              page.description;
+                              page.name === 'TestRunner' ? '系統測試' :
+                                page.description;
 
                     return (
                       <li key={page.id} style={{ marginBottom: '5px' }}>
@@ -169,6 +173,7 @@ const MainLayout = () => {
           <Route path="/oa/:oaId/questionnaire" element={<ProtectedRoute><Questionnaire /></ProtectedRoute>} />
           <Route path="/oa/:oaId/ruledesigner" element={<ProtectedRoute><RuleDesigner /></ProtectedRoute>} />
           <Route path="/oa/:oaId/dbviewer" element={<ProtectedRoute><DatabaseViewer /></ProtectedRoute>} />
+          <Route path="/oa/:oaId/testrunner" element={<ProtectedRoute><TestRunner /></ProtectedRoute>} />
 
           <Route path="/" element={
             isAuthenticated && myOAs.length > 0 ? (

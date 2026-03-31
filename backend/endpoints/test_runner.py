@@ -1,0 +1,177 @@
+from flask import Blueprint, request, jsonify, g
+from psycopg2.extras import RealDictCursor
+import psycopg2
+import json
+import time
+import uuid
+from utils.socket_utils import send_socket_event
+
+test_runner_bp = Blueprint('test_runner', __name__)
+
+def get_db_connection():
+    if hasattr(g, 'current_db_url') and g.current_db_url:
+        return psycopg2.connect(g.current_db_url)
+    raise Exception("No OA DB context found. Please provide X-OA-ID header.")
+
+def get_logical_app_id():
+    if hasattr(g, 'current_app_name') and g.current_app_name:
+        return g.current_app_name
+    if hasattr(g, 'current_db_url') and g.current_db_url:
+        return g.current_db_url.split('/')[-1].split('?')[0].strip()
+    return '5013'
+
+@test_runner_bp.route('/test_cases', methods=['GET'])
+def get_test_cases():
+    """從 Global_var 讀取測試案例 JSON"""
+    try:
+        app_id = get_logical_app_id()
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        table_name = f"Global_var:{app_id}"
+        
+        # 確保資料表存在
+        cur.execute(f"""
+            CREATE TABLE IF NOT EXISTS "{table_name}" (
+                name VARCHAR(255) PRIMARY KEY,
+                value TEXT
+            )
+        """)
+        
+        cur.execute(f"SELECT value FROM \"{table_name}\" WHERE name = 'SYS_TEST_CASES'")
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if row and row['value']:
+            try:
+                cases = json.loads(row['value'])
+                return jsonify({'status': 'success', 'cases': cases})
+            except json.JSONDecodeError:
+                return jsonify({'status': 'success', 'cases': []})
+        else:
+            return jsonify({'status': 'success', 'cases': []})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@test_runner_bp.route('/test_cases', methods=['POST'])
+def save_test_cases():
+    """將測試案例 JSON 存入 Global_var"""
+    data = request.json
+    cases = data.get('cases', [])
+    try:
+        app_id = get_logical_app_id()
+        conn = get_db_connection()
+        cur = conn.cursor()
+        table_name = f"Global_var:{app_id}"
+        
+        cases_json = json.dumps(cases, ensure_ascii=False)
+        
+        cur.execute(f"""
+            INSERT INTO "{table_name}" (name, value) 
+            VALUES ('SYS_TEST_CASES', %s)
+            ON CONFLICT (name) DO UPDATE SET value = EXCLUDED.value
+        """, (cases_json,))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@test_runner_bp.route('/execute', methods=['POST'])
+def execute_tests():
+    """執行測試引擎: 模擬發送 Socket 訊息並檢驗資料庫結果"""
+    data = request.json
+    test_cases = data.get('cases', [])
+    if not test_cases:
+        return jsonify({'error': 'No test cases provided'}), 400
+
+    results = []
+    # 產生一組給本次測試專用的虛擬 user_id
+    test_user_id = f"test_sys_{str(uuid.uuid4())[:8]}"
+    app_id = get_logical_app_id()
+
+    try:
+        for idx, tc in enumerate(test_cases):
+            trigger = tc.get('trigger_keyword', '')
+            expected_type = tc.get('expected_reply_type', '').lower()
+            expected_state = tc.get('expected_state', '')
+            
+            if not trigger:
+                results.append({'id': tc.get('id', idx), 'status': 'Skip', 'reason': 'No trigger keyword'})
+                continue
+            
+            # Step 1: 紀錄發送前的時間戳記，以利後續查詢歷史紀錄
+            start_time = time.strftime('%Y-%m-%d %H:%M:%S')
+            
+            # Step 2: 透過 Socket.IO 發送模擬訊息
+            payload = {
+                'user': test_user_id,
+                'message': trigger,
+                'type': 'Message',
+                'api_index': 0 
+            }
+            try:
+                send_socket_event(payload)
+            except Exception as e:
+                results.append({'id': tc.get('id', idx), 'status': 'Fail', 'reason': f'Socket Error: {e}'})
+                continue
+            
+            # Step 3: 等待 Line-Bot-Main 伺服器處理並寫入 DB
+            time.sleep(1.5)
+            
+            # Step 4: 查詢資料庫驗證結果
+            conn = get_db_connection()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            
+            # 撈取機器人的最新歷史回應
+            history_table = f"history:{app_id}"
+            cur.execute(f"""
+                SELECT category, type, content FROM "{history_table}" 
+                WHERE user_id = %s AND timestamp >= %s AND category IN ('Response', 'sys_reply')
+                ORDER BY timestamp DESC LIMIT 1
+            """, (test_user_id, start_time))
+            history_row = cur.fetchone()
+            
+            # 撈取最新狀態
+            private_var_table = f"Private_var:{app_id}"
+            cur.execute(f"""
+                SELECT state FROM "{private_var_table}" 
+                WHERE user_id = %s
+            """, (test_user_id,))
+            state_row = cur.fetchone()
+            
+            cur.close()
+            conn.close()
+
+            actual_type = history_row['type'].lower() if history_row else 'none'
+            actual_content = history_row['content'] if history_row else '無回應'
+            actual_state = state_row['state'] if state_row else '00000'
+            
+            # 檢驗邏輯
+            pass_type = True if not expected_type else (expected_type in actual_type)
+            pass_state = True if not expected_state else (expected_state == actual_state)
+            
+            is_pass = pass_type and pass_state
+            status_text = 'Pass' if is_pass else 'Fail'
+            
+            reason = []
+            if not pass_type: reason.append(f"預期類型 {expected_type} 但拿到 {actual_type}")
+            if not pass_state: reason.append(f"預期狀態 {expected_state} 但拿到 {actual_state}")
+            
+            results.append({
+                'id': tc.get('id', idx),
+                'keyword': trigger,
+                'actual_type': actual_type,
+                'actual_content': actual_content,
+                'actual_state': actual_state,
+                'status': status_text,
+                'reason': ", ".join(reason) if reason else "Success"
+            })
+            
+        return jsonify({'status': 'success', 'results': results, 'test_user_id': test_user_id})
+    except Exception as e:
+        import traceback
+        print(f"Test Execution Error: {traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
