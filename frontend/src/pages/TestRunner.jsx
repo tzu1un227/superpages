@@ -261,7 +261,7 @@ function TestRunner() {
                                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333', width: '30px' }}>#</th>
                                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>情境名稱</th>
                                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>觸發關鍵字</th>
-                                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>預期狀態</th>
+                                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>預期狀態(選填)</th>
                                         <th style={{ padding: '10px', textAlign: 'center', borderBottom: '1px solid #333', width: '40px' }}>刪除</th>
                                     </tr>
                                 </thead>
