@@ -94,9 +94,9 @@ def execute_tests():
 
     try:
         for idx, tc in enumerate(test_cases):
-            trigger = tc.get('trigger_keyword', '')
-            expected_type = tc.get('expected_reply_type', '').lower()
-            expected_state = tc.get('expected_state', '')
+            trigger = tc.get('trigger_keyword') or ''
+            expected_type = str(tc.get('expected_reply_type') or '').lower()
+            expected_state = str(tc.get('expected_state') or '')
             
             if not trigger:
                 results.append({'id': tc.get('id', idx), 'status': 'Skip', 'reason': 'No trigger keyword'})
@@ -125,23 +125,31 @@ def execute_tests():
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=RealDictCursor)
             
-            # 撈取機器人的最新歷史回應
-            history_table = f"history:{app_id}"
-            cur.execute(f"""
-                SELECT category, type, content FROM "{history_table}" 
-                WHERE user_id = %s AND timestamp >= %s AND category IN ('Response', 'sys_reply')
-                ORDER BY timestamp DESC LIMIT 1
-            """, (test_user_id, start_time))
-            history_row = cur.fetchone()
-            
-            # 撈取最新狀態
-            private_var_table = f"Private_var:{app_id}"
-            cur.execute(f"""
-                SELECT state FROM "{private_var_table}" 
-                WHERE user_id = %s
-            """, (test_user_id,))
-            state_row = cur.fetchone()
-            
+            history_row = None
+            state_row = None
+            try:
+                # 撈取機器人的最新歷史回應
+                history_table = f"history:{app_id}"
+                cur.execute(f"""
+                    SELECT category, type, content FROM "{history_table}" 
+                    WHERE user_id = %s AND timestamp >= %s AND category IN ('Response', 'sys_reply')
+                    ORDER BY timestamp DESC LIMIT 1
+                """, (test_user_id, start_time))
+                history_row = cur.fetchone()
+            except Exception as e:
+                conn.rollback() # 取消發生的錯誤
+                
+            try:
+                # 撈取最新狀態
+                private_var_table = f"Private_var:{app_id}"
+                cur.execute(f"""
+                    SELECT state FROM "{private_var_table}" 
+                    WHERE user_id = %s
+                """, (test_user_id,))
+                state_row = cur.fetchone()
+            except Exception as e:
+                conn.rollback()
+                
             cur.close()
             conn.close()
 
@@ -173,5 +181,6 @@ def execute_tests():
         return jsonify({'status': 'success', 'results': results, 'test_user_id': test_user_id})
     except Exception as e:
         import traceback
-        print(f"Test Execution Error: {traceback.format_exc()}")
-        return jsonify({'error': str(e)}), 500
+        err_msg = traceback.format_exc()
+        print(f"Test Execution Error: {err_msg}")
+        return jsonify({'error': str(e), 'traceback': err_msg}), 500
