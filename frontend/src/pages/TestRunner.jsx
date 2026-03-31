@@ -174,10 +174,9 @@ function TestRunner() {
         }
     };
 
-    // Table functions
     const addTestCase = () => {
         const newId = testCases.length > 0 ? Math.max(...testCases.map(t => t.id || 0)) + 1 : 1;
-        setTestCases([...testCases, { id: newId, name: '', trigger_keyword: '', expected_reply_type: '', expected_state: '00000' }]);
+        setTestCases([...testCases, { id: newId, name: '', trigger_keyword: '', expected_state: '00000' }]);
     };
 
     const removeTestCase = (index) => {
@@ -262,7 +261,6 @@ function TestRunner() {
                                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333', width: '30px' }}>#</th>
                                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>情境名稱</th>
                                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>觸發關鍵字</th>
-                                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>預期類型</th>
                                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>預期狀態</th>
                                         <th style={{ padding: '10px', textAlign: 'center', borderBottom: '1px solid #333', width: '40px' }}>刪除</th>
                                     </tr>
@@ -278,10 +276,6 @@ function TestRunner() {
                                             <td style={{ padding: '8px' }}>
                                                 <input type="text" value={tc.trigger_keyword || ''} onChange={e => updateTestCase(idx, 'trigger_keyword', e.target.value)} 
                                                     style={{ width: '100%', padding: '6px', backgroundColor: '#111', border: '1px solid #444', color: '#fff' }} placeholder="#test" />
-                                            </td>
-                                            <td style={{ padding: '8px' }}>
-                                                <input type="text" value={tc.expected_reply_type || ''} onChange={e => updateTestCase(idx, 'expected_reply_type', e.target.value)} 
-                                                    style={{ width: '100%', padding: '6px', backgroundColor: '#111', border: '1px solid #444', color: '#fff' }} placeholder="text/flex" />
                                             </td>
                                             <td style={{ padding: '8px' }}>
                                                 <input type="text" value={tc.expected_state || ''} onChange={e => updateTestCase(idx, 'expected_state', e.target.value)} 
@@ -348,7 +342,6 @@ function TestRunner() {
                                             <td style={{ padding: '10px', color: '#eee', verticalAlign: 'top', fontWeight: 'bold' }}>{res.name}</td>
                                             <td style={{ padding: '10px', color: '#ccc', verticalAlign: 'top', fontWeight: 'bold' }}>{res.keyword}</td>
                                             <td style={{ padding: '10px', color: res.status === 'Fail' ? '#ff9999' : '#aaa' }}>
-                                                <div style={{ marginBottom: '4px' }}><span style={{ color: '#888', marginRight: '5px' }}>[{res.actual_type}]</span></div>
                                                 <div style={{ wordBreak: 'break-all', maxHeight: '60px', overflowY: 'hidden' }}>{String(res.actual_content).substring(0, 100)}{String(res.actual_content).length > 100 ? '...' : ''}</div>
                                                 {res.status === 'Fail' && <div style={{ color: '#ff4d4d', marginTop: '5px', fontSize: '12px' }}>原因: {res.reason}</div>}
                                             </td>
