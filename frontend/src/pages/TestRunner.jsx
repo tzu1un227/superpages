@@ -61,7 +61,7 @@ function TestRunner() {
         
         try {
             showToast('執行測試中，請稍候...', 'info');
-            const res = await api.post('/test-runner/execute', { cases: testCases });
+            const res = await api.post('/test-runner/execute', { cases: testCases }, { timeout: 120000 });
             if (res.data.results) {
                 setResults(res.data.results);
                 setTestUserId(res.data.test_user_id);
@@ -86,7 +86,7 @@ function TestRunner() {
             showToast(`正在發送指令：${commandName}，請稍候...`, 'info');
             const res = await api.post('/test-runner/execute', { 
                 cases: [{ trigger_keyword: commandName, expected_reply_type: '' }] 
-            });
+            }, { timeout: 60000 });
             const result = res.data.results[0];
             if (result && result.actual_content) {
                 showToast(`機器人回應：${result.actual_content.substring(0, 50)}...`, 'success');
@@ -94,7 +94,7 @@ function TestRunner() {
                 showToast('指令發送成功，但機器人未回應或重新啟動中', 'info');
             }
         } catch (err) {
-            showToast('發送指令失敗', 'error');
+            showToast('發送指令失敗: ' + (err.response?.data?.error || err.message), 'error');
         } finally {
             setRunning(false);
         }
@@ -111,15 +111,15 @@ function TestRunner() {
         
         try {
             // 階段 1: 載入測試法則
-            showToast('【階段 1/3】向機器人發送「上傳測試版」，請稍候 10 秒等待同步...', 'info');
+            showToast('【階段 1/3】向機器人發送切換指令，請稍候 10 秒等待同步...', 'info');
             await api.post('/test-runner/execute', { 
-                cases: [{ trigger_keyword: '上傳測試版', expected_reply_type: '' }] 
-            });
+                cases: [{ trigger_keyword: '!更新法則 一般法則_測試版', expected_reply_type: '' }] 
+            }, { timeout: 60000 });
             await new Promise(r => setTimeout(r, 10000));
             
             // 階段 2: 執行全部測試
-            showToast('【階段 2/3】正在自動化執行全部測試...', 'info');
-            const res = await api.post('/test-runner/execute', { cases: testCases });
+            showToast('【階段 2/3】正在自動化執行全部測試 (可能耗時稍久)...', 'info');
+            const res = await api.post('/test-runner/execute', { cases: testCases }, { timeout: 120000 });
             let hasFails = false;
             
             if (res.data.results) {
@@ -133,7 +133,7 @@ function TestRunner() {
             showToast('【階段 3/3】測試完畢，發送「上傳」指令以還原正式法則庫 (等待10秒)...', 'info');
             await api.post('/test-runner/execute', { 
                 cases: [{ trigger_keyword: '上傳', expected_reply_type: '' }] 
-            });
+            }, { timeout: 60000 });
             await new Promise(r => setTimeout(r, 10000));
             
             if (hasFails) {
