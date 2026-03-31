@@ -4,6 +4,7 @@ import psycopg2
 import json
 import time
 import uuid
+import ast
 from utils.socket_utils import send_socket_event
 
 test_runner_bp = Blueprint('test_runner', __name__)
@@ -22,7 +23,7 @@ def get_logical_app_id():
 
 DEFAULT_TEST_CASES = [
     {"id": 1, "trigger_keyword": "純文字回訊測試", "expected_state": "00000"},
-    {"id": 2, "trigger_keyword": "狀態跳轉測試-進入", "expected_state": "TEST01"},
+    {"id": 2, "trigger_keyword": "狀態跳轉測試-進入", "expected_state": "TEST1"},
     {"id": 3, "trigger_keyword": "狀態跳轉測試-確認", "expected_state": "00000"},
     {"id": 4, "trigger_keyword": "Smarteval-動態變數測試", "expected_state": "00000"},
     {"id": 5, "trigger_keyword": "Smarteval-資料庫存取測試", "expected_state": "00000"},
@@ -161,8 +162,8 @@ def execute_tests():
                 # 撈取最新狀態
                 private_var_table = f"Private_var:{app_id}"
                 cur.execute(f"""
-                    SELECT state FROM "{private_var_table}" 
-                    WHERE user_id = %s
+                    SELECT value as state FROM "{private_var_table}" 
+                    WHERE user_id = %s AND name = 'state'
                 """, (test_user_id,))
                 state_row = cur.fetchone()
             except Exception as e:
@@ -171,8 +172,34 @@ def execute_tests():
             cur.close()
             conn.close()
 
-            actual_content = history_row['content'] if history_row else '無回應'
+            actual_content_raw = history_row['content'] if history_row else '無回應'
 
+            # 嘗試解析 unicode 與字典結構，提取真正的純文字訊息摘要
+            parsed_preview = actual_content_raw
+            if actual_content_raw != '無回應':
+                try:
+                    # 先試著用 ast 轉回 Python 物件 (能同時解碼 \u 並且支援單引號)
+                    parsed = ast.literal_eval(actual_content_raw)
+                    if isinstance(parsed, list):
+                        texts = []
+                        for item in parsed:
+                            if isinstance(item, dict):
+                                if 'text' in item: texts.append(item['text'])
+                                elif 'type' in item: texts.append(f"[{item['type']}]")
+                            elif isinstance(item, str):
+                                texts.append(item)
+                        if texts:
+                            parsed_preview = " | ".join(texts)
+                    elif isinstance(parsed, dict):
+                        if 'text' in parsed: parsed_preview = parsed['text']
+                        elif 'type' in parsed: parsed_preview = f"[{parsed['type']}]"
+                except Exception:
+                    # 如果不是標準結構，嘗試單純把 unicode_escape 轉為中文
+                    try:
+                        parsed_preview = actual_content_raw.encode('utf-8').decode('unicode_escape')
+                    except Exception:
+                        pass
+            
             actual_state = state_row['state'] if state_row else '00000'
             
             # 檢驗邏輯
@@ -187,7 +214,7 @@ def execute_tests():
             results.append({
                 'id': tc.get('id', idx),
                 'keyword': trigger,
-                'actual_content': actual_content,
+                'actual_content': parsed_preview,
                 'actual_state': actual_state,
                 'status': status_text,
                 'reason': ", ".join(reason) if reason else "Success"

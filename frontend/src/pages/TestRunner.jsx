@@ -301,15 +301,20 @@ function TestRunner() {
                         )}
                     </div>
                     
-                    {running ? (
+                    {results.length === 0 && running ? (
                         <div style={{ padding: '60px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
                             <LoadingSpinner size={40} />
-                            <p style={{ color: '#888' }}>正在與機器人通訊並分析資料庫紀錄...</p>
+                            <p style={{ color: '#888' }}>正在準備執行自動化測試階段...</p>
                         </div>
                     ) : results.length === 0 ? (
-                        <div style={{ padding: '60px', textAlign: 'center', color: '#666' }}>尚未執行測試。請點擊「執行全部測試」按鈕。</div>
+                        <div style={{ padding: '60px', textAlign: 'center', color: '#666' }}>尚未執行測試。請點擊上方按鈕開始。</div>
                     ) : (
                         <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
+                            {running && (
+                                <div style={{ padding: '10px', backgroundColor: '#333', textAlign: 'center', fontSize: '13px', color: '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                                    <LoadingSpinner size={16} /> 正在逐筆寫入測試記錄...
+                                </div>
+                            )}
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                                 <thead style={{ position: 'sticky', top: 0, backgroundColor: '#1e1e1e', zIndex: 10 }}>
                                     <tr>
