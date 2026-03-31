@@ -118,8 +118,13 @@ def execute_tests():
                 results.append({'id': tc.get('id', idx), 'status': 'Skip', 'reason': 'No trigger keyword'})
                 continue
             
-            # Step 1: 紀錄發送前的時間戳記，以利後續查詢歷史紀錄
-            start_time = time.strftime('%Y-%m-%d %H:%M:%S')
+            # Step 1: 紀錄發送前的時間戳記 (直接向 DB 取時間避免時區落差造成完全撈不到資料)
+            conn_ts = get_db_connection()
+            cur_ts = conn_ts.cursor(cursor_factory=RealDictCursor)
+            cur_ts.execute("SELECT NOW() - INTERVAL '2 seconds' as now")
+            start_time = cur_ts.fetchone()['now']
+            cur_ts.close()
+            conn_ts.close()
             
             # Step 2: 透過 Socket.IO 發送模擬訊息
             payload = {
