@@ -175,6 +175,7 @@ const ProjectsManagement = () => {
     const [draggedItemIndex, setDraggedItemIndex] = useState(null);
     const [isCreatingSchedule, setIsCreatingSchedule] = useState(false);
     const [pageLoading, setPageLoading] = useState(false);
+    const [schedulesLoading, setSchedulesLoading] = useState(false);
     const [projectsLoading, setProjectsLoading] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const fileInputRef = React.useRef(null);
@@ -509,7 +510,7 @@ const ProjectsManagement = () => {
         // Show loader only if cache is empty
         const hasCache = schedulesCacheRef.current[selectedProjectId] && schedulesCacheRef.current[selectedProjectId].length > 0;
         if (!hasCache) {
-            setPageLoading(true);
+            setSchedulesLoading(true);
             setSchedules([]);
         }
         
@@ -525,12 +526,12 @@ const ProjectsManagement = () => {
             // Always update cache and state
             schedulesCacheRef.current[selectedProjectId] = sortedData;
             setSchedules(sortedData);
-            setPageLoading(false);
+            setSchedulesLoading(false);
         } catch (err) {
             if (selectedProjectIdRef.current === currentIdWhenStarted) {
                 console.error("Fetch schedules error:", err);
                 setError('無法取得排程資料: ' + (err.response?.data?.error || err.message));
-                setPageLoading(false);
+                setSchedulesLoading(false);
             }
         }
     };
@@ -1620,7 +1621,7 @@ const ProjectsManagement = () => {
                                     ) : (
                                         <tr>
                                             <td colSpan="5" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
-                                                {pageLoading ? (
+                                                {schedulesLoading ? (
                                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                                                         <CircularProgress size={16} sx={{ color: 'var(--primary-yellow)' }} />
                                                         載入排程中...
