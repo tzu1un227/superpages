@@ -20,6 +20,16 @@ function TestRunner() {
     const [results, setResults] = useState([]);
     const [testUserId, setTestUserId] = useState('');
 
+    const [cmdLoadQ, setCmdLoadQ] = useState(localStorage.getItem('cmdLoadQ') || '!更新法則 一般法則_測試版');
+    const [cmdLoadQA, setCmdLoadQA] = useState(localStorage.getItem('cmdLoadQA') || '!更新QA 問答題庫_測試版');
+    const [cmdRestoreQ, setCmdRestoreQ] = useState(localStorage.getItem('cmdRestoreQ') || '上傳');
+    const [cmdRestoreQA, setCmdRestoreQA] = useState(localStorage.getItem('cmdRestoreQA') || 'QA上傳');
+
+    useEffect(() => localStorage.setItem('cmdLoadQ', cmdLoadQ), [cmdLoadQ]);
+    useEffect(() => localStorage.setItem('cmdLoadQA', cmdLoadQA), [cmdLoadQA]);
+    useEffect(() => localStorage.setItem('cmdRestoreQ', cmdRestoreQ), [cmdRestoreQ]);
+    useEffect(() => localStorage.setItem('cmdRestoreQA', cmdRestoreQA), [cmdRestoreQA]);
+
     useEffect(() => {
         fetchTestCases();
     }, [oaId]);
@@ -122,15 +132,22 @@ function TestRunner() {
         setResults([]);
         
         try {
-            // 階段 1: 載入測試法則
-            showToast('【階段 1/3】向機器人發送切換指令，請稍候 10 秒等待同步...', 'info');
+            // 階段 1: 載入測試法則 Q
+            showToast('【階段 1/5】向機器人發送載入一般法則庫指令...', 'info');
             await api.post('/test-runner/execute', { 
-                cases: [{ trigger_keyword: '!更新法則 一般法則_測試版', expected_reply_type: '' }] 
+                cases: [{ trigger_keyword: cmdLoadQ, expected_reply_type: '' }] 
             }, { timeout: 60000 });
-            await new Promise(r => setTimeout(r, 10000));
+            await new Promise(r => setTimeout(r, 6000));
+
+            // 階段 2: 載入測試 QA
+            showToast('【階段 2/5】向機器人發送載入 QA 題庫指令...', 'info');
+            await api.post('/test-runner/execute', { 
+                cases: [{ trigger_keyword: cmdLoadQA, expected_reply_type: '' }] 
+            }, { timeout: 60000 });
+            await new Promise(r => setTimeout(r, 8000));
             
-            // 階段 2: 執行全部測試
-            showToast('【階段 2/3】正在自動化逐筆執行測試，畫面會即時更新結果...', 'info');
+            // 階段 3: 執行全部測試
+            showToast('【階段 3/5】正在自動化逐筆執行測試，請稍後...', 'info');
             let hasFails = false;
             let currentResults = [];
             
@@ -155,12 +172,19 @@ function TestRunner() {
                 }
             }
             
-            // 階段 3: 還原正式法則
-            showToast('【階段 3/3】測試完畢，發送「上傳」指令以還原正式法則庫 (等待10秒)...', 'info');
+            // 階段 4: 還原正式法則
+            showToast('【階段 4/5】測試完畢，發送「還原」指令以還原正式法則庫...', 'info');
             await api.post('/test-runner/execute', { 
-                cases: [{ trigger_keyword: '上傳', expected_reply_type: '' }] 
+                cases: [{ trigger_keyword: cmdRestoreQ, expected_reply_type: '' }] 
             }, { timeout: 60000 });
-            await new Promise(r => setTimeout(r, 10000));
+            await new Promise(r => setTimeout(r, 5000));
+
+            // 階段 5: 還原 QA
+            showToast('【階段 5/5】發送指令還原正式 QA 題庫...', 'info');
+            await api.post('/test-runner/execute', { 
+                cases: [{ trigger_keyword: cmdRestoreQA, expected_reply_type: '' }] 
+            }, { timeout: 60000 });
+            await new Promise(r => setTimeout(r, 5000));
             
             if (hasFails) {
                 showToast('一鍵測試流程完成，但有部分測試失敗 ❌', 'error');
@@ -176,7 +200,7 @@ function TestRunner() {
 
     const addTestCase = () => {
         const newId = testCases.length > 0 ? Math.max(...testCases.map(t => t.id || 0)) + 1 : 1;
-        setTestCases([...testCases, { id: newId, trigger_keyword: '', expected_state: '00000' }]);
+        setTestCases([...testCases, { id: newId, trigger_type: 'Message', trigger_keyword: '', expected_state: '00000' }]);
     };
 
     const removeTestCase = (index) => {
@@ -209,6 +233,29 @@ function TestRunner() {
                     <button onClick={() => runSheetSyncCommand('上傳')} className="secondary" disabled={running}>
                         <RefreshCw size={18} /> 還原正式法則庫
                     </button>
+                </div>
+            </div>
+
+            {/* Command Config Bar */}
+            <div className="card" style={{ padding: '15px 20px', display: 'flex', gap: '20px', flexDirection: 'column' }}>
+                <div style={{color: '#888', fontSize: '13px', fontWeight: 'bold'}}>一鍵測試設定 (變更後自動存檔)</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    <div>
+                        <div style={{fontSize: '12px', color: '#666', marginBottom: '5px'}}>載入一般法則(Q)指令</div>
+                        <input type="text" value={cmdLoadQ} onChange={e => setCmdLoadQ(e.target.value)} style={{width: '100%', padding: '8px', backgroundColor: '#111', border: '1px solid #333', color: '#fff'}} />
+                    </div>
+                    <div>
+                        <div style={{fontSize: '12px', color: '#666', marginBottom: '5px'}}>載入問答題庫(QA)指令</div>
+                        <input type="text" value={cmdLoadQA} onChange={e => setCmdLoadQA(e.target.value)} style={{width: '100%', padding: '8px', backgroundColor: '#111', border: '1px solid #333', color: '#fff'}} />
+                    </div>
+                    <div>
+                        <div style={{fontSize: '12px', color: '#666', marginBottom: '5px'}}>還原一般法則(Q)指令</div>
+                        <input type="text" value={cmdRestoreQ} onChange={e => setCmdRestoreQ(e.target.value)} style={{width: '100%', padding: '8px', backgroundColor: '#111', border: '1px solid #333', color: '#fff'}} />
+                    </div>
+                    <div>
+                        <div style={{fontSize: '12px', color: '#666', marginBottom: '5px'}}>還原問答題庫(QA)指令</div>
+                        <input type="text" value={cmdRestoreQA} onChange={e => setCmdRestoreQA(e.target.value)} style={{width: '100%', padding: '8px', backgroundColor: '#111', border: '1px solid #333', color: '#fff'}} />
+                    </div>
                 </div>
             </div>
 
@@ -259,8 +306,10 @@ function TestRunner() {
                                 <thead style={{ position: 'sticky', top: 0, backgroundColor: '#1e1e1e', zIndex: 10 }}>
                                     <tr>
                                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333', width: '30px' }}>#</th>
-                                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>觸發關鍵字</th>
-                                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>預期狀態(選填)</th>
+                                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333', width: '110px' }}>事件類型</th>
+                                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>觸發內容/關鍵字</th>
+                                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333', width: '120px' }}>預期回覆格式</th>
+                                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333', width: '120px' }}>預期狀態</th>
                                         <th style={{ padding: '10px', textAlign: 'center', borderBottom: '1px solid #333', width: '40px' }}>刪除</th>
                                     </tr>
                                 </thead>
@@ -269,8 +318,33 @@ function TestRunner() {
                                         <tr key={idx} style={{ borderBottom: '1px solid #2a2a2a' }}>
                                             <td style={{ padding: '10px', color: '#888' }}>{idx + 1}</td>
                                             <td style={{ padding: '8px' }}>
+                                                <select value={tc.trigger_type || 'Message'} onChange={e => updateTestCase(idx, 'trigger_type', e.target.value)}
+                                                    style={{ width: '100%', padding: '6px', backgroundColor: '#111', border: '1px solid #444', color: '#fff' }}>
+                                                    <option value="Message">Message</option>
+                                                    <option value="Image">Image</option>
+                                                    <option value="Location">Location</option>
+                                                    <option value="Beacon">Beacon</option>
+                                                    <option value="Postback">Postback</option>
+                                                    <option value="Follow">Follow</option>
+                                                    <option value="Unfollow">Unfollow</option>
+                                                    <option value="Sensor">Sensor</option>
+                                                </select>
+                                            </td>
+                                            <td style={{ padding: '8px' }}>
                                                 <input type="text" value={tc.trigger_keyword || ''} onChange={e => updateTestCase(idx, 'trigger_keyword', e.target.value)} 
-                                                    style={{ width: '100%', padding: '6px', backgroundColor: '#111', border: '1px solid #444', color: '#fff' }} placeholder="#test" />
+                                                    style={{ width: '100%', padding: '6px', backgroundColor: '#111', border: '1px solid #444', color: '#fff' }} placeholder="觸發內容" />
+                                            </td>
+                                            <td style={{ padding: '8px' }}>
+                                                <select value={tc.expected_reply_type || 'text'} onChange={e => updateTestCase(idx, 'expected_reply_type', e.target.value)}
+                                                    style={{ width: '100%', padding: '6px', backgroundColor: '#111', border: '1px solid #444', color: '#fff' }}>
+                                                    <option value="">(無)</option>
+                                                    <option value="text">文字 (text)</option>
+                                                    <option value="image">圖片 (image)</option>
+                                                    <option value="flex">Flex 卡片</option>
+                                                    <option value="video">影片 (video)</option>
+                                                    <option value="audio">語音 (audio)</option>
+                                                    <option value="location">位置 (location)</option>
+                                                </select>
                                             </td>
                                             <td style={{ padding: '8px' }}>
                                                 <input type="text" value={tc.expected_state || ''} onChange={e => updateTestCase(idx, 'expected_state', e.target.value)} 
@@ -319,7 +393,7 @@ function TestRunner() {
                                 <thead style={{ position: 'sticky', top: 0, backgroundColor: '#1e1e1e', zIndex: 10 }}>
                                     <tr>
                                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333', width: '50px' }}>狀態</th>
-                                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>觸發指令</th>
+                                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>觸發來源</th>
                                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>實際回覆預覽</th>
                                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>實際狀態</th>
                                     </tr>
@@ -338,8 +412,18 @@ function TestRunner() {
                                                     </div>
                                                 }
                                             </td>
-                                            <td style={{ padding: '10px', color: '#ccc', verticalAlign: 'top', fontWeight: 'bold' }}>{res.keyword}</td>
+                                            <td style={{ padding: '10px', color: '#ccc', verticalAlign: 'top', fontWeight: 'bold' }}>
+                                                <div style={{ color: '#888', fontSize: '11px', marginBottom: '2px' }}>{res.type}</div>
+                                                {res.keyword}
+                                            </td>
                                             <td style={{ padding: '10px', color: res.status === 'Fail' ? '#ff9999' : '#aaa' }}>
+                                                <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                                                    {res.actual_types && res.actual_types.map((t, i) => (
+                                                        <span key={i} style={{ backgroundColor: '#217b7b', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '11px' }}>
+                                                            {t}
+                                                        </span>
+                                                    ))}
+                                                </div>
                                                 <div style={{ wordBreak: 'break-all', maxHeight: '60px', overflowY: 'hidden' }}>{String(res.actual_content).substring(0, 100)}{String(res.actual_content).length > 100 ? '...' : ''}</div>
                                                 {res.status === 'Fail' && <div style={{ color: '#ff4d4d', marginTop: '5px', fontSize: '12px' }}>原因: {res.reason}</div>}
                                             </td>

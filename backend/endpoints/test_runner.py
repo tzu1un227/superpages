@@ -22,15 +22,33 @@ def get_logical_app_id():
     return '5013'
 
 DEFAULT_TEST_CASES = [
-    {"id": 1, "trigger_keyword": "純文字回訊測試", "expected_state": "00000"},
-    {"id": 2, "trigger_keyword": "狀態跳轉測試-進入", "expected_state": "TEST1"},
-    {"id": 3, "trigger_keyword": "狀態跳轉測試-確認", "expected_state": "00000"},
-    {"id": 4, "trigger_keyword": "Smarteval-動態變數測試", "expected_state": "00000"},
-    {"id": 5, "trigger_keyword": "Smarteval-資料庫存取測試", "expected_state": "00000"},
-    {"id": 6, "trigger_keyword": "Smarteval-系統內建函式測試", "expected_state": "00000"},
-    {"id": 7, "trigger_keyword": "更新觸發測試", "expected_state": "00000"},
-    {"id": 9, "trigger_keyword": "Check條件測試-恆真", "expected_state": "00000"},
-    {"id": 10, "trigger_keyword": "Check條件測試-恆假", "expected_state": "00000"},
+    # --------------[事件類型測試]--------------
+    {"id": 1, "trigger_type": "Message", "trigger_keyword": "#測試文字", "expected_state": "T0001", "expected_reply_type": "text"},
+    {"id": 2, "trigger_type": "Image", "trigger_keyword": "模擬上傳了一張圖片", "expected_state": "T0002", "expected_reply_type": "text"},
+    {"id": 3, "trigger_type": "Location", "trigger_keyword": "模擬發送了所在位置", "expected_state": "T0003", "expected_reply_type": "text"},
+    {"id": 4, "trigger_type": "Postback", "trigger_keyword": "action=test", "expected_state": "T0004", "expected_reply_type": "text"},
+    # --------------[Smarteval內建變數與函數測試: 數值操作]--------------
+    {"id": 5, "trigger_type": "Message", "trigger_keyword": "#變數設定", "expected_state": "T0005", "expected_reply_type": "text"},
+    {"id": 6, "trigger_type": "Message", "trigger_keyword": "#變數檢驗與遞增", "expected_state": "T0006", "expected_reply_type": "text"},
+    {"id": 7, "trigger_type": "Message", "trigger_keyword": "#遞增後檢驗並刪除", "expected_state": "T0007", "expected_reply_type": "text"},
+    # --------------[Smarteval內建變數與函數測試: 陣列操作]--------------
+    {"id": 8, "trigger_type": "Message", "trigger_keyword": "#陣列推入", "expected_state": "T0008", "expected_reply_type": "text"},
+    {"id": 9, "trigger_type": "Message", "trigger_keyword": "#陣列彈出檢驗", "expected_state": "T0009", "expected_reply_type": "text"},
+    {"id": 10, "trigger_type": "Message", "trigger_keyword": "#陣列指定移除檢驗", "expected_state": "T0010", "expected_reply_type": "text"},
+    # --------------[內建安全函數]--------------
+    {"id": 11, "trigger_type": "Message", "trigger_keyword": "#測試分割|分割後字串", "expected_state": "T0011", "expected_reply_type": "text"},
+    # --------------[Sensor與Update連動測試]--------------
+    {"id": 12, "trigger_type": "Message", "trigger_keyword": "#呼叫系統事件", "expected_state": "T0013", "expected_reply_type": "text"},
+    # --------------[QA與DB工具測試]--------------
+    {"id": 13, "trigger_type": "Message", "trigger_keyword": "#系統工具", "expected_state": "T0014", "expected_reply_type": "text"},
+    {"id": 14, "trigger_type": "Message", "trigger_keyword": "這是一個測試Q", "expected_state": "T0015", "expected_reply_type": "text"},
+    {"id": 15, "trigger_type": "Message", "trigger_keyword": "#QA防呆", "expected_state": "T0016", "expected_reply_type": "text"},
+    # --------------[外推訊息格式與Sys大亂鬥測試]--------------
+    {"id": 16, "trigger_type": "Message", "trigger_keyword": "#圖片格式傳送", "expected_state": "T0017", "expected_reply_type": "image"},
+    {"id": 17, "trigger_type": "Message", "trigger_keyword": "#Flex格式傳送", "expected_state": "T0018", "expected_reply_type": "flex"},
+    {"id": 18, "trigger_type": "Message", "trigger_keyword": "#Sys底層函數群測試", "expected_state": "T0019", "expected_reply_type": "text"},
+    # --------------[Smarteval 內建變數測試]--------------
+    {"id": 19, "trigger_type": "Message", "trigger_keyword": "#內建變數測試", "expected_state": "T0020", "expected_reply_type": "text"}
 ]
 
 @test_runner_bp.route('/test_cases', methods=['GET'])
@@ -110,6 +128,7 @@ def execute_tests():
     try:
         for idx, tc in enumerate(test_cases):
             trigger = tc.get('trigger_keyword') or ''
+            trigger_type = tc.get('trigger_type') or 'Message'
             expected_state = str(tc.get('expected_state') or '')
             
             if not trigger:
@@ -128,7 +147,7 @@ def execute_tests():
             payload = {
                 'user': test_user_id,
                 'message': trigger,
-                'type': 'Message',
+                'type': trigger_type,
                 'api_index': 0 
             }
             try:
@@ -173,17 +192,17 @@ def execute_tests():
             conn.close()
 
             actual_content_raw = history_row['content'] if history_row else '無回應'
-
-            # 嘗試解析 unicode 與字典結構，提取真正的純文字訊息摘要
             parsed_preview = actual_content_raw
+            actual_reply_types = []
+            
             if actual_content_raw != '無回應':
                 try:
-                    # 先試著用 ast 轉回 Python 物件 (能同時解碼 \u 並且支援單引號)
                     parsed = ast.literal_eval(actual_content_raw)
                     if isinstance(parsed, list):
                         texts = []
                         for item in parsed:
                             if isinstance(item, dict):
+                                if 'type' in item: actual_reply_types.append(item['type'])
                                 if 'text' in item: texts.append(item['text'])
                                 elif 'type' in item: texts.append(f"[{item['type']}]")
                             elif isinstance(item, str):
@@ -191,31 +210,36 @@ def execute_tests():
                         if texts:
                             parsed_preview = " | ".join(texts)
                     elif isinstance(parsed, dict):
+                        if 'type' in parsed: actual_reply_types.append(parsed['type'])
                         if 'text' in parsed: parsed_preview = parsed['text']
                         elif 'type' in parsed: parsed_preview = f"[{parsed['type']}]"
                 except Exception:
-                    # 如果不是標準結構，嘗試單純把 unicode_escape 轉為中文
                     try:
                         parsed_preview = actual_content_raw.encode('utf-8').decode('unicode_escape')
                     except Exception:
                         pass
             
             actual_state = state_row['state'] if state_row else '00000'
+            expected_reply_type = tc.get('expected_reply_type') or ''
             
-            # 檢驗邏輯
+            # 檢驗邏輯: 同時驗證 State 與 Reply Type
             pass_state = True if not expected_state else (expected_state == actual_state)
+            pass_type = True if not expected_reply_type else (expected_reply_type in actual_reply_types)
             
-            is_pass = pass_state # 目前僅依賴預期狀態
+            is_pass = pass_state and pass_type
             status_text = 'Pass' if is_pass else 'Fail'
             
             reason = []
             if expected_state and not pass_state: reason.append(f"預期狀態 {expected_state} 但拿到 {actual_state}")
+            if expected_reply_type and not pass_type: reason.append(f"預期回覆型態 {expected_reply_type} 但拿到 {actual_reply_types or '[]'}")
             
             results.append({
                 'id': tc.get('id', idx),
+                'type': trigger_type,
                 'keyword': trigger,
                 'actual_content': parsed_preview,
                 'actual_state': actual_state,
+                'actual_types': actual_reply_types,
                 'status': status_text,
                 'reason': ", ".join(reason) if reason else "Success"
             })
