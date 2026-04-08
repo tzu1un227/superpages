@@ -469,9 +469,9 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                 </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'row', flex: 1, overflow: 'hidden' }}>
-                {/* Editor Panel - Left */}
-                <div style={{ flex: '1.2', borderRight: '1px solid #444', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflowY: 'auto' }}>
+                {/* Editor Panel - Top */}
+                <div style={{ borderBottom: '1px solid #444', display: 'flex', flexDirection: 'column' }}>
                     <fieldset disabled={readOnly} style={{ border: 'none', padding: '20px', margin: 0, opacity: readOnly ? 0.7 : 1, minWidth: 0 }}>
 
                     {/* Carousel Nav */}
@@ -710,30 +710,27 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                     </fieldset>
                 </div>
 
-                {/* Preview Panel - Right */}
-                <div style={{ flex: '1', backgroundColor: '#1a1a1a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px', overflowY: 'auto' }}>
-                    <div style={{ marginBottom: '10px', color: '#666', fontSize: '12px', display: 'flex', gap: '20px' }}>
-                        <span>即時預覽</span>
-                        <span style={{ color: payloadSize > 9000 ? '#FF4D4D' : '#666', fontWeight: payloadSize > 9000 ? 'bold' : 'normal' }}>
+                {/* Preview Panel - Bottom */}
+                <div style={{ backgroundColor: '#1a1a1a', display: 'flex', flexDirection: 'column', padding: '20px' }}>
+                    <div style={{ marginBottom: '15px', color: '#aaa', fontSize: '14px', display: 'flex', gap: '20px', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 'bold' }}>即時預覽 (寬版)</span>
+                        <span style={{ color: payloadSize > 9000 ? '#FF4D4D' : '#888', fontWeight: payloadSize > 9000 ? 'bold' : 'normal' }}>
                             Payload Size: {payloadSize} / 10000 {payloadSize > 9000 && '(接近上限，建議縮減內容)'}
                         </span>
                     </div>
                     <div style={{
                         width: '100%',
-                        maxWidth: '380px',
-                        height: '100%',
-                        maxHeight: '650px',
-                        border: '8px solid #333',
-                        borderRadius: '24px',
+                        border: '1px solid #333',
+                        borderRadius: '12px',
                         overflow: 'hidden',
-                        backgroundColor: '#000',
+                        backgroundColor: '#8CAEC5',
                         display: 'flex',
                         flexDirection: 'column'
                     }}>
                         <div style={{ backgroundColor: '#2b2b2b', padding: '10px 15px', color: '#fff', fontSize: '14px', fontWeight: 'bold' }}>
-                            Preview
+                            LINE Preview
                         </div>
-                        <div style={{ flex: 1, backgroundColor: '#8CAEC5', overflowY: 'auto' }}>
+                        <div style={{ padding: '20px', overflowX: 'auto' }}>
                             <JourneyPreview steps={previewWrapper} />
                         </div>
                     </div>

@@ -238,6 +238,10 @@ const JourneyPreview = ({ steps = [] }) => {
                 }
             }
 
+            if (!content) {
+                return <div key={idx} style={styles.textBubble}>Flex 內容為空</div>;
+            }
+
             // Should interpret our internal structure (cards) if passed directly, 
             // OR standardized LINE Flex JSON.
             // But since the editor state passes the internal `cards` structure separate from the generated JSON,
@@ -248,14 +252,14 @@ const JourneyPreview = ({ steps = [] }) => {
             // Let's assume content is standard Flex bubble/carousel.
 
             if (content.type === 'carousel') {
+                if (!Array.isArray(content.contents)) {
+                    return <div key={idx} style={styles.textBubble}>Invalid Carousel Format</div>;
+                }
                 // Mock Carousel
                 return (
                     <div key={idx} style={styles.flexContainer}>
                         {content.contents.map((bubble, bIdx) => {
-                            // Map standard Flex Bubble back to our render helper? 
-                            // Or just simple visualization.
-                            // Let's try to parse the bubble structure loosely.
-
+                            if (!bubble || typeof bubble !== 'object') return null;
                             const hero = bubble.hero || {};
                             const body = bubble.body || {};
                             const footer = bubble.footer || {};
