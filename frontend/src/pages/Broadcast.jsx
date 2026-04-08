@@ -19,7 +19,64 @@ import JourneyPreview from '../components/JourneyPreview';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useToast } from '../contexts/ToastContext';
 
-function Broadcast() {
+class ErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null, errorInfo: null };
+    }
+
+    static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+    }
+
+    componentDidCatch(error, errorInfo) {
+        this.setState({ errorInfo });
+        console.error("ErrorBoundary caught an error inside Broadcast:", error, errorInfo);
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div style={{ padding: '40px', margin: '20px', borderRadius: '12px', backgroundColor: '#1a0000', color: '#ffaaaa', border: '1px solid #ff4444', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
+                    <h2 style={{ color: '#ff4444', display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px' }}><AlertCircle size={32} /> 偵測到廣播模組崩潰 (UI Crash)</h2>
+                    <div style={{ backgroundColor: '#2a0000', padding: '20px', borderRadius: '8px', marginBottom: '25px' }}>
+                        <p style={{ fontSize: '18px', fontWeight: 'bold', color: '#fff', marginBottom: '10px' }}>系統偵測到渲染錯誤：</p>
+                        <p style={{ fontSize: '15px', opacity: 0.9 }}>這通常是因為資料庫中存在格式不完整的舊訊息所導致。請不要擔心，您可以將下方的錯誤資訊複製並提供給開發人員修復。</p>
+                    </div>
+
+                    <div style={{ backgroundColor: '#000', padding: '25px', overflowX: 'auto', borderRadius: '8px', border: '1px solid #444', position: 'relative' }}>
+                        <h4 style={{ margin: '0 0 15px 0', color: 'var(--primary-yellow)', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>錯誤追蹤碼 (Error Stack)</h4>
+                        <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: '12px', color: '#00ff00', fontFamily: 'monospace', maxHeight: '400px', overflowY: 'auto' }}>
+                            {this.state.error && this.state.error.toString()}\n\n
+                            {this.state.errorInfo && this.state.errorInfo.componentStack}
+                        </pre>
+                    </div>
+
+                    <div style={{ marginTop: '30px', display: 'flex', gap: '15px' }}>
+                        <button 
+                            onClick={() => window.location.reload()} 
+                            style={{ padding: '12px 30px', backgroundColor: '#fff', color: '#000', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                        >
+                            <RefreshCcw size={18} /> 重新整理頁面
+                        </button>
+                        <button 
+                            onClick={() => {
+                                const text = `${this.state.error && this.state.error.toString()}\n\n${this.state.errorInfo && this.state.errorInfo.componentStack}`;
+                                navigator.clipboard.writeText(text);
+                                alert('錯誤資訊已複製到剪貼簿！');
+                            }} 
+                            style={{ padding: '12px 30px', backgroundColor: 'transparent', color: '#fff', border: '1px solid #fff', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
+                        >
+                            複製錯誤資訊
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
+function BroadcastContent() {
     const { oaId } = useParams();
     const location = useLocation();
     const { showToast } = useToast();
@@ -606,11 +663,11 @@ function Broadcast() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                     <div>
                         <p style={{ color: '#666', fontSize: '13px', marginBottom: '8px' }}>預計發送人數</p>
-                        <p style={{ fontSize: '28px', fontWeight: 'bold', color: 'var(--primary-yellow)' }}>{stats.count.toLocaleString()}</p>
+                        <p style={{ fontSize: '28px', fontWeight: 'bold', color: 'var(--primary-yellow)' }}>{(stats?.count || 0).toLocaleString()}</p>
                     </div>
                     <div>
                         <p style={{ color: '#666', fontSize: '13px', marginBottom: '8px' }}>好友總數</p>
-                        <p style={{ fontSize: '28px', fontWeight: 'bold' }}>{stats.total.toLocaleString()}</p>
+                        <p style={{ fontSize: '28px', fontWeight: 'bold' }}>{(stats?.total || 0).toLocaleString()}</p>
                     </div>
                 </div>
 
@@ -890,16 +947,16 @@ function Broadcast() {
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                         <span style={{ color: '#666', fontSize: '13px' }}>受眾人數</span>
-                        <span style={{ fontWeight: 'bold' }}>{stats.count.toLocaleString()} 人</span>
+                        <span style={{ fontWeight: 'bold' }}>{(stats?.count || 0).toLocaleString()} 人</span>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                         <span style={{ color: '#666', fontSize: '13px' }}>訊息組成</span>
-                        <span style={{ fontWeight: 'bold' }}>{formData.messages.length} 則混合訊息</span>
+                        <span style={{ fontWeight: 'bold' }}>{(formData.messages || []).length} 則混合訊息</span>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                         <span style={{ color: '#666', fontSize: '13px' }}>執行方式</span>
                         <span style={{ fontWeight: 'bold' }}>
-                            {formData.send_type === 'immediate' ? '立即發送' : `預約 (於 ${new Date(formData.scheduled_at).toLocaleString()})`}
+                            {formData.send_type === 'immediate' ? '立即發送' : `預約 (於 ${formData.scheduled_at ? new Date(formData.scheduled_at).toLocaleString() : '未設定時間'})`}
                         </span>
                     </div>
                 </div>
@@ -1060,7 +1117,7 @@ function Broadcast() {
                         width: 'auto', outline: 'none'
                     }}>
                         <JourneyPreview
-                            steps={formData.messages.filter(m => m != null).map(m => {
+                            steps={(formData.messages || []).filter(m => m != null).map(m => {
                                 if (m.OTYPE === 'TextSendMessage') return { OTYPE: m.OTYPE, text: m.text };
                                 if (m.OTYPE === 'FlexSendMessage') return { OTYPE: 'FlexSendMessage', contents: m.contents };
                                 return {
@@ -1262,7 +1319,7 @@ function Broadcast() {
                             <IconButton onClick={() => setPreviewBcMessages(null)} sx={{ color: '#888' }}><X size={18} /></IconButton>
                         </div>
                         <JourneyPreview
-                            steps={previewBcMessages.map(m => {
+                            steps={(previewBcMessages || []).map(m => {
                                 if (m.OTYPE === 'TextSendMessage') return { OTYPE: m.OTYPE, text: m.text };
                                 if (m.OTYPE === 'FlexSendMessage') return { OTYPE: 'FlexSendMessage', contents: m.contents };
                                 return {
@@ -1279,4 +1336,10 @@ function Broadcast() {
     );
 }
 
-export default Broadcast;
+export default function Broadcast(props) {
+    return (
+        <ErrorBoundary>
+            <BroadcastContent {...props} />
+        </ErrorBoundary>
+    );
+}

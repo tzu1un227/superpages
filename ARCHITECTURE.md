@@ -216,6 +216,7 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - Manages `broadcasts` table.
     - Integrates with `QA_bank` for message storage and `cron_table` for scheduling.
     - Audience count logic uses `Private_var` for tag/all logic and calculates coverage ratio.
+    - **Stability Pattern**: Uses a top-level `ErrorBoundary` to capture rendering exceptions and provide copyable stack traces. Employs defensive rendering guards (optional chaining, default values) for all derived data (stats, message summaries) and filters null messages from legacy data sequences.
 
 ### Rule Designer (法則表設計) [2026-03-18 更新]
 - **Frontend**: `RuleDesigner.jsx`. (Route: `/ruledesigner`).
