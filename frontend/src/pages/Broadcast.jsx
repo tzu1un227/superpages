@@ -795,7 +795,7 @@ function Broadcast() {
                                 <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px' }}>使用視覺化編輯器設定 Flex 訊息內容</p>
                                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
                                     <button className="secondary" onClick={() => openMessageEditor(idx)}>
-                                        <Edit2 size={16} /> 開啟編輯器
+                                        {isViewOnly ? <Eye size={16} /> : <Edit2 size={16} />} {isViewOnly ? '檢視內容' : '開啟編輯器'}
                                     </button>
                                 </div>
                                 {msg.contents && (
@@ -935,7 +935,7 @@ function Broadcast() {
                     ))}
                 </div>
 
-                <div style={{ minHeight: '400px', opacity: isViewOnly && step !== 1 ? 0.7 : 1, pointerEvents: isViewOnly ? 'none' : 'auto' }}>
+                <div style={{ minHeight: '400px', opacity: isViewOnly && step !== 1 ? 0.9 : 1, pointerEvents: (isViewOnly && step === 3) ? 'none' : 'auto' }}>
                     {step === 1 && renderStep1()}
                     {step === 2 && renderStep2()}
                     {step === 3 && renderStep3()}
@@ -1002,12 +1002,13 @@ function Broadcast() {
                         <FlexMessageEditor
                             initialContent={formData.messages[editingMsgIndex]?.contents}
                             onSave={handleFlexSave}
+                            readOnly={isViewOnly}
                         />
                     </DialogContent>
                     <DialogActions sx={{ borderTop: '1px solid #333', p: 2 }}>
                         <Button onClick={() => {
                             const currentMsg = formData.messages[editingMsgIndex];
-                            if (currentMsg && currentMsg.OTYPE === 'FlexSendMessage') {
+                            if (!isViewOnly && currentMsg && currentMsg.OTYPE === 'FlexSendMessage') {
                                 const contents = currentMsg.contents;
                                 const bubbles = (contents && contents.type === 'carousel') ? contents.contents : [contents];
                                 for (let j = 0; j < bubbles.length; j++) {
@@ -1040,7 +1041,7 @@ function Broadcast() {
                                 }
                             }
                             setIsFlexEditorOpen(false);
-                        }} sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold' }}>完成並返回</Button>
+                        }} sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold' }}>{isViewOnly ? '關閉' : '完成並返回'}</Button>
                     </DialogActions>
                 </Dialog>
 

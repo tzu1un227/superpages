@@ -882,7 +882,9 @@ def get_project_users(id):
         # Use a subquery to get the minimum active step_id for each user to avoid duplicates
         cur.execute(f"""
             SELECT ups.user_id, LOWER(ups.status) as status, 
-                   (SELECT MIN(step_id) FROM cron_table WHERE user_id = ups.user_id AND project_id = ups.project_id AND status = 'active') as step_id, 
+                   (SELECT MIN(step_id) FROM cron_table WHERE user_id = ups.user_id AND project_id = ups.project_id AND status = 'active') as step_id,
+                   (SELECT push_time FROM cron_table WHERE user_id = ups.user_id AND project_id = ups.project_id AND status = 'active' ORDER BY step_id ASC LIMIT 1) as next_push_time,
+                   ups.updated_at as joined_at,
                    p.value as user_name 
             FROM user_project_status ups
             LEFT JOIN "Private_var:{app_id}" p ON ups.user_id = p.user_id AND p.name = 'name'

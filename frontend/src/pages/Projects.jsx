@@ -1116,25 +1116,28 @@ const ProjectsManagement = () => {
         </>
     );
 
-    const LoadingOverlay = ({ message, progress }) => (
+    const StatusIndicator = ({ message, progress }) => (
         <div style={{
             position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.6)',
+            top: '80px', // Header offset
+            right: '20px',
+            backgroundColor: '#222',
+            border: '1px solid #444',
+            borderRadius: '8px',
+            padding: '15px 20px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+            zIndex: 9999,
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 9999,
-            backdropFilter: 'blur(4px)'
+            gap: '10px',
+            minWidth: '250px'
         }}>
-            <LoadingSpinner message={message} />
-            <p style={{ marginTop: '15px', color: '#FFD700', fontSize: '14px', fontWeight: 'bold' }}>系統正在處理中，請勿關閉或重新整理網頁</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <CircularProgress size={20} sx={{ color: 'var(--primary-yellow)' }} />
+                <span style={{ fontSize: '14px', color: '#fff', fontWeight: 'bold' }}>{message}</span>
+            </div>
             {progress > 0 && (
-                <div style={{ width: '300px', height: '10px', backgroundColor: '#333', borderRadius: '5px', marginTop: '20px', overflow: 'hidden' }}>
+                <div style={{ width: '100%', height: '6px', backgroundColor: '#333', borderRadius: '3px', overflow: 'hidden' }}>
                     <div style={{ width: `${progress}%`, height: '100%', backgroundColor: 'var(--primary-yellow)', transition: 'width 0.3s ease' }} />
                 </div>
             )}
@@ -1143,7 +1146,7 @@ const ProjectsManagement = () => {
 
     return (
         <div style={{ padding: '30px' }}>
-            {isProcessing && <LoadingOverlay message={processingMessage} progress={importProgress} />}
+            {isProcessing && <StatusIndicator message={processingMessage} progress={importProgress} />}
             <div style={{ marginBottom: '40px' }}>
                 <h1 style={{ fontSize: '32px', marginBottom: '10px' }}>自動旅程管理</h1>
                 <p style={{ color: '#B0B0B0' }}>管理自動化推播旅程及其對應的執行排程</p>
@@ -1353,8 +1356,10 @@ const ProjectsManagement = () => {
                                                     <X style={{ cursor: 'pointer' }} onClick={() => setEditingProjectId(null)} />
                                                 </div>
                                             ) : (
-                                                <div style={{ display: 'flex', gap: '15px' }}>
-                                                    <Download size={18} style={{ cursor: isExporting ? 'not-allowed' : 'pointer', color: isExporting ? '#666' : '#2196F3' }} onClick={() => !isExporting && handleExportProject(p)} title="匯出旅程" />
+                                                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                                    <button onClick={() => !isExporting && handleExportProject(p)} disabled={isExporting} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', background: isExporting ? '#444' : 'rgba(33, 150, 243, 0.1)', color: isExporting ? '#888' : '#2196F3', border: isExporting ? '1px solid #555' : '1px solid currentColor', borderRadius: '4px', cursor: isExporting ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
+                                                        <Download size={14} /> 匯出
+                                                    </button>
                                                     <Edit2 size={18} style={{ cursor: 'pointer', color: '#B0B0B0' }} onClick={() => handleEditProjectClick(p)} title="編輯" />
                                                     <Trash2 size={18} style={{ cursor: 'pointer', color: '#FF4D4D' }} onClick={() => handleDeleteProject(p.project_id)} title="刪除" />
                                                 </div>
@@ -1673,6 +1678,7 @@ const ProjectsManagement = () => {
                                         <th>姓名</th>
                                         <th>目前步驟</th>
                                         <th>狀態</th>
+                                        <th>時間資訊</th>
                                         <th>操作</th>
                                     </tr>
                                 </thead>
@@ -1716,6 +1722,13 @@ const ProjectsManagement = () => {
                                                 })()}
                                             </td>
                                             <td>
+                                                <div style={{ fontSize: '12px', color: '#aaa', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                    {u.joined_at && <div><span style={{ color: '#888' }}>進入/重開:</span> {new Date(u.joined_at).toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute:'2-digit' })}</div>}
+                                                    {u.next_push_time && u.status === 'active' && <div><span style={{ color: '#888' }}>預計下步:</span> {new Date(u.next_push_time).toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute:'2-digit' })}</div>}
+                                                    {!u.joined_at && !u.next_push_time && <span style={{color: '#666'}}>無資料</span>}
+                                                </div>
+                                            </td>
+                                            <td>
                                                 <div style={{ display: 'flex', gap: '10px' }}>
                                                     <button onClick={() => handleRestartUser(u.user_id)} style={{ padding: '4px 8px', background: '#333', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', color: 'var(--primary-yellow)' }}><RotateCcw size={14} /> 重啟</button>
                                                     <button onClick={() => handleRemoveUser(u.user_id)} style={{ padding: '4px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#FF4D4D' }}><Trash2 size={16} /></button>
@@ -1724,7 +1737,7 @@ const ProjectsManagement = () => {
                                         </tr>
                                     )) : (
                                         <tr>
-                                            <td colSpan="4" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                                            <td colSpan="5" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
                                                 {selectedProjectId ? '無參與用戶' : '請選擇旅程以查看參與用戶'}
                                             </td>
                                         </tr>

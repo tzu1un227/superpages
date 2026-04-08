@@ -4,7 +4,7 @@ import api from '../api';
 import JourneyPreview from './JourneyPreview';
 import TagInput from './TagInput';
 
-const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
+const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
     // Modes
     const [mode, setMode] = useState('single'); // 'single' | 'carousel'
     const [currentCardIndex, setCurrentCardIndex] = useState(0);
@@ -469,9 +469,10 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                 </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-                {/* Editor Panel - Top */}
-                <div style={{ flex: '1', padding: '20px', overflowY: 'auto', borderBottom: '1px solid #444' }}>
+            <div style={{ display: 'flex', flexDirection: 'row', flex: 1, overflow: 'hidden' }}>
+                {/* Editor Panel - Left */}
+                <div style={{ flex: '1.2', borderRight: '1px solid #444', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+                    <fieldset disabled={readOnly} style={{ border: 'none', padding: '20px', margin: 0, opacity: readOnly ? 0.7 : 1, minWidth: 0 }}>
 
                     {/* Carousel Nav */}
                     {mode === 'carousel' && (
@@ -706,11 +707,11 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                             </>
                         )}
                     </div>
+                    </fieldset>
                 </div>
 
-                {/* Preview Panel - 40% */}
-                {/* Preview Panel - Bottom */}
-                <div style={{ flex: '1', backgroundColor: '#1a1a1a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px', overflowY: 'auto' }}>
+                {/* Preview Panel - Right */}
+                <div style={{ flex: '1', backgroundColor: '#1a1a1a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px', overflowY: 'auto' }}>
                     <div style={{ marginBottom: '10px', color: '#666', fontSize: '12px', display: 'flex', gap: '20px' }}>
                         <span>即時預覽</span>
                         <span style={{ color: payloadSize > 9000 ? '#FF4D4D' : '#666', fontWeight: payloadSize > 9000 ? 'bold' : 'normal' }}>
@@ -718,8 +719,10 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel }) => {
                         </span>
                     </div>
                     <div style={{
-                        width: '320px',
-                        height: '600px',
+                        width: '100%',
+                        maxWidth: '380px',
+                        height: '100%',
+                        maxHeight: '650px',
                         border: '8px solid #333',
                         borderRadius: '24px',
                         overflow: 'hidden',

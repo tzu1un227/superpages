@@ -141,6 +141,7 @@ function MessageCenter() {
     const location = useLocation();
     const [users, setUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
+    const [currentUserInfo, setCurrentUserInfo] = useState(null);
     const selectedUserRef = useRef(null);
     const messagesCacheRef = useRef({});
     const [messages, _setMessages] = useState([]);
@@ -164,6 +165,7 @@ function MessageCenter() {
     const [input, setInput] = useState('');
     const [tagInput, setTagInput] = useState('');
     const [loading, setLoading] = useState(true);
+    const [loadingUsers, setLoadingUsers] = useState(false);
     const [loadingChat, setLoadingChat] = useState(false);
     const [hasMoreHistory, setHasMoreHistory] = useState(true);
     const [loadingOlder, setLoadingOlder] = useState(false);
@@ -235,9 +237,20 @@ function MessageCenter() {
         }
     }, [selectedUser]);
 
+    // 同步 currentUserInfo 到當前找到的最新資料
+    useEffect(() => {
+        if (selectedUser && users.length > 0) {
+            const found = users.find(u => u.user_id === selectedUser);
+            if (found) {
+                setCurrentUserInfo(found);
+            }
+        }
+    }, [selectedUser, users]);
+
     // 當搜尋條件改變，debounce 後重新抓取用戶，並重置側邊欄顯示數量
     useEffect(() => {
         setSidebarDisplayCount(15); // 搜尋條件變動時重置
+        setLoadingUsers(true);
         if (searchTimer.current) clearTimeout(searchTimer.current);
         searchTimer.current = setTimeout(() => {
             fetchUsers(searchQuery, selectedTagFilters);
@@ -325,6 +338,7 @@ function MessageCenter() {
             console.error('Error fetching users:', err);
         } finally {
             setLoading(false);
+            setLoadingUsers(false);
         }
     };
 
@@ -570,20 +584,14 @@ function MessageCenter() {
         }
     };
 
-    // --- 輔助：排序後的用戶清單 (未讀優先) ---
+    // --- 輔助：排序後的用戶清單 (嚴格時間遞減，最新時間排最上面) ---
     const sortedUsers = React.useMemo(() => {
         return [...users].sort((a, b) => {
-            const aUnread = isUserUnread(a);
-            const bUnread = isUserUnread(b);
-            if (aUnread && !bUnread) return -1;
-            if (!aUnread && bUnread) return 1;
-
-            // 否則維持原本的時間排序
-            const aTime = new Date(a.last_time || 0);
-            const bTime = new Date(b.last_time || 0);
+            const aTime = new Date(a.last_time || 0).getTime();
+            const bTime = new Date(b.last_time || 0).getTime();
             return bTime - aTime;
         });
-    }, [users, selectedUser]);
+    }, [users]);
 
     // 更新讀取時間
     useEffect(() => {
@@ -771,8 +779,9 @@ function MessageCenter() {
                 type: 'Sensor',
                 api_index: 0
             });
-            setMessages([...messages, { content: messageToSend, timestamp: new Date().toISOString(), category: 'Message', user_id: 'yzuadmin' }]);
-            lastSendTimeRef.current = Date.now();
+            // 避免樂觀更新造成訊息重複 (由於前後端 timestamp 些微差異)，改為直接向後端抓取
+            lastSendTimeRef.current = 0; // 允許立刻 polling
+            fetchHistory(selectedUser, true);
         } catch (err) {
             showToast('發送失敗: ' + err.message, 'error');
             // Restore input if failed and it has not been replaced
@@ -955,7 +964,10 @@ function MessageCenter() {
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <div style={{ fontSize: '12px', color: '#666' }}>用戶列表 ({filteredUsers.length})</div>
+                    <div style={{ fontSize: '12px', color: '#666', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        用戶列表 {loadingUsers ? '' : `(${filteredUsers.length})`}
+                        {loadingUsers && <CircularProgress size={12} sx={{ color: '#888' }} />}
+                    </div>
                     <button
                         onClick={handleMarkAllRead}
                         className="btn-secondary"
@@ -1017,8 +1029,16 @@ function MessageCenter() {
                         setSidebarDisplayCount(prev => Math.min(prev + 15, sortedUsers.length));
                     }
                 }}>
-                    {loading && users.length === 0 ? (
-                        <LoadingSpinner message="載入用戶中..." />
+                    {(loading || loadingUsers) ? (
+                        Array.from({ length: 8 }).map((_, idx) => (
+                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', marginBottom: '8px', borderRadius: '8px', backgroundColor: '#222' }}>
+                                <div style={{ width: '34px', height: '34px', borderRadius: '50%', backgroundColor: '#333' }} />
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ width: '60%', height: '14px', backgroundColor: '#333', borderRadius: '4px', marginBottom: '6px' }} />
+                                    <div style={{ width: '80%', height: '12px', backgroundColor: '#333', borderRadius: '4px' }} />
+                                </div>
+                            </div>
+                        ))
                     ) : users.length === 0 ? (
                         <div style={{ color: '#555', fontSize: '13px', textAlign: 'center', marginTop: '20px' }}>
                             {searchQuery || selectedTagFilters.length > 0 ? '找不到符合的用戶' : '尚無用戶'}
@@ -1111,12 +1131,12 @@ function MessageCenter() {
                         {/* 聊天室 Header：用戶名 + 標籤 + 新增標籤 */}
                         <div style={{ padding: '20px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                             <div>
-                                <h3 style={{ fontSize: '18px', marginBottom: '5px' }}>{users.find(u => u.user_id === selectedUser)?.name || selectedUser}</h3>
-                                {users.find(u => u.user_id === selectedUser)?.name && (
+                                <h3 style={{ fontSize: '18px', marginBottom: '5px' }}>{currentUserInfo?.name || selectedUser}</h3>
+                                {currentUserInfo?.name && (
                                     <p style={{ fontSize: '12px', color: '#555', marginBottom: '5px' }}>{selectedUser}</p>
                                 )}
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '10px' }}>
-                                    {getCurrentUserTags().map((t, i) => (
+                                    {getCurrentUserTags(currentUserInfo).map((t, i) => (
                                         <span key={i} style={{
                                             display: 'flex',
                                             alignItems: 'center',

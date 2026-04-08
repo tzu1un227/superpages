@@ -50,7 +50,7 @@ const parseTags = (tagStr) => {
 };
 
 
-const StatCard = ({ title, value, icon: Component, color }) => (
+const StatCard = ({ title, value, loading, icon: Component, color }) => (
     <div style={{
         background: '#222', padding: '20px', borderRadius: '12px', border: '1px solid #333',
         display: 'flex', alignItems: 'center', gap: '20px'
@@ -58,9 +58,29 @@ const StatCard = ({ title, value, icon: Component, color }) => (
         <div style={{ backgroundColor: `${color}22`, padding: '15px', borderRadius: '12px' }}>
             <Component size={32} style={{ color: color }} />
         </div>
-        <div>
+        <div style={{ flex: 1 }}>
             <p style={{ color: '#B0B0B0', fontSize: '14px', marginBottom: '5px' }}>{title}</p>
-            <h3 style={{ fontSize: '28px', fontWeight: 'bold' }}>{value.toLocaleString()}</h3>
+            {loading ? (
+                <div style={{
+                    width: '80px',
+                    height: '34px',
+                    backgroundColor: '#333',
+                    borderRadius: '4px',
+                    animation: 'pulse 1.5s infinite ease-in-out'
+                }}>
+                    <style>{`
+                        @keyframes pulse {
+                            0% { opacity: 1; }
+                            50% { opacity: 0.5; }
+                            100% { opacity: 1; }
+                        }
+                    `}</style>
+                </div>
+            ) : (
+                <h3 style={{ fontSize: '28px', fontWeight: 'bold', margin: 0 }}>
+                    {typeof value === 'number' ? value.toLocaleString() : value}
+                </h3>
+            )}
         </div>
     </div>
 );
@@ -242,13 +262,14 @@ const Statistics = () => {
                 <StatCard
                     title="總好友數"
                     value={lineInsight?.followers || 0}
+                    loading={loading}
                     icon={Users}
                     color="#FF5722"
                 />
-                <StatCard title="有效好友數" value={globalData.total_counts?.user || 0} icon={TrendingUp} color="#4CAF50" />
-                <StatCard title="新增好友數" value={globalData.total_counts?.follow || 0} icon={TrendingUp} color="#FFD700" />
-                <StatCard title="封鎖/解除數" value={globalData.total_counts?.unfollow || 0} icon={Users} color="#F44336" />
-                <StatCard title="總訊息量" value={globalData.total_counts?.message || 0} icon={MessageSquare} color="#2196F3" />
+                <StatCard title="有效好友數" value={globalData.total_counts?.user || 0} loading={loading} icon={TrendingUp} color="#4CAF50" />
+                <StatCard title="新增好友數" value={globalData.total_counts?.follow || 0} loading={loading} icon={TrendingUp} color="#FFD700" />
+                <StatCard title="封鎖/解除數" value={globalData.total_counts?.unfollow || 0} loading={loading} icon={Users} color="#F44336" />
+                <StatCard title="總訊息量" value={globalData.total_counts?.message || 0} loading={loading} icon={MessageSquare} color="#2196F3" />
             </div>
 
             <div className="card" style={{ marginBottom: '40px', padding: '25px', background: 'var(--secondary-black)', borderRadius: '16px', border: '1px solid #333' }}>
