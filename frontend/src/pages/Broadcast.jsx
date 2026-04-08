@@ -514,7 +514,7 @@ function Broadcast() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
             <div>
                 <label className="label">群發名稱</label>
-                <input type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="例如: 2024 春季特賣通知" style={{ width: '100%' }} />
+                <input type="text" disabled={isViewOnly} value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="例如: 2024 春季特賣通知" style={{ width: '100%', opacity: isViewOnly ? 0.7 : 1 }} />
             </div>
 
             <div>
@@ -528,7 +528,8 @@ function Broadcast() {
                         <button key={type.id}
                             onClick={() => setFormData({ ...formData, target_type: type.id })}
                             className={formData.target_type === type.id ? 'primary' : 'secondary'}
-                            style={{ flex: 1, padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                            disabled={isViewOnly}
+                            style={{ flex: 1, padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: isViewOnly ? 0.7 : 1 }}
                         >
                             {type.id === 'all' ? <Users size={16} /> : type.id === 'tag' ? <Filter size={16} /> : <Search size={16} />}
                             {type.label}
@@ -554,6 +555,7 @@ function Broadcast() {
                                         '&:hover fieldset': { borderColor: '#666' },
                                     }
                                 }}
+                                disabled={isViewOnly}
                             />
                         )}
                     />
@@ -562,6 +564,7 @@ function Broadcast() {
                 {formData.target_type === 'ids' && (
                     <Autocomplete
                         multiple
+                        disabled={isViewOnly}
                         options={availableUsers}
                         getOptionLabel={(opt) => opt.name || opt.user_id}
                         value={formData.selectedUsers}
@@ -636,7 +639,9 @@ function Broadcast() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {formData.messages.map((msg, idx) => (
+                {formData.messages.map((msg, idx) => {
+                    if (!msg) return null;
+                    return (
                     <div key={idx} className="card" style={{
                         position: 'relative',
                         border: '1px solid #444',
@@ -657,7 +662,7 @@ function Broadcast() {
                                             msg.OTYPE === 'VideoSendMessage' ? '影片訊息' : 'Flex 訊息'}
                                 </span>
                             </div>
-                            {formData.messages.length > 1 && (
+                            {formData.messages.length > 1 && !isViewOnly && (
                                 <Tooltip title="移除此訊息">
                                     <IconButton onClick={() => {
                                         const newMsgs = formData.messages.filter((_, i) => i !== idx);
@@ -678,7 +683,8 @@ function Broadcast() {
                             ].map(type => (
                                 <button key={type.id}
                                     className={msg.OTYPE === type.id ? 'primary' : 'secondary'}
-                                    style={{ flex: 1, padding: '8px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                                    disabled={isViewOnly}
+                                    style={{ flex: 1, padding: '8px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', opacity: isViewOnly ? 0.7 : 1 }}
                                     onClick={() => {
                                         const newMsgs = [...formData.messages];
                                         const baseContent = (type.id === 'FlexSendMessage') ? { type: 'bubble', contents: [] } : '';
@@ -701,13 +707,14 @@ function Broadcast() {
                         {msg.OTYPE === 'TextSendMessage' && (
                             <>
                                 <textarea
-                                    value={msg.text}
+                                    value={msg.text || ''}
+                                    disabled={isViewOnly}
                                     onChange={e => {
                                         const newMsgs = [...formData.messages];
                                         newMsgs[idx].text = e.target.value;
                                         setFormData({ ...formData, messages: newMsgs });
                                     }}
-                                    style={{ width: '100%', minHeight: '120px', backgroundColor: '#111' }}
+                                    style={{ width: '100%', minHeight: '120px', backgroundColor: '#111', opacity: isViewOnly ? 0.7 : 1 }}
                                     placeholder="請輸入訊息內容..."
                                 />
                                 <div style={{ fontSize: '11px', color: (msg.text || '').length > 3000 ? '#ff4d4d' : '#666', textAlign: 'right', marginTop: '5px' }}>
@@ -770,19 +777,19 @@ function Broadcast() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                 <div>
                                     <label className="label">影片連結 (.mp4)</label>
-                                    <input type="text" value={msg.original_content_url || ''} onChange={e => {
+                                    <input type="text" value={msg.original_content_url || ''} disabled={isViewOnly} onChange={e => {
                                         const msgs = [...formData.messages];
                                         msgs[idx].original_content_url = e.target.value;
                                         setFormData({ ...formData, messages: msgs });
-                                    }} placeholder="https://..." style={{ width: '100%' }} />
+                                    }} placeholder="https://..." style={{ width: '100%', opacity: isViewOnly ? 0.7 : 1 }} />
                                 </div>
                                 <div>
                                     <label className="label">預覽圖連結 (.jpg)</label>
-                                    <input type="text" value={msg.preview_image_url || ''} onChange={e => {
+                                    <input type="text" value={msg.preview_image_url || ''} disabled={isViewOnly} onChange={e => {
                                         const msgs = [...formData.messages];
                                         msgs[idx].preview_image_url = e.target.value;
                                         setFormData({ ...formData, messages: msgs });
-                                    }} placeholder="https://..." style={{ width: '100%' }} />
+                                    }} placeholder="https://..." style={{ width: '100%', opacity: isViewOnly ? 0.7 : 1 }} />
                                 </div>
                             </div>
                         )}
@@ -805,10 +812,7 @@ function Broadcast() {
                                 )}
                             </div>
                         )}
-                    </div>
-                ))}
-
-                {formData.messages.length < 5 && (
+                {formData.messages.length < 5 && !isViewOnly && (
                     <button
                         className="secondary"
                         style={{
