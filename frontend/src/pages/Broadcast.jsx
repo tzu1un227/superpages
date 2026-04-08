@@ -572,7 +572,7 @@ function BroadcastContent() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
             <div>
                 <label className="label">群發名稱</label>
-                <input type="text" disabled={isViewOnly} value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="例如: 2024 春季特賣通知" style={{ width: '100%', opacity: isViewOnly ? 0.7 : 1 }} />
+                <input type="text" disabled={(formData.status === 'sent' || formData.status === 'scheduled')} value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="例如: 2024 春季特賣通知" style={{ width: '100%', opacity: (formData.status === 'sent' || formData.status === 'scheduled') ? 0.7 : 1 }} />
             </div>
 
             <div>
@@ -586,8 +586,8 @@ function BroadcastContent() {
                         <button key={type.id}
                             onClick={() => setFormData({ ...formData, target_type: type.id })}
                             className={formData.target_type === type.id ? 'primary' : 'secondary'}
-                            disabled={isViewOnly}
-                            style={{ flex: 1, padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: isViewOnly ? 0.7 : 1 }}
+                            disabled={(formData.status === 'sent' || formData.status === 'scheduled')}
+                            style={{ flex: 1, padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: (formData.status === 'sent' || formData.status === 'scheduled') ? 0.7 : 1 }}
                         >
                             {type.id === 'all' ? <Users size={16} /> : type.id === 'tag' ? <Filter size={16} /> : <Search size={16} />}
                             {type.label}
@@ -598,7 +598,7 @@ function BroadcastContent() {
                 {formData.target_type === 'tag' && (
                     <Autocomplete
                         freeSolo
-                        disabled={isViewOnly}
+                        disabled={(formData.status === 'sent' || formData.status === 'scheduled')}
                         options={availableTags}
                         value={formData.target_value}
                         onChange={(e, val) => setFormData({ ...formData, target_value: val })}
@@ -622,7 +622,7 @@ function BroadcastContent() {
                 {formData.target_type === 'ids' && (
                     <Autocomplete
                         multiple
-                        disabled={isViewOnly}
+                        disabled={(formData.status === 'sent' || formData.status === 'scheduled')}
                         options={availableUsers}
                         getOptionLabel={(opt) => opt.name || opt.user_id}
                         value={formData.selectedUsers}
@@ -720,7 +720,7 @@ function BroadcastContent() {
                                             msg.OTYPE === 'VideoSendMessage' ? '影片訊息' : 'Flex 訊息'}
                                 </span>
                             </div>
-                            {formData.messages.length > 1 && !isViewOnly && (
+                            {formData.messages.length > 1 && !(formData.status === 'sent' || formData.status === 'scheduled') && (
                                 <Tooltip title="移除此訊息">
                                     <IconButton onClick={() => {
                                         const newMsgs = formData.messages.filter((_, i) => i !== idx);
@@ -741,8 +741,8 @@ function BroadcastContent() {
                             ].map(type => (
                                 <button key={type.id}
                                     className={msg.OTYPE === type.id ? 'primary' : 'secondary'}
-                                    disabled={isViewOnly}
-                                    style={{ flex: 1, padding: '8px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', opacity: isViewOnly ? 0.7 : 1 }}
+                                    disabled={(formData.status === 'sent' || formData.status === 'scheduled')}
+                                    style={{ flex: 1, padding: '8px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', opacity: (formData.status === 'sent' || formData.status === 'scheduled') ? 0.7 : 1 }}
                                     onClick={() => {
                                         const newMsgs = [...formData.messages];
                                         const baseContent = (type.id === 'FlexSendMessage') ? { type: 'bubble', contents: [] } : '';
@@ -766,13 +766,13 @@ function BroadcastContent() {
                             <>
                                 <textarea
                                     value={msg.text || ''}
-                                    disabled={isViewOnly}
+                                    disabled={(formData.status === 'sent' || formData.status === 'scheduled')}
                                     onChange={e => {
                                         const newMsgs = [...formData.messages];
                                         newMsgs[idx].text = e.target.value;
                                         setFormData({ ...formData, messages: newMsgs });
                                     }}
-                                    style={{ width: '100%', minHeight: '120px', backgroundColor: '#111', opacity: isViewOnly ? 0.7 : 1 }}
+                                    style={{ width: '100%', minHeight: '120px', backgroundColor: '#111', opacity: (formData.status === 'sent' || formData.status === 'scheduled') ? 0.7 : 1 }}
                                     placeholder="請輸入訊息內容..."
                                 />
                                 <div style={{ fontSize: '11px', color: (msg.text || '').length > 3000 ? '#ff4d4d' : '#666', textAlign: 'right', marginTop: '5px' }}>
@@ -835,19 +835,19 @@ function BroadcastContent() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                 <div>
                                     <label className="label">影片連結 (.mp4)</label>
-                                    <input type="text" value={msg.original_content_url || ''} disabled={isViewOnly} onChange={e => {
+                                    <input type="text" value={msg.original_content_url || ''} disabled={(formData.status === 'sent' || formData.status === 'scheduled')} onChange={e => {
                                         const msgs = [...formData.messages];
                                         msgs[idx].original_content_url = e.target.value;
                                         setFormData({ ...formData, messages: msgs });
-                                    }} placeholder="https://..." style={{ width: '100%', opacity: isViewOnly ? 0.7 : 1 }} />
+                                    }} placeholder="https://..." style={{ width: '100%', opacity: (formData.status === 'sent' || formData.status === 'scheduled') ? 0.7 : 1 }} />
                                 </div>
                                 <div>
                                     <label className="label">預覽圖連結 (.jpg)</label>
-                                    <input type="text" value={msg.preview_image_url || ''} disabled={isViewOnly} onChange={e => {
+                                    <input type="text" value={msg.preview_image_url || ''} disabled={(formData.status === 'sent' || formData.status === 'scheduled')} onChange={e => {
                                         const msgs = [...formData.messages];
                                         msgs[idx].preview_image_url = e.target.value;
                                         setFormData({ ...formData, messages: msgs });
-                                    }} placeholder="https://..." style={{ width: '100%', opacity: isViewOnly ? 0.7 : 1 }} />
+                                    }} placeholder="https://..." style={{ width: '100%', opacity: (formData.status === 'sent' || formData.status === 'scheduled') ? 0.7 : 1 }} />
                                 </div>
                             </div>
                         )}
@@ -860,7 +860,7 @@ function BroadcastContent() {
                                 <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px' }}>使用視覺化編輯器設定 Flex 訊息內容</p>
                                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
                                     <button className="secondary" onClick={() => openMessageEditor(idx)}>
-                                        {isViewOnly ? <Eye size={16} /> : <Edit2 size={16} />} {isViewOnly ? '檢視內容' : '開啟編輯器'}
+                                        {(formData.status === 'sent' || formData.status === 'scheduled') ? <Eye size={16} /> : <Edit2 size={16} />} {(formData.status === 'sent' || formData.status === 'scheduled') ? '檢視內容' : '開啟編輯器'}
                                     </button>
                                 </div>
                                 {msg.contents && (
@@ -874,7 +874,7 @@ function BroadcastContent() {
                     );
                 })}
 
-                {formData.messages.length < 5 && !isViewOnly && (
+                {formData.messages.length < 5 && !(formData.status === 'sent' || formData.status === 'scheduled') && (
                     <button
                         className="secondary"
                         style={{
@@ -970,18 +970,17 @@ function BroadcastContent() {
     );
 
     if (view === 'create') {
-        const isViewOnly = formData.status === 'sent' || formData.status === 'scheduled';
         return (
             <div style={{ maxWidth: '800px', margin: '0 auto', paddingBottom: '100px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
                     <div>
                         <button onClick={() => setView('list')} style={{ background: 'none', color: '#888', marginBottom: '10px', padding: 0, border: 'none', cursor: 'pointer' }}>← 返回廣播列表</button>
                         <h1 style={{ fontSize: '32px', display: 'flex', alignItems: 'center', gap: '15px' }}>
-                            {isViewOnly ? <Eye size={32} /> : formData.id ? <Edit2 size={32} /> : <Plus size={32} />}
-                            {isViewOnly ? '查看廣播內容' : formData.id ? '編輯廣播草稿' : '新建群發任務'}
+                            {(formData.status === 'sent' || formData.status === 'scheduled') ? <Eye size={32} /> : formData.id ? <Edit2 size={32} /> : <Plus size={32} />}
+                            {(formData.status === 'sent' || formData.status === 'scheduled') ? '查看廣播內容' : formData.id ? '編輯廣播草稿' : '新建群發任務'}
                         </h1>
                     </div>
-                    {!isViewOnly && (
+                    {!(formData.status === 'sent' || formData.status === 'scheduled') && (
                         <div style={{ display: 'flex', gap: '12px' }}>
                             <button className="secondary" onClick={saveDraft} disabled={loading}><Save size={18} /> 儲存草稿</button>
                         </div>
@@ -1001,7 +1000,7 @@ function BroadcastContent() {
                     ))}
                 </div>
 
-                <div style={{ minHeight: '400px', opacity: isViewOnly && step !== 1 ? 0.9 : 1, pointerEvents: (isViewOnly && step === 3) ? 'none' : 'auto' }}>
+                <div style={{ minHeight: '400px', opacity: (formData.status === 'sent' || formData.status === 'scheduled') && step !== 1 ? 0.9 : 1, pointerEvents: ((formData.status === 'sent' || formData.status === 'scheduled') && step === 3) ? 'none' : 'auto' }}>
                     {step === 1 && renderStep1()}
                     {step === 2 && renderStep2()}
                     {step === 3 && renderStep3()}
@@ -1044,12 +1043,12 @@ function BroadcastContent() {
                                 }
                                 setStep(step + 1);
                             }} style={{ padding: '10px 40px' }}>下一步 <ChevronRight size={18} /></button>
-                        ) : !isViewOnly && (
+                        ) : !(formData.status === 'sent' || formData.status === 'scheduled') && (
                             <button className="primary" onClick={finishBroadcast} disabled={executing} style={{ padding: '10px 50px', backgroundColor: formData.send_type === 'immediate' ? '#4CAF50' : 'var(--primary-yellow)', color: '#000', opacity: executing ? 0.6 : 1 }}>
                                 {executing ? '處理中...' : (formData.send_type === 'immediate' ? '立即發送群發' : '確認預約排程')}
                             </button>
                         )}
-                        {isViewOnly && step === 3 && (
+                        {(formData.status === 'sent' || formData.status === 'scheduled') && step === 3 && (
                             <button className="secondary" onClick={() => setView('list')}>關閉查看</button>
                         )}
                     </div>
@@ -1068,13 +1067,13 @@ function BroadcastContent() {
                         <FlexMessageEditor
                             initialContent={formData.messages[editingMsgIndex]?.contents}
                             onSave={handleFlexSave}
-                            readOnly={isViewOnly}
+                            readOnly={(formData.status === 'sent' || formData.status === 'scheduled')}
                         />
                     </DialogContent>
                     <DialogActions sx={{ borderTop: '1px solid #333', p: 2 }}>
                         <Button onClick={() => {
                             const currentMsg = formData.messages[editingMsgIndex];
-                            if (!isViewOnly && currentMsg && currentMsg.OTYPE === 'FlexSendMessage') {
+                            if (!(formData.status === 'sent' || formData.status === 'scheduled') && currentMsg && currentMsg.OTYPE === 'FlexSendMessage') {
                                 const contents = currentMsg.contents;
                                 const bubbles = (contents && contents.type === 'carousel') ? contents.contents : [contents];
                                 for (let j = 0; j < bubbles.length; j++) {
@@ -1107,7 +1106,7 @@ function BroadcastContent() {
                                 }
                             }
                             setIsFlexEditorOpen(false);
-                        }} sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold' }}>{isViewOnly ? '關閉' : '完成並返回'}</Button>
+                        }} sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold' }}>{(formData.status === 'sent' || formData.status === 'scheduled') ? '關閉' : '完成並返回'}</Button>
                     </DialogActions>
                 </Dialog>
 

@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
     - **載入骨架屏 (Skeleton)**：優化了綜合數據在載入期間的生硬畫面，將切換日期時出現的「0」字樣改為動態灰色脈衝骨架，提升視覺預期感。
   - **群發訊息防呆與崩潰根除 (Broadcast Mod Fixes)** [2026-04-08]:
     - **強大錯誤邊界 (Robust Error Boundary)**：在 `Broadcast.jsx` 導入了專用的 `ErrorBoundary` 類別。當 React 渲染發生崩潰（例如資料庫中的舊訊息格式不相容）時，會彈出一個深紅色的自定義錯誤介面，並列出詳細的「錯誤追蹤碼 (Error Stack)」。使用者可以直接點擊「複製錯誤資訊」按鍵來協助回報，解決了過去直接「黑畫面」無法除錯的問題。
-    - **全方位防禦性渲染 (Defensive Rendering Guards)**：針對所有 `.toLocaleString()`、`.map()`、`.length` 等呼叫實施了全域防漏檢查（如 `(stats?.count || 0).toLocaleString()`），確保即便 API 回傳資料不完整，前端介面也能優雅降級而不導致整個頁面當機。
+    - **全方位防禦性渲染 (Defensive Rendering Guards)**：修正了 `isViewOnly` 變數在巢狀渲染函數中引發的 `ReferenceError`。我們將狀態檢查改為行內計算 (Inline logic)，確保所有編輯器按鈕與輸入框在「已發送」任務下都能正確鎖定為唯讀狀態。
     - **已發送任務嚴格唯讀機制 (Read-Only Sent Tasks)**：補足了過去在群發訊息中，「已發送」的任務在點擊查看進入第一步驟時，依然能變更發送對象與標籤的漏洞。現在系統全面將所有已發送任務的第一步驟（發送對象、標籤與人員搜尋）、第二步驟（編輯訊息內容與按鈕）鎖定為唯讀狀態，確保所有歷史發送紀錄絕對無法被意外竄改。
     - **第二步驟全黑畫面崩潰 (Step 2 Null Exception Fix)**：這一次，我們抓到了藏在 React 渲染引擎中的元凶。這並不是 Flex JSON 的錯誤，而是由資料庫反反覆覆解析回來的舊資料 (`msg_rpy`) 中，有時存在著單個 `null` 的「空序列」殘留，導致 React 前端邏輯在遍歷迴圈並讀取 `msg.OTYPE` 時觸發了致命的 `TypeError` 當機。我們在 `Broadcast.jsx` 的渲染迴圈中植入了強制的空序列過濾 `if (!msg) return null;`，正式根絕因為單個訊息損毀而導致網頁完全黑屏被關閉的無妄之災。
   - **Flex 編輯器與預覽引擎全面升級 (Flex Editor & Journey Preview UI)** [2026-04-08]:
