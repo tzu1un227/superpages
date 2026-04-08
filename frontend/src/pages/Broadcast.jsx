@@ -812,6 +812,10 @@ function Broadcast() {
                                 )}
                             </div>
                         )}
+                    </div>
+                    );
+                })}
+
                 {formData.messages.length < 5 && !isViewOnly && (
                     <button
                         className="secondary"
