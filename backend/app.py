@@ -1328,6 +1328,19 @@ def get_statistics():
                     except Exception as ex:
                         print(f"Error fetching LINE insight for OA {g.current_oa_id} on {target_date}: {ex}")
 
+                # Fetch LINE Push Quota Consumption
+                results['quota_consumption'] = None
+                try:
+                    quota_resp = requests.get(
+                        "https://api.line.me/v2/bot/message/quota/consumption",
+                        headers={"Authorization": f"Bearer {line_token}"},
+                        timeout=5
+                    )
+                    if quota_resp.status_code == 200:
+                        results['quota_consumption'] = quota_resp.json()
+                except Exception as ex:
+                    print(f"Error fetching LINE quota consumption for OA {g.current_oa_id}: {ex}")
+
         cur.close()
         conn.close()
         return json_response(results)

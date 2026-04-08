@@ -3,6 +3,12 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+  - **綜合數據擴充與優化 (Statistics & Quota Management)** [2026-04-08]:
+    - **推播用量查詢**：在 `Statistics.jsx` 大數據面板新增「本月推播用量」指標，透過串接 LINE Official Account API (`/v2/bot/message/quota/consumption`) 提供客戶最直接的付費/免費訊息消耗總量 (`totalUsage`)，方便掌控額度。
+    - **載入骨架屏 (Skeleton)**：優化了綜合數據在載入期間的生硬畫面，將切換日期時出現的「0」字樣改為動態灰色脈衝骨架，提升視覺預期感。
+  - **Flex 編輯器與預覽引擎全面升級 (Flex Editor & Journey Preview UI)** [2026-04-08]:
+    - **版面重構**：將 `FlexMessageEditor.jsx` 原先在左側填表、右側受限尺寸 (`380px`) 預覽的雙欄設計，重構為「上下堆疊」的寬版介面。編輯表單置頂，即時預覽置底並自動釋放畫面寬度，解決過去預覽 Flex 畫面倒置過小不易閱讀的詬病。
+    - **安全渲染引擎機制 (Safe Render Guard)**：深入強固了 `JourneyPreview.jsx` 中解析 Flex 訊息的每一層邏輯 (確保 Carousel / Bubble 型別對外來未規範 JSON 的抵禦)。針對陳舊、未定義、甚至陣列錯亂的卡片，均實作即時 try-catch 與型別驗證，根絕了使用者點擊「檢視群發內容」時因非同步渲染失敗導致的「全白/全黑畫面崩潰」災情。
   - **法則表自動偵錯 (Rule Table Auto-Debugging)** [2026-03-30]:
     - **後端語法驗證**：在 `rule_designer.py` 新增 `validate_python_syntax` 與 `validate_rule_fields` 函數，使用 `ast.parse` 驗證 `check` 與 `function` 欄位的 Python 語法正確性。支援逗號/分號分隔的多段式語法，並自動跳過 `<%...%>` 模板表達式。
     - **欄位完整性檢查**：儲存前自動驗證 `state_in` 非空（Q/AD_bank）、`msg_rpy` 與 `function` 不同時為空、Message 類型的 `content` 非空、QA_bank 的 `tag` 非空等條件。

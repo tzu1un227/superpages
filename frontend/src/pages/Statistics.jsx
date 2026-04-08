@@ -10,7 +10,8 @@ import {
     Filter,
     CheckCircle2,
     Circle,
-    BarChart3
+    BarChart3,
+    Send
 } from 'lucide-react';
 import {
     LineChart,
@@ -88,6 +89,7 @@ const StatCard = ({ title, value, loading, icon: Component, color }) => (
 const Statistics = () => {
     const [globalData, setGlobalData] = useState({ follow: [], user: [], message: [], total_counts: {} });
     const [lineInsight, setLineInsight] = useState(null);
+    const [quotaConsumption, setQuotaConsumption] = useState(null);
     const [keywordData, setKeywordData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [statsDateRange, setStatsDateRange] = useState({
@@ -128,6 +130,7 @@ const Statistics = () => {
             });
             setGlobalData(resp.data);
             setLineInsight(resp.data.line_insight);
+            setQuotaConsumption(resp.data.quota_consumption);
 
             const kwResp = await api.get('/statistics/keywords', {
                 params: {
@@ -267,6 +270,7 @@ const Statistics = () => {
                     color="#FF5722"
                 />
                 <StatCard title="有效好友數" value={globalData.total_counts?.user || 0} loading={loading} icon={TrendingUp} color="#4CAF50" />
+                <StatCard title="本月推播用量" value={quotaConsumption?.totalUsage !== undefined ? quotaConsumption.totalUsage : '-'} loading={loading} icon={Send} color="#9C27B0" />
                 <StatCard title="新增好友數" value={globalData.total_counts?.follow || 0} loading={loading} icon={TrendingUp} color="#FFD700" />
                 <StatCard title="封鎖/解除數" value={globalData.total_counts?.unfollow || 0} loading={loading} icon={Users} color="#F44336" />
                 <StatCard title="總訊息量" value={globalData.total_counts?.message || 0} loading={loading} icon={MessageSquare} color="#2196F3" />
