@@ -160,7 +160,8 @@ function Broadcast() {
             selectedUsers: [],
             messages: [{ OTYPE: 'TextSendMessage', text: '' }],
             send_type: 'immediate',
-            scheduled_at: ''
+            scheduled_at: '',
+            status: 'draft'
         });
         setStep(1);
         setView('create');
@@ -514,7 +515,7 @@ function Broadcast() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
             <div>
                 <label className="label">群發名稱</label>
-                <input type="text" disabled={isViewOnly} value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="例如: 2024 春季特賣通知" style={{ width: '100%', opacity: isViewOnly ? 0.7 : 1 }} />
+                <input type="text" disabled={isViewOnly} value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="例如: 2024 春季特賣通知" style={{ width: '100%', opacity: isViewOnly ? 0.7 : 1 }} />
             </div>
 
             <div>
@@ -540,6 +541,7 @@ function Broadcast() {
                 {formData.target_type === 'tag' && (
                     <Autocomplete
                         freeSolo
+                        disabled={isViewOnly}
                         options={availableTags}
                         value={formData.target_value}
                         onChange={(e, val) => setFormData({ ...formData, target_value: val })}
@@ -555,7 +557,6 @@ function Broadcast() {
                                         '&:hover fieldset': { borderColor: '#666' },
                                     }
                                 }}
-                                disabled={isViewOnly}
                             />
                         )}
                     />
