@@ -1060,7 +1060,7 @@ function Broadcast() {
                         width: 'auto', outline: 'none'
                     }}>
                         <JourneyPreview
-                            steps={formData.messages.map(m => {
+                            steps={formData.messages.filter(m => m != null).map(m => {
                                 if (m.OTYPE === 'TextSendMessage') return { OTYPE: m.OTYPE, text: m.text };
                                 if (m.OTYPE === 'FlexSendMessage') return { OTYPE: 'FlexSendMessage', contents: m.contents };
                                 return {
