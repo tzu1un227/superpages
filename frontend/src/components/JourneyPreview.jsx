@@ -228,74 +228,73 @@ const JourneyPreview = ({ steps = [] }) => {
 
         // Handle Flex
         if (msg.OTYPE === 'FlexSendMessage') {
-            // Check if contents are parsed
-            let content = msg.contents;
-            if (typeof content === 'string') {
-                try {
-                    content = JSON.parse(content);
-                } catch (e) {
-                    return <div key={idx} style={{ ...styles.textBubble, color: 'red' }}>Invalid JSON</div>;
+            try {
+                let content = msg.contents;
+                if (typeof content === 'string') {
+                    try {
+                        content = JSON.parse(content);
+                    } catch (e) {
+                        return <div key={idx} style={{ ...styles.textBubble, color: 'red' }}>Invalid JSON</div>;
+                    }
                 }
-            }
 
-            if (!content) {
-                return <div key={idx} style={styles.textBubble}>Flex 內容為空</div>;
-            }
-
-            // Should interpret our internal structure (cards) if passed directly, 
-            // OR standardized LINE Flex JSON.
-            // But since the editor state passes the internal `cards` structure separate from the generated JSON,
-            // we might want this preview to accept `cards` prop directly if it's the "editing" message.
-            // A common pattern is to normalize everything to standard Flex for preview.
-
-            // However, implementing a full Flex renderer is hard.
-            // Let's assume content is standard Flex bubble/carousel.
-
-            if (content.type === 'carousel') {
-                if (!Array.isArray(content.contents)) {
-                    return <div key={idx} style={styles.textBubble}>Invalid Carousel Format</div>;
+                if (!content) {
+                    return <div key={idx} style={styles.textBubble}>Flex 內容為空</div>;
                 }
-                // Mock Carousel
-                return (
-                    <div key={idx} style={styles.flexContainer}>
-                        {content.contents.map((bubble, bIdx) => {
-                            if (!bubble || typeof bubble !== 'object') return null;
-                            const hero = bubble.hero || {};
-                            const body = bubble.body || {};
-                            const footer = bubble.footer || {};
 
-                            const titleObj = body.contents?.find(c => c.size === 'xl');
-                            const title = titleObj?.text || '';
-                            const desc = body.contents?.find(c => c.wrap === true && c !== titleObj)?.text || '';
-                            const imageUrl = hero.url;
+                if (content.type === 'carousel') {
+                    if (!Array.isArray(content.contents)) {
+                        return <div key={idx} style={styles.textBubble}>Invalid Carousel Format</div>;
+                    }
+                    return (
+                        <div key={idx} style={styles.flexContainer}>
+                            {content.contents.map((bubble, bIdx) => {
+                                if (!bubble || typeof bubble !== 'object') return null;
+                                const hero = bubble.hero || {};
+                                const body = bubble.body || {};
+                                const footer = bubble.footer || {};
 
-                            const buttons = footer.contents?.map(b => ({
-                                text: b.action?.label || 'Button',
-                                action: b.action?.type || 'message'
-                            }));
+                                const bodyContents = Array.isArray(body.contents) ? body.contents : [];
+                                const footerContents = Array.isArray(footer.contents) ? footer.contents : [];
 
-                            return renderFlexCard({ imageUrl, title, description: desc, buttons }, bIdx);
-                        })}
-                    </div>
-                );
-            } else if (content.type === 'bubble') {
-                // Single Bubble
-                const hero = content.hero || {};
-                const body = content.body || {};
-                const footer = content.footer || {};
+                                const titleObj = bodyContents.find(c => c && c.size === 'xl');
+                                const title = titleObj?.text || '';
+                                const desc = bodyContents.find(c => c && c.wrap === true && c !== titleObj)?.text || '';
+                                const imageUrl = hero.url;
 
-                const titleObj = body.contents?.find(c => c.size === 'xl');
-                const title = titleObj?.text || '';
-                const desc = body.contents?.find(c => c.wrap === true && c !== titleObj)?.text || '';
-                const imageUrl = hero.url;
-                const buttons = footer.contents?.map(b => ({
-                    text: b.action?.label || 'Button',
-                    action: b.action?.type || 'message'
-                }));
+                                const buttons = footerContents.map(b => ({
+                                    text: b?.action?.label || 'Button',
+                                    action: b?.action?.type || 'message'
+                                }));
 
-                return <div key={idx} style={styles.bubbleContainer}>{renderFlexCard({ imageUrl, title, description: desc, buttons }, 0)}</div>;
-            } else {
-                return <div key={idx} style={styles.textBubble}>Unsupported Flex Type</div>;
+                                return renderFlexCard({ imageUrl, title, description: desc, buttons }, bIdx);
+                            })}
+                        </div>
+                    );
+                } else if (content.type === 'bubble') {
+                    const hero = content.hero || {};
+                    const body = content.body || {};
+                    const footer = content.footer || {};
+
+                    const bodyContents = Array.isArray(body.contents) ? body.contents : [];
+                    const footerContents = Array.isArray(footer.contents) ? footer.contents : [];
+
+                    const titleObj = bodyContents.find(c => c && c.size === 'xl');
+                    const title = titleObj?.text || '';
+                    const desc = bodyContents.find(c => c && c.wrap === true && c !== titleObj)?.text || '';
+                    const imageUrl = hero.url;
+                    const buttons = footerContents.map(b => ({
+                        text: b?.action?.label || 'Button',
+                        action: b?.action?.type || 'message'
+                    }));
+
+                    return <div key={idx} style={styles.bubbleContainer}>{renderFlexCard({ imageUrl, title, description: desc, buttons }, 0)}</div>;
+                } else {
+                    return <div key={idx} style={styles.textBubble}>Unsupported Flex Type</div>;
+                }
+            } catch (err) {
+                console.error("Flex preview rendering error:", err);
+                return <div key={idx} style={{ ...styles.textBubble, color: 'red' }}>[渲染錯誤] 訊息結構損毀</div>;
             }
         }
 
