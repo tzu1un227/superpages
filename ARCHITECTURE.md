@@ -186,11 +186,11 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - **視覺狀態同步**：操作進行中的標籤與刪除按鈕會同步維持 10 秒的穩定狀態，並顯示「刪除中」提示，提供明確的 UX 反饋。
   - **自動旅程全境台灣時間修復 (Project & Timezone Sync Fix)** [2026-04-10]:
     - **同步時區模式**：取消 UTC 轉換，實作網頁輸入、資料庫儲存與顯示「三位一體」的台灣時間模式。修復了 8 小時的顯示與執行偏差。
-    - **排程精度校正**：背景執行緒同步改用台灣時間作為比對基準。
-    - **資料儲存**：Naive Taiwan Datetime (不含時區)。
-    - **序列化優化**：後端傳遞給前端的時間格式統一為 `YYYY-MM-DD HH:mm:ss`，確保瀏覽器在任何情況下都將其解析為「本地時間」。
-    - **背景排程基準**：所有自動旅程推播時間計算均以 `get_now_taiwan()` 為基準與資料庫時間對齊，確保執行頻率與時間點精確。
-    - **統計校正**：統計數據生成的索引日期同樣對齊台灣時間日期。
+    - **全境台灣時間模式 (Full Taiwan Time Mode)**：為了符合使用者直覺，系統捨棄了 UTC 轉換。
+    - **儲存基準**：資料庫統一儲存 Naive Taiwan Datetime (不含時區)。
+    - **序列化優化**：後端傳遞給前端的時間格式統一為 `YYYY-MM-DD HH:mm:ss` (透過 `json_response`)，確保瀏覽器在任何情況下都將其解析為「本地時間」。
+    - **背景排程基準**：所有自動旅程推播時間計算均以 `get_now_taiwan()` 為基準與資料庫時間對齊。
+    - **加入用戶時間同步**：加入用戶時的 `cron_table.push_time` 與 `user_project_status.updated_at` (Joined At) 均顯式由後端 Python 提供台灣時間戳記，而非透過 SQL `NOW()` 以避免因資料庫伺服器時區導致的誤差。
   - **Flex 編輯器邏輯優化**:
     - **狀態同步**：採用 functional updates 與 `key` 重掛載機制解決非同步圖片上傳定位 Bug。
     - **視覺滿版**：優化 JSON 生成邏輯，移除圖片型卡片的空區塊，實現真正的滿版外觀。

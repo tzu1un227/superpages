@@ -910,7 +910,7 @@ def get_project_users(id):
         users = cur.fetchall()
         cur.close()
         conn.close()
-        return jsonify(users)
+        return json_response(users)
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -1114,8 +1114,8 @@ def batch_restart_project_users(id):
                 current_push_time += timedelta(hours=interval)
                 cur.execute("INSERT INTO cron_table (user_id, project_id, step_id, message_content, push_time, status) VALUES (%s, %s, %s, %s, %s, 'active')",
                             (user_id, id, s_id, msg, current_push_time))
-            cur.execute("INSERT INTO user_project_status (user_id, project_id, status, updated_at) VALUES (%s, %s, 'active', NOW()) ON CONFLICT (user_id, project_id) DO UPDATE SET status = 'active', updated_at = NOW()",
-                        (user_id, id))
+            cur.execute("INSERT INTO user_project_status (user_id, project_id, status, updated_at) VALUES (%s, %s, 'active', %s) ON CONFLICT (user_id, project_id) DO UPDATE SET status = 'active', updated_at = %s",
+                        (user_id, id, now_tw, now_tw))
             if oa_id:
                 try: increment_project_stat(id, 'ttc', oa_id)
                 except: pass
