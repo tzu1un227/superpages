@@ -922,8 +922,8 @@ def restart_project_user(id, user_id):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
-        # 1. Fetch Project and Anchor Config
-        cur.execute("SELECT anchor_config FROM projects WHERE project_id = %s", (id,))
+        # 1. Fetch Project, start_date and Anchor Config
+        cur.execute("SELECT anchor_config, start_date FROM projects WHERE project_id = %s", (id,))
         project = cur.fetchone()
         if not project:
             return jsonify({"status": "error", "message": "Project not found"}), 404
@@ -933,34 +933,44 @@ def restart_project_user(id, user_id):
             try: anchor_conf = json.loads(anchor_conf)
             except: anchor_conf = {}
 
+        project_start = project.get('start_date')
+        
         # 2. Calculate Base Start Time (Aligned with Anchor)
         now = datetime.now()
-        base_start_time = now
+        
+        # Determine Reference Time: Use project_start if it's in the future
+        reference_time = now
+        if project_start:
+            # Handle possible tz-aware vs naive comparison
+            ps_naive = project_start.replace(tzinfo=None) if project_start.tzinfo else project_start
+            reference_time = max(now, ps_naive)
+
+        base_start_time = reference_time
         if anchor_conf and anchor_conf.get('time'):
             try:
                 target_time = datetime.strptime(anchor_conf['time'], "%H:%M").time()
                 a_type = anchor_conf.get('type', 'daily')
                 day_param = anchor_conf.get('day', 1)
-                today_date = now.date()
+                ref_date = reference_time.date()
                 if a_type == 'daily':
-                    candidate = datetime.combine(today_date, target_time)
-                    if candidate <= now: candidate += timedelta(days=1)
+                    candidate = datetime.combine(ref_date, target_time)
+                    if candidate <= reference_time: candidate += timedelta(days=1)
                     base_start_time = candidate
                 elif a_type == 'weekly':
                     target_weekday = int(day_param) - 1
-                    current_weekday = today_date.weekday()
+                    current_weekday = ref_date.weekday()
                     days_ahead = target_weekday - current_weekday
                     if days_ahead < 0: days_ahead += 7
-                    candidate = datetime.combine(today_date + timedelta(days=days_ahead), target_time)
-                    if candidate <= now: candidate += timedelta(days=7)
+                    candidate = datetime.combine(ref_date + timedelta(days=days_ahead), target_time)
+                    if candidate <= reference_time: candidate += timedelta(days=7)
                     base_start_time = candidate
                 elif a_type == 'monthly':
                     target_day = int(day_param)
-                    try: candidate = datetime(today_date.year, today_date.month, target_day, target_time.hour, target_time.minute)
-                    except: candidate = datetime(today_date.year, today_date.month, 1, target_time.hour, target_time.minute)
-                    if candidate <= now:
-                        m_next = today_date.month + 1 if today_date.month < 12 else 1
-                        y_next = today_date.year if today_date.month < 12 else today_date.year + 1
+                    try: candidate = datetime(ref_date.year, ref_date.month, target_day, target_time.hour, target_time.minute)
+                    except: candidate = datetime(ref_date.year, ref_date.month, 1, target_time.hour, target_time.minute)
+                    if candidate <= reference_time:
+                        m_next = ref_date.month + 1 if ref_date.month < 12 else 1
+                        y_next = ref_date.year if ref_date.month < 12 else ref_date.year + 1
                         try: candidate = datetime(y_next, m_next, target_day, target_time.hour, target_time.minute)
                         except: candidate = datetime(y_next, m_next, 1, target_time.hour, target_time.minute)
                     base_start_time = candidate
@@ -1017,8 +1027,8 @@ def batch_restart_project_users(id):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # 1. Fetch Project and Anchor Config
-        cur.execute("SELECT anchor_config FROM projects WHERE project_id = %s", (id,))
+        # 1. Fetch Project, start_date and Anchor Config
+        cur.execute("SELECT anchor_config, start_date FROM projects WHERE project_id = %s", (id,))
         project = cur.fetchone()
         if not project:
             return jsonify({"status": "error", "message": "Project not found"}), 404
@@ -1028,34 +1038,44 @@ def batch_restart_project_users(id):
             try: anchor_conf = json.loads(anchor_conf)
             except: anchor_conf = {}
 
+        project_start = project.get('start_date')
+
         # 2. Calculate Base Start Time
         now = datetime.now()
-        base_start_time = now
+        
+        # Determine Reference Time: Use project_start if it's in the future
+        reference_time = now
+        if project_start:
+            # Handle possible tz-aware vs naive comparison
+            ps_naive = project_start.replace(tzinfo=None) if project_start.tzinfo else project_start
+            reference_time = max(now, ps_naive)
+
+        base_start_time = reference_time
         if anchor_conf and anchor_conf.get('time'):
             try:
                 target_time = datetime.strptime(anchor_conf['time'], "%H:%M").time()
                 a_type = anchor_conf.get('type', 'daily')
                 day_param = anchor_conf.get('day', 1)
-                today_date = now.date()
+                ref_date = reference_time.date()
                 if a_type == 'daily':
-                    candidate = datetime.combine(today_date, target_time)
-                    if candidate <= now: candidate += timedelta(days=1)
+                    candidate = datetime.combine(ref_date, target_time)
+                    if candidate <= reference_time: candidate += timedelta(days=1)
                     base_start_time = candidate
                 elif a_type == 'weekly':
                     target_weekday = int(day_param) - 1
-                    current_weekday = today_date.weekday()
+                    current_weekday = ref_date.weekday()
                     days_ahead = target_weekday - current_weekday
                     if days_ahead < 0: days_ahead += 7
-                    candidate = datetime.combine(today_date + timedelta(days=days_ahead), target_time)
-                    if candidate <= now: candidate += timedelta(days=7)
+                    candidate = datetime.combine(ref_date + timedelta(days=days_ahead), target_time)
+                    if candidate <= reference_time: candidate += timedelta(days=7)
                     base_start_time = candidate
                 elif a_type == 'monthly':
                     target_day = int(day_param)
-                    try: candidate = datetime(today_date.year, today_date.month, target_day, target_time.hour, target_time.minute)
-                    except: candidate = datetime(today_date.year, today_date.month, 1, target_time.hour, target_time.minute)
-                    if candidate <= now:
-                        m_next = today_date.month + 1 if today_date.month < 12 else 1
-                        y_next = today_date.year if today_date.month < 12 else today_date.year + 1
+                    try: candidate = datetime(ref_date.year, ref_date.month, target_day, target_time.hour, target_time.minute)
+                    except: candidate = datetime(ref_date.year, ref_date.month, 1, target_time.hour, target_time.minute)
+                    if candidate <= reference_time:
+                        m_next = ref_date.month + 1 if ref_date.month < 12 else 1
+                        y_next = ref_date.year if ref_date.month < 12 else ref_date.year + 1
                         try: candidate = datetime(y_next, m_next, target_day, target_time.hour, target_time.minute)
                         except: candidate = datetime(y_next, m_next, 1, target_time.hour, target_time.minute)
                     base_start_time = candidate

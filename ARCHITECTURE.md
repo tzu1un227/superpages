@@ -177,14 +177,19 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 - **Message Center UI Enhancements**:
   - Integrated `useToast` for reliable 5-second auto-hide notifications.
   - Implemented immediate state updates for tag addition/deletion to prevent UI lag.
-  - **標籤操作競態條件防護 (Tag Operation Race Guard)**: 引入 `pendingTagDeletionsRef` 與 `pendingTagAdditionsRef` (Mutable Ref) 追蹤正在進行中的標籤操作。
+  - **標籤操作同步邏輯 (Tag Operation Synchronization Logic)**: 引入 `pendingTagDeletionsRef` 與 `pendingTagAdditionsRef` (Mutable Ref) 追蹤正在進行中的標籤操作。
+    - **非樂觀更新 (Non-Optimistic approach)**：根據使用者要求，移除了立即修改本地 State 的樂觀更新邏輯。現在系統會等待 API 回傳成功後，再觸發 `fetchUsers` 重新抓取。
     - **雙向時間戳記護欄 (Bilateral Timestamp Guarding)**：採用 10 秒時間戳記保護機制。當 `fetchUsers` 輪詢回傳伺服器資料時，會自動處理：
         1. **刪除護欄**：濾掉 10 秒內被刪除的標籤。
         2. **新增護欄**：自動補回 10 秒內新增但伺服器尚未更新的標籤。
-    - **技術成效**：徹底解決了因後端（Line-Bot-Main）非同步處理延遲導致的標籤「消失又出現/出現又消失」的視覺閃爍問題。
+    - **技術成效**：既滿足了使用者希望「確診後再更新」的需求，又徹底解決了因後端（Line-Bot-Main）非同步處理延遲導致的標籤「消失又出現/出現又消失」的視覺閃爍問題。
     - **視覺狀態同步**：操作進行中的標籤與刪除按鈕會同步維持 10 秒的穩定狀態，提供明確的 UX 反饋。
-  - **Flex 訊息功能與視覺美化 (Flex Feature & Visual Fixes)** [2026-04-10]:
+  - **自動旅程介面優化 (Journey UI Optimizations)** [2026-04-10]:
+    - **用戶列表狀態顯示**：當參與用戶的狀態為「已完成」時，將「目前步驟」由 N/A 變更為「旅程完成」，提升資訊可讀性。
+    - **加入用戶時間邏輯優化**：調整了推播時間的基準計算。若旅程尚未開始，推播將從「旅程開始時間」作為基準計算間隔；若已開始，則維持從「當前時間」起算。這確保了提前加入的用戶不會比旅程開始日更早收到訊息。
+  - **Flex 編輯器標籤持久化修正 (Flex Editor Tag Persistence Fix)** [2026-04-10]:
     - **連結標籤修復**：解決了「開啟連結」動作無法標註標籤的問題，透過動態重導向與 `oaId` 傳遞實現。
+    - **標籤持久化修復 (Tag Persistence Fix)**：修正了重新開啟 Flex 編輯器時標籤遺失的問題。透過在父元件加入 `key` 屬性強制重新掛載，以及優化編輯器的初始化與標籤解析 (Parsing) 邏輯，確保資料能正確從儲存內容回填。
     - **輪播圖片白塊修復**：修正了輪播中圖片型卡片出現多餘白色區域的問題。優化了 JSON 產生邏輯（移除空區塊）與預覽器渲染邏輯，實現真正的「滿版圖片」效果。
     - **上下文感知 (OA Context Awareness)**：在重導向 URL 中帶入 `oaId`，讓後端 `/api/redirect` 能正確路由標籤指令。
     - **輪播混合型態邊界修復 (Mixed Carousel Full Bleed Fix)**：修正了圖片型卡片在混合輪播中會顯示「白塊」的問題。透過在產生 JSON 時動態移除純圖片卡片的空 `body` 與 `footer` 區塊，並優化預覽渲染邏輯，使圖片能真正達到滿版外觀。

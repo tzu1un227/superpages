@@ -1692,7 +1692,7 @@ const ProjectsManagement = () => {
                                     {projectUsers.length > 0 ? projectUsers.map((u, i) => (
                                         <tr key={i}>
                                             <td style={{ fontWeight: '600' }}>{u.user_name || '未命名'}</td>
-                                            <td>{u.step_id || 'N/A'}</td>
+                                            <td>{u.status === 'completed' ? '旅程完成' : (u.step_id || 'N/A')}</td>
                                             <td>
                                                 {(() => {
                                                     const s = u.status || 'unknown';
@@ -2109,7 +2109,7 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                 )}
                                 {messages[activeMsgIndex].OTYPE === 'FlexSendMessage' && (
                                     <div style={{ height: '500px', border: '1px solid #444' }}>
-                                        <FlexMessageEditor initialContent={messages[activeMsgIndex].contents} onSave={(val) => updateMessage(activeMsgIndex, 'contents', val)} onCancel={() => { }} />
+                                        <FlexMessageEditor key={activeMsgIndex} initialContent={messages[activeMsgIndex].contents} onSave={(val) => updateMessage(activeMsgIndex, 'contents', val)} onCancel={() => { }} />
                                     </div>
                                 )}
                             </div>

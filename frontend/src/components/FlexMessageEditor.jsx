@@ -68,13 +68,13 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                 return;
             }
 
-            // If we're already initialized and the parent pulse doesn't look like an external reset, 
-            // we should be careful about overwriting local state.
-            // But if it's a DIFFERENT message (external change), we MUST load it.
-            // Heuristic: If we are carousel and incoming is bubble, or vice-versa, or card count differs.
-            const isExternalChange = !hasInitialized; // Always load on first mounting
+            // Initialization logic: Always load on first mount (!hasInitialized)
+            // OR if the incoming content is fundamentally different from current local state
+            // (e.g. parent changed the content drastically, like switching between messages)
+            const isExternalChange = !hasInitialized;
+            const isSignificantDiff = normalize(incoming) !== normalize(current);
 
-            if (isExternalChange) {
+            if (isExternalChange || (hasInitialized && isSignificantDiff)) {
                 if (incoming.type === 'carousel') {
                     setMode('carousel');
                     setCards(incoming.contents.map(b => parseBubbleToCard(b)));
@@ -82,7 +82,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                     setMode('single');
                     setCards([parseBubbleToCard(incoming)]);
                 }
-                setHasInitialized(true);
+                if (!hasInitialized) setHasInitialized(true);
             }
         } catch (e) {
             console.error("FlexEditor Load Error:", e);
@@ -168,36 +168,37 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
         const footer = bubble.footer || {};
 
         const extractTags = (payload) => {
-            if (!payload) return [];
+            if (!payload || typeof payload !== 'string') return [];
             // Handle postback/message format: |set_tag|tag1|tag2
             if (payload.includes('set_tag|')) {
                 const parts = payload.split('|');
                 const tagIdx = parts.indexOf('set_tag');
-                if (tagIdx !== -1) return parts.slice(tagIdx + 1);
+                if (tagIdx !== -1) return parts.slice(tagIdx + 1).filter(t => t);
             }
             // Handle redirect format: /api/redirect?tags=tag1,tag2
-            if (payload.includes('/api/redirect?')) {
-                const tagsMatch = payload.match(/[?&]tags=([^&]*)/);
+            if (payload.includes('/redirect?')) {
+                const tagsMatch = payload.match(/[?&]tags=([^&#]*)/);
                 if (tagsMatch && tagsMatch[1]) {
-                    return decodeURIComponent(tagsMatch[1]).split(',').filter(t => t);
+                    const decoded = decodeURIComponent(tagsMatch[1]);
+                    return decoded.split(/[,|]/).map(t => t.trim()).filter(t => t);
                 }
             }
             // Handle old URI fragment format: #tags=tag1,tag2
             const match = payload.match(/#tags=([^#?&]*)/);
             if (match && match[1]) {
-                return match[1].split(',').filter(t => t);
+                return match[1].split(/[,|]/).map(t => t.trim()).filter(t => t);
             }
             return [];
         };
 
         const cleanPayload = (payload) => {
-            if (!payload) return payload;
+            if (!payload || typeof payload !== 'string') return payload;
             // Clean postback format
             if (payload.includes('set_tag|')) {
                 return payload.split('set_tag|')[0].replace(/\|$/, '');
             }
             // Clean redirect format
-            if (payload.includes('/api/redirect?')) {
+            if (payload.includes('/redirect?')) {
                 const urlMatch = payload.match(/[?&]url=([^&]*)/);
                 if (urlMatch && urlMatch[1]) {
                     return decodeURIComponent(urlMatch[1]);

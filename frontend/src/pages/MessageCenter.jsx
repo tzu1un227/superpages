@@ -841,18 +841,6 @@ function MessageCenter() {
         }
         pendingTagAdditionsRef.current[userId][tagName] = Date.now();
 
-        // 樂觀更新：立即在本地 state 增加標籤
-        setUsers(prev => prev.map(u => {
-            if (u.user_id === userId) {
-                const currentTags = getCurrentUserTags(u);
-                if (!currentTags.includes(tagName)) {
-                    const newTags = [...currentTags, tagName].join('|');
-                    return { ...u, tags: newTags };
-                }
-            }
-            return u;
-        }));
-        
         const tagToSent = tagInput; // 保存值以便清理
         setTagInput('');
 
@@ -865,13 +853,13 @@ function MessageCenter() {
             });
             showToast(`已新增標籤: ${tagToSent}`, 'success');
             
-            // 觸發刷新，fetchUsers 的過濾邏輯會利用時間戳記維持護欄
+            // API 成功後，等待一段時間再觸發刷新，fetchUsers 的過濾邏輯會利用時間戳記維持穩定
             setTimeout(() => {
                 fetchUsers(searchQuery, selectedTagFilters);
-            }, 1000);
+            }, 500);
         } catch (err) {
             showToast('新增標籤失敗', 'error');
-            // 失敗時恢復：清理護欄紀錄
+            // 失敗時清理護欄紀錄
             if (pendingTagAdditionsRef.current[userId]) {
                 delete pendingTagAdditionsRef.current[userId][tagName];
             }
@@ -891,15 +879,11 @@ function MessageCenter() {
         }
         pendingTagDeletionsRef.current[userId][tagName] = Date.now();
 
-        // 樂觀更新：立即從本地 state 移除標籤
-        setUsers(prev => prev.map(u => {
-            if (u.user_id === userId) {
-                const currentTags = getCurrentUserTags(u);
-                const newTags = currentTags.filter(t => t !== tagName).join('|');
-                return { ...u, tags: newTags };
-            }
-            return u;
-        }));
+        // 紀錄刪除當下的時間戳記，以啟動 10 秒穩定護欄
+        if (!pendingTagDeletionsRef.current[userId]) {
+            pendingTagDeletionsRef.current[userId] = {};
+        }
+        pendingTagDeletionsRef.current[userId][tagName] = Date.now();
 
         try {
             await api.post('/trigger', {
@@ -910,10 +894,10 @@ function MessageCenter() {
             });
             showToast(`已刪除標籤: ${tagName}`, 'success');
             
-            // 觸發刷新，fetchUsers 的過濾邏輯會利用時間戳記維持護欄
+            // API 成功後，由 fetchUsers 根據護欄邏輯獲取最新狀態
             setTimeout(() => {
                 fetchUsers(searchQuery, selectedTagFilters);
-            }, 1000);
+            }, 500);
         } catch (err) {
             showToast('刪除標籤失敗', 'error');
             // 刪除失敗：清理護欄紀錄並重新抓取
