@@ -892,7 +892,7 @@ function MessageCenter() {
                 type: 'Sensor',
                 api_index: 0
             });
-            showToast(`已刪除標籤: ${tagName}`, 'success');
+            showToast(`標籤 [${tagName}] 正在刪除中...`, 'success');
             
             // API 成功後，由 fetchUsers 根據護欄邏輯獲取最新狀態
             setTimeout(() => {
@@ -1211,6 +1211,7 @@ function MessageCenter() {
                                             <button
                                                 onClick={() => handleDeleteTag(t)}
                                                 disabled={pendingTagDeletionsRef.current[selectedUser]?.[t] && (Date.now() - pendingTagDeletionsRef.current[selectedUser][t] < 10000)}
+                                                title={pendingTagDeletionsRef.current[selectedUser]?.[t] && (Date.now() - pendingTagDeletionsRef.current[selectedUser][t] < 10000) ? "刪除中" : "刪除標籤"}
                                                 style={{ 
                                                     background: 'none', 
                                                     border: 'none', 
