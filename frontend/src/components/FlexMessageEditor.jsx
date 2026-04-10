@@ -356,11 +356,23 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                     }
                 }
             } else {
-                // Image Card: No Body or Footer to avoid "white block" in carousels
-                if (mode === 'carousel') bubble.size = 'kilo';
+                // Image Card: Optimize for "Full Bleed" look in carousels
+                if (mode === 'carousel') {
+                    bubble.size = 'kilo';
+                }
+                
+                // Use a taller aspect ratio for image-only cards to cover more vertical space in mixed carousels
+                bubble.hero.aspectRatio = '1:1';
                 bubble.hero.aspectMode = 'cover';
                 bubble.hero.backgroundColor = '#000000';
-                // Explicitly ensure no empty body/footer properties exist for pure image cards
+                
+                // Add styles to ensure any remaining space (due to other tall cards) is black, not white
+                bubble.styles = {
+                    body: { backgroundColor: '#000000' },
+                    footer: { backgroundColor: '#000000' }
+                };
+                
+                // Explicitly ensure no empty body/footer properties exist for pure image cards to reduce height normalization side-effects
                 if (bubble.body) delete bubble.body;
                 if (bubble.footer) delete bubble.footer;
             }
