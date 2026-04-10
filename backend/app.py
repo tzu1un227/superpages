@@ -142,6 +142,24 @@ def get_current_app_id():
         return path_part.split('?')[0].strip()
     return '5013' # Default
 
+def get_now_taiwan():
+    """Returns current datetime in Asia/Taipei (GMT+8)."""
+    return datetime.utcnow() + timedelta(hours=8)
+
+def parse_to_utc(dt_str):
+    """Parses a naive or UTC string from frontend and returns a naive UTC datetime for DB storage."""
+    if not dt_str: return None
+    try:
+        # If it has Z, it's already UTC
+        if 'Z' in dt_str:
+            dt = datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+            return dt.replace(tzinfo=None) - (dt.utcoffset() or timedelta(0))
+        # Otherwise assume it's Asia/Taipei local time
+        dt = datetime.fromisoformat(dt_str)
+        return dt - timedelta(hours=8)
+    except:
+        return None
+
 def get_current_oa_id():
     """Returns the numeric OA Config ID (from permission_settings)."""
     if hasattr(g, 'current_oa_id') and g.current_oa_id:
@@ -154,7 +172,7 @@ def increment_project_stat(project_id, metric, oa_id, date_str=None):
     Metrics: tc (Unique Triggers), ttc (Total Triggers), cc (Unique Completions), tcc (Total Completions), ms/mss/msf (Messages)
     """
     if not date_str:
-        date_str = datetime.now().strftime('%Y-%m-%d')
+        date_str = get_now_taiwan().strftime('%Y-%m-%d')
     variable_name = f"pj:{project_id}:stats:{date_str}:{metric}"
     
     try:
@@ -548,27 +566,27 @@ def get_projects():
         cur.execute("SELECT * FROM projects ORDER BY project_id")
         projects = cur.fetchall()
         
-        # Calculate Status
-        now = datetime.now().replace(second=0, microsecond=0)
+        # Calculate Status based on Taiwan time
+        now_tw = get_now_taiwan().replace(second=0, microsecond=0)
         for p in projects:
-            # Truncate seconds for comparison to be minute-precise
-            start = p['start_date'].replace(second=0, microsecond=0) if p['start_date'] else p['start_date']
-            end = p['end_date'].replace(second=0, microsecond=0) if p['end_date'] else p['end_date']
+            # DB stores UTC, so we add 8 hours for comparison with now_tw
+            start = (p['start_date'] + timedelta(hours=8)).replace(second=0, microsecond=0) if p['start_date'] else p['start_date']
+            end = (p['end_date'] + timedelta(hours=8)).replace(second=0, microsecond=0) if p['end_date'] else p['end_date']
             
             is_enabled = p['is_enabled']
             
             p['status'] = "未知"
             if not is_enabled:
-                if now < start:
+                if now_tw < start:
                     p['status'] = "編輯中"
-                elif now > end:
+                elif now_tw > end:
                     p['status'] = "已結案"
                 else:
                     p['status'] = "已暫停"
             else:
-                if now < start:
+                if now_tw < start:
                     p['status'] = "已排程"
-                elif now > end:
+                elif now_tw > end:
                     p['status'] = "已完成"
                 else:
                     p['status'] = "進行中"
@@ -587,16 +605,13 @@ def create_project():
         if not data.get('project_name') or not data['project_name'].strip():
             return jsonify({"status": "error", "message": "專案名稱不能為空"}), 400
             
-        if not data.get('start_date') or not data.get('end_date'):
-            return jsonify({"status": "error", "message": "請務必填寫開始與結束日期"}), 400
-
-        try:
-            start_date = datetime.fromisoformat(data['start_date'].replace('Z', '+00:00'))
-            end_date = datetime.fromisoformat(data['end_date'].replace('Z', '+00:00'))
-        except ValueError:
-            return jsonify({"status": "error", "message": "日期格式錯誤，請重新選擇"}), 400
+        start_utc = parse_to_utc(data.get('start_date'))
+        end_utc = parse_to_utc(data.get('end_date'))
         
-        if end_date <= start_date:
+        if not start_utc or not end_utc:
+            return jsonify({"status": "error", "message": "請務必填寫日期或日期格式錯誤"}), 400
+        
+        if end_utc <= start_utc:
             return jsonify({"status": "error", "message": "結束時間必須晚於開始時間"}), 400
 
         import json
@@ -611,7 +626,7 @@ def create_project():
         
         cur.execute(
             "INSERT INTO projects (project_name, start_date, end_date, is_enabled, anchor_config, dormancy_config, is_recurring) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING project_id",
-            (data['project_name'], data['start_date'], data['end_date'], data['is_enabled'], anchor_config, dormancy_config, is_recurring)
+            (data['project_name'], start_utc, end_utc, data['is_enabled'], anchor_config, dormancy_config, is_recurring)
         )
         project_id = cur.fetchone()[0]
         conn.commit()
@@ -629,16 +644,13 @@ def update_project(id):
         if not data.get('project_name') or not data['project_name'].strip():
             return jsonify({"status": "error", "message": "專案名稱不能為空"}), 400
             
-        if not data.get('start_date') or not data.get('end_date'):
-            return jsonify({"status": "error", "message": "請務必填寫開始與結束日期"}), 400
-
-        try:
-            start_date = datetime.fromisoformat(data['start_date'].replace('Z', '+00:00'))
-            end_date = datetime.fromisoformat(data['end_date'].replace('Z', '+00:00'))
-        except ValueError:
-            return jsonify({"status": "error", "message": "日期格式錯誤，請重新選擇"}), 400
+        start_utc = parse_to_utc(data.get('start_date'))
+        end_utc = parse_to_utc(data.get('end_date'))
         
-        if end_date <= start_date:
+        if not start_utc or not end_utc:
+            return jsonify({"status": "error", "message": "請務必填寫日期或日期格式錯誤"}), 400
+        
+        if end_utc <= start_utc:
             return jsonify({"status": "error", "message": "結束時間必須晚於開始時間"}), 400
 
         import json
@@ -652,13 +664,14 @@ def update_project(id):
         
         cur.execute(
             "UPDATE projects SET project_name=%s, start_date=%s, end_date=%s, is_enabled=%s, anchor_config=%s, dormancy_config=%s, is_recurring=%s WHERE project_id=%s",
-            (data['project_name'], data['start_date'], data['end_date'], data['is_enabled'], anchor_config, dormancy_config, is_recurring, id)
+            (data['project_name'], start_utc, end_utc, data['is_enabled'], anchor_config, dormancy_config, is_recurring, id)
         )
         conn.commit()
         cur.close()
         conn.close()
         return jsonify({"status": "success"})
     except Exception as e:
+        print(f"Error in update_project: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/projects/<int:id>', methods=['DELETE'])
@@ -936,14 +949,15 @@ def restart_project_user(id, user_id):
         project_start = project.get('start_date')
         
         # 2. Calculate Base Start Time (Aligned with Anchor)
-        now = datetime.now()
+        # Use UTC for all internal calculations
+        now_utc = datetime.utcnow()
         
         # Determine Reference Time: Use project_start if it's in the future
-        reference_time = now
+        reference_time = now_utc
         if project_start:
-            # Handle possible tz-aware vs naive comparison
-            ps_naive = project_start.replace(tzinfo=None) if project_start.tzinfo else project_start
-            reference_time = max(now, ps_naive)
+            # project_start from DB is retrieved as naive UTC in this context (assuming DB session is UTC)
+            ps_utc = project_start.replace(tzinfo=None) if project_start.tzinfo else project_start
+            reference_time = max(now_utc, ps_utc)
 
         base_start_time = reference_time
         if anchor_conf and anchor_conf.get('time'):
@@ -1041,14 +1055,13 @@ def batch_restart_project_users(id):
         project_start = project.get('start_date')
 
         # 2. Calculate Base Start Time
-        now = datetime.now()
+        now_utc = datetime.utcnow()
         
         # Determine Reference Time: Use project_start if it's in the future
-        reference_time = now
+        reference_time = now_utc
         if project_start:
-            # Handle possible tz-aware vs naive comparison
-            ps_naive = project_start.replace(tzinfo=None) if project_start.tzinfo else project_start
-            reference_time = max(now, ps_naive)
+            ps_utc = project_start.replace(tzinfo=None) if project_start.tzinfo else project_start
+            reference_time = max(now_utc, ps_utc)
 
         base_start_time = reference_time
         if anchor_conf and anchor_conf.get('time'):

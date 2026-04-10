@@ -357,7 +357,9 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                 }
             } else {
                 // Image Card: No Body or Footer to avoid "white block" in carousels
-                if (mode === 'carousel') bubble.size = 'kilo'; 
+                if (mode === 'carousel') bubble.size = 'kilo';
+                bubble.hero.aspectMode = 'cover';
+                bubble.hero.backgroundColor = '#000000';
                 // Explicitly ensure no empty body/footer properties exist for pure image cards
                 if (bubble.body) delete bubble.body;
                 if (bubble.footer) delete bubble.footer;
@@ -405,17 +407,21 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
     };
 
     const updateCurrentCard = (field, value) => {
-        const newCards = [...cards];
-        newCards[currentCardIndex] = { ...newCards[currentCardIndex], [field]: value };
-        setCards(newCards);
+        setCards(prevCards => {
+            const newCards = [...prevCards];
+            newCards[currentCardIndex] = { ...newCards[currentCardIndex], [field]: value };
+            return newCards;
+        });
     };
 
     const updateCardButton = (btnIndex, field, value) => {
-        const newCards = [...cards];
-        const buttons = [...newCards[currentCardIndex].buttons];
-        buttons[btnIndex] = { ...buttons[btnIndex], [field]: value };
-        newCards[currentCardIndex].buttons = buttons;
-        setCards(newCards);
+        setCards(prevCards => {
+            const newCards = [...prevCards];
+            const buttons = [...newCards[currentCardIndex].buttons];
+            buttons[btnIndex] = { ...buttons[btnIndex], [field]: value };
+            newCards[currentCardIndex].buttons = buttons;
+            return newCards;
+        });
     };
 
     const addCardButton = () => {
@@ -549,7 +555,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <div key={currentCardIndex} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                         {/* Image Field */}
                         <div>
                             <label style={{ display: 'block', color: '#aaa', fontSize: '13px', marginBottom: '5px' }}>圖片網址 (800x400px)</label>

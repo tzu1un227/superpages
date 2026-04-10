@@ -184,15 +184,15 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
         2. **新增護欄**：自動補回 10 秒內新增但伺服器尚未更新的標籤。
     - **技術成效**：既滿足了使用者希望「確診後再更新」的需求，又徹底解決了因後端（Line-Bot-Main）非同步處理延遲導致的標籤「消失又出現/出現又消失」的視覺閃爍問題。
     - **視覺狀態同步**：操作進行中的標籤與刪除按鈕會同步維持 10 秒的穩定狀態，並顯示「刪除中」提示，提供明確的 UX 反饋。
-  - **自動旅程介面優化 (Journey UI Optimizations)** [2026-04-10]:
-    - **用戶列表狀態顯示**：當參與用戶的狀態為「已完成」時，將「目前步驟」由 N/A 變更為「旅程完成」，提升資訊可讀性。
-    - **加入用戶時間邏輯優化**：調整了推播時間的基準計算。若旅程尚未開始，推播將從「旅程開始時間」作為基準計算間隔；若已開始，則維持從「當前時間」起算。這確保了提前加入的用戶不會比旅程開始日更早收到訊息。
-  - **Flex 編輯器標籤持久化修正 (Flex Editor Tag Persistence Fix)** [2026-04-10]:
-    - **連結標籤修復**：解決了「開啟連結」動作無法標註標籤的問題，透過動態重導向與 `oaId` 傳遞實現。
-    - **標籤持久化修復 (Tag Persistence Fix)**：修正了重新開啟 Flex 編輯器時標籤遺失的問題。透過在父元件加入 `key` 屬性強制重新掛載，以及優化編輯器的初始化與標籤解析 (Parsing) 邏輯，確保資料能正確從儲存內容回填。
-    - **輪播圖片白塊修復**：修正了輪播中圖片型卡片出現多餘白色區域的問題。優化了 JSON 產生邏輯（移除空區塊）與預覽器渲染邏輯，實現真正的「滿版圖片」效果。
-    - **上下文感知 (OA Context Awareness)**：在重導向 URL 中帶入 `oaId`，讓後端 `/api/redirect` 能正確路由標籤指令。
-    - **輪播混合型態邊界修復 (Mixed Carousel Full Bleed Fix)**：修正了圖片型卡片在混合輪播中會顯示「白塊」的問題。透過在產生 JSON 時動態移除純圖片卡片的空 `body` 與 `footer` 區塊，並優化預覽渲染邏輯，使圖片能真正達到滿版外觀。
+  - **自動旅程與排程基準 (Journey & Scheduling Architecture)**:
+    - **時區處理 (Timezone Handling)**：系統內部與資料庫統一使用 UTC Naive Datetime。
+    - **儲存轉換**：後端 `parse_to_utc` 工具負責將前端輸入的本地時間轉為 UTC。
+    - **比較基準**：任務啟動與排程基準統一使用 `utcnow()`。
+    - **顯示轉換**：前端使用 `toLocaleString` 將 UTC 轉回本地時區顯示。
+    - **統計校正**：使用 `get_now_taiwan()` 確保 `Global_var` 統計日期與本地操作日期一致，避免跨日統計偏差。
+  - **Flex 編輯器邏輯優化**:
+    - **狀態同步**：採用 functional updates 與 `key` 重掛載機制解決非同步圖片上傳定位 Bug。
+    - **視覺滿版**：優化 JSON 生成邏輯，移除圖片型卡片的空區塊，實現真正的滿版外觀。
   - Resolved `ReferenceError`s caused by deprecated `showToast` calls.
 
 ### Visualization
