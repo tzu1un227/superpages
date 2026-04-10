@@ -110,7 +110,7 @@ import json
 
 def json_response(data):
     return app.response_class(
-        json.dumps(data, default=lambda x: float(x) if isinstance(x, Decimal) else (x.isoformat() if isinstance(x, (datetime, date)) else str(x))),
+        json.dumps(data, default=lambda x: float(x) if isinstance(x, Decimal) else (x.strftime('%Y-%m-%d %H:%M:%S') if isinstance(x, (datetime, date)) else str(x))),
         mimetype='application/json'
     )
 
@@ -146,17 +146,16 @@ def get_now_taiwan():
     """Returns current datetime in Asia/Taipei (GMT+8)."""
     return datetime.utcnow() + timedelta(hours=8)
 
-def parse_to_utc(dt_str):
-    """Parses a naive or UTC string from frontend and returns a naive UTC datetime for DB storage."""
+def parse_local_naive(dt_str):
+    """Parses an ISO string from frontend and returns a naive datetime (assuming it's already Taiwan time)."""
     if not dt_str: return None
     try:
-        # If it has Z, it's already UTC
-        if 'Z' in dt_str:
-            dt = datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
-            return dt.replace(tzinfo=None) - (dt.utcoffset() or timedelta(0))
-        # Otherwise assume it's Asia/Taipei local time
-        dt = datetime.fromisoformat(dt_str)
-        return dt - timedelta(hours=8)
+        # Strip Z if present, but since user inputs local time, usually it's plain
+        clean_str = dt_str.replace('Z', '').replace('T', ' ')
+        # We handle both YYYY-MM-DD HH:mm:ss and YYYY-MM-DD HH:mm
+        if len(clean_str) > 16:
+            return datetime.strptime(clean_str[:19], '%Y-%m-%d %H:%M:%S')
+        return datetime.strptime(clean_str[:16], '%Y-%m-%d %H:%M')
     except:
         return None
 
@@ -569,9 +568,9 @@ def get_projects():
         # Calculate Status based on Taiwan time
         now_tw = get_now_taiwan().replace(second=0, microsecond=0)
         for p in projects:
-            # DB stores UTC, so we add 8 hours for comparison with now_tw
-            start = (p['start_date'] + timedelta(hours=8)).replace(second=0, microsecond=0) if p['start_date'] else p['start_date']
-            end = (p['end_date'] + timedelta(hours=8)).replace(second=0, microsecond=0) if p['end_date'] else p['end_date']
+            # DB stores naive Taiwan time, directly comparable with now_tw
+            start = p['start_date'].replace(second=0, microsecond=0) if p['start_date'] else p['start_date']
+            end = p['end_date'].replace(second=0, microsecond=0) if p['end_date'] else p['end_date']
             
             is_enabled = p['is_enabled']
             
@@ -605,13 +604,13 @@ def create_project():
         if not data.get('project_name') or not data['project_name'].strip():
             return jsonify({"status": "error", "message": "專案名稱不能為空"}), 400
             
-        start_utc = parse_to_utc(data.get('start_date'))
-        end_utc = parse_to_utc(data.get('end_date'))
+        start_local = parse_local_naive(data.get('start_date'))
+        end_local = parse_local_naive(data.get('end_date'))
         
-        if not start_utc or not end_utc:
+        if not start_local or not end_local:
             return jsonify({"status": "error", "message": "請務必填寫日期或日期格式錯誤"}), 400
         
-        if end_utc <= start_utc:
+        if end_local <= start_local:
             return jsonify({"status": "error", "message": "結束時間必須晚於開始時間"}), 400
 
         import json
@@ -626,7 +625,7 @@ def create_project():
         
         cur.execute(
             "INSERT INTO projects (project_name, start_date, end_date, is_enabled, anchor_config, dormancy_config, is_recurring) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING project_id",
-            (data['project_name'], start_utc, end_utc, data['is_enabled'], anchor_config, dormancy_config, is_recurring)
+            (data['project_name'], start_local, end_local, data['is_enabled'], anchor_config, dormancy_config, is_recurring)
         )
         project_id = cur.fetchone()[0]
         conn.commit()
@@ -644,13 +643,13 @@ def update_project(id):
         if not data.get('project_name') or not data['project_name'].strip():
             return jsonify({"status": "error", "message": "專案名稱不能為空"}), 400
             
-        start_utc = parse_to_utc(data.get('start_date'))
-        end_utc = parse_to_utc(data.get('end_date'))
+        start_local = parse_local_naive(data.get('start_date'))
+        end_local = parse_local_naive(data.get('end_date'))
         
-        if not start_utc or not end_utc:
+        if not start_local or not end_local:
             return jsonify({"status": "error", "message": "請務必填寫日期或日期格式錯誤"}), 400
         
-        if end_utc <= start_utc:
+        if end_local <= start_local:
             return jsonify({"status": "error", "message": "結束時間必須晚於開始時間"}), 400
 
         import json
@@ -664,7 +663,7 @@ def update_project(id):
         
         cur.execute(
             "UPDATE projects SET project_name=%s, start_date=%s, end_date=%s, is_enabled=%s, anchor_config=%s, dormancy_config=%s, is_recurring=%s WHERE project_id=%s",
-            (data['project_name'], start_utc, end_utc, data['is_enabled'], anchor_config, dormancy_config, is_recurring, id)
+            (data['project_name'], start_local, end_local, data['is_enabled'], anchor_config, dormancy_config, is_recurring, id)
         )
         conn.commit()
         cur.close()
@@ -949,15 +948,15 @@ def restart_project_user(id, user_id):
         project_start = project.get('start_date')
         
         # 2. Calculate Base Start Time (Aligned with Anchor)
-        # Use UTC for all internal calculations
-        now_utc = datetime.utcnow()
+        # Use Taiwan Time for all internal calculations
+        now_tw = get_now_taiwan()
         
         # Determine Reference Time: Use project_start if it's in the future
-        reference_time = now_utc
+        reference_time = now_tw
         if project_start:
-            # project_start from DB is retrieved as naive UTC in this context (assuming DB session is UTC)
-            ps_utc = project_start.replace(tzinfo=None) if project_start.tzinfo else project_start
-            reference_time = max(now_utc, ps_utc)
+            # project_start from DB is naive local time
+            ps_local = project_start.replace(tzinfo=None) if project_start.tzinfo else project_start
+            reference_time = max(now_tw, ps_local)
 
         base_start_time = reference_time
         if anchor_conf and anchor_conf.get('time'):
@@ -1055,13 +1054,13 @@ def batch_restart_project_users(id):
         project_start = project.get('start_date')
 
         # 2. Calculate Base Start Time
-        now_utc = datetime.utcnow()
+        now_tw = get_now_taiwan()
         
         # Determine Reference Time: Use project_start if it's in the future
-        reference_time = now_utc
+        reference_time = now_tw
         if project_start:
-            ps_utc = project_start.replace(tzinfo=None) if project_start.tzinfo else project_start
-            reference_time = max(now_utc, ps_utc)
+            ps_local = project_start.replace(tzinfo=None) if project_start.tzinfo else project_start
+            reference_time = max(now_tw, ps_local)
 
         base_start_time = reference_time
         if anchor_conf and anchor_conf.get('time'):
