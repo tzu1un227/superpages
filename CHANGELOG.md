@@ -3,10 +3,10 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
-  - **訊息中心標籤刪除競態條件修復 (Message Center Tag Deletion Race Fix)** [2026-04-10]:
-    - **問題根源**：快速連續刪除多個標籤（例如先刪 A 再刪 B）時，中間的 `fetchUsers` 輪詢或定時刷新會從伺服器取回尚未同步的舊資料，覆蓋掉本地的樂觀更新 (Optimistic Update)，導致已刪除的標籤短暫「復活」再消失的視覺閃爍問題。
-    - **修復方案**：引入 `pendingTagDeletionsRef` 追蹤機制，在標籤刪除 API 呼叫期間記錄正在進行中的刪除操作。`fetchUsers` 更新用戶列表時會自動過濾掉這些正在刪除中的標籤，確保伺服器舊資料不會覆蓋本地的樂觀更新。
-    - **UX 強化**：刪除進行中的標籤按鈕會被禁用（灰色、半透明），防止使用者對同一標籤重複點擊。
+  - **訊息中心標籤刪除護欄強化 (Message Center Tag Deletion Guard Enhancement)** [2026-04-10]:
+    - **問題修正**：解決了快速連續刪除多個標籤時，因後端處理延遲導致標籤在自動輪詢中「閃現」的問題。
+    - **優化方案**：將護欄機制升級為「10 秒持久保護」。利用 `pendingTagDeletionsRef` 紀錄每個標籤刪除的時間戳記。
+    - **技術細節**：在 `fetchUsers` 合併資料時，強制過濾掉 10 秒內被刪除過的標籤，不論伺服器回傳狀態為何，直到後端狀態穩定。
   - **自動旅程操作完成通知 (Projects CRUD Toast Notifications)** [2026-04-10]:
     - 在自動旅程管理頁面的新增、編輯、刪除旅程及排程步驟操作完成後，加入 `showToast` 成功通知，讓使用者即時得知操作結果。
   - **綜合數據關鍵字排行標籤篩選 (Keyword Ranking Tag Filter)** [2026-04-10]:

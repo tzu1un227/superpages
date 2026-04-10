@@ -177,7 +177,9 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 - **Message Center UI Enhancements**:
   - Integrated `useToast` for reliable 5-second auto-hide notifications.
   - Implemented immediate state updates for tag addition/deletion to prevent UI lag.
-  - **標籤操作競態條件防護 (Tag Operation Race Guard)**: 引入 `pendingTagDeletionsRef` (Mutable Ref) 追蹤正在進行中的標籤刪除操作。當 `fetchUsers` 輪詢回傳伺服器資料時，會自動過濾掉仍在 pending 狀態的刪除標籤，防止樂觀更新被伺服器舊資料覆蓋而導致標籤「先消失→又出現→再消失」的視覺閃爍。操作完成或失敗後會自動清除追蹤記錄。
+  - **標籤操作競態條件防護 (Tag Operation Race Guard)**: 引入 `pendingTagDeletionsRef` (Mutable Ref) 追蹤正在進行中的標籤刪除操作。
+    - **時間戳記護欄 (Timestamp Guarding)**：採用 10 秒時間戳記保護機制。當 `fetchUsers` 輪詢回傳伺服器資料時，若標籤在 10 秒內曾被刪除，則會強制從介面過濾掉。此機制有效解決了因後端（Line-Bot-Main）非同步處理延遲導致的標籤「復活後消失」的閃爍問題。
+    - **視覺狀態同步**：操作進行中的標籤按鈕會同步維持 10 秒的停用狀態，提供明確的 UX 反饋。
   - Resolved `ReferenceError`s caused by deprecated `showToast` calls.
 
 ### Visualization

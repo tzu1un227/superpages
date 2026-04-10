@@ -176,7 +176,7 @@ function MessageCenter() {
     const isSendingRef = useRef(false);
 
     // 追蹤正在進行中的標籤操作，避免 fetchUsers 用伺服器舊資料覆蓋樂觀更新
-    // 格式: { [userId]: Set(['tagA', 'tagB']) } - 正在刪除中的標籤
+    // 格式: { [userId]: { [tagName]: timestamp } } - 儲存刪除發生的時間戳記
     const pendingTagDeletionsRef = useRef({});
 
     // --- 搜尋與篩選狀態 ---
@@ -320,14 +320,23 @@ function MessageCenter() {
                             };
                         }
                     }
-                    // 保護正在進行中的標籤刪除操作：從伺服器回傳的 tags 中移除尚未同步完成的刪除標籤
+                    // 保護正在進行中的標籤刪除操作：從伺服器回傳的 tags 中移除尚未同步完成的刪除標籤 (10秒護欄)
                     const pendingDels = pendingTagDeletionsRef.current[nu.user_id];
-                    if (pendingDels && pendingDels.size > 0 && result.tags) {
+                    if (pendingDels && result.tags) {
+                        const now = Date.now();
                         const currentTags = typeof result.tags === 'string' ? result.tags : String(result.tags);
-                        // 從伺服器回傳的標籤中過濾掉正在刪除中的標籤
                         const tagParts = currentTags.split('|').filter(t => {
                             const trimmed = t.trim().replace(/^['"]|['"]$/g, '');
-                            return trimmed && !pendingDels.has(trimmed);
+                            if (!trimmed) return false;
+                            
+                            // 如果該標籤在 10 秒內被刪除過，則強制過濾掉 (防止後端同步延遲導致的閃爍)
+                            const deletedAt = pendingDels[trimmed];
+                            if (deletedAt && (now - deletedAt < 10000)) {
+                                return false;
+                            }
+                            // 如果超過 10 秒，則清理該追蹤記錄
+                            if (deletedAt) delete pendingDels[trimmed];
+                            return true;
                         });
                         result = { ...result, tags: tagParts.join('|') };
                     }
@@ -845,11 +854,11 @@ function MessageCenter() {
 
         const userId = selectedUser;
 
-        // 將標籤加入「正在刪除中」的追蹤清單，防止 fetchUsers 用伺服器舊資料覆蓋樂觀更新
+        // 將標籤加入「正在刪除中」的追蹤清單，紀錄時間戳記，護欄時間為 10 秒
         if (!pendingTagDeletionsRef.current[userId]) {
-            pendingTagDeletionsRef.current[userId] = new Set();
+            pendingTagDeletionsRef.current[userId] = {};
         }
-        pendingTagDeletionsRef.current[userId].add(tagName);
+        pendingTagDeletionsRef.current[userId][tagName] = Date.now();
 
         // 樂觀更新：立即從本地 state 移除標籤
         setUsers(prev => prev.map(u => {
@@ -869,25 +878,16 @@ function MessageCenter() {
                 api_index: 0
             });
             showToast(`已刪除標籤: ${tagName}`, 'success');
-            // 等待後端同步完成後再刷新用戶列表，並移除追蹤
-            setTimeout(async () => {
-                await fetchUsers(searchQuery, selectedTagFilters);
-                // 刷新完成後，從追蹤清單中移除此標籤
-                if (pendingTagDeletionsRef.current[userId]) {
-                    pendingTagDeletionsRef.current[userId].delete(tagName);
-                    if (pendingTagDeletionsRef.current[userId].size === 0) {
-                        delete pendingTagDeletionsRef.current[userId];
-                    }
-                }
-            }, 1500);
+            
+            // 觸發刷新，fetchUsers 的過濾邏輯會利用時間戳記維持護欄
+            setTimeout(() => {
+                fetchUsers(searchQuery, selectedTagFilters);
+            }, 1000);
         } catch (err) {
             showToast('刪除標籤失敗', 'error');
-            // 刪除失敗：移除追蹤並重新抓取用戶列表以恢復正確狀態
+            // 刪除失敗：清理護欄紀錄並重新抓取
             if (pendingTagDeletionsRef.current[userId]) {
-                pendingTagDeletionsRef.current[userId].delete(tagName);
-                if (pendingTagDeletionsRef.current[userId].size === 0) {
-                    delete pendingTagDeletionsRef.current[userId];
-                }
+                delete pendingTagDeletionsRef.current[userId][tagName];
             }
             fetchUsers(searchQuery, selectedTagFilters);
         }
@@ -1195,8 +1195,18 @@ function MessageCenter() {
                                             {t}
                                             <button
                                                 onClick={() => handleDeleteTag(t)}
-                                                disabled={pendingTagDeletionsRef.current[selectedUser]?.has(t)}
-                                                style={{ background: 'none', border: 'none', color: pendingTagDeletionsRef.current[selectedUser]?.has(t) ? '#666' : '#ff4d4f', padding: '0', cursor: pendingTagDeletionsRef.current[selectedUser]?.has(t) ? 'not-allowed' : 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', opacity: pendingTagDeletionsRef.current[selectedUser]?.has(t) ? 0.5 : 1 }}
+                                                disabled={pendingTagDeletionsRef.current[selectedUser]?.[t] && (Date.now() - pendingTagDeletionsRef.current[selectedUser][t] < 10000)}
+                                                style={{ 
+                                                    background: 'none', 
+                                                    border: 'none', 
+                                                    color: (pendingTagDeletionsRef.current[selectedUser]?.[t] && (Date.now() - pendingTagDeletionsRef.current[selectedUser][t] < 10000)) ? '#666' : '#ff4d4f', 
+                                                    padding: '0', 
+                                                    cursor: (pendingTagDeletionsRef.current[selectedUser]?.[t] && (Date.now() - pendingTagDeletionsRef.current[selectedUser][t] < 10000)) ? 'not-allowed' : 'pointer', 
+                                                    fontSize: '14px', 
+                                                    display: 'flex', 
+                                                    alignItems: 'center', 
+                                                    opacity: (pendingTagDeletionsRef.current[selectedUser]?.[t] && (Date.now() - pendingTagDeletionsRef.current[selectedUser][t] < 10000)) ? 0.5 : 1 
+                                                }}
                                             >×</button>
                                         </span>
                                     ))}
