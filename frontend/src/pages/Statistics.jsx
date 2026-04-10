@@ -11,7 +11,8 @@ import {
     CheckCircle2,
     Circle,
     BarChart3,
-    Send
+    Send,
+    Tag
 } from 'lucide-react';
 import {
     LineChart,
@@ -102,6 +103,11 @@ const Statistics = () => {
     const [keywordPage, setKeywordPage] = useState(1);
     const ITEMS_PER_PAGE = 20;
 
+    // 關鍵字排行標籤篩選狀態
+    const [keywordTag, setKeywordTag] = useState('');  // '' = 全部
+    const [keywordAvailableTags, setKeywordAvailableTags] = useState([]);
+    const [keywordLoading, setKeywordLoading] = useState(false);
+
     const categoryMap = {
         'message': { label: '總訊息量', key: 'message', color: '#2196F3' },
         'follow': { label: '新增好友數', key: 'follow', color: '#FFD700' },
@@ -114,9 +120,46 @@ const Statistics = () => {
         '#00BCD4', '#FF9800', '#795548', '#607D8B', '#E91E63'
     ];
 
+    // 初次載入時抓取可用標籤列表
+    useEffect(() => {
+        const fetchTags = async () => {
+            try {
+                const resp = await api.get('/tags');
+                setKeywordAvailableTags(resp.data || []);
+            } catch (err) {
+                console.error('Error fetching tags for keyword filter:', err);
+            }
+        };
+        fetchTags();
+    }, []);
+
     useEffect(() => {
         fetchStats();
     }, [statsDateRange, groupUnit]);
+
+    // 關鍵字排行：當標籤篩選或日期範圍變化時重新抓取
+    useEffect(() => {
+        fetchKeywords();
+    }, [keywordTag, statsDateRange]);
+
+    const fetchKeywords = async () => {
+        setKeywordLoading(true);
+        try {
+            const params = {
+                start_time: statsDateRange.start,
+                end_time: statsDateRange.end,
+                limit: 100
+            };
+            if (keywordTag) params.tag = keywordTag;
+            const kwResp = await api.get('/statistics/keywords', { params });
+            setKeywordData(kwResp.data);
+            setKeywordPage(1);
+        } catch (err) {
+            console.error('Error fetching keywords:', err);
+        } finally {
+            setKeywordLoading(false);
+        }
+    };
 
     const fetchStats = async () => {
         setLoading(true);
@@ -131,16 +174,6 @@ const Statistics = () => {
             setGlobalData(resp.data);
             setLineInsight(resp.data.line_insight);
             setQuotaConsumption(resp.data.quota_consumption);
-
-            const kwResp = await api.get('/statistics/keywords', {
-                params: {
-                    start_time: statsDateRange.start,
-                    end_time: statsDateRange.end,
-                    limit: 100
-                }
-            });
-            setKeywordData(kwResp.data);
-            setKeywordPage(1);
 
             // Auto-select tags if category changes or data loaded
             const currentData = resp.data[activeCategory] || [];
@@ -385,7 +418,7 @@ const Statistics = () => {
             </div>
 
             <div className="card" style={{ padding: '25px', background: 'var(--secondary-black)', borderRadius: '16px', border: '1px solid #333' }}>
-                <div style={{ marginBottom: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '12px', fontSize: '20px' }}>
                         <MessageSquare size={24} className="text-yellow" /> 用戶熱門關鍵字 (Top {keywordData.length})
                     </h2>
@@ -421,7 +454,50 @@ const Statistics = () => {
                         </button>
                     </div>
                 </div>
-                {loading ? (
+
+                {/* 關鍵字排行標籤篩選區 */}
+                {keywordAvailableTags.length > 0 && (
+                    <div style={{ marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '10px', padding: '12px 15px', background: '#111', borderRadius: '12px', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#888', fontSize: '13px', marginRight: '4px' }}>
+                            <Tag size={14} /> 標籤篩選：
+                        </div>
+                        <div
+                            onClick={() => setKeywordTag('')}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer',
+                                padding: '5px 14px', borderRadius: '20px',
+                                background: !keywordTag ? '#FFD70022' : 'transparent',
+                                border: `1px solid ${!keywordTag ? '#FFD700' : '#444'}`,
+                                color: !keywordTag ? '#FFD700' : '#aaa',
+                                transition: 'all 0.2s', fontSize: '13px'
+                            }}
+                        >
+                            {!keywordTag ? <CheckCircle2 size={14} style={{ color: '#FFD700' }} /> : <Circle size={14} />}
+                            全部
+                        </div>
+                        {keywordAvailableTags.map((tag, idx) => (
+                            <div
+                                key={tag}
+                                onClick={() => setKeywordTag(keywordTag === tag ? '' : tag)}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer',
+                                    padding: '5px 14px', borderRadius: '20px',
+                                    background: keywordTag === tag ? `${colors[idx % colors.length]}22` : 'transparent',
+                                    border: `1px solid ${keywordTag === tag ? colors[idx % colors.length] : '#444'}`,
+                                    color: keywordTag === tag ? colors[idx % colors.length] : '#aaa',
+                                    transition: 'all 0.2s', fontSize: '13px'
+                                }}
+                            >
+                                {keywordTag === tag ? <CheckCircle2 size={14} style={{ color: colors[idx % colors.length] }} /> : <Circle size={14} />}
+                                {tag}
+                            </div>
+                        ))}
+                        {keywordLoading && (
+                            <span style={{ fontSize: '12px', color: '#666', marginLeft: '8px' }}>篩選中...</span>
+                        )}
+                    </div>
+                )}
+                {(loading || keywordLoading) ? (
                     <div style={{ height: '400px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#666' }}>
                         數據加載中...
                     </div>

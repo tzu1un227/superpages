@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+  - **訊息中心標籤刪除競態條件修復 (Message Center Tag Deletion Race Fix)** [2026-04-10]:
+    - **問題根源**：快速連續刪除多個標籤（例如先刪 A 再刪 B）時，中間的 `fetchUsers` 輪詢或定時刷新會從伺服器取回尚未同步的舊資料，覆蓋掉本地的樂觀更新 (Optimistic Update)，導致已刪除的標籤短暫「復活」再消失的視覺閃爍問題。
+    - **修復方案**：引入 `pendingTagDeletionsRef` 追蹤機制，在標籤刪除 API 呼叫期間記錄正在進行中的刪除操作。`fetchUsers` 更新用戶列表時會自動過濾掉這些正在刪除中的標籤，確保伺服器舊資料不會覆蓋本地的樂觀更新。
+    - **UX 強化**：刪除進行中的標籤按鈕會被禁用（灰色、半透明），防止使用者對同一標籤重複點擊。
+  - **自動旅程操作完成通知 (Projects CRUD Toast Notifications)** [2026-04-10]:
+    - 在自動旅程管理頁面的新增、編輯、刪除旅程及排程步驟操作完成後，加入 `showToast` 成功通知，讓使用者即時得知操作結果。
+  - **綜合數據關鍵字排行標籤篩選 (Keyword Ranking Tag Filter)** [2026-04-10]:
+    - 在綜合數據頁面的「用戶熱門關鍵字」區塊新增標籤篩選功能，透過 `/api/tags` 取得所有可用標籤，並以 pill 樣式的篩選按鈕呈現。
+    - 選擇特定標籤後，系統會帶上 `tag` 參數重新呼叫 `/api/statistics/keywords` API，僅顯示該標籤用戶的關鍵字排行。
+    - 關鍵字資料擷取從 `fetchStats` 中獨立抽出為 `fetchKeywords`，實現標籤切換時的獨立重新載入，不影響趨勢圖表。
   - **綜合數據擴充與優化 (Statistics & Quota Management)** [2026-04-08]:
     - **推播用量查詢**：在 `Statistics.jsx` 大數據面板新增「本月推播用量」指標，透過串接 LINE Official Account API (`/v2/bot/message/quota/consumption`) 提供客戶最直接的付費/免費訊息消耗總量 (`totalUsage`)，方便掌控額度。
     - **載入骨架屏 (Skeleton)**：優化了綜合數據在載入期間的生硬畫面，將切換日期時出現的「0」字樣改為動態灰色脈衝骨架，提升視覺預期感。

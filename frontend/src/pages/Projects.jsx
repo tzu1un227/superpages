@@ -827,6 +827,7 @@ const ProjectsManagement = () => {
             setEditingProjectId(null);
             fetchProjects();
             setError('');
+            showToast('旅程設定已更新', 'success');
         } catch (err) {
             console.error("Update project error:", err);
             setError('更新失敗: ' + (err.response?.data?.error || err.message));
@@ -841,6 +842,7 @@ const ProjectsManagement = () => {
                 setIsProcessing(true);
                 setProcessingMessage('正在刪除旅程...');
                 await api.delete(`/projects/${id}`);
+                showToast('旅程已刪除', 'success');
                 fetchProjects();
             } catch (err) {
                 showToast('刪除失敗: ' + err.message, 'error');
@@ -877,6 +879,7 @@ const ProjectsManagement = () => {
             fetchProjects();
             setFormErrors({});
             setError('');
+            showToast(`旅程「${newProject.project_name}」已建立`, 'success');
         } catch (err) {
             console.error("Create project error:", err);
             setError('建立失敗: ' + (err.response?.data?.error || err.message));
@@ -938,6 +941,7 @@ const ProjectsManagement = () => {
             setEditingScheduleId(null);
             fetchSchedules();
             setError('');
+            showToast('排程已更新', 'success');
         } catch (err) {
             setError(err.response?.data?.message || err.message || '排程更新失敗');
         }
@@ -948,6 +952,7 @@ const ProjectsManagement = () => {
             await api.delete(`/schedules/${id}`);
             // Invalidate cache for current project
             delete schedulesCacheRef.current[selectedProjectId];
+            showToast('排程步驟已刪除', 'success');
             fetchSchedules();
         }
     };
@@ -999,6 +1004,7 @@ const ProjectsManagement = () => {
             fetchSchedules();
             setFormErrors({});
             setError('');
+            showToast('新排程步驟已建立', 'success');
         } catch (err) {
             setError(err.response?.data?.message || err.message || '新增排程失敗');
         } finally {

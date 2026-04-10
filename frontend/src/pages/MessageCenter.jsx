@@ -175,6 +175,10 @@ function MessageCenter() {
     const [isSending, setIsSending] = useState(false);
     const isSendingRef = useRef(false);
 
+    // 追蹤正在進行中的標籤操作，避免 fetchUsers 用伺服器舊資料覆蓋樂觀更新
+    // 格式: { [userId]: Set(['tagA', 'tagB']) } - 正在刪除中的標籤
+    const pendingTagDeletionsRef = useRef({});
+
     // --- 搜尋與篩選狀態 ---
     const [searchQuery, setSearchQuery] = useState('');          // 用戶清單搜尋（user_id / 名稱）
     const [selectedTagFilters, setSelectedTagFilters] = useState([]); // 標籤篩選
@@ -303,19 +307,31 @@ function MessageCenter() {
             });
             setUsers(prev => {
                 const updatedUsers = newUsers.map(nu => {
+                    let result = nu;
                     // 防呆：如果當前選中的用戶在 local messages 中有更即時的內容，保留 local state，防止被伺服器舊緩存覆蓋
                     if (nu.user_id === selectedUserRef.current && messages.length > 0) {
                         const localLatest = messages[messages.length - 1];
                         if (localLatest.timestamp && nu.last_time && new Date(localLatest.timestamp) > new Date(nu.last_time)) {
-                            return { 
-                                ...nu, 
+                            result = { 
+                                ...result, 
                                 last_message: localLatest.content, 
                                 last_time: localLatest.timestamp,
                                 last_message_category: localLatest.category || 'Message'
                             };
                         }
                     }
-                    return nu;
+                    // 保護正在進行中的標籤刪除操作：從伺服器回傳的 tags 中移除尚未同步完成的刪除標籤
+                    const pendingDels = pendingTagDeletionsRef.current[nu.user_id];
+                    if (pendingDels && pendingDels.size > 0 && result.tags) {
+                        const currentTags = typeof result.tags === 'string' ? result.tags : String(result.tags);
+                        // 從伺服器回傳的標籤中過濾掉正在刪除中的標籤
+                        const tagParts = currentTags.split('|').filter(t => {
+                            const trimmed = t.trim().replace(/^['"]|['"]$/g, '');
+                            return trimmed && !pendingDels.has(trimmed);
+                        });
+                        result = { ...result, tags: tagParts.join('|') };
+                    }
+                    return result;
                 });
                 return updatedUsers;
             });
@@ -826,26 +842,54 @@ function MessageCenter() {
     const handleDeleteTag = async (tagName) => {
         if (!selectedUser) return;
         if (!window.confirm(`確定要刪除標籤 [${tagName}] 嗎？`)) return;
+
+        const userId = selectedUser;
+
+        // 將標籤加入「正在刪除中」的追蹤清單，防止 fetchUsers 用伺服器舊資料覆蓋樂觀更新
+        if (!pendingTagDeletionsRef.current[userId]) {
+            pendingTagDeletionsRef.current[userId] = new Set();
+        }
+        pendingTagDeletionsRef.current[userId].add(tagName);
+
+        // 樂觀更新：立即從本地 state 移除標籤
+        setUsers(prev => prev.map(u => {
+            if (u.user_id === userId) {
+                const currentTags = getCurrentUserTags(u);
+                const newTags = currentTags.filter(t => t !== tagName).join('|');
+                return { ...u, tags: newTags };
+            }
+            return u;
+        }));
+
         try {
             await api.post('/trigger', {
-                user: selectedUser,
+                user: userId,
                 message: `del_tag|${tagName}`,
                 type: 'Sensor',
                 api_index: 0
             });
             showToast(`已刪除標籤: ${tagName}`, 'success');
-            // Update local state immediately
-            setUsers(prev => prev.map(u => {
-                if (u.user_id === selectedUser) {
-                    const currentTags = getCurrentUserTags(u);
-                    const newTags = currentTags.filter(t => t !== tagName).join('|');
-                    return { ...u, tags: newTags };
+            // 等待後端同步完成後再刷新用戶列表，並移除追蹤
+            setTimeout(async () => {
+                await fetchUsers(searchQuery, selectedTagFilters);
+                // 刷新完成後，從追蹤清單中移除此標籤
+                if (pendingTagDeletionsRef.current[userId]) {
+                    pendingTagDeletionsRef.current[userId].delete(tagName);
+                    if (pendingTagDeletionsRef.current[userId].size === 0) {
+                        delete pendingTagDeletionsRef.current[userId];
+                    }
                 }
-                return u;
-            }));
-            setTimeout(() => fetchUsers(searchQuery, selectedTagFilters), 1500);
+            }, 1500);
         } catch (err) {
             showToast('刪除標籤失敗', 'error');
+            // 刪除失敗：移除追蹤並重新抓取用戶列表以恢復正確狀態
+            if (pendingTagDeletionsRef.current[userId]) {
+                pendingTagDeletionsRef.current[userId].delete(tagName);
+                if (pendingTagDeletionsRef.current[userId].size === 0) {
+                    delete pendingTagDeletionsRef.current[userId];
+                }
+            }
+            fetchUsers(searchQuery, selectedTagFilters);
         }
     };
 
@@ -1151,7 +1195,8 @@ function MessageCenter() {
                                             {t}
                                             <button
                                                 onClick={() => handleDeleteTag(t)}
-                                                style={{ background: 'none', border: 'none', color: '#ff4d4f', padding: '0', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center' }}
+                                                disabled={pendingTagDeletionsRef.current[selectedUser]?.has(t)}
+                                                style={{ background: 'none', border: 'none', color: pendingTagDeletionsRef.current[selectedUser]?.has(t) ? '#666' : '#ff4d4f', padding: '0', cursor: pendingTagDeletionsRef.current[selectedUser]?.has(t) ? 'not-allowed' : 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', opacity: pendingTagDeletionsRef.current[selectedUser]?.has(t) ? 0.5 : 1 }}
                                             >×</button>
                                         </span>
                                     ))}

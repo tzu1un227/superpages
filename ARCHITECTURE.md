@@ -171,11 +171,13 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - **Total Calculation**: The backend now also returns `total_counts` for the selected period. The "Effective Friend Count" card displays a strictly distinct user count for the entire duration, avoiding double-counting of recurring active users.
     - **Unfollow Tracking**: The Line-Bot engine captures `UnfollowEvent` and records it in history as an `Unfollow` category, which is then aggregated by the dashboard.
     - **Keyword Ranking**: Fetches data from `/api/statistics/keywords` (Top keyword rankings).
+    - **Keyword Tag Filtering**: 關鍵字排行區塊內建標籤篩選 UI (pill-style 按鈕列，資料來源 `/api/tags`)。選擇特定標籤後，前端帶 `tag` query 參數呼叫後端 `get_keyword_ranking` SQL 函式，僅回傳該標籤用戶的關鍵字統計。關鍵字資料擷取獨立為 `fetchKeywords` 函式，切換標籤不會觸發趨勢圖表重新載入。
     - **WebSocket Dynamic Resolution**: `send_socket_event` resolves `bot_name` and `namespace` from `OAConfig`, defaulting to `websoc`. This ensures compatibility with both local and Heroku-hosted bot engines without hardcoding.
 - **WebSocket Stability (Heroku)**: Uses single-namespace connection handshakes to avoid Heroku's multi-namespace connection failures.
 - **Message Center UI Enhancements**:
   - Integrated `useToast` for reliable 5-second auto-hide notifications.
   - Implemented immediate state updates for tag addition/deletion to prevent UI lag.
+  - **標籤操作競態條件防護 (Tag Operation Race Guard)**: 引入 `pendingTagDeletionsRef` (Mutable Ref) 追蹤正在進行中的標籤刪除操作。當 `fetchUsers` 輪詢回傳伺服器資料時，會自動過濾掉仍在 pending 狀態的刪除標籤，防止樂觀更新被伺服器舊資料覆蓋而導致標籤「先消失→又出現→再消失」的視覺閃爍。操作完成或失敗後會自動清除追蹤記錄。
   - Resolved `ReferenceError`s caused by deprecated `showToast` calls.
 
 ### Visualization
