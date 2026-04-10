@@ -437,13 +437,17 @@ def url_redirect():
     url = request.args.get('url')
     tags = request.args.get('tags')
     user_id = request.args.get('userId')
+    oa_id = request.args.get('oaId') # New parameter to resolve context
     
     if not url:
         return "Missing URL parameter", 400
         
     if tags and user_id:
+        if oa_id:
+            g.current_oa_id = oa_id # Set context for send_socket_event fallback
+            
         try:
-            print(f"DEBUG /api/redirect: tags={tags}, userId={user_id}, url={url}")
+            print(f"DEBUG /api/redirect: tags={tags}, userId={user_id}, url={url}, oaId={oa_id}")
             
             tag_list = tags.split(',')
             for tag in tag_list:

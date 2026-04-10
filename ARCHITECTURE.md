@@ -177,9 +177,17 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 - **Message Center UI Enhancements**:
   - Integrated `useToast` for reliable 5-second auto-hide notifications.
   - Implemented immediate state updates for tag addition/deletion to prevent UI lag.
-  - **標籤操作競態條件防護 (Tag Operation Race Guard)**: 引入 `pendingTagDeletionsRef` (Mutable Ref) 追蹤正在進行中的標籤刪除操作。
-    - **時間戳記護欄 (Timestamp Guarding)**：採用 10 秒時間戳記保護機制。當 `fetchUsers` 輪詢回傳伺服器資料時，若標籤在 10 秒內曾被刪除，則會強制從介面過濾掉。此機制有效解決了因後端（Line-Bot-Main）非同步處理延遲導致的標籤「復活後消失」的閃爍問題。
-    - **視覺狀態同步**：操作進行中的標籤按鈕會同步維持 10 秒的停用狀態，提供明確的 UX 反饋。
+  - **標籤操作競態條件防護 (Tag Operation Race Guard)**: 引入 `pendingTagDeletionsRef` 與 `pendingTagAdditionsRef` (Mutable Ref) 追蹤正在進行中的標籤操作。
+    - **雙向時間戳記護欄 (Bilateral Timestamp Guarding)**：採用 10 秒時間戳記保護機制。當 `fetchUsers` 輪詢回傳伺服器資料時，會自動處理：
+        1. **刪除護欄**：濾掉 10 秒內被刪除的標籤。
+        2. **新增護欄**：自動補回 10 秒內新增但伺服器尚未更新的標籤。
+    - **技術成效**：徹底解決了因後端（Line-Bot-Main）非同步處理延遲導致的標籤「消失又出現/出現又消失」的視覺閃爍問題。
+    - **視覺狀態同步**：操作進行中的標籤與刪除按鈕會同步維持 10 秒的穩定狀態，提供明確的 UX 反饋。
+  - **Flex 訊息功能與視覺美化 (Flex Feature & Visual Fixes)** [2026-04-10]:
+    - **連結標籤修復**：解決了「開啟連結」動作無法標註標籤的問題，透過動態重導向與 `oaId` 傳遞實現。
+    - **輪播圖片白塊修復**：修正了輪播中圖片型卡片出現多餘白色區域的問題。優化了 JSON 產生邏輯（移除空區塊）與預覽器渲染邏輯，實現真正的「滿版圖片」效果。
+    - **上下文感知 (OA Context Awareness)**：在重導向 URL 中帶入 `oaId`，讓後端 `/api/redirect` 能正確路由標籤指令。
+    - **輪播混合型態邊界修復 (Mixed Carousel Full Bleed Fix)**：修正了圖片型卡片在混合輪播中會顯示「白塊」的問題。透過在產生 JSON 時動態移除純圖片卡片的空 `body` 與 `footer` 區塊，並優化預覽渲染邏輯，使圖片能真正達到滿版外觀。
   - Resolved `ReferenceError`s caused by deprecated `showToast` calls.
 
 ### Visualization

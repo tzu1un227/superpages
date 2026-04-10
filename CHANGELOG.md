@@ -3,10 +3,13 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
-  - **訊息中心標籤刪除護欄強化 (Message Center Tag Deletion Guard Enhancement)** [2026-04-10]:
-    - **問題修正**：解決了快速連續刪除多個標籤時，因後端處理延遲導致標籤在自動輪詢中「閃現」的問題。
-    - **優化方案**：將護欄機制升級為「10 秒持久保護」。利用 `pendingTagDeletionsRef` 紀錄每個標籤刪除的時間戳記。
-    - **技術細節**：在 `fetchUsers` 合併資料時，強制過濾掉 10 秒內被刪除過的標籤，不論伺服器回傳狀態為何，直到後端狀態穩定。
+  - **訊息中心標籤護欄全面強化 (Message Center Tag Operation Guard Improvement)** [2026-04-10]:
+    - **綜合修正**：解決了新增或刪除標籤時，標籤在自動輪詢中「閃爍」的問題（消失又出現或出現又消失）。
+    - **優化方案**：擴展護欄機制至「新增」操作，並統一採用「10 秒持久保護」。
+    - **技術細節**：更新 `fetchUsers` 邏輯，在合併資料時同時執行「過期標籤過濾」與「新標籤補回」，確保後端非同步操作期間 UI 維持恆定。
+  - **Flex 訊息功能與視覺美化 (Flex Feature & Visual Fixes)** [2026-04-10]:
+    - **連結標籤修復**：解決了「開啟連結」動作無法標註標籤的問題，透過動態重導向與 `oaId` 傳遞實現。
+    - **輪播圖片白塊修復**：修正了輪播中圖片型卡片出現多餘白色區域的問題。優化了 JSON 產生邏輯（移除空區塊）與預覽器渲染邏輯，實現真正的「滿版圖片」效果。
   - **自動旅程操作完成通知 (Projects CRUD Toast Notifications)** [2026-04-10]:
     - 在自動旅程管理頁面的新增、編輯、刪除旅程及排程步驟操作完成後，加入 `showToast` 成功通知，讓使用者即時得知操作結果。
   - **綜合數據關鍵字排行標籤篩選 (Keyword Ranking Tag Filter)** [2026-04-10]:

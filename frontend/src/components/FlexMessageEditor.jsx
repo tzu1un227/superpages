@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Plus, X, Image as ImageIcon, Link as LinkIcon, MessageSquare, Upload } from 'lucide-react';
-import api from '../api';
+import api, { API_BASE_URL } from '../api';
 import JourneyPreview from './JourneyPreview';
 import TagInput from './TagInput';
 
@@ -268,7 +268,14 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
 
                 // Add tags using redirect if present
                 if (tags.length > 0) {
-                    const redirectUrl = `https://irl-svr.ee.yzu.edu.tw:5016/api/redirect?url=${encodeURIComponent(finalVal)}&tags=${encodeURIComponent(tags.join(','))}&userId=<%m.user_id%>`;
+                    // Get current OA ID from URL
+                    const match = window.location.pathname.match(/\/oa\/(\d+)/);
+                    const oaId = match ? match[1] : null;
+                    
+                    // Use dynamic API_BASE_URL instead of hardcoded dev URL
+                    const redirectBase = API_BASE_URL ? `${API_BASE_URL}/redirect` : '/api/redirect';
+                    const redirectUrl = `${redirectBase}?url=${encodeURIComponent(finalVal)}&tags=${encodeURIComponent(tags.join(','))}&userId=<%m.user_id%>${oaId ? `&oaId=${oaId}` : ''}`;
+                    
                     return { type: 'uri', label: 'action', uri: redirectUrl };
                 }
                 return { type: 'uri', label: 'action', uri: finalVal };
@@ -348,10 +355,11 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                     }
                 }
             } else {
-                // Image Card
-                bubble.body = { type: 'box', layout: 'vertical', contents: [], paddingAll: '0px' };
-                // Also force kilo for image cards in carousel
-                if (mode === 'carousel') bubble.size = 'kilo';
+                // Image Card: No Body or Footer to avoid "white block" in carousels
+                if (mode === 'carousel') bubble.size = 'kilo'; 
+                // Explicitly ensure no empty body/footer properties exist for pure image cards
+                if (bubble.body) delete bubble.body;
+                if (bubble.footer) delete bubble.footer;
             }
 
             return bubble;

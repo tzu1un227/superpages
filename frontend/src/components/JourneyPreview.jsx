@@ -124,19 +124,17 @@ const JourneyPreview = ({ steps = [] }) => {
 
     const renderFlexCard = (card, index) => {
         // Handle both "Option" (Template A) and "Image" (Template B)
-        // Image Card (Template B) usually is just an image? Or image with actions.
-        // Prompt says Template B: Image only, clickable.
-
+        // Image Card (Template B) is a pure image bubble.
         const isImageCard = !card.title && !card.description && (!card.buttons || card.buttons.length === 0);
 
         if (isImageCard) {
             return (
-                <div key={index} style={styles.flexBubble}>
-                    <div style={{ ...styles.flexImage, height: '160px', position: 'relative' }}>
+                <div key={index} style={{ ...styles.flexBubble, backgroundColor: 'transparent', boxShadow: 'none' }}>
+                    <div style={{ ...styles.flexImage, height: 'auto', minHeight: '160px', position: 'relative', borderRadius: '10px', overflow: 'hidden' }}>
                         {card.imageUrl ? (
-                            <img src={card.imageUrl} alt="Card" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <img src={card.imageUrl} alt="Card" style={{ width: '100%', display: 'block', borderRadius: '10px' }} />
                         ) : (
-                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ccc', color: '#666' }}>
+                            <div style={{ width: '100%', height: '160px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ccc', color: '#666' }}>
                                 No Image
                             </div>
                         )}

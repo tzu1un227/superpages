@@ -176,8 +176,9 @@ function MessageCenter() {
     const isSendingRef = useRef(false);
 
     // 追蹤正在進行中的標籤操作，避免 fetchUsers 用伺服器舊資料覆蓋樂觀更新
-    // 格式: { [userId]: { [tagName]: timestamp } } - 儲存刪除發生的時間戳記
+    // 格式: { [userId]: { [tagName]: timestamp } } - 儲存操作發生的時間戳記
     const pendingTagDeletionsRef = useRef({});
+    const pendingTagAdditionsRef = useRef({});
 
     // --- 搜尋與篩選狀態 ---
     const [searchQuery, setSearchQuery] = useState('');          // 用戶清單搜尋（user_id / 名稱）
@@ -320,26 +321,37 @@ function MessageCenter() {
                             };
                         }
                     }
-                    // 保護正在進行中的標籤刪除操作：從伺服器回傳的 tags 中移除尚未同步完成的刪除標籤 (10秒護欄)
+                    // --- 標籤操作護欄 (10秒機制) ---
+                    const now = Date.now();
+                    const currentTagsStr = typeof result.tags === 'string' ? result.tags : String(result.tags || '');
+                    let tagParts = currentTagsStr.split('|').map(t => t.trim().replace(/^['"]|['"]$/g, '')).filter(t => t);
+
+                    // 1. 處理刪除護欄：濾掉 10 秒內被刪除的標籤
                     const pendingDels = pendingTagDeletionsRef.current[nu.user_id];
-                    if (pendingDels && result.tags) {
-                        const now = Date.now();
-                        const currentTags = typeof result.tags === 'string' ? result.tags : String(result.tags);
-                        const tagParts = currentTags.split('|').filter(t => {
-                            const trimmed = t.trim().replace(/^['"]|['"]$/g, '');
-                            if (!trimmed) return false;
-                            
-                            // 如果該標籤在 10 秒內被刪除過，則強制過濾掉 (防止後端同步延遲導致的閃爍)
-                            const deletedAt = pendingDels[trimmed];
-                            if (deletedAt && (now - deletedAt < 10000)) {
-                                return false;
-                            }
-                            // 如果超過 10 秒，則清理該追蹤記錄
-                            if (deletedAt) delete pendingDels[trimmed];
+                    if (pendingDels) {
+                        tagParts = tagParts.filter(t => {
+                            const deletedAt = pendingDels[t];
+                            if (deletedAt && (now - deletedAt < 10000)) return false;
+                            if (deletedAt) delete pendingDels[t]; // 清理過期紀錄
                             return true;
                         });
-                        result = { ...result, tags: tagParts.join('|') };
                     }
+
+                    // 2. 處理新增護欄：補回 10 秒內新增、但伺服器回傳中缺失的標籤
+                    const pendingAdds = pendingTagAdditionsRef.current[nu.user_id];
+                    if (pendingAdds) {
+                        Object.entries(pendingAdds).forEach(([t, addedAt]) => {
+                            if (now - addedAt < 10000) {
+                                if (!tagParts.includes(t)) {
+                                    tagParts.push(t);
+                                }
+                            } else {
+                                delete pendingAdds[t]; // 清理過期紀錄
+                            }
+                        });
+                    }
+
+                    result = { ...result, tags: tagParts.join('|') };
                     return result;
                 });
                 return updatedUsers;
@@ -819,32 +831,51 @@ function MessageCenter() {
 
     const handleAddTag = async () => {
         if (!tagInput.trim() || !selectedUser) return;
+        
+        const userId = selectedUser;
+        const tagName = tagInput.trim();
+
+        // 將標籤加入「正在新增中」的追蹤清單，紀錄時間戳記，護欄時間為 10 秒
+        if (!pendingTagAdditionsRef.current[userId]) {
+            pendingTagAdditionsRef.current[userId] = {};
+        }
+        pendingTagAdditionsRef.current[userId][tagName] = Date.now();
+
+        // 樂觀更新：立即在本地 state 增加標籤
+        setUsers(prev => prev.map(u => {
+            if (u.user_id === userId) {
+                const currentTags = getCurrentUserTags(u);
+                if (!currentTags.includes(tagName)) {
+                    const newTags = [...currentTags, tagName].join('|');
+                    return { ...u, tags: newTags };
+                }
+            }
+            return u;
+        }));
+        
+        const tagToSent = tagInput; // 保存值以便清理
+        setTagInput('');
+
         try {
             await api.post('/trigger', {
-                user: selectedUser,
-                message: `set_tag|${tagInput}`,
+                user: userId,
+                message: `set_tag|${tagToSent}`,
                 type: 'Sensor',
                 api_index: 0
             });
-            showToast(`已新增標籤: ${tagInput}`, 'success');
-            setTagInput('');
-            // Update local state immediately for better UX
-            setUsers(prev => prev.map(u => {
-                if (u.user_id === selectedUser) {
-                    const currentTags = getCurrentUserTags(u);
-                    if (!currentTags.includes(tagInput)) {
-                        const newTags = [...currentTags, tagInput].join('|');
-                        return { ...u, tags: newTags };
-                    }
-                }
-                return u;
-            }));
+            showToast(`已新增標籤: ${tagToSent}`, 'success');
+            
+            // 觸發刷新，fetchUsers 的過濾邏輯會利用時間戳記維持護欄
             setTimeout(() => {
                 fetchUsers(searchQuery, selectedTagFilters);
-                fetchAvailableTags();
-            }, 1500);
+            }, 1000);
         } catch (err) {
             showToast('新增標籤失敗', 'error');
+            // 失敗時恢復：清理護欄紀錄
+            if (pendingTagAdditionsRef.current[userId]) {
+                delete pendingTagAdditionsRef.current[userId][tagName];
+            }
+            fetchUsers(searchQuery, selectedTagFilters);
         }
     };
 
