@@ -3,6 +3,8 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **訊息中心優化 (Message Center Improvements)** [2026-04-13]:
+  - **修復列表跳動問題**：在後端用戶列表查詢中引入第二排序基準，確保穩定排序，解決偶發性的 UI 位置閃爍。
   - **訊息中心標籤同步邏輯調整 (Message Center Tag Sync Logic Adjustment)** [2026-04-10]:
     - **邏輯變更**：移除新增與刪除標籤時的「樂觀更新」機制。現在系統會等待 API 操作完成後才更新介面。
     - **提示優化**：將標籤刪除提示語由「已刪除」改為「刪除中」，以匹配後端同步的穩定護欄機制。

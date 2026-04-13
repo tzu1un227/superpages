@@ -1637,7 +1637,7 @@ def get_users_list():
                 GROUP BY user_id
             ) sub
             {where_sql}
-            ORDER BY sub.last_time DESC NULLS LAST
+            ORDER BY sub.last_time DESC NULLS LAST, sub.user_id ASC
             LIMIT 200
         """
         print(f"DEBUG SQL: {cur.mogrify(query, params).decode('utf-8')}")
