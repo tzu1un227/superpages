@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import api from '../api';
-import { Send, User, Info, Search, Tag, X, Image as ImageIcon, Mic, Video, Smile, ArrowDown, RefreshCw } from 'lucide-react';
+import { Send, User, Info, Search, Tag, X, Image as ImageIcon, Mic, Video, Smile, ArrowDown, RefreshCw, MousePointerClick } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useToast } from '../contexts/ToastContext';
 import { CircularProgress } from '@mui/material';
@@ -940,7 +940,7 @@ function MessageCenter() {
 
     // 聊天室中實際顯示的訊息（過濾掉系統指令與 follow 事件，但不因搜尋而隱藏）
     const displayedMessages = messages.filter(m => {
-        if (m.category === 'Sensor' || m.category === 'Postback' || m.category === 'Follow' || m.category === 'follow') return false;
+        if (m.category === 'Sensor' || m.category === 'Follow' || m.category === 'follow') return false;
         return true;
     });
 
@@ -1404,6 +1404,9 @@ function MessageCenter() {
 
                                     const renderMessageContent = () => {
                                       try {
+                                        if (m.category === 'Postback') {
+                                            return <div style={{ color: '#aaa', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '5px' }}><MousePointerClick size={14} /> [這是一個postback訊息]</div>;
+                                        }
                                         if (m.category === 'Image') {
                                             const imageUrl = `/line/content/${m.content}`;
                                             return (
