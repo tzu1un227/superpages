@@ -174,13 +174,18 @@ function AdminPage() {
     // --- OA Handlers ---
     const handleSaveOA = async () => {
         try {
+            if (!appName.trim()) {
+                alert("請設定『App Name (各平台獨立資料表名稱後綴)』，這對於多租戶隔離至關重要。");
+                return;
+            }
+
             const payload = {
                 page_ids: pageIds,
                 oa_name: oaName,
                 db_url: dbUrl,
                 other_settings: {
                     socket_url: socketUrl,
-                    app_name: appName,
+                    app_name: appName.trim(),
                     line_token: lineToken,
                     line_secret: lineSecret,
                     github_config: githubConfig
@@ -549,15 +554,19 @@ function AdminPage() {
                     />
                     <TextField
                         margin="dense"
-                        label="App Name (Table Suffix)"
+                        label="App Name (各平台獨立資料表名稱後綴)"
                         fullWidth
+                        required
+                        error={!appName.trim()}
+                        helperText={!appName.trim() ? "此欄位為必填項目，用於確保各平台資料隔離 (例如: 5013)" : "對應資料庫中的 table:{app_name} 格式"}
                         value={appName}
                         onChange={(e) => setAppName(e.target.value)}
-                        placeholder="e.g. 5013 (Optional, defaults to DB name)"
+                        placeholder="例如: 5013"
                         sx={{
                             input: { color: 'white' },
                             label: { color: '#B0B0B0' },
-                            '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#555' }, '&:hover fieldset': { borderColor: '#888' }, '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' } }
+                            '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#555' }, '&:hover fieldset': { borderColor: '#888' }, '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' } },
+                            '& .MuiFormHelperText-root': { color: !appName.trim() ? '#f44336' : '#B0B0B0' }
                         }}
                     />
 

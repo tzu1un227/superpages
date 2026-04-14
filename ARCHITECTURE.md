@@ -210,7 +210,8 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 1. **Backend Endpoint**: `/api/upload/github` in `backend/endpoints/upload.py`.
    - Uses GitHub API to upload images as base64-encoded content.
    - **CDN Integration**: Returns `jsDelivr` CDN URLs (`https://cdn.jsdelivr.net/gh/...`) instead of raw GitHub URLs to ensure compatibility with LINE Bot API (avoids 400 errors).
-   - **Configuration Storage**: Settings are retrieved from `permission_settings` (OAConfig) in the `other_settings` field (JSON). This ensures configuration persistence across Docker container rebuilds.
+    - **Configuration Storage**: Settings are retrieved from `permission_settings` (OAConfig) in the `other_settings` field (JSON). This ensures configuration persistence across Docker container rebuilds.
+    - **App Name Enforcement**: To support the RDS multi-tenant model (`table:{appname}`), the `app_name` field in `other_settings` is **mandatory**. Both backend and frontend forms enforce this to prevent data leakage and ensure correct table routing.
    - Configurable fields: `token`, `repo`, `branch`, `path`.
 2. **Frontend UI**:
    - **FlexMessageEditor.jsx**: Integrated upload button for carousel/single bubbles.

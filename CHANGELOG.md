@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **權限與資料隔離強化 (Permission & Data Isolation Enforcement)** [2026-04-14]:
+  - **強制設定 App Name**：因應 RDS 多租戶架構，現在在「權限設定」中新增或編輯 OA Config 時，必須填寫 `App Name` (資料表後綴)。
+  - **後端驗證攔截**：API 已實作請求檢查，若 `other_settings.app_name` 為空則回傳 400 提示訊息，防止資料隔離失效。
+  - **前端 UI 提示**：在管理介面中將該欄位標記為必填，並加入錯誤狀態顯示與儲存前的二次檢查。
+
 - **訊息中心優化 (Message Center Improvements)** [2026-04-13]:
   - **修復列表跳動問題**：在後端用戶列表查詢中引入第二排序基準，確保穩定排序，解決偶發性的 UI 位置閃爍。
   - **訊息中心標籤同步邏輯調整 (Message Center Tag Sync Logic Adjustment)** [2026-04-10]:

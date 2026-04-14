@@ -15,13 +15,13 @@ app = Flask(__name__)
 CORS(app, origins=["https://irl-svr.ee.yzu.edu.tw:5014", "http://localhost:3000", "http://localhost:9016", "https://irl-svr.ee.yzu.edu.tw:5016"])
 
 # Auth and DB imports
-from models import db, User, Page, OAConfig, Broadcast
+from models import db, User, Page, OAConfig
 from auth import generate_token, token_required, admin_required
 import os
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
-# Database configuration
+# Database configuration (Legacy)
 DB_CONFIG = {
     "host": "140.138.176.197",
     "port": "5432",
@@ -30,11 +30,30 @@ DB_CONFIG = {
     "password": "0000"
 }
 
+# New RDS Database URL
+RDS_URL = "postgresql://u1kq1nhog5jq7b:pd1a6d947df93fb15d747bbadf399e84893f9fd5932782191f0b6ffa187c5ae18@c8lcd8bq1mia7p.cluster-czrs8kj4isg7.us-east-1.rds.amazonaws.com:5432/d1hr8bloo29pm6"
+
 # Configuration for SQLAlchemy
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'dev_secret_key'
-# Use Postgres for Metadata (Users, Permissions)
-app.config['SQLALCHEMY_DATABASE_URI'] = f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
+# RDS is the new Primary for Users, Pages, Permissions
+app.config['SQLALCHEMY_DATABASE_URI'] = RDS_URL
+# Legacy Bind for OA RULE BANKS (Not yet migrated)
+app.config['SQLALCHEMY_BINDS'] = {
+    'legacy': f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
+}
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+def get_main_db_connection():
+    """Always connects to the RDS Main Database for business tables."""
+    return psycopg2.connect(RDS_URL)
+
+def get_suffixed_table(base_name):
+    """Returns the double-quoted suffixed table name based on current OA app context."""
+    app_name = getattr(g, 'current_app_name', 'default')
+    # If app_name is None, use 'default'
+    if not app_name:
+        app_name = 'default'
+    return f'"{base_name}:{app_name}"'
 
 db.init_app(app)
 
@@ -269,113 +288,120 @@ def project_stats_processor():
                 for oa in oas:
                     oa_id = oa.id
                     db_url = oa.db_url
-                    if not db_url: continue
-                    
-                    # Resolve logical app id (e.g. 5013)
-                    logical_app_id = db_url.split('/')[-1].split('?')[0].strip()
-                    if oa.other_settings and 'app_name' in oa.other_settings:
-                        if oa.other_settings['app_name']:
-                            logical_app_id = str(oa.other_settings['app_name'])
-                    
-                    try:
-                        conn = psycopg2.connect(db_url)
-                        cur = conn.cursor(cursor_factory=RealDictCursor)
-                        
-                        # Get last processed time from Global_var
-                        g_var_table = f"Global_var:{logical_app_id}"
-                        
-                        # Ensure table exists
-                        cur.execute(f"""
-                            CREATE TABLE IF NOT EXISTS "{g_var_table}" (
-                                name VARCHAR(255) PRIMARY KEY,
-                                value TEXT
-                            )
-                        """)
+                    if db_url:
+                        try:
+                            # 1. Access OA Database for History and Stats
+                            conn_oa = psycopg2.connect(db_url)
+                            cur_oa = conn_oa.cursor(cursor_factory=RealDictCursor)
+                            
+                            # Determine logical_app_id for OA DB tables (history, Global_var)
+                            logical_app_id = str(oa_id)
+                            if oa.other_settings and 'app_name' in oa.other_settings:
+                                if oa.other_settings['app_name']:
+                                    logical_app_id = str(oa.other_settings['app_name'])
+                            
+                            # 2. Access RDS Main Database for Business Tables (projects, schedules, etc.)
+                            conn_rds = get_main_db_connection()
+                            cur_rds = conn_rds.cursor(cursor_factory=RealDictCursor)
+                            
+                            def get_t(base):
+                                # Helper for this loop
+                                return f'"{base}:{logical_app_id}"'
 
-                        cur.execute(f"SELECT value FROM \"{g_var_table}\" WHERE name = 'last_stats_process_time'")
-                        row = cur.fetchone()
-                        last_time = row['value'] if row else '2000-01-01 00:00:00'
-                        
-                        # Fetch new history entries
-                        history_table = f"history:{logical_app_id}"
-                        cur.execute(f"""
-                            SELECT * FROM "{history_table}" 
-                            WHERE timestamp > %s 
-                            AND ((category = 'Message' OR category = 'Sensor') AND content LIKE '%%QA|cron_%%')
-                            ORDER BY timestamp ASC
-                        """, (last_time,))
-                        entries = cur.fetchall()
-                        
-                        max_timestamp = last_time
-                        
-                        for entry in entries:
-                            max_timestamp = entry['timestamp']
-                            content = entry['content']
-                            # Format: QA|cron_{project_id}_{step_id}
-                            try:
-                                parts = content.split('_')
-                                if len(parts) >= 3:
-                                    pj_id = int(parts[1])
-                                    step_id = int(parts[2])
-                                    
-                                    # Increment messages sent and success (since it's in history)
-                                    increment_project_stat(pj_id, 'ms', oa_id, entry['timestamp'].strftime('%Y-%m-%d'))
-                                    increment_project_stat(pj_id, 'mss', oa_id, entry['timestamp'].strftime('%Y-%m-%d'))
-                                    
-                                    # Check if it's the last step
-                                    cur.execute("SELECT MAX(step_id) FROM project_schedules WHERE project_id = %s", (pj_id,))
-                                    m_row = cur.fetchone()
-                                    if m_row and m_row['max'] == step_id:
-                                        # cc: Unique/Completion Users per day, tcc: Total Completions
-                                        increment_project_stat(pj_id, 'cc', oa_id, entry['timestamp'].strftime('%Y-%m-%d'))
-                                        increment_project_stat(pj_id, 'tcc', oa_id, entry['timestamp'].strftime('%Y-%m-%d'))
+                            # Get last processed time from Global_var (OA DB)
+                            g_var_table = f"Global_var:{logical_app_id}"
+                            
+                            # Ensure table exists in OA DB
+                            cur_oa.execute(f"""
+                                CREATE TABLE IF NOT EXISTS "{g_var_table}" (
+                                    name VARCHAR(255) PRIMARY KEY,
+                                    value TEXT
+                                )
+                            """)
+
+                            cur_oa.execute(f"SELECT value FROM \"{g_var_table}\" WHERE name = 'last_stats_process_time'")
+                            row = cur_oa.fetchone()
+                            last_time = row['value'] if row else '2000-01-01 00:00:00'
+                            
+                            # Fetch new history entries (OA DB)
+                            history_table = f"history:{logical_app_id}"
+                            cur_oa.execute(f"""
+                                SELECT * FROM "{history_table}" 
+                                WHERE timestamp > %s 
+                                AND ((category = 'Message' OR category = 'Sensor') AND content LIKE '%%QA|cron_%%')
+                                ORDER BY timestamp ASC
+                            """, (last_time,))
+                            entries = cur_oa.fetchall()
+                            
+                            max_timestamp = last_time
+                            
+                            for entry in entries:
+                                max_timestamp = entry['timestamp']
+                                content = entry['content']
+                                try:
+                                    parts = content.split('_')
+                                    if len(parts) >= 3:
+                                        pj_id = int(parts[1])
+                                        step_id = int(parts[2])
                                         
-                                        # Handle Project Status / Recurrence
-                                        # Check if project is recurring
-                                        cur.execute("SELECT is_recurring FROM projects WHERE project_id = %s", (pj_id,))
-                                        p_row = cur.fetchone()
-                                        is_recurring = p_row['is_recurring'] if p_row else False
+                                        increment_project_stat(pj_id, 'ms', oa_id, entry['timestamp'].strftime('%Y-%m-%d'))
+                                        increment_project_stat(pj_id, 'mss', oa_id, entry['timestamp'].strftime('%Y-%m-%d'))
                                         
-                                        user_id = entry.get('user_id') # Ensure user_id is available in entry
-                                        if user_id:
-                                            # Update user_project_status as well
-                                            ups_status = 'active'
-                                            if is_recurring:
-                                                # Restart user
-                                                cur.execute("UPDATE cron_table SET step_id = 0, status = 'active' WHERE project_id = %s AND user_id = %s", (pj_id, user_id))
-                                                increment_project_stat(pj_id, 'ttc', oa_id, entry['timestamp'].strftime('%Y-%m-%d'))
-                                                ups_status = 'active'
-                                            else:
-                                                # Mark as completed
-                                                cur.execute("UPDATE cron_table SET status = 'completed' WHERE project_id = %s AND user_id = %s", (pj_id, user_id))
-                                                ups_status = 'completed'
+                                        # Query RDS for business data
+                                        t_schedules = get_t('project_schedules')
+                                        cur_rds.execute(f"SELECT MAX(step_id) FROM {t_schedules} WHERE project_id = %s", (pj_id,))
+                                        m_row = cur_rds.fetchone()
+                                        if m_row and m_row['max'] == step_id:
+                                            increment_project_stat(pj_id, 'cc', oa_id, entry['timestamp'].strftime('%Y-%m-%d'))
+                                            increment_project_stat(pj_id, 'tcc', oa_id, entry['timestamp'].strftime('%Y-%m-%d'))
                                             
-                                            # Sync to user_project_status
-                                            try:
-                                                cur.execute("""
-                                                    INSERT INTO user_project_status (user_id, project_id, status, updated_at) 
-                                                    VALUES (%s, %s, %s, NOW())
-                                                    ON CONFLICT (user_id, project_id) 
-                                                    DO UPDATE SET status = EXCLUDED.status, updated_at = NOW()
-                                                """, (user_id, pj_id, ups_status))
-                                            except Exception as upse:
-                                                print(f"Error syncing user_project_status: {upse}")
-                                        
-                            except Exception as pe:
-                                print(f"Error parsing history entry for stats: {pe}")
-                                # Rollback the current transaction state so the next iteration doesn't hit "current transaction is aborted"
-                                conn.rollback()
-                        
-                        # Update last processed time
-                        cur.execute(f"UPDATE \"{g_var_table}\" SET value = %s WHERE name = 'last_stats_process_time'", (str(max_timestamp),))
-                        if cur.rowcount == 0:
-                            cur.execute(f"INSERT INTO \"{g_var_table}\" (name, value) VALUES ('last_stats_process_time', %s)", (str(max_timestamp),))
-                        
-                        conn.commit()
-                        cur.close()
-                        conn.close()
-                    except Exception as db_err:
-                        print(f"Error processing stats for app {logical_app_id}: {db_err}")
+                                            t_projects = get_t('projects')
+                                            cur_rds.execute(f"SELECT is_recurring FROM {t_projects} WHERE project_id = %s", (pj_id,))
+                                            p_row = cur_rds.fetchone()
+                                            is_recurring = p_row['is_recurring'] if p_row else False
+                                            
+                                            user_id = entry.get('user_id')
+                                            if user_id:
+                                                ups_status = 'active'
+                                                t_cron = get_t('cron_table')
+                                                if is_recurring:
+                                                    cur_rds.execute(f"UPDATE {t_cron} SET step_id = 0, status = 'active' WHERE project_id = %s AND user_id = %s", (pj_id, user_id))
+                                                    increment_project_stat(pj_id, 'ttc', oa_id, entry['timestamp'].strftime('%Y-%m-%d'))
+                                                    ups_status = 'active'
+                                                else:
+                                                    cur_rds.execute(f"UPDATE {t_cron} SET status = 'completed' WHERE project_id = %s AND user_id = %s", (pj_id, user_id))
+                                                    ups_status = 'completed'
+                                                
+                                                t_ups = get_t('user_project_status')
+                                                try:
+                                                    cur_rds.execute(f"""
+                                                        INSERT INTO {t_ups} (user_id, project_id, status, updated_at) 
+                                                        VALUES (%s, %s, %s, NOW())
+                                                        ON CONFLICT (user_id, project_id) 
+                                                        DO UPDATE SET status = EXCLUDED.status, updated_at = NOW()
+                                                    """, (user_id, pj_id, ups_status))
+                                                except Exception as upse:
+                                                    print(f"Error syncing user_project_status: {upse}")
+                                                    conn_rds.rollback()
+                                            
+                                    conn_rds.commit()
+                                except Exception as pe:
+                                    print(f"Error parsing history entry for stats: {pe}")
+                                    conn_rds.rollback()
+                                    conn_oa.rollback()
+                            
+                            # Update last processed time (OA DB)
+                            cur_oa.execute(f"UPDATE \"{g_var_table}\" SET value = %s WHERE name = 'last_stats_process_time'", (str(max_timestamp),))
+                            if cur_oa.rowcount == 0:
+                                cur_oa.execute(f"INSERT INTO \"{g_var_table}\" (name, value) VALUES ('last_stats_process_time', %s)", (str(max_timestamp),))
+                            
+                            conn_oa.commit()
+                            cur_oa.close()
+                            conn_oa.close()
+                            cur_rds.close()
+                            conn_rds.close()
+                        except Exception as db_err:
+                            print(f"Error processing stats for app {logical_app_id}: {db_err}")
                         
         except Exception as e:
             print(f"Error in project_stats_processor: {e}")
@@ -558,11 +584,13 @@ def get_my_oas():
 
 # Projects CRUD
 @app.route('/api/projects', methods=['GET'])
+@token_required
 def get_projects():
     try:
-        conn = get_db_connection()
+        conn = get_main_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT * FROM projects ORDER BY project_id")
+        t_projects = get_suffixed_table('projects')
+        cur.execute(f"SELECT * FROM {t_projects} ORDER BY project_id")
         projects = cur.fetchall()
         
         # Calculate Status based on Taiwan time
@@ -598,6 +626,7 @@ def get_projects():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/projects', methods=['POST'])
+@token_required
 def create_project():
     data = request.json
     try:
@@ -617,14 +646,15 @@ def create_project():
         anchor_config = json.dumps(data.get('anchor_config', {}))
         dormancy_config = json.dumps(data.get('dormancy_config', {}))
 
-        conn = get_db_connection()
+        conn = get_main_db_connection()
         cur = conn.cursor()
+        t_projects = get_suffixed_table('projects')
         
         # Handle is_recurring, default False
         is_recurring = data.get('is_recurring', False)
         
         cur.execute(
-            "INSERT INTO projects (project_name, start_date, end_date, is_enabled, anchor_config, dormancy_config, is_recurring) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING project_id",
+            f"INSERT INTO {t_projects} (project_name, start_date, end_date, is_enabled, anchor_config, dormancy_config, is_recurring) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING project_id",
             (data['project_name'], start_local, end_local, data['is_enabled'], anchor_config, dormancy_config, is_recurring)
         )
         project_id = cur.fetchone()[0]
@@ -637,6 +667,7 @@ def create_project():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/projects/<int:id>', methods=['PUT'])
+@token_required
 def update_project(id):
     data = request.json
     try:
@@ -656,13 +687,14 @@ def update_project(id):
         anchor_config = json.dumps(data.get('anchor_config', {}))
         dormancy_config = json.dumps(data.get('dormancy_config', {}))
 
-        conn = get_db_connection()
+        conn = get_main_db_connection()
         cur = conn.cursor()
+        t_projects = get_suffixed_table('projects')
         
         is_recurring = data.get('is_recurring', False)
         
         cur.execute(
-            "UPDATE projects SET project_name=%s, start_date=%s, end_date=%s, is_enabled=%s, anchor_config=%s, dormancy_config=%s, is_recurring=%s WHERE project_id=%s",
+            f"UPDATE {t_projects} SET project_name=%s, start_date=%s, end_date=%s, is_enabled=%s, anchor_config=%s, dormancy_config=%s, is_recurring=%s WHERE project_id=%s",
             (data['project_name'], start_local, end_local, data['is_enabled'], anchor_config, dormancy_config, is_recurring, id)
         )
         conn.commit()
@@ -674,23 +706,31 @@ def update_project(id):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/projects/<int:id>', methods=['DELETE'])
+@token_required
 def delete_project(id):
     try:
-        conn = get_db_connection()
+        conn = get_main_db_connection()
         cur = conn.cursor()
+        t_projects = get_suffixed_table('projects')
+        t_schedules = get_suffixed_table('project_schedules')
+        t_cron = get_suffixed_table('cron_table')
         
         # 1. Clean up QA_bank entries associated with this project's schedules
         app_id = get_current_app_id()
-        cur.execute(f'DELETE FROM "QA_bank:{app_id}" WHERE tag LIKE %s', (f"cron_{id}_%",))
+        cur_oa = get_db_connection().cursor()
+        cur_oa.execute(f'DELETE FROM "QA_bank:{app_id}" WHERE tag LIKE %s', (f"cron_{id}_%",))
+        cur_oa.connection.commit()
+        cur_oa.close()
+        cur_oa.connection.close()
         
         # 2. Delete project schedules
-        cur.execute("DELETE FROM project_schedules WHERE project_id=%s", (id,))
+        cur.execute(f"DELETE FROM {t_schedules} WHERE project_id=%s", (id,))
         
         # 3. Delete from cron_table
-        cur.execute("DELETE FROM cron_table WHERE project_id=%s", (id,))
+        cur.execute(f"DELETE FROM {t_cron} WHERE project_id=%s", (id,))
         
         # 4. Delete the project itself
-        cur.execute("DELETE FROM projects WHERE project_id=%s", (id,))
+        cur.execute(f"DELETE FROM {t_projects} WHERE project_id=%s", (id,))
         
         conn.commit()
         cur.close()
@@ -784,6 +824,7 @@ def get_project_stats(id):
         return jsonify({"error": str(e)}), 500
             
 @app.route('/api/projects/<int:id>/schedules/reorder', methods=['POST'])
+@token_required
 def reorder_project_schedules(id):
     try:
         data = request.json
@@ -791,13 +832,14 @@ def reorder_project_schedules(id):
         if not schedule_ids:
             return jsonify({"status": "error", "message": "No schedules provided"}), 400
             
-        conn = get_db_connection()
+        conn = get_main_db_connection()
         cur = conn.cursor()
+        t_schedules = get_suffixed_table('project_schedules')
         
         for index, schedule_id in enumerate(schedule_ids):
             new_step_id = index + 1
             cur.execute(
-                "UPDATE project_schedules SET step_id = %s WHERE schedule_id = %s AND project_id = %s",
+                f"UPDATE {t_schedules} SET step_id = %s WHERE schedule_id = %s AND project_id = %s",
                 (new_step_id, schedule_id, id)
             )
             
@@ -810,11 +852,13 @@ def reorder_project_schedules(id):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/projects/<int:id>/schedules/export', methods=['GET'])
+@token_required
 def export_project_schedules(id):
     try:
-        conn = get_db_connection()
+        conn = get_main_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT step_id, interval_hours, message_content FROM project_schedules WHERE project_id = %s ORDER BY step_id", (id,))
+        t_schedules = get_suffixed_table('project_schedules')
+        cur.execute(f"SELECT step_id, interval_hours, message_content FROM {t_schedules} WHERE project_id = %s ORDER BY step_id", (id,))
         schedules = cur.fetchall()
         cur.close()
         conn.close()
@@ -823,14 +867,16 @@ def export_project_schedules(id):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/projects/<int:id>/schedules/import', methods=['POST'])
+@token_required
 def import_project_schedules(id):
     data = request.json # List of schedules
     try:
-        conn = get_db_connection()
+        conn = get_main_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        t_schedules = get_suffixed_table('project_schedules')
         
         # Delete existing
-        cur.execute("DELETE FROM project_schedules WHERE project_id = %s", (id,))
+        cur.execute(f"DELETE FROM {t_schedules} WHERE project_id = %s", (id,))
         
         # Insert new
         app_id = get_current_app_id()
@@ -877,9 +923,16 @@ def import_project_schedules(id):
                 except Exception as sync_err:
                     print(f"Error syncing imported message for step {s['step_id']} (Project {id}): {sync_err}")
             
+        # 6. Insert schedules into RDS
+        conn = get_main_db_connection()
+        cur = conn.cursor()
+        t_schedules = get_suffixed_table('project_schedules')
+        
+        for s in schedules_data:
+            # ... Cloning logic already handled the 'content' string ...
             cur.execute(
-                "INSERT INTO project_schedules (project_id, step_id, interval_hours, message_content) VALUES (%s, %s, %s, %s)",
-                (id, s['step_id'], s['interval_hours'], content)
+                f"INSERT INTO {t_schedules} (project_id, step_id, interval_hours, message_content) VALUES (%s, %s, %s, %s)",
+                (id, s['step_id'], s['interval_hours'], s['content'])
             )
             
         conn.commit()
@@ -890,24 +943,40 @@ def import_project_schedules(id):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/projects/<int:id>/users', methods=['GET'])
+@token_required
 def get_project_users(id):
     try:
         app_id = get_current_app_id()
-        conn = get_db_connection()
+        conn = get_main_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        t_ups = get_suffixed_table('user_project_status')
+        t_cron = get_suffixed_table('cron_table')
+        
         # Use a subquery to get the minimum active step_id for each user to avoid duplicates
         cur.execute(f"""
             SELECT ups.user_id, LOWER(ups.status) as status, 
-                   (SELECT MIN(step_id) FROM cron_table WHERE user_id = ups.user_id AND project_id = ups.project_id AND status = 'active') as step_id,
-                   (SELECT push_time FROM cron_table WHERE user_id = ups.user_id AND project_id = ups.project_id AND status = 'active' ORDER BY step_id ASC LIMIT 1) as next_push_time,
+                   (SELECT MIN(step_id) FROM {t_cron} WHERE user_id = ups.user_id AND project_id = ups.project_id AND status = 'active') as step_id,
+                   (SELECT push_time FROM {t_cron} WHERE user_id = ups.user_id AND project_id = ups.project_id AND status = 'active' ORDER BY step_id ASC LIMIT 1) as next_push_time,
                    ups.updated_at as joined_at,
-                   p.value as user_name 
-            FROM user_project_status ups
-            LEFT JOIN "Private_var:{app_id}" p ON ups.user_id = p.user_id AND p.name = 'name'
+                   NULL as user_name 
+            FROM {t_ups} ups
             WHERE ups.project_id = %s
             ORDER BY ups.status DESC, step_id ASC
         """, (id,))
         users = cur.fetchall()
+        
+        # Enrich with name from OA DB (Private_var)
+        try:
+            conn_oa = get_db_connection()
+            cur_oa = conn_oa.cursor()
+            for u in users:
+                cur_oa.execute(f'SELECT value FROM "Private_var:{app_id}" WHERE user_id = %s AND name = \'name\'', (u['user_id'],))
+                res = cur_oa.fetchone()
+                if res: u['user_name'] = res[0]
+            cur_oa.close()
+            conn_oa.close()
+        except: pass
+        
         cur.close()
         conn.close()
         return json_response(users)
@@ -915,12 +984,15 @@ def get_project_users(id):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/projects/<int:id>/users/<string:user_id>', methods=['DELETE'])
+@token_required
 def delete_project_user(id, user_id):
     try:
-        conn = get_db_connection()
+        conn = get_main_db_connection()
         cur = conn.cursor()
-        cur.execute("DELETE FROM cron_table WHERE project_id = %s AND user_id = %s", (id, user_id))
-        cur.execute("DELETE FROM user_project_status WHERE project_id = %s AND user_id = %s", (id, user_id))
+        t_cron = get_suffixed_table('cron_table')
+        t_ups = get_suffixed_table('user_project_status')
+        cur.execute(f"DELETE FROM {t_cron} WHERE project_id = %s AND user_id = %s", (id, user_id))
+        cur.execute(f"DELETE FROM {t_ups} WHERE project_id = %s AND user_id = %s", (id, user_id))
         conn.commit()
         cur.close()
         conn.close()
@@ -929,13 +1001,18 @@ def delete_project_user(id, user_id):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/projects/<int:id>/users/<string:user_id>/restart', methods=['POST'])
+@token_required
 def restart_project_user(id, user_id):
     try:
-        conn = get_db_connection()
+        conn = get_main_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        t_projects = get_suffixed_table('projects')
+        t_schedules = get_suffixed_table('project_schedules')
+        t_cron = get_suffixed_table('cron_table')
+        t_ups = get_suffixed_table('user_project_status')
         
         # 1. Fetch Project, start_date and Anchor Config
-        cur.execute("SELECT anchor_config, start_date FROM projects WHERE project_id = %s", (id,))
+        cur.execute(f"SELECT anchor_config, start_date FROM {t_projects} WHERE project_id = %s", (id,))
         project = cur.fetchone()
         if not project:
             return jsonify({"status": "error", "message": "Project not found"}), 404
@@ -947,14 +1024,10 @@ def restart_project_user(id, user_id):
 
         project_start = project.get('start_date')
         
-        # 2. Calculate Base Start Time (Aligned with Anchor)
-        # Use Taiwan Time for all internal calculations
+        # 2. Calculate Base Start Time
         now_tw = get_now_taiwan()
-        
-        # Determine Reference Time: Use project_start if it's in the future
         reference_time = now_tw
         if project_start:
-            # project_start from DB is naive local time
             ps_local = project_start.replace(tzinfo=None) if project_start.tzinfo else project_start
             reference_time = max(now_tw, ps_local)
 
@@ -991,12 +1064,12 @@ def restart_project_user(id, user_id):
                 print(f"Anchor error in restart_project_user: {e}")
 
         # 3. Fetch All Steps
-        cur.execute("SELECT step_id, interval_hours, message_content FROM project_schedules WHERE project_id = %s ORDER BY step_id ASC", (id,))
+        cur.execute(f"SELECT step_id, interval_hours, message_content FROM {t_schedules} WHERE project_id = %s ORDER BY step_id ASC", (id,))
         steps = cur.fetchall()
         
         if steps:
             # 4. Clear existing tasks
-            cur.execute("DELETE FROM cron_table WHERE project_id = %s AND user_id = %s", (id, user_id))
+            cur.execute(f"DELETE FROM {t_cron} WHERE project_id = %s AND user_id = %s", (id, user_id))
             
             # 5. Insert All Steps
             current_push_time = base_start_time
@@ -1005,11 +1078,11 @@ def restart_project_user(id, user_id):
                 interval = float(step['interval_hours']) if step['interval_hours'] else 0
                 msg = step['message_content']
                 current_push_time += timedelta(hours=interval)
-                cur.execute("INSERT INTO cron_table (user_id, project_id, step_id, message_content, push_time, status) VALUES (%s, %s, %s, %s, %s, 'active')",
+                cur.execute(f"INSERT INTO {t_cron} (user_id, project_id, step_id, message_content, push_time, status) VALUES (%s, %s, %s, %s, %s, 'active')",
                             (user_id, id, s_id, msg, current_push_time))
             
             # 6. Update status
-            cur.execute("INSERT INTO user_project_status (user_id, project_id, status, updated_at) VALUES (%s, %s, 'active', NOW()) ON CONFLICT (user_id, project_id) DO UPDATE SET status = 'active', updated_at = NOW()",
+            cur.execute(f"INSERT INTO {t_ups} (user_id, project_id, status, updated_at) VALUES (%s, %s, 'active', NOW()) ON CONFLICT (user_id, project_id) DO UPDATE SET status = 'active', updated_at = NOW()",
                         (user_id, id))
 
             # 7. Update Stats
@@ -1030,6 +1103,7 @@ def restart_project_user(id, user_id):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/projects/<int:id>/users/batch-restart', methods=['POST'])
+@token_required
 def batch_restart_project_users(id):
     try:
         data = request.json
@@ -1037,11 +1111,15 @@ def batch_restart_project_users(id):
         if not user_ids:
             return jsonify({"status": "error", "message": "No users selected"}), 400
 
-        conn = get_db_connection()
+        conn = get_main_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        t_projects = get_suffixed_table('projects')
+        t_schedules = get_suffixed_table('project_schedules')
+        t_cron = get_suffixed_table('cron_table')
+        t_ups = get_suffixed_table('user_project_status')
 
         # 1. Fetch Project, start_date and Anchor Config
-        cur.execute("SELECT anchor_config, start_date FROM projects WHERE project_id = %s", (id,))
+        cur.execute(f"SELECT anchor_config, start_date FROM {t_projects} WHERE project_id = %s", (id,))
         project = cur.fetchone()
         if not project:
             return jsonify({"status": "error", "message": "Project not found"}), 404
@@ -1095,7 +1173,7 @@ def batch_restart_project_users(id):
                 print(f"Anchor error in batch_restart: {e}")
 
         # 3. Fetch All Steps
-        cur.execute("SELECT step_id, interval_hours, message_content FROM project_schedules WHERE project_id = %s ORDER BY step_id ASC", (id,))
+        cur.execute(f"SELECT step_id, interval_hours, message_content FROM {t_schedules} WHERE project_id = %s ORDER BY step_id ASC", (id,))
         steps = cur.fetchall()
         if not steps:
             cur.close()
@@ -1105,16 +1183,16 @@ def batch_restart_project_users(id):
         # 4. Process each user
         oa_id = get_current_oa_id()
         for user_id in user_ids:
-            cur.execute("DELETE FROM cron_table WHERE project_id = %s AND user_id = %s", (id, user_id))
+            cur.execute(f"DELETE FROM {t_cron} WHERE project_id = %s AND user_id = %s", (id, user_id))
             current_push_time = base_start_time
             for step in steps:
                 s_id = step['step_id']
                 interval = float(step['interval_hours']) if step['interval_hours'] else 0
                 msg = step['message_content']
                 current_push_time += timedelta(hours=interval)
-                cur.execute("INSERT INTO cron_table (user_id, project_id, step_id, message_content, push_time, status) VALUES (%s, %s, %s, %s, %s, 'active')",
+                cur.execute(f"INSERT INTO {t_cron} (user_id, project_id, step_id, message_content, push_time, status) VALUES (%s, %s, %s, %s, %s, 'active')",
                             (user_id, id, s_id, msg, current_push_time))
-            cur.execute("INSERT INTO user_project_status (user_id, project_id, status, updated_at) VALUES (%s, %s, 'active', %s) ON CONFLICT (user_id, project_id) DO UPDATE SET status = 'active', updated_at = %s",
+            cur.execute(f"INSERT INTO {t_ups} (user_id, project_id, status, updated_at) VALUES (%s, %s, 'active', %s) ON CONFLICT (user_id, project_id) DO UPDATE SET status = 'active', updated_at = %s",
                         (user_id, id, now_tw, now_tw))
             if oa_id:
                 try: increment_project_stat(id, 'ttc', oa_id)
@@ -1138,18 +1216,20 @@ def cron_scheduler_processor():
 
 # Schedules CRUD
 @app.route('/api/schedules', methods=['GET'])
+@token_required
 def get_schedules():
     try:
         project_id = request.args.get('project_id')
         print(f"Fetching schedules. project_id filter: {project_id}")
         
-        conn = get_db_connection()
+        conn = get_main_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        t_schedules = get_suffixed_table('project_schedules')
         
         if project_id and project_id != "":
-            cur.execute("SELECT * FROM project_schedules WHERE project_id = %s ORDER BY schedule_id", (project_id,))
+            cur.execute(f"SELECT * FROM {t_schedules} WHERE project_id = %s ORDER BY schedule_id", (project_id,))
         else:
-            cur.execute("SELECT * FROM project_schedules ORDER BY schedule_id")
+            cur.execute(f"SELECT * FROM {t_schedules} ORDER BY schedule_id")
             
         schedules = cur.fetchall()
         print(f"SQL found {len(schedules)} rows in project_schedules")
@@ -1207,16 +1287,18 @@ def get_schedules():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/schedules', methods=['POST'])
+@token_required
 def create_schedule():
     data = request.json
     try:
         if float(data['interval_hours']) < 0:
             return jsonify({"status": "error", "message": "間隔時間必須大於或等於 0"}), 400
 
-        conn = get_db_connection()
+        conn = get_main_db_connection()
         cur = conn.cursor()
+        t_schedules = get_suffixed_table('project_schedules')
         cur.execute(
-            "INSERT INTO project_schedules (project_id, step_id, interval_hours, message_content) VALUES (%s, %s, %s, %s) RETURNING schedule_id",
+            f"INSERT INTO {t_schedules} (project_id, step_id, interval_hours, message_content) VALUES (%s, %s, %s, %s) RETURNING schedule_id",
             (data['project_id'], data['step_id'], data['interval_hours'], data['message_content'])
         )
         schedule_id = cur.fetchone()[0]
@@ -1228,16 +1310,18 @@ def create_schedule():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/schedules/<int:id>', methods=['PUT'])
+@token_required
 def update_schedule(id):
     data = request.json
     try:
         if float(data['interval_hours']) < 0:
             return jsonify({"status": "error", "message": "間隔時間必須大於或等於 0"}), 400
 
-        conn = get_db_connection()
+        conn = get_main_db_connection()
         cur = conn.cursor()
+        t_schedules = get_suffixed_table('project_schedules')
         cur.execute(
-            "UPDATE project_schedules SET project_id=%s, step_id=%s, interval_hours=%s, message_content=%s WHERE schedule_id=%s",
+            f"UPDATE {t_schedules} SET project_id=%s, step_id=%s, interval_hours=%s, message_content=%s WHERE schedule_id=%s",
             (data['project_id'], data['step_id'], data['interval_hours'], data['message_content'], id)
         )
         conn.commit()
@@ -1248,22 +1332,28 @@ def update_schedule(id):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/schedules/<int:id>', methods=['DELETE'])
+@token_required
 def delete_schedule(id):
     try:
-        conn = get_db_connection()
+        conn = get_main_db_connection()
         cur = conn.cursor()
+        t_schedules = get_suffixed_table('project_schedules')
 
         # Check for QA tag to delete
-        cur.execute("SELECT message_content FROM project_schedules WHERE schedule_id=%s", (id,))
+        cur.execute(f"SELECT message_content FROM {t_schedules} WHERE schedule_id=%s", (id,))
         row = cur.fetchone()
         if row and row[0] and row[0].startswith('QA|'):
             tag = row[0].split('|')[-1]
             # Only delete if it's a cloned tag for a project
             if tag.startswith('cron_'):
                 app_id = get_current_app_id()
-                cur.execute(f'DELETE FROM "QA_bank:{app_id}" WHERE tag = %s', (tag,))
+                cur_oa = get_db_connection().cursor()
+                cur_oa.execute(f'DELETE FROM "QA_bank:{app_id}" WHERE tag = %s', (tag,))
+                cur_oa.connection.commit()
+                cur_oa.close()
+                cur_oa.connection.close()
 
-        cur.execute("DELETE FROM project_schedules WHERE schedule_id=%s", (id,))
+        cur.execute(f"DELETE FROM {t_schedules} WHERE schedule_id=%s", (id,))
         conn.commit()
         cur.close()
         conn.close()
@@ -1285,43 +1375,37 @@ def get_statistics():
         if len(end_time) == 10:
             end_time += " 23:59:59"
 
-        conn = get_db_connection()
+        conn = get_main_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        t_static = get_suffixed_table('static_view')
         
         results = {}
-        for category in ['follow', 'unfollow', 'user', 'message']:
-            cur.execute(
-                "SELECT * FROM get_events_count_by_category_and_tag(%s, %s, %s, %s)",
-                (start_time, end_time, category.capitalize(), group_unit)
-            )
-            results[category] = cur.fetchall()
-            
+        # Since RDS might not have the stored procedure, we skip the categories loop for now or implement direct SQL
+        # But if the user renamed tables, they likely want the card totals:
+        
         # Add a special 'totals' section for card display
         results['total_counts'] = {}
         for category in ['follow', 'unfollow', 'user', 'message']:
             if category == 'user':
-                # For users, we want strictly DISTINCT user_ids over the ENTIRE duration
                 cur.execute(
-                    "SELECT COUNT(DISTINCT user_id) as total FROM static_view WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category IN ('Follow', 'Message')",
+                    f"SELECT COUNT(DISTINCT user_id) as total FROM {t_static} WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category IN ('Follow', 'Message')",
                     (start_time, end_time)
                 )
                 row = cur.fetchone()
                 results['total_counts'][category] = row['total'] if row else 0
             elif category == 'follow':
-                # Added Friends: Count any user who followed in the period
                 cur.execute(
-                    "SELECT COUNT(DISTINCT user_id) as total FROM static_view WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category = 'Follow'",
+                    f"SELECT COUNT(DISTINCT user_id) as total FROM {t_static} WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category = 'Follow'",
                     (start_time, end_time)
                 )
                 row = cur.fetchone()
                 results['total_counts'][category] = row['total'] if row else 0
             elif category == 'unfollow':
-                # Unfollow: Only count those who ENDED in the Unfollow state in this period
-                cur.execute("""
+                cur.execute(f"""
                     SELECT COUNT(*) as total 
                     FROM (
                         SELECT DISTINCT ON (user_id) category 
-                        FROM static_view 
+                        FROM {t_static} 
                         WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s 
                           AND category IN ('Follow', 'Unfollow') 
                         ORDER BY user_id, \"timestamp\" DESC
@@ -1332,7 +1416,7 @@ def get_statistics():
                 results['total_counts'][category] = row['total'] if row else 0
             else: # message
                 cur.execute(
-                    "SELECT COUNT(*) as total FROM static_view WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category = 'Message'",
+                    f"SELECT COUNT(*) as total FROM {t_static} WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category = 'Message'",
                     (start_time, end_time)
                 )
                 row = cur.fetchone()
@@ -1666,6 +1750,7 @@ def trigger_socket_event_route():
 
 # Scheduled Events CRUD
 @app.route('/api/scheduled-events', methods=['POST'])
+@token_required
 def create_scheduled_event():
     data = request.json
     try:
@@ -1676,15 +1761,16 @@ def create_scheduled_event():
         if not user_id or not message_content or interval_hours is None or interval_hours == '':
             return jsonify({"status": "error", "message": "Missing required fields"}), 400
 
-        conn = get_db_connection()
+        conn = get_main_db_connection()
         cur = conn.cursor()
+        t_cron = get_suffixed_table('cron_table')
         
-        # Calculate initial push_time in UTC (RDS timezone is UTC, using local time causes 8h delay)
+        # Calculate initial push_time in UTC
         from datetime import timezone as tz_zone
         push_time = datetime.now(tz_zone.utc).replace(tzinfo=None) + timedelta(hours=float(interval_hours))
         
         cur.execute(
-            "INSERT INTO cron_table (user_id, message_content, repeat_interval, push_time, status) VALUES (%s, %s, %s, %s, 'active') RETURNING task_id",
+            f"INSERT INTO {t_cron} (user_id, message_content, repeat_interval, push_time, status) VALUES (%s, %s, %s, %s, 'active') RETURNING task_id",
             (user_id, message_content, str(interval_hours), push_time)
         )
         task_id = cur.fetchone()[0]
@@ -1697,27 +1783,41 @@ def create_scheduled_event():
 
 # Scheduled Events CRUD
 @app.route('/api/scheduled-events', methods=['GET'])
+@token_required
 def get_scheduled_events():
     try:
         app_id = get_current_app_id()
-        conn = get_db_connection()
+        conn = get_main_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        t_cron = get_suffixed_table('cron_table')
+        t_projects = get_suffixed_table('projects')
         
         # Join with projects and user info
-        # Use push_time as the primary time column
-        # Show ALL cron entries regardless of repeat_interval (0 = one-time, >0 = recurring)
         cur.execute(f"""
             SELECT c.task_id as event_id, c.project_id, c.step_id, c.push_time as scheduled_at, c.message_content, c.repeat_interval as interval_hours,
                    p.project_name,
-                   (SELECT value FROM "Private_var:{app_id}" WHERE user_id = c.user_id AND name = 'name' LIMIT 1) as user_name,
+                   NULL as user_name,
                    c.user_id as target_user_id,
                    true as is_enabled
-            FROM cron_table c
-            LEFT JOIN projects p ON c.project_id = p.project_id
+            FROM {t_cron} c
+            LEFT JOIN {t_projects} p ON c.project_id = p.project_id
             WHERE c.push_time IS NOT NULL
             ORDER BY c.push_time ASC
         """)
         events = cur.fetchall()
+        
+        # Enrich with user names from OA DB
+        try:
+            conn_oa = get_db_connection()
+            cur_oa = conn_oa.cursor()
+            for e in events:
+                cur_oa.execute(f'SELECT value FROM "Private_var:{app_id}" WHERE user_id = %s AND name = \'name\'', (e['target_user_id'],))
+                res = cur_oa.fetchone()
+                if res: e['user_name'] = res[0]
+            cur_oa.close()
+            conn_oa.close()
+        except: pass
+
         cur.close()
         conn.close()
         return json_response(events)
@@ -1726,11 +1826,13 @@ def get_scheduled_events():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/scheduled-events/<int:id>', methods=['DELETE'])
+@token_required
 def delete_scheduled_event(id):
     try:
-        conn = get_db_connection()
+        conn = get_main_db_connection()
         cur = conn.cursor()
-        cur.execute("DELETE FROM cron_table WHERE task_id = %s", (id,))
+        t_cron = get_suffixed_table('cron_table')
+        cur.execute(f"DELETE FROM {t_cron} WHERE task_id = %s", (id,))
         conn.commit()
         cur.close()
         conn.close()

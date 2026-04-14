@@ -1,10 +1,22 @@
 from flask import Blueprint, request, jsonify, g
-from models import db, Broadcast, OAConfig
+from models import db, OAConfig
 from auth import token_required
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import json
+import os
+
+# Database details matching app.py
+RDS_URL = "postgresql://u1kq1nhog5jq7b:pd1a6d947df93fb15d747bbadf399e84893f9fd5932782191f0b6ffa187c5ae18@c8lcd8bq1mia7p.cluster-czrs8kj4isg7.us-east-1.rds.amazonaws.com:5432/d1hr8bloo29pm6"
+
+def get_rds_connection():
+    return psycopg2.connect(RDS_URL)
+
+def get_t(base):
+    app_name = getattr(g, 'current_app_name', 'default')
+    if not app_name: app_name = 'default'
+    return f'"{base}:{app_name}"'
 
 broadcast_bp = Blueprint('broadcast', __name__)
 
@@ -74,35 +86,41 @@ def list_broadcasts():
     oa_id = g.current_oa_id
     status = request.args.get('status')
     
-    query = Broadcast.query.filter_by(oa_id=oa_id)
+    conn_rds = get_rds_connection()
+    cur_rds = conn_rds.cursor(cursor_factory=RealDictCursor)
+    t_broadcasts = get_t('broadcasts')
+    
+    where_clause = "WHERE oa_id = %s"
+    params = [oa_id]
     if status and status != 'all':
-        query = query.filter_by(status=status)
+        where_clause += " AND status = %s"
+        params.append(status)
         
-    broadcasts = query.order_by(Broadcast.created_at.desc()).all()
+    cur_rds.execute(f"SELECT * FROM {t_broadcasts} {where_clause} ORDER BY created_at DESC", params)
+    broadcasts = cur_rds.fetchall()
     
     # --- Status Reconciliation ---
-    # Since the bot engine deletes cron_table entries after execution, 
-    # we check if scheduled broadcasts have passed their time and are gone from cron_table.
     now = datetime.now()
     oa = OAConfig.query.get(oa_id)
     if oa and oa.db_url:
         try:
             # We only check broadcasts that are 'scheduled' and whose time has passed
-            to_check = [b for b in broadcasts if b.status == 'scheduled' and b.scheduled_at and b.scheduled_at <= now]
+            to_check = [b for b in broadcasts if b['status'] == 'scheduled' and b['scheduled_at'] and b['scheduled_at'] <= now]
             if to_check:
-                conn = get_db_connection(oa.db_url)
-                cur = conn.cursor()
-                updated_any = False
+                conn_oa = psycopg2.connect(oa.db_url)
+                cur_oa = conn_oa.cursor()
+                t_cron = get_t('cron_table')
+                
+                # Check if still in RDS cron_table
                 for bc in to_check:
-                    # The bot engine uses "QA|{tag}" for broadcast tasks
-                    cur.execute("SELECT 1 FROM cron_table WHERE message_content = %s LIMIT 1", (f"QA|{bc.message_tag}",))
-                    if not cur.fetchone():
-                        bc.status = 'sent'
-                        updated_any = True
-                cur.close()
-                conn.close()
-                if updated_any:
-                    db.session.commit()
+                    cur_rds.execute(f"SELECT 1 FROM {t_cron} WHERE message_content = %s LIMIT 1", (f"QA|{bc['message_tag']}",))
+                    if not cur_rds.fetchone():
+                        cur_rds.execute(f"UPDATE {t_broadcasts} SET status = 'sent' WHERE id = %s", (bc['id'],))
+                        bc['status'] = 'sent'
+                
+                conn_rds.commit()
+                cur_oa.close()
+                conn_oa.close()
         except Exception as e:
             print(f"Reconciliation error: {e}")
     # --- End Status Reconciliation ---
@@ -122,10 +140,10 @@ def list_broadcasts():
             
     for b in broadcasts:
         summary = []
-        if b.message_tag and shared_conn and app_id:
+        if b['message_tag'] and shared_conn and app_id:
             try:
                 with shared_conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute(f'SELECT msg_rpy FROM "QA_bank:{app_id}" WHERE tag = %s', (b.message_tag,))
+                    cur.execute(f'SELECT msg_rpy FROM "QA_bank:{app_id}" WHERE tag = %s', (b['message_tag'],))
                     row = cur.fetchone()
                     if row and row['msg_rpy']:
                         msgs = row['msg_rpy']
@@ -133,7 +151,6 @@ def list_broadcasts():
                             msgs = json.loads(msgs)
                         
                         for m in msgs[:3]: # Return up to 3 for preview
-                            # Normalize message structure
                             msg_obj = m
                             if isinstance(m, str):
                                 try: msg_obj = json.loads(m)
@@ -144,26 +161,29 @@ def list_broadcasts():
                             summary.append({
                                 "OTYPE": msg_obj.get("OTYPE", "TextSendMessage"),
                                 "text": msg_obj.get("text", "")[:50] if msg_obj.get("text") else "",
-                                "contents": msg_obj.get("contents") # For flex preview
+                                "contents": msg_obj.get("contents")
                             })
             except Exception as e:
-                print(f"Error fetching summary for {b.message_tag}: {e}")
+                print(f"Error fetching summary for {b['message_tag']}: {e}")
 
         broadcast_list.append({
-            'id': b.id,
-            'name': b.name,
-            'target_type': b.target_type,
-            'target_value': b.target_value,
-            'message_tag': b.message_tag,
-            'send_type': b.send_type,
-            'status': b.status,
-            'scheduled_at': b.scheduled_at.isoformat() if b.scheduled_at else None,
-            'created_at': b.created_at.isoformat(),
-            'messages': summary # Added for preview
+            'id': b['id'],
+            'name': b['name'],
+            'target_type': b['target_type'],
+            'target_value': b['target_value'],
+            'message_tag': b['message_tag'],
+            'send_type': b['send_type'],
+            'status': b['status'],
+            'scheduled_at': b['scheduled_at'].isoformat() if b['scheduled_at'] else None,
+            'created_at': b['created_at'].isoformat(),
+            'messages': summary
         })
         
     if shared_conn:
         shared_conn.close()
+    
+    cur_rds.close()
+    conn_rds.close()
 
     return jsonify({
         'broadcasts': broadcast_list
@@ -175,84 +195,105 @@ def create_broadcast():
     data = request.json
     oa_id = g.current_oa_id
     
-    new_bc = Broadcast(
-        oa_id=g.current_oa_id,
-        name=data.get('name', '未命名廣播'),
-        target_type=data.get('target_type', 'all'),
-        target_value=data.get('target_value', ''),
-        message_tag=data.get('message_tag'),
-        send_type=data.get('send_type', 'immediate'),
-        status=data.get('status', 'draft'),
-        scheduled_at=datetime.fromisoformat(data['scheduled_at']) if data.get('scheduled_at') else None
+    name = data.get('name', '未命名廣播')
+    target_type = data.get('target_type', 'all')
+    target_value = data.get('target_value', '')
+    message_tag = data.get('message_tag')
+    send_type = data.get('send_type', 'immediate')
+    status = data.get('status', 'draft')
+    scheduled_at = datetime.fromisoformat(data['scheduled_at']) if data.get('scheduled_at') else None
+    
+    conn = get_rds_connection()
+    cur = conn.cursor()
+    t_broadcasts = get_t('broadcasts')
+    
+    cur.execute(
+        f"INSERT INTO {t_broadcasts} (oa_id, name, target_type, target_value, message_tag, send_type, status, scheduled_at, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW()) RETURNING id",
+        (oa_id, name, target_type, target_value, message_tag, send_type, status, scheduled_at)
     )
+    bid = cur.fetchone()[0]
+    conn.commit()
+    cur.close()
+    conn.close()
     
-    # If status is scheduled or sent, we should have a message_tag
-    if data.get('message_tag'):
-        new_bc.message_tag = data['message_tag']
-        
-    db.session.add(new_bc)
-    db.session.commit()
-    
-    # If immediately sending or scheduling, handle cron_table insertion
-    if new_bc.status != 'draft':
-        # This will be handled in a separate 'execute' step or integrated here
-        pass
-        
-    return jsonify({'id': new_bc.id, 'status': 'success'})
+    return jsonify({'id': bid, 'status': 'success'})
 
 @broadcast_bp.route('/<int:id>', methods=['PUT'])
 @token_required
 def update_broadcast(id):
-    bc = Broadcast.query.get_or_404(id)
-    if bc.status == 'sent':
+    data = request.json
+    conn = get_rds_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    t_broadcasts = get_t('broadcasts')
+    
+    cur.execute(f"SELECT * FROM {t_broadcasts} WHERE id = %s", (id,))
+    bc = cur.fetchone()
+    if not bc:
+        return jsonify({'error': 'Not found'}), 404
+    if bc['status'] == 'sent':
         return jsonify({'error': 'Cannot update sent broadcast'}), 400
         
-    data = request.json
-    bc.name = data.get('name', bc.name)
-    bc.target_type = data.get('target_type', bc.target_type)
-    bc.target_value = data.get('target_value', bc.target_value)
-    bc.send_type = data.get('send_type', bc.send_type)
-    bc.status = data.get('status', bc.status)
-    if data.get('scheduled_at'):
-        bc.scheduled_at = datetime.fromisoformat(data['scheduled_at'])
-    if data.get('message_tag'):
-        bc.message_tag = data['message_tag']
-        
-    db.session.commit()
+    name = data.get('name', bc['name'])
+    target_type = data.get('target_type', bc['target_type'])
+    target_value = data.get('target_value', bc['target_value'])
+    send_type = data.get('send_type', bc['send_type'])
+    status = data.get('status', bc['status'])
+    scheduled_at = datetime.fromisoformat(data['scheduled_at']) if data.get('scheduled_at') else bc['scheduled_at']
+    message_tag = data.get('message_tag', bc['message_tag'])
+    
+    cur.execute(
+        f"UPDATE {t_broadcasts} SET name=%s, target_type=%s, target_value=%s, send_type=%s, status=%s, scheduled_at=%s, message_tag=%s WHERE id=%s",
+        (name, target_type, target_value, send_type, status, scheduled_at, message_tag, id)
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
     return jsonify({'status': 'success'})
 
 @broadcast_bp.route('/<int:id>', methods=['DELETE'])
 @token_required
 def delete_broadcast(id):
-    bc = Broadcast.query.get_or_404(id)
+    conn = get_rds_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    t_broadcasts = get_t('broadcasts')
+    t_cron = get_t('cron_table')
+    
+    cur.execute(f"SELECT * FROM {t_broadcasts} WHERE id = %s", (id,))
+    bc = cur.fetchone()
+    if not bc:
+        return jsonify({'error': 'Not found'}), 404
     
     # 1. If scheduled, remove from cron_table
-    if bc.status == 'scheduled' or bc.status == 'active':
-        oa = OAConfig.query.get(bc.oa_id)
-        if oa and oa.db_url:
-            try:
-                conn = get_db_connection(oa.db_url)
-                cur = conn.cursor()
-                msg_content = f"QA|{bc.message_tag}"
-                cur.execute("DELETE FROM cron_table WHERE message_content = %s", (msg_content,))
-                conn.commit()
-                cur.close()
-                conn.close()
-            except Exception as e:
-                print(f"Error deleting from cron_table: {e}")
+    if bc['status'] == 'scheduled' or bc['status'] == 'active':
+        try:
+            msg_content = f"QA|{bc['message_tag']}"
+            cur.execute(f"DELETE FROM {t_cron} WHERE message_content = %s", (msg_content,))
+        except Exception as e:
+            print(f"Error deleting from cron_table: {e}")
 
-    db.session.delete(bc)
-    db.session.commit()
+    cur.execute(f"DELETE FROM {t_broadcasts} WHERE id = %s", (id,))
+    conn.commit()
+    cur.close()
+    conn.close()
     return jsonify({'status': 'success'})
 
 @broadcast_bp.route('/<int:id>/execute', methods=['POST'])
 @token_required
 def execute_broadcast(id):
-    bc = Broadcast.query.get_or_404(id)
-    if bc.status == 'sent':
+    conn_rds = get_rds_connection()
+    cur_rds = conn_rds.cursor(cursor_factory=RealDictCursor)
+    t_broadcasts = get_t('broadcasts')
+    t_cron = get_t('cron_table')
+    
+    cur_rds.execute(f"SELECT * FROM {t_broadcasts} WHERE id = %s", (id,))
+    bc = cur_rds.fetchone()
+    if not bc:
+        return jsonify({'error': 'Not found'}), 404
+        
+    if bc['status'] == 'sent':
         return jsonify({'error': 'Broadcast already sent'}), 400
         
-    oa = OAConfig.query.get(bc.oa_id)
+    oa = OAConfig.query.get(bc['oa_id'])
     if not oa or not oa.db_url:
         return jsonify({'error': 'OA configuration error (missing db_url)'}), 400
         
@@ -260,21 +301,21 @@ def execute_broadcast(id):
     
     try:
         from utils.socket_utils import send_socket_event
-        conn = get_db_connection(oa.db_url)
-        cur = conn.cursor()
+        conn_oa = psycopg2.connect(oa.db_url)
+        cur_oa = conn_oa.cursor()
         
         # 1. Immediate send via WebSocket
-        if bc.send_type == 'immediate':
+        if bc['send_type'] == 'immediate':
             # Get targets
             user_ids = []
-            if bc.target_type == 'all':
-                cur.execute(f'SELECT DISTINCT user_id FROM "Private_var:{app_id}"')
-                user_ids = [r[0] for r in cur.fetchall()]
-            elif bc.target_type == 'tag':
-                cur.execute(f'SELECT DISTINCT user_id FROM "Private_var:{app_id}" WHERE name = \'tag\' AND value LIKE %s', (f'%{bc.target_value}%',))
-                user_ids = [r[0] for r in cur.fetchall()]
-            elif bc.target_type == 'ids':
-                user_ids = [i.strip() for i in bc.target_value.split(',') if i.strip()]
+            if bc['target_type'] == 'all':
+                cur_oa.execute(f'SELECT DISTINCT user_id FROM "Private_var:{app_id}"')
+                user_ids = [r[0] for r in cur_oa.fetchall()]
+            elif bc['target_type'] == 'tag':
+                cur_oa.execute(f'SELECT DISTINCT user_id FROM "Private_var:{app_id}" WHERE name = \'tag\' AND value LIKE %s', (f"%{bc['target_value']}%",))
+                user_ids = [r[0] for r in cur_oa.fetchall()]
+            elif bc['target_type'] == 'ids':
+                user_ids = [i.strip() for i in bc['target_value'].split(',') if i.strip()]
             
             # Use Python list string format as requested
             ids_str = str(user_ids)
@@ -282,45 +323,44 @@ def execute_broadcast(id):
             data = {
                 "user": "yzuadmin", 
                 "type": "Sensor",
-                "message": f"bmcast|{ids_str}|{bc.message_tag}"
+                "message": f"bmcast|{ids_str}|{bc['message_tag']}"
             }
             
-            print(f"Triggering immediate broadcast (Format: {bc.target_type}) via WebSocket: {data['message']}")
+            print(f"Triggering immediate broadcast (Format: {bc['target_type']}) via WebSocket: {data['message']}")
             send_socket_event(data)
             
-            bc.status = 'sent'
-            db.session.commit()
+            cur_rds.execute(f"UPDATE {t_broadcasts} SET status = 'sent' WHERE id = %s", (id,))
+            conn_rds.commit()
             return jsonify({'status': 'success', 'method': 'websocket', 'targets': len(user_ids)})
 
         # 2. Scheduled send via cron_table
-        # Get targets
         user_ids = []
-        if bc.target_type == 'all':
-            cur.execute(f'SELECT user_id FROM "Private_var:{app_id}" WHERE name = \'name\'')
-            user_ids = [r[0] for r in cur.fetchall()]
-        elif bc.target_type == 'tag':
-            cur.execute(f'SELECT user_id FROM "Private_var:{app_id}" WHERE name = \'tag\' AND value LIKE %s', (f'%{bc.target_value}%',))
-            user_ids = [r[0] for r in cur.fetchall()]
-        elif bc.target_type == 'ids':
-            user_ids = [i.strip() for i in bc.target_value.split(',') if i.strip()]
+        if bc['target_type'] == 'all':
+            cur_oa.execute(f'SELECT user_id FROM "Private_var:{app_id}" WHERE name = \'name\'')
+            user_ids = [r[0] for r in cur_oa.fetchall()]
+        elif bc['target_type'] == 'tag':
+            cur_oa.execute(f'SELECT user_id FROM "Private_var:{app_id}" WHERE name = \'tag\' AND value LIKE %s', (f"%{bc['target_value']}%",))
+            user_ids = [r[0] for r in cur_oa.fetchall()]
+        elif bc['target_type'] == 'ids':
+            user_ids = [i.strip() for i in bc['target_value'].split(',') if i.strip()]
             
-        # Insert into cron_table
-        # Use UTC time for push_time since the RDS database stores/compares with UTC NOW()
-        push_time = bc.scheduled_at if bc.scheduled_at else datetime.now(timezone.utc).replace(tzinfo=None)
-        msg_content = f"QA|{bc.message_tag}"
+        # Insert into RDS cron_table
+        push_time = bc['scheduled_at'] if bc['scheduled_at'] else datetime.now(timezone.utc).replace(tzinfo=None)
+        msg_content = f"QA|{bc['message_tag']}"
         
         for uid in user_ids:
-            cur.execute(
-                "INSERT INTO cron_table (user_id, message_content, push_time, status) VALUES (%s, %s, %s, 'active')",
+            cur_rds.execute(
+                f"INSERT INTO {t_cron} (user_id, message_content, push_time, status) VALUES (%s, %s, %s, 'active')",
                 (uid, msg_content, push_time)
             )
             
-        conn.commit()
-        cur.close()
-        conn.close()
+        cur_rds.execute(f"UPDATE {t_broadcasts} SET status = 'scheduled' WHERE id = %s", (id,))
+        conn_rds.commit()
         
-        bc.status = 'scheduled'
-        db.session.commit()
+        cur_oa.close()
+        conn_oa.close()
+        cur_rds.close()
+        conn_rds.close()
         
         return jsonify({'status': 'success', 'targets': len(user_ids), 'method': 'cron'})
     except Exception as e:

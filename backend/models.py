@@ -28,16 +28,4 @@ class OAConfig(db.Model):
     other_settings = db.Column(db.JSON, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-class Broadcast(db.Model):
-    __tablename__ = 'broadcasts'
-    id = db.Column(db.Integer, primary_key=True)
-    oa_id = db.Column(db.Integer, nullable=False)
-    name = db.Column(db.String(200), nullable=True)
-    target_type = db.Column(db.String(50), nullable=False) # 'all', 'tag', 'ids'
-    target_value = db.Column(db.Text, nullable=True) # tag name or comma-separated user IDs
-    message_tag = db.Column(db.String(100), nullable=True) # Tag in QA_bank
-    send_type = db.Column(db.String(20), nullable=True) # 'immediate', 'scheduled'
-    status = db.Column(db.String(20), default='draft') # 'draft', 'scheduled', 'sent'
-    scheduled_at = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+

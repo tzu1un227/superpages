@@ -146,11 +146,15 @@ def create_oa_config():
         # Default to the centralized DB: 140.138.176.197:5432/5013
         db_url = "postgresql://postgres:0000@140.138.176.197:5432/5013"
 
+    other_settings = data.get('other_settings', {})
+    if not other_settings or not other_settings.get('app_name'):
+        return jsonify({'message': '各平台獨立資料表名稱 (App Name) 為必填項目，用於區分多租戶資料表'}), 400
+
     new_config = OAConfig(
         page_ids=page_ids,
         oa_name=data.get('oa_name'),
         db_url=db_url,
-        other_settings=data.get('other_settings', {})
+        other_settings=other_settings
     )
     
     try:
@@ -177,7 +181,10 @@ def update_oa_config(config_id):
     if 'db_url' in data:
         config.db_url = data['db_url']
     if 'other_settings' in data:
-        config.other_settings = data['other_settings']
+        other_settings = data['other_settings']
+        if not other_settings or not other_settings.get('app_name'):
+            return jsonify({'message': '各平台獨立資料表名稱 (App Name) 為必填項目'}), 400
+        config.other_settings = other_settings
         
     try:
         db.session.commit()
