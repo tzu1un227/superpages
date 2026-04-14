@@ -82,6 +82,7 @@ function AdminPage() {
         branch: 'main',
         path: 'assets/images/'
     });
+    const [oaValidated, setOaValidated] = useState(false);
 
     // axiosInstance removed in favor of shared api
 
@@ -173,9 +174,24 @@ function AdminPage() {
 
     // --- OA Handlers ---
     const handleSaveOA = async () => {
+        setOaValidated(true);
         try {
-            if (!appName.trim()) {
-                alert("請設定『App Name (各平台獨立資料表名稱後綴)』，這對於多租戶隔離至關重要。");
+            // Validation Logic: Check all fields
+            const isValid = 
+                oaName.trim() !== '' &&
+                pageIds.length > 0 &&
+                dbUrl.trim() !== '' &&
+                socketUrl.trim() !== '' &&
+                appName.trim() !== '' &&
+                lineToken.trim() !== '' &&
+                lineSecret.trim() !== '' &&
+                githubConfig.token.trim() !== '' &&
+                githubConfig.repo.trim() !== '' &&
+                githubConfig.branch.trim() !== '' &&
+                githubConfig.path.trim() !== '';
+
+            if (!isValid) {
+                alert("請填寫所有必填欄位。標記為紅色的項目尚未完成。");
                 return;
             }
 
@@ -219,6 +235,7 @@ function AdminPage() {
             branch: 'main',
             path: 'assets/images/'
         });
+        setOaValidated(false);
     };
 
     const openEditOA = (oa) => {
@@ -240,6 +257,7 @@ function AdminPage() {
                 path: 'assets/images/'
             });
         }
+        setOaValidated(false);
         setOpenOADialog(true);
     };
 
@@ -484,6 +502,8 @@ function AdminPage() {
                         margin="dense"
                         label="權限名稱"
                         fullWidth
+                        error={oaValidated && !oaName.trim()}
+                        helperText={oaValidated && !oaName.trim() ? "請輸入權限名稱" : ""}
                         value={oaName}
                         onChange={(e) => setOaName(e.target.value)}
                         sx={{
@@ -493,7 +513,7 @@ function AdminPage() {
                         }}
                     />
 
-                    <FormControl fullWidth margin="dense">
+                    <FormControl fullWidth margin="dense" error={oaValidated && pageIds.length === 0}>
                         <InputLabel id="page-select-label" sx={{ color: '#B0B0B0' }}>可存取頁面</InputLabel>
                         <Select
                             labelId="page-select-label"
@@ -524,12 +544,15 @@ function AdminPage() {
                                 </MenuItem>
                             ))}
                         </Select>
+                        {oaValidated && pageIds.length === 0 && <FormHelperText sx={{ color: '#f44336' }}>請至少選擇一個頁面</FormHelperText>}
                     </FormControl>
 
                     <TextField
                         margin="dense"
                         label="資料庫連線字串 (DB URL)"
                         fullWidth
+                        error={oaValidated && !dbUrl.trim()}
+                        helperText={oaValidated && !dbUrl.trim() ? "請輸入資料庫連線字串" : ""}
                         value={dbUrl}
                         onChange={(e) => setDbUrl(e.target.value)}
                         placeholder="postgresql://user:pass@host:port/dbname"
@@ -543,6 +566,8 @@ function AdminPage() {
                         margin="dense"
                         label="WebSocket URL"
                         fullWidth
+                        error={oaValidated && !socketUrl.trim()}
+                        helperText={oaValidated && !socketUrl.trim() ? "請輸入 WebSocket URL" : ""}
                         value={socketUrl}
                         onChange={(e) => setSocketUrl(e.target.value)}
                         placeholder="http://127.0.0.1:3000"
@@ -556,9 +581,8 @@ function AdminPage() {
                         margin="dense"
                         label="App Name (各平台獨立資料表名稱後綴)"
                         fullWidth
-                        required
-                        error={!appName.trim()}
-                        helperText={!appName.trim() ? "此欄位為必填項目，用於確保各平台資料隔離 (例如: 5013)" : "對應資料庫中的 table:{app_name} 格式"}
+                        error={oaValidated && !appName.trim()}
+                        helperText={oaValidated && !appName.trim() ? "此欄位為必填項目，用於確保各平台資料隔離" : "對應資料庫中的 table:{app_name} 格式"}
                         value={appName}
                         onChange={(e) => setAppName(e.target.value)}
                         placeholder="例如: 5013"
@@ -566,7 +590,7 @@ function AdminPage() {
                             input: { color: 'white' },
                             label: { color: '#B0B0B0' },
                             '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#555' }, '&:hover fieldset': { borderColor: '#888' }, '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' } },
-                            '& .MuiFormHelperText-root': { color: !appName.trim() ? '#f44336' : '#B0B0B0' }
+                            '& .MuiFormHelperText-root': { color: (oaValidated && !appName.trim()) ? '#f44336' : '#B0B0B0' }
                         }}
                     />
 
@@ -576,6 +600,8 @@ function AdminPage() {
                         label="LINE Channel Access Token"
                         fullWidth
                         type="password"
+                        error={oaValidated && !lineToken.trim()}
+                        helperText={oaValidated && !lineToken.trim() ? "請輸入 Access Token" : ""}
                         value={lineToken}
                         onChange={(e) => setLineToken(e.target.value)}
                         sx={{
@@ -589,6 +615,8 @@ function AdminPage() {
                         label="LINE Channel Secret"
                         fullWidth
                         type="password"
+                        error={oaValidated && !lineSecret.trim()}
+                        helperText={oaValidated && !lineSecret.trim() ? "請輸入 Channel Secret" : ""}
                         value={lineSecret}
                         onChange={(e) => setLineSecret(e.target.value)}
                         sx={{
@@ -604,6 +632,8 @@ function AdminPage() {
                         label="GitHub Token"
                         fullWidth
                         type="password"
+                        error={oaValidated && !githubConfig.token.trim()}
+                        helperText={oaValidated && !githubConfig.token.trim() ? "請輸入 GitHub Token" : ""}
                         value={githubConfig.token}
                         onChange={(e) => setGithubConfig({ ...githubConfig, token: e.target.value })}
                         sx={{
@@ -616,6 +646,8 @@ function AdminPage() {
                         margin="dense"
                         label="GitHub Repository (例如: username/repo)"
                         fullWidth
+                        error={oaValidated && !githubConfig.repo.trim()}
+                        helperText={oaValidated && !githubConfig.repo.trim() ? "請輸入 Repository 名稱" : ""}
                         value={githubConfig.repo}
                         onChange={(e) => setGithubConfig({ ...githubConfig, repo: e.target.value })}
                         sx={{
@@ -628,6 +660,8 @@ function AdminPage() {
                         margin="dense"
                         label="分支 (Branch)"
                         fullWidth
+                        error={oaValidated && !githubConfig.branch.trim()}
+                        helperText={oaValidated && !githubConfig.branch.trim() ? "請指定分支名稱 (預設: main)" : ""}
                         value={githubConfig.branch}
                         onChange={(e) => setGithubConfig({ ...githubConfig, branch: e.target.value })}
                         sx={{
@@ -640,6 +674,8 @@ function AdminPage() {
                         margin="dense"
                         label="儲存路徑 (Path)"
                         fullWidth
+                        error={oaValidated && !githubConfig.path.trim()}
+                        helperText={oaValidated && !githubConfig.path.trim() ? "請指定儲存路徑 (預設: assets/images/)" : ""}
                         value={githubConfig.path}
                         onChange={(e) => setGithubConfig({ ...githubConfig, path: e.target.value })}
                         sx={{

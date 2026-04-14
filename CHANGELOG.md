@@ -3,10 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **「權限設定」表單驗證優化 (OA Config Validation UX)** [2026-04-14]:
+  - **全欄位必填化**：將 OA 設定中的所有輸入項（包括 GitHub 與 LINE 設定）改為必填，確保系統功能不因配置缺失而失效。
+  - **延遲顯著提示**：實現了新的 UI 交互邏輯，平時不顯示錯誤紅框，僅在點擊儲存且有漏填時才一併標記，提供更精確且不干擾的引導。
+
 - **群發功能穩定性與效能優化 (Broadcast Stability & Performance)** [2026-04-14]:
-  - **解決 Network Error**：針對受眾人數較多時產生的預約逾時問題，將資料庫寫入邏輯重構為批量插入 (`Bulk Insert`)，效能提升數十倍。
-  - **強化錯誤診斷**：在前端加入更具描述性的網路錯誤提示，並在後端完善日誌記錄。
-  - **改善表格名稱解析**：強化 `get_t` 函式的安全性，確保在重構後的 RDS 多租戶架構下能精確定位資料表。
+  - **解決轉圈圈問題**：修正了 `list_broadcasts` 中的時區比較 Bug (TypeError)，恢復清單顯示的流暢性。
+  - **RDS 資料表自動化**：實現了 `ensure_rds_tables` 機制，系統現在會根據 `app_name` 自動建立缺失的 `broadcasts` 與 `cron_table` 資料表，確保新帳號即開即用。
+  - **強化連線穩定性**：為外部資料庫連線加入了 `connect_timeout` 設定，防止因網路不穩導致的「Network Error」或網頁懸掛。
+  - **效能提升**：持續採用批量插入 (`Bulk Insert`) 優化大規模受眾的排程速度。
 
 - **權限與資料隔離強化 (Permission & Data Isolation Enforcement)** [2026-04-14]:
   - **強制設定 App Name**：因應 RDS 多租戶架構，現在在「權限設定」中新增或編輯 OA Config 時，必須填寫 `App Name` (資料表後綴)。

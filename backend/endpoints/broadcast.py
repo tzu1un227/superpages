@@ -16,6 +16,58 @@ RDS_URL = "postgresql://u1kq1nhog5jq7b:pd1a6d947df93fb15d747bbadf399e84893f9fd59
 def get_rds_connection():
     return psycopg2.connect(RDS_URL)
 
+def ensure_rds_tables(app_name):
+    """確保該平台在 RDS 中擁有必要的資料表"""
+    conn = get_rds_connection()
+    cur = conn.cursor()
+    try:
+        # broadcasts 表格
+        t_broadcasts = f"broadcasts:{app_name}"
+        cur.execute(f"SELECT 1 FROM information_schema.tables WHERE table_name = %s", (t_broadcasts,))
+        if not cur.fetchone():
+            logger.info(f"Creating table {t_broadcasts}...")
+            cur.execute(f"""
+                CREATE TABLE "{t_broadcasts}" (
+                    id SERIAL PRIMARY KEY,
+                    oa_id INTEGER,
+                    name VARCHAR(255),
+                    target_type VARCHAR(50),
+                    target_value TEXT,
+                    message_tag VARCHAR(100),
+                    status VARCHAR(50),
+                    scheduled_at TIMESTAMP,
+                    created_at TIMESTAMP,
+                    updated_at TIMESTAMP,
+                    send_type VARCHAR(50)
+                )
+            """)
+        
+        # cron_table 表格
+        t_cron = f"cron_table:{app_name}"
+        cur.execute(f"SELECT 1 FROM information_schema.tables WHERE table_name = %s", (t_cron,))
+        if not cur.fetchone():
+            logger.info(f"Creating table {t_cron}...")
+            cur.execute(f"""
+                CREATE TABLE "{t_cron}" (
+                    task_id SERIAL PRIMARY KEY,
+                    project_id INTEGER,
+                    step_id INTEGER,
+                    user_id VARCHAR(255),
+                    push_time TIMESTAMP,
+                    message_content TEXT,
+                    status VARCHAR(50),
+                    scheduled_at TIMESTAMP,
+                    repeat_interval VARCHAR(100)
+                )
+            """)
+        conn.commit()
+    except Exception as e:
+        logger.error(f"Failed to ensure RDS tables for {app_name}: {e}")
+        conn.rollback()
+    finally:
+        cur.close()
+        conn.close()
+
 def get_t(base):
     """
     Returns the table name with the appropriate suffix for multi-tenancy.
@@ -36,13 +88,17 @@ def get_t(base):
         # If still no app_name, we cannot determine the table. 
         # In this RDS architecture, suffix is mandatory.
         raise Exception("無法讀取平台名稱 (App Name)，請在帳號管理中確認設定。")
+    
+    # 自動檢查並建立表格
+    ensure_rds_tables(app_name)
         
     return f'"{base}:{app_name}"'
 
 broadcast_bp = Blueprint('broadcast', __name__)
 
 def get_db_connection(db_url):
-    return psycopg2.connect(db_url)
+    # Add connect_timeout to prevent hanging on unreachable databases
+    return psycopg2.connect(db_url, connect_timeout=10)
 
 def get_logical_app_id(oa):
     if oa.other_settings and 'app_name' in oa.other_settings:
@@ -125,10 +181,19 @@ def list_broadcasts():
     oa = OAConfig.query.get(oa_id)
     if oa and oa.db_url:
         try:
-            # We only check broadcasts that are 'scheduled' and whose time has passed
-            to_check = [b for b in broadcasts if b['status'] == 'scheduled' and b['scheduled_at'] and b['scheduled_at'] <= now]
+            # Fix: Ensure comparison is done either on naive or aware datetimes.
+            # Since RDS timestamp without time zone is naive, we convert scheduled_at to naive if needed.
+            to_check = []
+            for b in broadcasts:
+                if b['status'] == 'scheduled' and b['scheduled_at']:
+                    s_at = b['scheduled_at']
+                    if s_at.tzinfo is not None:
+                        s_at = s_at.replace(tzinfo=None)
+                    if s_at <= now:
+                        to_check.append(b)
+
             if to_check:
-                conn_oa = psycopg2.connect(oa.db_url)
+                conn_oa = get_db_connection(oa.db_url)
                 cur_oa = conn_oa.cursor()
                 t_cron = get_t('cron_table')
                 
@@ -332,7 +397,8 @@ def execute_broadcast(id):
     
     try:
         from utils.socket_utils import send_socket_event
-        conn_oa = psycopg2.connect(oa.db_url)
+        # Add timeout to prevent Network Error from hanging connection
+        conn_oa = get_db_connection(oa.db_url)
         cur_oa = conn_oa.cursor()
         
         # 1. Immediate send via WebSocket

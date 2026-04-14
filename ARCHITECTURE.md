@@ -211,8 +211,8 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
    - Uses GitHub API to upload images as base64-encoded content.
    - **CDN Integration**: Returns `jsDelivr` CDN URLs (`https://cdn.jsdelivr.net/gh/...`) instead of raw GitHub URLs to ensure compatibility with LINE Bot API (avoids 400 errors).
     - **Configuration Storage**: Settings are retrieved from `permission_settings` (OAConfig) in the `other_settings` field (JSON). This ensures configuration persistence across Docker container rebuilds.
-    - **App Name Enforcement**: To support the RDS multi-tenant model (`table:{appname}`), the `app_name` field in `other_settings` is **mandatory**. Both backend and frontend forms enforce this to prevent data leakage and ensure correct table routing.
-   - Configurable fields: `token`, `repo`, `branch`, `path`.
+    - **全欄位強制校驗 (Strict All-Field Validation)**: 為了確保系統運行的完整性，所有配置欄位（包含資料庫、LINE API 與 GitHub 設定）現在均為必填，且在前端表單中實行。
+    - **延遲驗證提示 (Deferred Validation)**: 為優化編輯體驗，系統平時不會預先顯示紅框提示，僅在使用者點擊「儲存」按鈕且校驗失敗時，才會在 UI 上顯著標示出漏填項目，以確保資料隔離性 (`table:{appname}`) 與功能的完整可用性。
 2. **Frontend UI**:
    - **FlexMessageEditor.jsx**: Integrated upload button for carousel/single bubbles.
    - **Projects.jsx (RichMessageModal)**: Added upload button for native `ImageSendMessage` types.
