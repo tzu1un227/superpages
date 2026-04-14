@@ -539,7 +539,11 @@ function BroadcastContent() {
             setView('list');
             fetchBroadcasts();
         } catch (err) {
-            showToast('操作失敗: ' + (err.response?.data?.message || err.message), 'error');
+            let errorMsg = err.response?.data?.message || err.message;
+            if (err.message === 'Network Error') {
+                errorMsg = '網路連線錯誤或請求逾時。這通常是因為受眾人數過多或網路不穩定，請確認後重試。';
+            }
+            showToast('操作失敗: ' + errorMsg, 'error');
         } finally {
             setExecuting(false);
         }

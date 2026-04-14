@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **群發功能穩定性與效能優化 (Broadcast Stability & Performance)** [2026-04-14]:
+  - **解決 Network Error**：針對受眾人數較多時產生的預約逾時問題，將資料庫寫入邏輯重構為批量插入 (`Bulk Insert`)，效能提升數十倍。
+  - **強化錯誤診斷**：在前端加入更具描述性的網路錯誤提示，並在後端完善日誌記錄。
+  - **改善表格名稱解析**：強化 `get_t` 函式的安全性，確保在重構後的 RDS 多租戶架構下能精確定位資料表。
+
 - **權限與資料隔離強化 (Permission & Data Isolation Enforcement)** [2026-04-14]:
   - **強制設定 App Name**：因應 RDS 多租戶架構，現在在「權限設定」中新增或編輯 OA Config 時，必須填寫 `App Name` (資料表後綴)。
   - **後端驗證攔截**：API 已實作請求檢查，若 `other_settings.app_name` 為空則回傳 400 提示訊息，防止資料隔離失效。

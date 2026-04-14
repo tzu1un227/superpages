@@ -3,9 +3,12 @@ from models import db, OAConfig
 from auth import token_required
 from datetime import datetime, timezone, timedelta
 import psycopg2
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import RealDictCursor, execute_values
 import json
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Database details matching app.py
 RDS_URL = "postgresql://u1kq1nhog5jq7b:pd1a6d947df93fb15d747bbadf399e84893f9fd5932782191f0b6ffa187c5ae18@c8lcd8bq1mia7p.cluster-czrs8kj4isg7.us-east-1.rds.amazonaws.com:5432/d1hr8bloo29pm6"
@@ -14,8 +17,26 @@ def get_rds_connection():
     return psycopg2.connect(RDS_URL)
 
 def get_t(base):
-    app_name = getattr(g, 'current_app_name', 'default')
-    if not app_name: app_name = 'default'
+    """
+    Returns the table name with the appropriate suffix for multi-tenancy.
+    Uses g.current_app_name set in before_request or resolves it from the database.
+    """
+    app_name = getattr(g, 'current_app_name', None)
+    
+    # Fallback: if g.current_app_name is missing, try to get it from OA ID
+    if not app_name:
+        oa_id = getattr(g, 'current_oa_id', None)
+        if oa_id:
+            oa = OAConfig.query.get(oa_id)
+            if oa and oa.other_settings and oa.other_settings.get('app_name'):
+                app_name = str(oa.other_settings['app_name'])
+                g.current_app_name = app_name
+    
+    if not app_name:
+        # If still no app_name, we cannot determine the table. 
+        # In this RDS architecture, suffix is mandatory.
+        raise Exception("無法讀取平台名稱 (App Name)，請在帳號管理中確認設定。")
+        
     return f'"{base}:{app_name}"'
 
 broadcast_bp = Blueprint('broadcast', __name__)
@@ -201,7 +222,17 @@ def create_broadcast():
     message_tag = data.get('message_tag')
     send_type = data.get('send_type', 'immediate')
     status = data.get('status', 'draft')
-    scheduled_at = datetime.fromisoformat(data['scheduled_at']) if data.get('scheduled_at') else None
+    
+    scheduled_at_raw = data.get('scheduled_at')
+    scheduled_at = None
+    if scheduled_at_raw:
+        try:
+            # Handle standard ISO and common variations (with space instead of T)
+            iso_str = scheduled_at_raw.replace(' ', 'T')
+            scheduled_at = datetime.fromisoformat(iso_str)
+        except ValueError as ve:
+            logger.error(f"Invalid date format: {scheduled_at_raw} - {ve}")
+            return jsonify({'error': '無效的日期格式，請使用 ISO 格式'}), 400
     
     conn = get_rds_connection()
     cur = conn.cursor()
@@ -334,34 +365,45 @@ def execute_broadcast(id):
             return jsonify({'status': 'success', 'method': 'websocket', 'targets': len(user_ids)})
 
         # 2. Scheduled send via cron_table
-        user_ids = []
-        if bc['target_type'] == 'all':
-            cur_oa.execute(f'SELECT user_id FROM "Private_var:{app_id}" WHERE name = \'name\'')
-            user_ids = [r[0] for r in cur_oa.fetchall()]
-        elif bc['target_type'] == 'tag':
-            cur_oa.execute(f'SELECT user_id FROM "Private_var:{app_id}" WHERE name = \'tag\' AND value LIKE %s', (f"%{bc['target_value']}%",))
-            user_ids = [r[0] for r in cur_oa.fetchall()]
-        elif bc['target_type'] == 'ids':
-            user_ids = [i.strip() for i in bc['target_value'].split(',') if i.strip()]
+        try:
+            user_ids = []
+            if bc['target_type'] == 'all':
+                cur_oa.execute(f'SELECT user_id FROM "Private_var:{app_id}" WHERE name = \'name\'')
+                user_ids = [r[0] for r in cur_oa.fetchall()]
+            elif bc['target_type'] == 'tag':
+                cur_oa.execute(f'SELECT user_id FROM "Private_var:{app_id}" WHERE name = \'tag\' AND value LIKE %s', (f"%{bc['target_value']}%",))
+                user_ids = [r[0] for r in cur_oa.fetchall()]
+            elif bc['target_type'] == 'ids':
+                user_ids = [i.strip() for i in bc['target_value'].split(',') if i.strip()]
             
-        # Insert into RDS cron_table
-        push_time = bc['scheduled_at'] if bc['scheduled_at'] else datetime.now(timezone.utc).replace(tzinfo=None)
-        msg_content = f"QA|{bc['message_tag']}"
-        
-        for uid in user_ids:
-            cur_rds.execute(
-                f"INSERT INTO {t_cron} (user_id, message_content, push_time, status) VALUES (%s, %s, %s, 'active')",
-                (uid, msg_content, push_time)
-            )
+            if not user_ids:
+                return jsonify({'status': 'success', 'targets': 0, 'message': '沒有找到符合條件的受眾'}), 200
+
+            # Insert into RDS cron_table using bulk insert (execute_values)
+            # This prevents Network Error / Timeout by performing one DB trip
+            push_time = bc['scheduled_at'] if bc['scheduled_at'] else datetime.now(timezone.utc).replace(tzinfo=None)
+            msg_content = f"QA|{bc['message_tag']}"
             
-        cur_rds.execute(f"UPDATE {t_broadcasts} SET status = 'scheduled' WHERE id = %s", (id,))
-        conn_rds.commit()
-        
-        cur_oa.close()
-        conn_oa.close()
-        cur_rds.close()
-        conn_rds.close()
-        
-        return jsonify({'status': 'success', 'targets': len(user_ids), 'method': 'cron'})
+            # Prepare values for bulk insert: [(uid, msg, time, status), ...]
+            insert_data = [(uid, msg_content, push_time, 'active') for uid in user_ids]
+            
+            sql = f"INSERT INTO {t_cron} (user_id, message_content, push_time, status) VALUES %s"
+            execute_values(cur_rds, sql, insert_data)
+            
+            cur_rds.execute(f"UPDATE {t_broadcasts} SET status = 'scheduled' WHERE id = %s", (id,))
+            conn_rds.commit()
+            
+            logger.info(f"Successfully scheduled broadcast {id} for {len(user_ids)} users using bulk insert.")
+            
+            return jsonify({'status': 'success', 'targets': len(user_ids), 'method': 'cron'})
+        except Exception as ex:
+            conn_rds.rollback()
+            logger.exception("Error during scheduled broadcast insertion")
+            return jsonify({'error': f"排程寫入失敗: {str(ex)}"}), 500
+        finally:
+            cur_oa.close()
+            conn_oa.close()
+            cur_rds.close()
+            conn_rds.close()
     except Exception as e:
         return jsonify({'error': str(e)}), 500
