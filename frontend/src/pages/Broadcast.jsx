@@ -532,6 +532,10 @@ function BroadcastContent() {
                 bcId = res.data.id;
             }
 
+            if (!bcId) {
+                throw new Error("後端未回傳廣播任務 ID，導致無法執行推播。請重整頁面重試。");
+            }
+
             // 3. Initiate sending/scheduling
             await api.post(`/broadcast/${bcId}/execute`);
 
