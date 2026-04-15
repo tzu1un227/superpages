@@ -117,6 +117,7 @@ def create_app():
         account_id = request.args.get('account')
 
         db_url = None
+        app_name = None
         if account_id:
             try:
                 account_id = int(account_id)
@@ -132,6 +133,8 @@ def create_app():
                 config = OAConfig.query.get(account_id)
                 if config:
                     db_url = config.db_url
+                    if config.other_settings and config.other_settings.get('app_name'):
+                        app_name = str(config.other_settings.get('app_name'))
                 else:
                     return jsonify({'message': 'OA Config not found'}), 404
             except ValueError:
@@ -153,7 +156,14 @@ def create_app():
         
         
         try:
-            data = get_events_count_by_category_and_tag(start_time, end_time, category, group_unit, db_url=db_url)
+            data = get_events_count_by_category_and_tag(
+                start_time,
+                end_time,
+                category,
+                group_unit,
+                db_url=db_url,
+                app_name=app_name
+            )
             return jsonify(data)
         except Exception as e:
             return jsonify({'error': str(e)}), 500
@@ -169,6 +179,7 @@ def create_app():
         account_id = request.args.get('account')
 
         db_url = None
+        app_name = None
         if account_id:
             try:
                 account_id = int(account_id)
@@ -184,6 +195,8 @@ def create_app():
                 config = OAConfig.query.get(account_id)
                 if config:
                     db_url = config.db_url
+                    if config.other_settings and config.other_settings.get('app_name'):
+                        app_name = str(config.other_settings.get('app_name'))
                 else:
                     return jsonify({'message': 'OA Config not found'}), 404
             except ValueError:
@@ -200,7 +213,7 @@ def create_app():
         
         try:
             # Note: get_db_connection now manages the connection lifecycle via g
-            data = get_keyword_ranking(start_time, end_time, tag, limit, db_url=db_url)
+            data = get_keyword_ranking(start_time, end_time, tag, limit, db_url=db_url, app_name=app_name)
             
             return jsonify({
                 'data': data

@@ -1377,7 +1377,7 @@ def get_statistics():
 
         conn = get_main_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        t_static = get_suffixed_table('static_view')
+        t_static = get_suffixed_table('ht_view')
         
         results = {}
         # Since RDS might not have the stored procedure, we skip the categories loop for now or implement direct SQL
@@ -1484,8 +1484,8 @@ def get_statistics_keywords():
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
         cur.execute(
-            "SELECT * FROM get_keyword_ranking(%s, %s, %s, %s)",
-            (start_time, end_time, tag, limit)
+            "SELECT * FROM get_keyword_ranking(%s, %s, %s, %s, %s)",
+            (start_time, end_time, tag, limit, get_current_app_id())
         )
         results = cur.fetchall()
             
