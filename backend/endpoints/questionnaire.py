@@ -1,120 +1,168 @@
-from flask import Blueprint, request, jsonify, g
-from psycopg2.extras import RealDictCursor
-import psycopg2
+from datetime import datetime
 import json
 import re
-from datetime import datetime
+
+import psycopg2
+from flask import Blueprint, g, jsonify, request
+from psycopg2.extras import RealDictCursor
+
 from models import OAConfig
 
-questionnaire_bp = Blueprint('questionnaire', __name__)
+questionnaire_bp = Blueprint("questionnaire", __name__)
 
 
 def get_db_connection():
-    """Get the current OA's DB connection (same pattern as app.py)."""
-    if hasattr(g, 'current_db_url') and g.current_db_url:
+    if hasattr(g, "current_db_url") and g.current_db_url:
         return psycopg2.connect(g.current_db_url)
     raise Exception("No OA DB context found. Please provide X-OA-ID header.")
 
 
 def get_app_id():
-    """Get the current logical app id (e.g. 'yzulabuse')."""
-    if hasattr(g, 'current_app_name') and g.current_app_name:
+    if hasattr(g, "current_app_name") and g.current_app_name:
         return g.current_app_name
-    if hasattr(g, 'current_db_url') and g.current_db_url:
-        path_part = g.current_db_url.split('/')[-1]
-        return path_part.split('?')[0].strip()
-    return 'yzulabuse'
+    if hasattr(g, "current_db_url") and g.current_db_url:
+        path_part = g.current_db_url.split("/")[-1]
+        return path_part.split("?")[0].strip()
+    return "yzulabuse"
 
 
 def _trigger_sql_reload():
-    """
-    Send SQL|True Sensor event to the Line Bot server so it reloads Q_bank
-    rule_table from DB at runtime — no Heroku restart needed.
-    """
     try:
         from utils.socket_utils import send_socket_event
-        oa_id = getattr(g, 'current_oa_id', None)
-        # Resolve socket_url from OA config if available
+
+        oa_id = getattr(g, "current_oa_id", None)
         socket_url = None
         if oa_id:
             oa = OAConfig.query.get(int(oa_id))
             if oa and oa.other_settings:
-                socket_url = oa.other_settings.get('socket_url')
+                socket_url = oa.other_settings.get("socket_url")
+
         data = {
-            'user': 'yzuadmin',
-            'type': 'Sensor',
-            'message': 'SQL|True',
+            "user": "yzuadmin",
+            "type": "Sensor",
+            "message": "SQL|True",
         }
         if socket_url:
-            data['target_ws_url'] = socket_url
-        send_socket_event(data, namespace='/websoc')
+            data["target_ws_url"] = socket_url
+        send_socket_event(data, namespace="/websoc")
     except Exception as e:
-        print(f'[questionnaire] SQL reload trigger failed (non-critical): {e}')
+        print(f"[questionnaire] SQL reload trigger failed (non-critical): {e}")
 
 
-def _parse_condition(cond_id: str, cond_detail: str = '') -> str:
-    """
-    Convert condition number (1~7) to a Python check string for Q_bank.
-    cond_detail is used for condition 3 (options list) and 4 (min,max length).
-    """
-    c = str(cond_id).strip()
+def _table_names(app_id):
+    return {
+        "q_bank": f'Q_bank:{app_id}',
+        "private_var": f'Private_var:{app_id}',
+        "groups": f'questionnaire_groups:{app_id}',
+        "meta": f'questionnaire_meta:{app_id}',
+    }
 
-    if c == '1':
-        return ''  # No restriction
 
-    if c == '2':
+def _ensure_questionnaire_tables(conn, app_id):
+    tables = _table_names(app_id)
+    cur = conn.cursor()
+    cur.execute(
+        f'''
+        CREATE TABLE IF NOT EXISTS "{tables["groups"]}" (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+        '''
+    )
+    cur.execute(
+        f'''
+        CREATE TABLE IF NOT EXISTS "{tables["meta"]}" (
+            note TEXT PRIMARY KEY,
+            group_id INTEGER NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+        '''
+    )
+    conn.commit()
+    cur.close()
+
+
+def _escape_like(value):
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _parse_condition(cond_id, cond_detail=""):
+    cond_id = str(cond_id).strip()
+
+    if cond_id == "1":
+        return ""
+    if cond_id == "2":
         return "sys.content(m, 0).isdigit()"
-
-    if c == '3':
-        # cond_detail: comma-separated options e.g. "是,否"
-        options = [opt.strip() for opt in cond_detail.split(',') if opt.strip()]
-        options_repr = repr(options)
-        return f"sys.content(m, 0) in {options_repr}"
-
-    if c == '4':
-        # cond_detail: "min,max" e.g. "5,20" ; -1 means no limit
-        parts = cond_detail.split(',')
+    if cond_id == "3":
+        options = [opt.strip() for opt in cond_detail.split(",") if opt.strip()]
+        return f"sys.content(m, 0) in {repr(options)}"
+    if cond_id == "4":
+        parts = cond_detail.split(",")
         if len(parts) != 2:
-            return ''
+            return ""
         try:
             min_val = int(parts[0].strip())
             max_val = int(parts[1].strip())
         except ValueError:
-            return ''
-
-        if min_val >= 0 and max_val >= 0:
-            return f"len(sys.content(m, 0)) >= {min_val} and len(sys.content(m, 0)) <= {max_val}"
-        elif min_val >= 0 and max_val == -1:
-            return f"len(sys.content(m, 0)) >= {min_val}"
-        elif min_val == 0 and max_val >= 0:
-            return f"len(sys.content(m, 0)) <= {max_val}"
-        return ''
-
-    if c == '5':
-        return ("sys.content(m, 0).startswith('09') and "
-                "len(sys.content(m, 0)) == 10 and "
-                "sys.content(m, 0).isdigit()")
-
-    if c == '6':
+            return ""
+        rules = []
+        if min_val >= 0:
+            rules.append(f"len(sys.content(m, 0)) >= {min_val}")
+        if max_val >= 0:
+            rules.append(f"len(sys.content(m, 0)) <= {max_val}")
+        return " and ".join(rules)
+    if cond_id == "5":
+        return (
+            "sys.content(m, 0).startswith('09') and "
+            "len(sys.content(m, 0)) == 10 and "
+            "sys.content(m, 0).isdigit()"
+        )
+    if cond_id == "6":
         return r"bool(re.match(r'[^@]+@[^@]+\.[^@]+', sys.content(m, 0)))"
-
-    if c == '7':
+    if cond_id == "7":
         return r"bool(re.match(r'^\d{4}-\d{2}-\d{2}$', sys.content(m, 0)))"
+    return ""
 
-    return ''
+
+def _parse_condition_from_check(check_str):
+    check_str = check_str or ""
+    cond = "1"
+    cond_detail = ""
+
+    if "isdigit()" in check_str:
+        cond = "2"
+    elif "sys.content(m, 0) in" in check_str:
+        cond = "3"
+        match = re.search(r"in \[(.*)\]", check_str)
+        if match:
+            cond_detail = match.group(1).replace("'", "").replace(" ", "")
+    elif "len(sys.content(m, 0))" in check_str:
+        cond = "4"
+        min_match = re.search(r">= (\d+)", check_str)
+        max_match = re.search(r"<= (\d+)", check_str)
+        min_val = min_match.group(1) if min_match else "0"
+        max_val = max_match.group(1) if max_match else "-1"
+        cond_detail = f"{min_val},{max_val}"
+    elif "startswith('09')" in check_str:
+        cond = "5"
+    elif "[^@]+@[^@]+" in check_str or "@" in check_str:
+        cond = "6"
+    elif r"^\d{4}-\d{2}-\d{2}$" in check_str:
+        cond = "7"
+
+    return cond, cond_detail
 
 
-def _get_next_available_id(conn, app_id: str) -> int:
-    """
-    Find the smallest available ID (1-99) not currently used by any questionnaire
-    in the Q_bank:{app_id} table.
-    """
+def _get_next_available_id(conn, app_id):
+    table = _table_names(app_id)["q_bank"]
     cur = conn.cursor()
-    table = f"Q_bank:{app_id}"
-    # Extract IDs from existing states like 'Q0101' -> '01'
-    # We look at all state_in[0] since every rule belongs to a questionnaire
-    cur.execute(f"SELECT DISTINCT substring(state_in[1] from 2 for 2) FROM \"{table}\" WHERE state_in[1] LIKE 'Q____'")
-    used_ids = {int(r[0]) for r in cur.fetchall() if r[0].isdigit()}
+    cur.execute(
+        f'SELECT DISTINCT substring(state_in[1] from 2 for 2) FROM "{table}" WHERE state_in[1] LIKE %s',
+        ("Q____",),
+    )
+    used_ids = {int(row[0]) for row in cur.fetchall() if row[0] and row[0].isdigit()}
     cur.close()
 
     for i in range(1, 100):
@@ -123,54 +171,141 @@ def _get_next_available_id(conn, app_id: str) -> int:
     raise Exception("已達到問卷數量上限 (99)")
 
 
-def _make_state(quest_id: int, q_num: int) -> str:
-    """
-    Generates a unique 5-character state for a question.
-    Format: Q + ID(2 digits) + Seq(2 digits)
-    Example: Q0101, Q0113
-    """
+def _make_state(quest_id, q_num):
     return f"Q{quest_id:02d}{q_num:02d}"
 
 
-def _text_msg_json(text: str) -> str:
-    """
-    Serialize a LINE text message to a JSON string for ARRAY(JSON) insertion.
-    The format uses 'OTYPE' key so maingame.check_JSON converts it into
-    a TextSendMessage object before sending via the Line SDK.
-    Format: {"Line": {"OTYPE": "TextSendMessage", "text": "..."}}
-    """
+def _text_msg_json(text):
     return json.dumps({"Line": {"OTYPE": "TextSendMessage", "text": text}}, ensure_ascii=False)
 
 
-def build_questionnaire_direct(data: dict, app_id: str, conn, quest_id: int) -> None:
-    """
-    Build and insert Q_bank rules from structured questionnaire data.
-    """
-    note = data.get('note', '未命名問卷')
-    trigger = data.get('trigger')
-    finish_msg = data.get('finish_msg', '問卷已完成，謝謝您的參與！')
-    questions = data.get('questions', [])
-    enable_review = data.get('enable_review', False)
-    start_time = data.get('start_time', '').strip()
-    end_time = data.get('end_time', '').strip()
+def _extract_text_from_msg(msg_item):
+    if msg_item is None:
+        return ""
+    if isinstance(msg_item, str):
+        try:
+            msg_item = json.loads(msg_item)
+        except Exception:
+            return msg_item
+    if isinstance(msg_item, dict):
+        if "Line" in msg_item and isinstance(msg_item["Line"], dict):
+            return str(msg_item["Line"].get("text", ""))
+        return str(msg_item.get("text", ""))
+    return str(msg_item)
 
-    cur = conn.cursor()
-    table = f"Q_bank:{app_id}"
 
-    # 0. Availability Check (Time Limits)
-    def parse_time(ts_str):
-        if not ts_str: return None
-        for fmt in ('%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M'):
-            try:
-                return int(datetime.strptime(ts_str, fmt).timestamp())
-            except ValueError:
-                continue
+def _parse_time(value):
+    if not value:
         return None
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            return int(datetime.strptime(value, fmt).timestamp())
+        except ValueError:
+            continue
+    return None
 
-    time_check = ''
-    start_ts = parse_time(start_time)
-    end_ts = parse_time(end_time)
 
+def _parse_time_bounds(check_str):
+    start_time = ""
+    end_time = ""
+    if check_str:
+        start_match = re.findall(r">= (\d+)", check_str)
+        end_match = re.findall(r"<= (\d+)", check_str)
+        if start_match:
+            start_time = datetime.fromtimestamp(int(start_match[0])).strftime("%Y-%m-%dT%H:%M")
+        if end_match:
+            end_time = datetime.fromtimestamp(int(end_match[0])).strftime("%Y-%m-%dT%H:%M")
+    return start_time, end_time
+
+
+def _build_error_msg(cond_id, cond_detail, question_text):
+    hints = {
+        "2": "請輸入純數字。",
+        "3": f"請輸入指定選項之一：{cond_detail}",
+        "4": f"請輸入符合字數限制的內容：{cond_detail.replace(',', ' ~ ')}",
+        "5": "請輸入正確手機格式，例如 09 開頭且共 10 碼。",
+        "6": "請輸入正確 Email 格式，例如 example@mail.com。",
+        "7": "請輸入正確日期格式，例如 YYYY-MM-DD。",
+    }
+    hint = hints.get(str(cond_id).strip(), "輸入格式不正確，請重新作答。")
+    return f"{hint}\n{question_text}"
+
+
+def _upsert_questionnaire_meta(conn, app_id, note, group_id):
+    table = _table_names(app_id)["meta"]
+    cur = conn.cursor()
+    cur.execute(
+        f'''
+        INSERT INTO "{table}" (note, group_id, created_at, updated_at)
+        VALUES (%s, %s, NOW(), NOW())
+        ON CONFLICT (note)
+        DO UPDATE SET group_id = EXCLUDED.group_id, updated_at = NOW()
+        ''',
+        (note, group_id),
+    )
+    cur.close()
+
+
+def _load_questionnaire_rows(conn, app_id, note):
+    table = _table_names(app_id)["q_bank"]
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute(f'SELECT * FROM "{table}" WHERE note = %s ORDER BY id', (note,))
+    rows = cur.fetchall()
+    cur.close()
+    return rows
+
+
+def _extract_questionnaire_questions(rows):
+    entry_rule = next((row for row in rows if "*" in (row.get("state_in") or [])), None)
+    if not entry_rule:
+        raise Exception("問卷資料不完整：遺失入口規則")
+
+    question_rules = []
+    seen_states = set()
+    for row in rows:
+        state_in = (row.get("state_in") or [""])[0]
+        if not state_in.startswith("Q") or state_in.endswith("99"):
+            continue
+        if state_in in seen_states:
+            continue
+        seen_states.add(state_in)
+        question_rules.append(row)
+    question_rules.sort(key=lambda row: int((row["state_in"][0])[3:5]))
+
+    questions = []
+    first_text = _extract_text_from_msg((entry_rule.get("msg_rpy") or [None])[0])
+    if first_text:
+        questions.append({"content": first_text, "cond": "1", "cond_detail": ""})
+
+    for index, row in enumerate(question_rules):
+        check_str = (row.get("check") or [""])[0]
+        cond, cond_detail = _parse_condition_from_check(check_str)
+        if index < len(questions):
+            questions[index]["cond"] = cond
+            questions[index]["cond_detail"] = cond_detail
+
+        next_text = _extract_text_from_msg((row.get("msg_rpy") or [None])[0])
+        if index < len(question_rules) - 1 and next_text:
+            questions.append({"content": next_text, "cond": "1", "cond_detail": ""})
+
+    return entry_rule, questions
+
+
+def build_questionnaire_direct(data, app_id, conn, quest_id):
+    note = data.get("note", "未命名問卷")
+    trigger = data.get("trigger", "").strip()
+    finish_msg = data.get("finish_msg", "問卷已完成，謝謝您的參與！")
+    questions = data.get("questions", [])
+    enable_review = bool(data.get("enable_review", False))
+    start_time = data.get("start_time", "").strip()
+    end_time = data.get("end_time", "").strip()
+
+    table = _table_names(app_id)["q_bank"]
+    cur = conn.cursor()
+
+    start_ts = _parse_time(start_time)
+    end_ts = _parse_time(end_time)
+    time_check = ""
     if start_ts is not None and end_ts is not None:
         time_check = f"sys.now() >= {start_ts} and sys.now() <= {end_ts}"
     elif start_ts is not None:
@@ -178,418 +313,516 @@ def build_questionnaire_direct(data: dict, app_id: str, conn, quest_id: int) -> 
     elif end_ts is not None:
         time_check = f"sys.now() <= {end_ts}"
 
-    # 1. Entry Rule (Trigger -> First Question)
     first_state = _make_state(quest_id, 1)
-    cur.execute(f"""
+    cur.execute(
+        f'''
         INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
         VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s, %s)
-    """, (
-        ['*'], 'Message', [trigger], [time_check],
-        [_text_msg_json(questions[0]['content'])],
-        first_state, '', True, note
-    ))
+        ''',
+        (
+            ["*"],
+            "Message",
+            [trigger],
+            [time_check],
+            [_text_msg_json(questions[0]["content"])],
+            first_state,
+            "",
+            True,
+            note,
+        ),
+    )
 
-    # 2. Question Rules
-    for i, q in enumerate(questions):
-        curr_q_idx = i + 1
-        curr_state = _make_state(quest_id, curr_q_idx)
-        is_last = (curr_q_idx == len(questions))
+    for i, question in enumerate(questions):
+        current_index = i + 1
+        current_state = _make_state(quest_id, current_index)
+        is_last = current_index == len(questions)
 
-        # Check condition for this question
-        check_str = _parse_condition(q.get('cond', '1'), q.get('cond_detail', ''))
-        save_fn = f"pri_set('ans_{note}_Q{curr_q_idx}', m.content)"
+        check_str = _parse_condition(question.get("cond", "1"), question.get("cond_detail", ""))
+        save_fn = f"pri_set('ans_{note}_Q{current_index}', m.content)"
 
-        # Correct answer rule
         if is_last:
             if enable_review:
-                # Go to Review State
                 review_state = f"Q{quest_id:02d}99"
-                
-                # We need to construct the summary message
-                summary_parts = [f"📝 {note} - 答題確認", "----------------"]
-                for j, qq in enumerate(questions):
-                    summary_parts.append(f"Q{j+1}. {qq['content']}\n答：<%pri('ans_{note}_Q{j+1}')%>")
-                summary_parts.append("----------------")
-                summary_parts.append("請確認以上內容：\n1. 確認送出\n2. 重新填寫")
-                summary_msg = "\n".join(summary_parts)
-
-                cur.execute(f"""
+                summary_lines = [f"【{note}】作答回顧", "----------------"]
+                for j, q in enumerate(questions, start=1):
+                    summary_lines.append(f"Q{j}. {q['content']}\n答案：<%pri('ans_{note}_Q{j}')%>")
+                summary_lines.append("----------------")
+                summary_lines.append("請輸入：\n1. 確認送出\n2. 重新填寫")
+                cur.execute(
+                    f'''
                     INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
                     VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s, %s)
-                """, (
-                    [curr_state], 'Message', ['*'], [check_str],
-                    [_text_msg_json(summary_msg)],
-                    review_state, save_fn, True, note
-                ))
+                    ''',
+                    (
+                        [current_state],
+                        "Message",
+                        ["*"],
+                        [check_str],
+                        [_text_msg_json("\n".join(summary_lines))],
+                        review_state,
+                        save_fn,
+                        True,
+                        note,
+                    ),
+                )
             else:
-                # Finish directly
-                cur.execute(f"""
+                cur.execute(
+                    f'''
                     INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
                     VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s, %s)
-                """, (
-                    [curr_state], 'Message', ['*'], [check_str],
-                    [_text_msg_json(finish_msg)],
-                    '00000', save_fn, True, note
-                ))
+                    ''',
+                    (
+                        [current_state],
+                        "Message",
+                        ["*"],
+                        [check_str],
+                        [_text_msg_json(finish_msg)],
+                        "00000",
+                        save_fn,
+                        True,
+                        note,
+                    ),
+                )
         else:
-            # Next question
-            next_state = _make_state(quest_id, curr_q_idx + 1)
-            cur.execute(f"""
+            next_state = _make_state(quest_id, current_index + 1)
+            cur.execute(
+                f'''
                 INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
                 VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s, %s)
-            """, (
-                [curr_state], 'Message', ['*'], [check_str],
-                [_text_msg_json(questions[curr_q_idx]['content'])],
-                next_state, save_fn, True, note
-            ))
+                ''',
+                (
+                    [current_state],
+                    "Message",
+                    ["*"],
+                    [check_str],
+                    [_text_msg_json(questions[current_index]["content"])],
+                    next_state,
+                    save_fn,
+                    True,
+                    note,
+                ),
+            )
 
-        # Fallback/error rule
         if check_str:
-            error_msg = _build_error_msg(q['cond'], q.get('cond_detail', ''), q['content'])
-            cur.execute(f"""
+            cur.execute(
+                f'''
                 INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
                 VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s, %s)
-            """, (
-                [curr_state], 'Message', ['*'], [''],
-                [_text_msg_json(error_msg)],
-                curr_state, '', True, note
-            ))
+                ''',
+                (
+                    [current_state],
+                    "Message",
+                    ["*"],
+                    [""],
+                    [_text_msg_json(_build_error_msg(question.get("cond", "1"), question.get("cond_detail", ""), question["content"]))],
+                    current_state,
+                    "",
+                    True,
+                    note,
+                ),
+            )
 
-    # 3. Review State Rules (if enabled)
     if enable_review:
         review_state = f"Q{quest_id:02d}99"
-        
-        # Confirm -> Finish
-        cur.execute(f"""
+        cur.execute(
+            f'''
             INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
             VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s, %s)
-        """, (
-            [review_state], 'Message', ['確認送出', '1'], [''],
-            [_text_msg_json(finish_msg)],
-            '00000', '', True, note
-        ))
-
-        # Restart -> Q0101
-        cur.execute(f"""
+            ''',
+            (
+                [review_state],
+                "Message",
+                ["確認送出", "1"],
+                [""],
+                [_text_msg_json(finish_msg)],
+                "00000",
+                "",
+                True,
+                note,
+            ),
+        )
+        cur.execute(
+            f'''
             INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
             VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s, %s)
-        """, (
-            [review_state], 'Message', ['重新填寫', '2'], [''],
-            [_text_msg_json(questions[0]['content'])],
-            _make_state(quest_id, 1), '', True, note
-        ))
-
-        # Fallback Review
-        cur.execute(f"""
+            ''',
+            (
+                [review_state],
+                "Message",
+                ["重新填寫", "2"],
+                [""],
+                [_text_msg_json(questions[0]["content"])],
+                _make_state(quest_id, 1),
+                "",
+                True,
+                note,
+            ),
+        )
+        cur.execute(
+            f'''
             INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
             VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s, %s)
-        """, (
-            [review_state], 'Message', ['*'], [''],
-            [_text_msg_json("請選擇「確認送出」或「重新填寫」來完成問卷。")],
-            review_state, '', True, note
-        ))
+            ''',
+            (
+                [review_state],
+                "Message",
+                ["*"],
+                [""],
+                [_text_msg_json("請輸入「確認送出」或「重新填寫」來完成問卷。")],
+                review_state,
+                "",
+                True,
+                note,
+            ),
+        )
 
     conn.commit()
     cur.close()
 
 
-def _build_error_msg(cond_id: str, cond_detail: str, question_text: str) -> str:
-    """Build a user-friendly error message for invalid answers."""
-    c = str(cond_id).strip()
-    hints = {
-        '2': '請輸入純數字',
-        '3': f'請輸入指定選項之一：{cond_detail}',
-        '4': f'請確認字數符合範圍（{cond_detail.replace(",", "~")} 字）',
-        '5': '請輸入正確的台灣手機號碼（09 開頭、共 10 碼）',
-        '6': '請輸入正確的 Email 格式（例如：example@mail.com）',
-        '7': '請輸入正確的日期格式（YYYY-MM-DD）',
-    }
-    hint = hints.get(c, '輸入格式錯誤，請重新輸入')
-    return f"⚠️ {hint}，請重新回答：\n{question_text}"
-
-
-# ──────────────────────────────────────────────
-# API Endpoints
-# ──────────────────────────────────────────────
-
-@questionnaire_bp.route('/list', methods=['GET'])
-def list_questionnaires():
-    """GET /api/questionnaire/list — Return all unique questionnaires with metadata."""
+@questionnaire_bp.route("/groups", methods=["GET"])
+def list_questionnaire_groups():
     try:
         conn = get_db_connection()
         app_id = get_app_id()
+        _ensure_questionnaire_tables(conn, app_id)
+        tables = _table_names(app_id)
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        table = f"Q_bank:{app_id}"
-        
-        # We need: note, q_id, enable_review, start/end time (from entry rule check)
-        cur.execute(f"""
-            SELECT 
-                note,
-                (SELECT state_in[1] FROM "{table}" sub WHERE sub.note = t.note AND sub.state_in[1] LIKE 'Q____' LIMIT 1) as sample_state,
-                (SELECT "check"[1] FROM "{table}" sub WHERE sub.note = t.note AND sub.state_in @> ARRAY['*'] LIMIT 1) as entry_check,
-                EXISTS(SELECT 1 FROM "{table}" sub WHERE sub.note = t.note AND sub.state_out LIKE 'Q__99') as has_review,
-                count(*) as rules_count
-            FROM "{table}" AS t
-            WHERE note IS NOT NULL 
-            GROUP BY note
-        """)
-        results = cur.fetchall()
-        
-        questionnaires = []
-        for r in results:
-            q_id = "00"
-            if r['sample_state'] and len(r['sample_state']) == 5:
-                q_id = r['sample_state'][1:3]
-            
-            # Parse time from entry_check: "sys.now() >= 1741752000 and sys.now() <= 1741755600"
-            start_time = ""
-            end_time = ""
-            check_str = r['entry_check'] or ""
-            
-            ts_matches = re.findall(r'>= (\d+)', check_str)
-            if ts_matches:
-                start_time = datetime.fromtimestamp(int(ts_matches[0])).strftime('%Y-%m-%dT%H:%M')
-            ts_matches = re.findall(r'<= (\d+)', check_str)
-            if ts_matches:
-                end_time = datetime.fromtimestamp(int(ts_matches[0])).strftime('%Y-%m-%dT%H:%M')
-
-            questionnaires.append({
-                'id': q_id,
-                'note': r['note'],
-                'rules_count': r['rules_count'],
-                'enable_review': r['has_review'],
-                'start_time': start_time,
-                'end_time': end_time
-            })
-            
+        cur.execute(
+            f'''
+            SELECT g.id, g.name, g.created_at, COUNT(m.note) AS questionnaire_count
+            FROM "{tables["groups"]}" g
+            LEFT JOIN "{tables["meta"]}" m ON m.group_id = g.id
+            GROUP BY g.id, g.name, g.created_at
+            ORDER BY g.name
+            '''
+        )
+        groups = cur.fetchall()
         cur.close()
         conn.close()
-        return jsonify({'questionnaires': questionnaires})
+        return jsonify({"groups": groups})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-@questionnaire_bp.route('/detail/<note>', methods=['GET'])
-def get_questionnaire_detail(note):
-    """GET /api/questionnaire/detail/<note> — Reconstruct full object for editing."""
+@questionnaire_bp.route("/groups", methods=["POST"])
+def create_questionnaire_group():
+    data = request.get_json() or {}
+    name = (data.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "群組名稱不能為空"}), 400
+
+    conn = None
     try:
         conn = get_db_connection()
         app_id = get_app_id()
+        _ensure_questionnaire_tables(conn, app_id)
+        table = _table_names(app_id)["groups"]
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        table = f"Q_bank:{app_id}"
-        
-        cur.execute(f'SELECT * FROM "{table}" WHERE note = %s ORDER BY id', (note,))
-        rows = cur.fetchall()
+        cur.execute(f'INSERT INTO "{table}" (name) VALUES (%s) RETURNING id, name, created_at', (name,))
+        group = cur.fetchone()
+        conn.commit()
         cur.close()
         conn.close()
-        
-        if not rows:
-            return jsonify({'error': '找不到該問卷'}), 404
-
-        # 1. Basic Info & Entry Rule
-        entry_rule = next((r for r in rows if '*' in r['state_in']), None)
-        if not entry_rule:
-             return jsonify({'error': '問卷資料不完整 (遺失入口規則)'}), 500
-
-        trigger = entry_rule['content'][0] if entry_rule['content'] else ""
-        
-        # Parse Time
-        start_time = ""
-        end_time = ""
-        check_str = entry_rule['check'][0] if entry_rule['check'] else ""
-        ts_matches = re.findall(r'>= (\d+)', check_str)
-        if ts_matches: start_time = datetime.fromtimestamp(int(ts_matches[0])).strftime('%Y-%m-%dT%H:%M')
-        ts_matches = re.findall(r'<= (\d+)', check_str)
-        if ts_matches: end_time = datetime.fromtimestamp(int(ts_matches[0])).strftime('%Y-%m-%dT%H:%M')
-
-        # 2. Questions
-        # Every question rule has state_in like ['Q0101'] and is NOT the entry/review rule
-        # We sort them by their sequence number
-        q_rules = [r for r in rows if r['state_in'][0].startswith('Q') and r['state_in'][0][3:5] != '99']
-        # Distinct by state_in[0] since we have fallback rules
-        seen_states = set()
-        unique_q_rules = []
-        for r in q_rules:
-            s = r['state_in'][0]
-            if s not in seen_states:
-                seen_states.add(s)
-                unique_q_rules.append(r)
-        
-        # Sort by sequence
-        unique_q_rules.sort(key=lambda r: int(r['state_in'][0][3:5]))
-        
-        questions = []
-        for r in unique_q_rules:
-            # Reconstruct condition from 'check' column
-            check = r['check'][0] if r['check'] else "1"
-            cond = '1'
-            cond_detail = ''
-            
-            if 'int(sys.content(m))' in check: cond = '2'
-            elif 'sys.content(m, 0) in' in check:
-                cond = '3'
-                match = re.search(r'in \[(.*)\]', check)
-                if match: cond_detail = match.group(1).replace("'", "").replace(" ", "")
-            elif 'len(sys.content(m)) >=' in check:
-                cond = '4'
-                min_m = re.search(r'>= (\d+)', check)
-                max_m = re.search(r'<= (\d+)', check)
-                min_val = min_m.group(1) if min_m else "0"
-                max_val = max_m.group(1) if max_m else "-1"
-                cond_detail = f"{min_val},{max_val}"
-            elif '09' in check and 'len' in check: cond = '5'
-            elif '@' in check: cond = '6'
-            elif 're.match' in check: cond = '7'
-            
-            # Content is in next rule's msg_rpy or this rule's msg_rpy if it's the sequence start
-            # Actually, the QUESTION content is the TEXT sent TO the user.
-            # Q1 text is in the entry_rule msg_rpy.
-            # Q2 text is in Q1 successful answer rule msg_rpy.
-            # This is tricky. Let's get it from the state-sequence.
-            pass
-
-        # Simplified approach: The questions are in order.
-        # Q1 text is in Entry Rule's msg_rpy
-        # Q(i) text is in Q(i-1) success rule's msg_rpy
-        all_questions = []
-        
-        # First question content
-        try:
-            m0 = entry_rule['msg_rpy'][0]
-            # m0 might be a dict if parsed by psycopg2, or a string
-            if isinstance(m0, str): m0 = json.loads(m0)
-            all_questions.append({'content': m0['Line']['text']})
-        except: all_questions.append({'content': '解析失敗 (入口)'})
-
-        for i, r in enumerate(unique_q_rules):
-            # Parse condition
-            check = r['check'][0] if r['check'] else "1"
-            cond = '1'
-            cond_detail = ''
-            if 'int(sys.content' in check: cond = '2'
-            elif 'in [' in check:
-                cond = '3'
-                match = re.search(r'in \[(.*)\]', check)
-                if match: cond_detail = match.group(1).replace("'", "").replace(" ", "")
-            elif 'len(' in check and '>=' in check:
-                cond = '4'
-                min_m = re.search(r'>= (\d+)', check)
-                max_m = re.search(r'<= (\d+)', check)
-                min_val = min_m.group(1) if min_m else "0"
-                max_val = max_m.group(1) if max_m else "-1"
-                cond_detail = f"{min_val},{max_val}"
-            elif '09' in check and 'len' in check: cond = '5'
-            elif r"@" in check: cond = '6'
-            elif 're.match' in check: cond = '7'
-            
-            all_questions[i]['cond'] = cond
-            all_questions[i]['cond_detail'] = cond_detail
-            
-            # Get next question content from msg_rpy of success rule (the one with check)
-            # if r is not the last question
-            if i < len(unique_q_rules) - 1:
-                try:
-                    m_next = r['msg_rpy'][0]
-                    if isinstance(m_next, str): m_next = json.loads(m_next)
-                    all_questions.append({'content': m_next['Line']['text']})
-                except: all_questions.append({'content': f'解析失敗 (Q{i+2})'})
-        
-        # 3. Finish Msg & Enable Review
-        enable_review = any(r['state_out'].endswith('99') for r in rows)
-        
-        # finish_msg is in the rule that leads to '00000'
-        finish_rule = next((r for r in rows if r['state_out'] == '00000'), None)
-        finish_msg = "感謝您的填寫！"
-        if finish_rule:
-            try:
-                m_fin = finish_rule['msg_rpy'][0]
-                if isinstance(m_fin, str): m_fin = json.loads(m_fin)
-                finish_msg = m_fin['Line']['text']
-            except: pass
-
-        return jsonify({
-            'note': note,
-            'trigger': trigger,
-            'start_time': start_time,
-            'end_time': end_time,
-            'enable_review': enable_review,
-            'finish_msg': finish_msg,
-            'questions': all_questions
-        })
-    except Exception as e:
-        import traceback
-        print(traceback.format_exc())
-        return jsonify({'error': str(e)}), 500
-
-
-@questionnaire_bp.route('/build', methods=['POST'])
-def build_questionnaire():
-    """
-    POST /api/questionnaire/build
-    Body: { note, trigger, finish_msg, questions: [{content, cond, cond_detail}] }
-    """
-    data = request.get_json()
-    if not data:
-        return jsonify({'error': 'No JSON body provided'}), 400
-
-    note = data.get('note', '').strip()
-    trigger = data.get('trigger', '').strip()
-    questions = data.get('questions', [])
-    enable_review = data.get('enable_review', False)
-    start_time = data.get('start_time', '').strip()
-    end_time = data.get('end_time', '').strip()
-
-    if not note:
-        return jsonify({'error': '問卷名稱不能為空'}), 400
-    if not trigger:
-        return jsonify({'error': '觸發指令不能為空'}), 400
-    if not questions:
-        return jsonify({'error': '至少需要一道題目'}), 400
-
-    # Validate condition 4 detail format
-    for i, q in enumerate(questions):
-        if str(q.get('cond', '1')) == '4':
-            detail = q.get('cond_detail', '')
-            parts = detail.split(',')
-            if len(parts) != 2 or not all(p.strip().lstrip('-').isdigit() for p in parts):
-                return jsonify({'error': f'第 {i+1} 題的字數限制格式錯誤，請使用「最小,最大」格式（例如：5,20）'}), 400
-
-    try:
-        conn = get_db_connection()
-        app_id = get_app_id()
-        
-        # Check for duplicate names to ensure safe DELETE
-        cur = conn.cursor()
-        cur.execute(f"SELECT 1 FROM \"Q_bank:{app_id}\" WHERE note = %s LIMIT 1", (note,))
-        if cur.fetchone():
+        return jsonify({"status": "success", "group": group})
+    except psycopg2.errors.UniqueViolation:
+        if conn:
+            conn.rollback()
             conn.close()
-            return jsonify({'error': f'問卷名稱「{note}」已存在，請使用不同名稱'}), 400
-
-        # Auto-assignment of numeric ID (reuses holes)
-        quest_id = _get_next_available_id(conn, app_id)
-        
-        build_questionnaire_direct(data, app_id, conn, quest_id)
-        conn.close()
-        _trigger_sql_reload()
-        return jsonify({'status': 'success', 'message': f'問卷「{note}」已成功建立 (ID: {quest_id:02d})'})
+        return jsonify({"error": "群組名稱已存在"}), 400
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        if conn:
+            conn.rollback()
+            conn.close()
+        return jsonify({"error": str(e)}), 500
 
 
-@questionnaire_bp.route('/<note>', methods=['DELETE'])
-def delete_questionnaire(note):
-    """DELETE /api/questionnaire/<note> — Remove all Q_bank rows with this note."""
+@questionnaire_bp.route("/groups/<int:group_id>", methods=["DELETE"])
+def delete_questionnaire_group(group_id):
     try:
         conn = get_db_connection()
         app_id = get_app_id()
+        _ensure_questionnaire_tables(conn, app_id)
+        tables = _table_names(app_id)
         cur = conn.cursor()
-        table = f"Q_bank:{app_id}"
-        cur.execute(f'DELETE FROM "{table}" WHERE note = %s', (note,))
+        cur.execute(f'SELECT COUNT(*) FROM "{tables["meta"]}" WHERE group_id = %s', (group_id,))
+        questionnaire_count = cur.fetchone()[0]
+        if questionnaire_count > 0:
+            cur.close()
+            conn.close()
+            return jsonify({"error": "此群組仍有問卷，請先移除或改到其他群組"}), 400
+
+        cur.execute(f'DELETE FROM "{tables["groups"]}" WHERE id = %s', (group_id,))
         deleted = cur.rowcount
         conn.commit()
         cur.close()
         conn.close()
-        _trigger_sql_reload()
-        return jsonify({'status': 'success', 'deleted_rows': deleted})
+        return jsonify({"status": "success", "deleted_rows": deleted})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
+
+
+@questionnaire_bp.route("/list", methods=["GET"])
+def list_questionnaires():
+    try:
+        conn = get_db_connection()
+        app_id = get_app_id()
+        _ensure_questionnaire_tables(conn, app_id)
+        tables = _table_names(app_id)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            f'''
+            SELECT
+                t.note,
+                (SELECT state_in[1] FROM "{tables["q_bank"]}" sub WHERE sub.note = t.note AND sub.state_in[1] LIKE 'Q____' LIMIT 1) AS sample_state,
+                (SELECT "check"[1] FROM "{tables["q_bank"]}" sub WHERE sub.note = t.note AND sub.state_in @> ARRAY['*'] LIMIT 1) AS entry_check,
+                EXISTS(SELECT 1 FROM "{tables["q_bank"]}" sub WHERE sub.note = t.note AND sub.state_out LIKE 'Q__99') AS has_review,
+                COUNT(*) AS rules_count,
+                meta.group_id,
+                grp.name AS group_name
+            FROM "{tables["q_bank"]}" AS t
+            LEFT JOIN "{tables["meta"]}" meta ON meta.note = t.note
+            LEFT JOIN "{tables["groups"]}" grp ON grp.id = meta.group_id
+            WHERE t.note IS NOT NULL
+            GROUP BY t.note, meta.group_id, grp.name
+            ORDER BY COALESCE(grp.name, '未分組'), t.note
+            '''
+        )
+        rows = cur.fetchall()
+        questionnaires = []
+        for row in rows:
+            q_id = "00"
+            if row["sample_state"] and len(row["sample_state"]) == 5:
+                q_id = row["sample_state"][1:3]
+            start_time, end_time = _parse_time_bounds(row.get("entry_check") or "")
+            questionnaires.append(
+                {
+                    "id": q_id,
+                    "note": row["note"],
+                    "rules_count": row["rules_count"],
+                    "enable_review": row["has_review"],
+                    "start_time": start_time,
+                    "end_time": end_time,
+                    "group_id": row["group_id"],
+                    "group_name": row["group_name"] or "未分組",
+                }
+            )
+        cur.close()
+        conn.close()
+        return jsonify({"questionnaires": questionnaires})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@questionnaire_bp.route("/detail/<note>", methods=["GET"])
+def get_questionnaire_detail(note):
+    try:
+        conn = get_db_connection()
+        app_id = get_app_id()
+        _ensure_questionnaire_tables(conn, app_id)
+        tables = _table_names(app_id)
+        rows = _load_questionnaire_rows(conn, app_id, note)
+        if not rows:
+            conn.close()
+            return jsonify({"error": "找不到該問卷"}), 404
+
+        entry_rule, questions = _extract_questionnaire_questions(rows)
+        trigger = (entry_rule.get("content") or [""])[0]
+        start_time, end_time = _parse_time_bounds((entry_rule.get("check") or [""])[0] if entry_rule.get("check") else "")
+        enable_review = any((row.get("state_out") or "").endswith("99") for row in rows)
+
+        finish_rule = next((row for row in rows if row.get("state_out") == "00000"), None)
+        finish_msg = "感謝您的填寫！"
+        if finish_rule:
+            finish_msg = _extract_text_from_msg((finish_rule.get("msg_rpy") or [None])[0]) or finish_msg
+
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            f'''
+            SELECT meta.group_id, grp.name AS group_name
+            FROM "{tables["meta"]}" meta
+            LEFT JOIN "{tables["groups"]}" grp ON grp.id = meta.group_id
+            WHERE meta.note = %s
+            ''',
+            (note,),
+        )
+        meta_row = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        return jsonify(
+            {
+                "note": note,
+                "trigger": trigger,
+                "start_time": start_time,
+                "end_time": end_time,
+                "enable_review": enable_review,
+                "finish_msg": finish_msg,
+                "questions": questions,
+                "group_id": meta_row["group_id"] if meta_row else None,
+                "group_name": meta_row["group_name"] if meta_row else None,
+            }
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@questionnaire_bp.route("/responses/<note>", methods=["GET"])
+def get_questionnaire_responses(note):
+    try:
+        conn = get_db_connection()
+        app_id = get_app_id()
+        _ensure_questionnaire_tables(conn, app_id)
+        tables = _table_names(app_id)
+
+        rows = _load_questionnaire_rows(conn, app_id, note)
+        if not rows:
+            conn.close()
+            return jsonify({"error": "找不到該問卷"}), 404
+
+        _, questions = _extract_questionnaire_questions(rows)
+        escaped_note = _escape_like(note)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            f'''
+            SELECT pv.user_id, pv.name, pv.value, uname.value AS display_name
+            FROM "{tables["private_var"]}" pv
+            LEFT JOIN "{tables["private_var"]}" uname
+                ON uname.user_id = pv.user_id AND uname.name = 'name'
+            WHERE pv.name LIKE %s ESCAPE '\\'
+            ORDER BY pv.user_id, pv.name
+            ''',
+            (f"ans_{escaped_note}_Q%",),
+        )
+        answer_rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        responses_by_user = {}
+        pattern = re.compile(rf"^ans_{re.escape(note)}_Q(\d+)$")
+        for row in answer_rows:
+            match = pattern.match(row["name"])
+            if not match:
+                continue
+            question_number = int(match.group(1))
+            if question_number <= 0:
+                continue
+
+            user_id = row["user_id"]
+            if user_id not in responses_by_user:
+                responses_by_user[user_id] = {
+                    "user_id": user_id,
+                    "display_name": row.get("display_name") or user_id,
+                    "answers": {},
+                }
+            responses_by_user[user_id]["answers"][question_number] = row["value"]
+
+        responses = []
+        for user in responses_by_user.values():
+            ordered_answers = []
+            for index, question in enumerate(questions, start=1):
+                ordered_answers.append(
+                    {
+                        "question_no": index,
+                        "question": question["content"],
+                        "answer": user["answers"].get(index, ""),
+                    }
+                )
+            user["answers"] = ordered_answers
+            user["answered_count"] = sum(1 for item in ordered_answers if item["answer"])
+            responses.append(user)
+
+        responses.sort(key=lambda item: (-item["answered_count"], item["display_name"]))
+
+        return jsonify(
+            {
+                "note": note,
+                "questions": [{"question_no": i + 1, "content": q["content"]} for i, q in enumerate(questions)],
+                "responses": responses,
+            }
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@questionnaire_bp.route("/build", methods=["POST"])
+def build_questionnaire():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No JSON body provided"}), 400
+
+    note = (data.get("note") or "").strip()
+    trigger = (data.get("trigger") or "").strip()
+    questions = data.get("questions", [])
+    group_id = data.get("group_id")
+
+    if not note:
+        return jsonify({"error": "問卷名稱不能為空"}), 400
+    if not trigger:
+        return jsonify({"error": "觸發指令不能為空"}), 400
+    if not questions:
+        return jsonify({"error": "至少需要一道題目"}), 400
+    if not group_id:
+        return jsonify({"error": "請先選擇問卷群組"}), 400
+
+    for i, question in enumerate(questions, start=1):
+        if str(question.get("cond", "1")) == "4":
+            detail = question.get("cond_detail", "")
+            parts = detail.split(",")
+            if len(parts) != 2 or not all(part.strip().lstrip("-").isdigit() for part in parts):
+                return jsonify({"error": f"第 {i} 題的字數限制格式錯誤，請使用最小,最大，例如 5,20"}), 400
+
+    try:
+        group_id = int(group_id)
+    except Exception:
+        return jsonify({"error": "群組格式不正確"}), 400
+
+    try:
+        conn = get_db_connection()
+        app_id = get_app_id()
+        _ensure_questionnaire_tables(conn, app_id)
+        tables = _table_names(app_id)
+
+        cur = conn.cursor()
+        cur.execute(f'SELECT 1 FROM "{tables["groups"]}" WHERE id = %s', (group_id,))
+        if not cur.fetchone():
+            cur.close()
+            conn.close()
+            return jsonify({"error": "指定的問卷群組不存在"}), 400
+
+        cur.execute(f'SELECT 1 FROM "{tables["q_bank"]}" WHERE note = %s LIMIT 1', (note,))
+        if cur.fetchone():
+            cur.close()
+            conn.close()
+            return jsonify({"error": f"問卷名稱「{note}」已存在，請使用不同名稱"}), 400
+
+        quest_id = _get_next_available_id(conn, app_id)
+        build_questionnaire_direct(data, app_id, conn, quest_id)
+        _upsert_questionnaire_meta(conn, app_id, note, group_id)
+        conn.commit()
+        cur.close()
+        conn.close()
+        _trigger_sql_reload()
+        return jsonify({"status": "success", "message": f"問卷「{note}」已成功建立 (ID: {quest_id:02d})"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@questionnaire_bp.route("/<note>", methods=["DELETE"])
+def delete_questionnaire(note):
+    try:
+        conn = get_db_connection()
+        app_id = get_app_id()
+        _ensure_questionnaire_tables(conn, app_id)
+        tables = _table_names(app_id)
+        cur = conn.cursor()
+        cur.execute(f'DELETE FROM "{tables["q_bank"]}" WHERE note = %s', (note,))
+        deleted = cur.rowcount
+        cur.execute(f'DELETE FROM "{tables["meta"]}" WHERE note = %s', (note,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        _trigger_sql_reload()
+        return jsonify({"status": "success", "deleted_rows": deleted})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

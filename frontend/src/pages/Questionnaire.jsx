@@ -1,41 +1,65 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-    Box, Typography, Button, Divider, IconButton, TextField,
-    Select, MenuItem, FormControl, InputLabel, Paper, Chip,
-    Stepper, Step, StepLabel, Dialog, DialogTitle, DialogContent,
-    DialogActions, CircularProgress, Alert, Tooltip, Switch, FormControlLabel
+    Alert,
+    Box,
+    Button,
+    Chip,
+    CircularProgress,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
+    Divider,
+    FormControl,
+    FormControlLabel,
+    IconButton,
+    InputLabel,
+    MenuItem,
+    Paper,
+    Select,
+    Step,
+    StepLabel,
+    Stepper,
+    Switch,
+    TextField,
+    Tooltip,
+    Typography,
 } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import AddIcon from '@mui/icons-material/Add';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import { useAuth } from '../contexts/AuthContext';
-import { useToast } from '../contexts/ToastContext';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import GroupAddIcon from '@mui/icons-material/GroupAdd';
+import InsightsIcon from '@mui/icons-material/Insights';
 import { useParams } from 'react-router-dom';
 import api from '../api';
+import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 
 const CONDITION_OPTIONS = [
-    { value: '1', label: '1. 無限制（任何文字）' },
-    { value: '2', label: '2. 必須為純數字' },
-    { value: '3', label: '3. 必須為特定選項（自訂）' },
-    { value: '4', label: '4. 字數限制（大於與小於）' },
-    { value: '5', label: '5. 台灣手機號碼（09 開頭 10 碼）' },
-    { value: '6', label: '6. Email 格式' },
-    { value: '7', label: '7. 日期格式（YYYY-MM-DD）' },
+    { value: '1', label: '不限格式' },
+    { value: '2', label: '只能輸入數字' },
+    { value: '3', label: '必須符合指定選項' },
+    { value: '4', label: '限制字數範圍' },
+    { value: '5', label: '手機格式 (09 開頭 10 碼)' },
+    { value: '6', label: 'Email 格式' },
+    { value: '7', label: '日期格式 (YYYY-MM-DD)' },
 ];
 
-const sx = {
-    input: { color: 'white' },
-    label: { color: '#B0B0B0' },
+const STEPS = ['基本資料', '題目設定', '建立確認'];
+
+const fieldSx = {
+    '& .MuiInputBase-input': { color: 'white' },
+    '& .MuiInputLabel-root': { color: '#B0B0B0' },
     '& .MuiOutlinedInput-root': {
         '& fieldset': { borderColor: '#555' },
         '&:hover fieldset': { borderColor: '#888' },
-        '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' }
-    }
+        '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' },
+    },
 };
 
 const selectSx = {
@@ -43,10 +67,16 @@ const selectSx = {
     '.MuiOutlinedInput-notchedOutline': { borderColor: '#555' },
     '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#888' },
     '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: 'var(--primary-yellow)' },
-    '.MuiSvgIcon-root': { color: '#B0B0B0' }
+    '.MuiSvgIcon-root': { color: '#B0B0B0' },
 };
 
-const emptyQuestion = () => ({ content: '', cond: '1', cond_detail: '', _min: '', _max: '' });
+const emptyQuestion = () => ({
+    content: '',
+    cond: '1',
+    cond_detail: '',
+    _min: '',
+    _max: '',
+});
 
 function QuestionCard({ q, index, total, onChange, onDelete, onMoveUp, onMoveDown }) {
     const needDetail = q.cond === '3' || q.cond === '4';
@@ -72,33 +102,320 @@ function QuestionCard({ q, index, total, onChange, onDelete, onMoveUp, onMoveDow
                             </IconButton>
                         </span>
                     </Tooltip>
-                    <IconButton size="small" onClick={onDelete} sx={{ color: '#e57373' }}>
-                        <DeleteIcon fontSize="small" />
-                    </IconButton>
+                    <Tooltip title="刪除題目">
+                        <IconButton size="small" onClick={onDelete} sx={{ color: '#e57373' }}>
+                            <DeleteIcon fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
                 </Box>
             </Box>
+
+            <Box sx={{ flex: 1 }}>
+                <Typography variant="h6" sx={{ color: 'var(--primary-yellow)', mb: 3, fontWeight: 'bold' }}>
+                    {isEditing ? `編輯問卷：${isEditing}` : '建立新問卷'}
+                </Typography>
+
+                <Stepper
+                    activeStep={activeStep}
+                    sx={{
+                        mb: 4,
+                        '& .MuiStepLabel-label': { color: '#888' },
+                        '& .MuiStepLabel-label.Mui-active': { color: 'var(--primary-yellow)' },
+                        '& .MuiStepIcon-root': { color: '#444' },
+                        '& .MuiStepIcon-root.Mui-active': { color: 'var(--primary-yellow)' },
+                        '& .MuiStepIcon-root.Mui-completed': { color: 'var(--primary-yellow)' },
+                    }}
+                >
+                    {STEPS.map(label => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}
+                </Stepper>
+
+                {activeStep === 0 && (
+                    <Box>
+                        <Alert severity="info" sx={{ mb: 2, background: '#1e2a38', color: '#d7e3f4' }}>
+                            先建立群組，再從群組中建立問卷。
+                        </Alert>
+
+                        <FormControl fullWidth sx={{ mb: 2 }}>
+                            <InputLabel sx={{ color: '#B0B0B0' }}>問卷群組</InputLabel>
+                            <Select
+                                value={selectedGroupId}
+                                label="問卷群組"
+                                onChange={e => setSelectedGroupId(e.target.value)}
+                                sx={selectSx}
+                                MenuProps={{ PaperProps: { sx: { backgroundColor: '#2a2a2a', color: 'white' } } }}
+                            >
+                                {groups.map(group => (
+                                    <MenuItem key={group.id} value={group.id}>{group.name}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+
+                        <TextField
+                            fullWidth
+                            label="問卷名稱"
+                            value={note}
+                            onChange={e => setNote(e.target.value)}
+                            sx={{ ...fieldSx, mb: 2 }}
+                            InputLabelProps={{ sx: { color: '#B0B0B0' } }}
+                        />
+                        <TextField
+                            fullWidth
+                            label="觸發指令"
+                            value={trigger}
+                            onChange={e => setTrigger(e.target.value)}
+                            helperText="使用者在 LINE 輸入這段文字後會開始填寫問卷。"
+                            FormHelperTextProps={{ sx: { color: '#666' } }}
+                            sx={{ ...fieldSx, mb: 2 }}
+                            InputLabelProps={{ sx: { color: '#B0B0B0' } }}
+                        />
+                        <TextField
+                            fullWidth
+                            label="完成訊息"
+                            value={finishMsg}
+                            onChange={e => setFinishMsg(e.target.value)}
+                            sx={{ ...fieldSx, mb: 2 }}
+                            InputLabelProps={{ sx: { color: '#B0B0B0' } }}
+                        />
+
+                        <FormControlLabel
+                            control={
+                                <Switch
+                                    checked={enableReview}
+                                    onChange={e => setEnableReview(e.target.checked)}
+                                    sx={{
+                                        '& .MuiSwitch-switchBase.Mui-checked': { color: 'var(--primary-yellow)' },
+                                        '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: 'var(--primary-yellow)' },
+                                    }}
+                                />
+                            }
+                            label="送出前允許使用者回顧答案"
+                            sx={{ color: '#B0B0B0', mb: 2 }}
+                        />
+
+                        <Box sx={{ display: 'flex', gap: 2 }}>
+                            <TextField
+                                fullWidth
+                                type="datetime-local"
+                                label="開始時間"
+                                value={startTime}
+                                onChange={e => setStartTime(e.target.value)}
+                                sx={fieldSx}
+                                InputLabelProps={{ shrink: true, sx: { color: '#B0B0B0' } }}
+                            />
+                            <TextField
+                                fullWidth
+                                type="datetime-local"
+                                label="結束時間"
+                                value={endTime}
+                                onChange={e => setEndTime(e.target.value)}
+                                sx={fieldSx}
+                                InputLabelProps={{ shrink: true, sx: { color: '#B0B0B0' } }}
+                            />
+                        </Box>
+                    </Box>
+                )}
+
+                {activeStep === 1 && (
+                    <Box>
+                        {questions.map((question, index) => (
+                            <QuestionCard
+                                key={index}
+                                q={question}
+                                index={index}
+                                total={questions.length}
+                                onChange={next => updateQuestion(index, next)}
+                                onDelete={() => deleteQuestion(index)}
+                                onMoveUp={() => moveQuestionUp(index)}
+                                onMoveDown={() => moveQuestionDown(index)}
+                            />
+                        ))}
+                        <Button
+                            startIcon={<AddIcon />}
+                            onClick={addQuestion}
+                            variant="outlined"
+                            sx={{ color: 'var(--primary-yellow)', borderColor: 'var(--primary-yellow)' }}
+                        >
+                            新增題目
+                        </Button>
+                    </Box>
+                )}
+
+                {activeStep === 2 && (
+                    <Box>
+                        <Paper sx={{ p: 2, background: '#222', mb: 2, border: '1px solid #444' }}>
+                            <Typography sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', mb: 1 }}>基本資料</Typography>
+                            <Typography sx={{ color: 'white', mb: 0.5 }}>群組：{groups.find(group => String(group.id) === String(selectedGroupId))?.name || '-'}</Typography>
+                            <Typography sx={{ color: 'white', mb: 0.5 }}>問卷名稱：{note}</Typography>
+                            <Typography sx={{ color: 'white', mb: 0.5 }}>觸發指令：{trigger}</Typography>
+                            <Typography sx={{ color: 'white', mb: 0.5 }}>完成訊息：{finishMsg}</Typography>
+                        </Paper>
+
+                        <Paper sx={{ p: 2, background: '#222', border: '1px solid #444' }}>
+                            <Typography sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', mb: 1 }}>
+                                題目清單（共 {questions.length} 題）
+                            </Typography>
+                            {questions.map((question, index) => (
+                                <Box key={index} sx={{ mb: 1.5, pl: 1, borderLeft: '2px solid #555' }}>
+                                    <Typography sx={{ color: 'white' }}>Q{index + 1}. {question.content}</Typography>
+                                    <Typography sx={{ color: '#888', fontSize: '0.85rem' }}>
+                                        限制：{CONDITION_OPTIONS.find(item => item.value === question.cond)?.label}
+                                        {question.cond_detail ? ` / ${question.cond_detail}` : ''}
+                                    </Typography>
+                                </Box>
+                            ))}
+                        </Paper>
+                    </Box>
+                )}
+
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
+                    <Button onClick={resetForm} sx={{ color: '#B0B0B0' }}>
+                        重設
+                    </Button>
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                        {activeStep > 0 && (
+                            <Button onClick={() => setActiveStep(step => step - 1)} sx={{ color: '#B0B0B0' }}>
+                                上一步
+                            </Button>
+                        )}
+                        {activeStep < 2 ? (
+                            <Button
+                                variant="contained"
+                                disabled={(activeStep === 0 && !step1Valid) || (activeStep === 1 && !step2Valid)}
+                                onClick={() => setActiveStep(step => step + 1)}
+                                sx={{ backgroundColor: 'var(--primary-yellow)', color: '#2A2A2A', fontWeight: 'bold' }}
+                            >
+                                下一步
+                            </Button>
+                        ) : (
+                            <Button
+                                variant="contained"
+                                disabled={submitting}
+                                onClick={handleSubmit}
+                                sx={{ backgroundColor: 'var(--primary-yellow)', color: '#2A2A2A', fontWeight: 'bold' }}
+                            >
+                                {submitting ? <CircularProgress size={20} /> : (isEditing ? '儲存修改' : '建立問卷')}
+                            </Button>
+                        )}
+                    </Box>
+                </Box>
+            </Box>
+
+            <Dialog
+                open={groupDialogOpen}
+                onClose={() => setGroupDialogOpen(false)}
+                PaperProps={{ sx: { background: '#222', color: 'white', border: '1px solid #444', minWidth: 420 } }}
+            >
+                <DialogTitle sx={{ color: 'var(--primary-yellow)' }}>建立問卷群組</DialogTitle>
+                <DialogContent>
+                    <TextField
+                        autoFocus
+                        fullWidth
+                        label="群組名稱"
+                        value={newGroupName}
+                        onChange={e => setNewGroupName(e.target.value)}
+                        sx={{ ...fieldSx, mt: 1 }}
+                        InputLabelProps={{ sx: { color: '#B0B0B0' } }}
+                    />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setGroupDialogOpen(false)} sx={{ color: '#B0B0B0' }}>取消</Button>
+                    <Button onClick={handleCreateGroup} variant="contained" sx={{ backgroundColor: 'var(--primary-yellow)', color: '#2A2A2A' }}>
+                        建立
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog
+                open={deleteDialog.open}
+                onClose={() => setDeleteDialog({ open: false, note: '' })}
+                PaperProps={{ sx: { background: '#222', color: 'white', border: '1px solid #444' } }}
+            >
+                <DialogTitle sx={{ color: 'var(--primary-yellow)' }}>刪除問卷</DialogTitle>
+                <DialogContent>
+                    <Typography>確定要刪除問卷「{deleteDialog.note}」嗎？這會移除該問卷的規則。</Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setDeleteDialog({ open: false, note: '' })} sx={{ color: '#B0B0B0' }}>取消</Button>
+                    <Button onClick={handleDelete} color="error" variant="contained">刪除</Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog
+                open={responsesDialog.open}
+                onClose={() => setResponsesDialog({ open: false, note: '', responses: [], questions: [], loading: false })}
+                maxWidth="lg"
+                fullWidth
+                PaperProps={{ sx: { background: '#161616', color: 'white', border: '1px solid #444' } }}
+            >
+                <DialogTitle sx={{ color: 'var(--primary-yellow)' }}>
+                    問卷填答結果：{responsesDialog.note}
+                </DialogTitle>
+                <DialogContent dividers sx={{ borderColor: '#333' }}>
+                    {responsesDialog.loading ? (
+                        <CircularProgress size={24} sx={{ color: 'var(--primary-yellow)' }} />
+                    ) : responsesDialog.responses.length === 0 ? (
+                        <Typography sx={{ color: '#888' }}>目前還沒有填答資料。</Typography>
+                    ) : (
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {responsesDialog.responses.map(response => (
+                                <Paper key={response.user_id} sx={{ p: 2, background: '#222', border: '1px solid #444' }}>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                                        <Box>
+                                            <Typography sx={{ color: 'white', fontWeight: 'bold' }}>{response.display_name || response.user_id}</Typography>
+                                            <Typography sx={{ color: '#888', fontSize: '0.8rem' }}>{response.user_id}</Typography>
+                                        </Box>
+                                        <Chip
+                                            label={`已答 ${response.answered_count}/${responsesDialog.questions.length}`}
+                                            size="small"
+                                            sx={{ background: '#5c4b00', color: 'white' }}
+                                        />
+                                    </Box>
+                                    {response.answers.map(answer => (
+                                        <Box key={answer.question_no} sx={{ mb: 1.25, pl: 1, borderLeft: '2px solid #555' }}>
+                                            <Typography sx={{ color: '#ddd', fontSize: '0.9rem' }}>
+                                                Q{answer.question_no}. {answer.question}
+                                            </Typography>
+                                            <Typography sx={{ color: answer.answer ? 'white' : '#777', mt: 0.25 }}>
+                                                {answer.answer || '未作答'}
+                                            </Typography>
+                                        </Box>
+                                    ))}
+                                </Paper>
+                            ))}
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setResponsesDialog({ open: false, note: '', responses: [], questions: [], loading: false })} sx={{ color: '#B0B0B0' }}>
+                        關閉
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        </Box>
+    );
+}
 
             <TextField
                 fullWidth
                 size="small"
-                label="題目文字"
+                label="題目內容"
                 value={q.content}
                 onChange={e => onChange({ ...q, content: e.target.value })}
-                sx={{ ...sx, mb: 2 }}
+                sx={{ ...fieldSx, mb: 2 }}
                 InputLabelProps={{ sx: { color: '#B0B0B0' } }}
             />
 
             <FormControl fullWidth size="small" sx={{ mb: needDetail ? 2 : 0 }}>
-                <InputLabel sx={{ color: '#B0B0B0' }}>答案條件</InputLabel>
+                <InputLabel sx={{ color: '#B0B0B0' }}>回答限制</InputLabel>
                 <Select
                     value={q.cond}
-                    label="答案條件"
+                    label="回答限制"
                     onChange={e => onChange({ ...q, cond: e.target.value, cond_detail: '', _min: '', _max: '' })}
                     sx={selectSx}
                     MenuProps={{ PaperProps: { sx: { backgroundColor: '#2a2a2a', color: 'white' } } }}
                 >
                     {CONDITION_OPTIONS.map(opt => (
-                        <MenuItem key={opt.value} value={opt.value} sx={{ '&:hover': { background: '#444' } }}>
+                        <MenuItem key={opt.value} value={opt.value}>
                             {opt.label}
                         </MenuItem>
                     ))}
@@ -109,10 +426,10 @@ function QuestionCard({ q, index, total, onChange, onDelete, onMoveUp, onMoveDow
                 <TextField
                     fullWidth
                     size="small"
-                    label="選項內容（用逗號分隔，例：是,否）"
+                    label="允許選項（用逗號分隔）"
                     value={q.cond_detail}
                     onChange={e => onChange({ ...q, cond_detail: e.target.value })}
-                    sx={sx}
+                    sx={fieldSx}
                     InputLabelProps={{ sx: { color: '#B0B0B0' } }}
                 />
             )}
@@ -121,23 +438,21 @@ function QuestionCard({ q, index, total, onChange, onDelete, onMoveUp, onMoveDow
                 <Box sx={{ display: 'flex', gap: 2 }}>
                     <TextField
                         size="small"
-                        label="最少字數"
                         type="number"
+                        label="最小字數"
                         value={q._min}
                         onChange={e => onChange({ ...q, _min: e.target.value, cond_detail: `${e.target.value},${q._max}` })}
-                        sx={{ ...sx, flex: 1 }}
+                        sx={{ ...fieldSx, flex: 1 }}
                         InputLabelProps={{ sx: { color: '#B0B0B0' } }}
-                        inputProps={{ min: 0 }}
                     />
                     <TextField
                         size="small"
-                        label="最多字數（-1 表示無上限）"
                         type="number"
+                        label="最大字數（-1 代表不限）"
                         value={q._max}
                         onChange={e => onChange({ ...q, _max: e.target.value, cond_detail: `${q._min},${e.target.value}` })}
-                        sx={{ ...sx, flex: 1 }}
+                        sx={{ ...fieldSx, flex: 1 }}
                         InputLabelProps={{ sx: { color: '#B0B0B0' } }}
-                        inputProps={{ min: -1 }}
                     />
                 </Box>
             )}
@@ -145,14 +460,23 @@ function QuestionCard({ q, index, total, onChange, onDelete, onMoveUp, onMoveDow
     );
 }
 
-const STEPS = ['基本資訊', '新增題目', '確認送出'];
-
 export default function Questionnaire() {
     const { token } = useAuth();
     const { showToast } = useToast();
     const { oaId } = useParams();
 
-    // List state
+    const authHeaders = useMemo(() => ({
+        headers: {
+            Authorization: `Bearer ${token}`,
+            'X-OA-ID': oaId,
+        }
+    }), [token, oaId]);
+
+    const [groups, setGroups] = useState([]);
+    const [loadingGroups, setLoadingGroups] = useState(false);
+    const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+    const [newGroupName, setNewGroupName] = useState('');
+
     const [questionnaires, setQuestionnaires] = useState([]);
     const [loadingList, setLoadingList] = useState(false);
     const [expandedNote, setExpandedNote] = useState(null);
@@ -160,19 +484,31 @@ export default function Questionnaire() {
     const [loadingPreview, setLoadingPreview] = useState(false);
     const [deleteDialog, setDeleteDialog] = useState({ open: false, note: '' });
 
-    // Builder state
+    const [responsesDialog, setResponsesDialog] = useState({ open: false, note: '', responses: [], questions: [], loading: false });
+
     const [activeStep, setActiveStep] = useState(0);
+    const [selectedGroupId, setSelectedGroupId] = useState('');
     const [note, setNote] = useState('');
     const [trigger, setTrigger] = useState('');
-    const [finishMsg, setFinishMsg] = useState('感謝您的填寫！');
+    const [finishMsg, setFinishMsg] = useState('問卷已完成，謝謝您的參與！');
     const [questions, setQuestions] = useState([emptyQuestion()]);
     const [enableReview, setEnableReview] = useState(false);
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
     const [submitting, setSubmitting] = useState(false);
-    const [isEditing, setIsEditing] = useState(null); // original note name if editing
+    const [isEditing, setIsEditing] = useState(null);
 
-    const authHeaders = { headers: { Authorization: `Bearer ${token}`, 'X-OA-ID': oaId } };
+    const fetchGroups = async () => {
+        setLoadingGroups(true);
+        try {
+            const res = await api.get('/questionnaire/groups', authHeaders);
+            setGroups(res.data.groups || []);
+        } catch (e) {
+            showToast(e.response?.data?.error || '讀取群組失敗', 'error');
+        } finally {
+            setLoadingGroups(false);
+        }
+    };
 
     const fetchList = async () => {
         setLoadingList(true);
@@ -180,87 +516,190 @@ export default function Questionnaire() {
             const res = await api.get('/questionnaire/list', authHeaders);
             setQuestionnaires(res.data.questionnaires || []);
         } catch (e) {
-            console.error(e);
+            showToast(e.response?.data?.error || '讀取問卷失敗', 'error');
         } finally {
             setLoadingList(false);
         }
     };
 
-    useEffect(() => { fetchList(); }, [oaId]);
+    useEffect(() => {
+        fetchGroups();
+        fetchList();
+    }, [oaId]);
 
-    const handleExpandNote = async (n) => {
-        if (expandedNote === n) { setExpandedNote(null); return; }
-        setExpandedNote(n);
-        setLoadingPreview(true);
-        try {
-            const res = await api.get(`/questionnaire/detail/${n}`, authHeaders);
-            setPreviewRows(res.data.questions || []);
-        } catch (e) { console.error(e); }
-        finally { setLoadingPreview(false); }
+    const groupedQuestionnaires = useMemo(() => {
+        const map = new Map();
+        questionnaires.forEach(item => {
+            const key = item.group_name || '未分組';
+            if (!map.has(key)) {
+                map.set(key, []);
+            }
+            map.get(key).push(item);
+        });
+        return [...map.entries()];
+    }, [questionnaires]);
+
+    const resetForm = () => {
+        setSelectedGroupId('');
+        setNote('');
+        setTrigger('');
+        setFinishMsg('問卷已完成，謝謝您的參與！');
+        setQuestions([emptyQuestion()]);
+        setEnableReview(false);
+        setStartTime('');
+        setEndTime('');
+        setIsEditing(null);
+        setActiveStep(0);
     };
 
-    const handleEdit = async (n) => {
+    const handleExpandNote = async (questionnaireNote) => {
+        if (expandedNote === questionnaireNote) {
+            setExpandedNote(null);
+            return;
+        }
+
+        setExpandedNote(questionnaireNote);
+        setLoadingPreview(true);
         try {
-            const res = await api.get(`/questionnaire/detail/${n}`, authHeaders);
-            const d = res.data;
-            setNote(d.note);
-            setTrigger(d.trigger);
-            setFinishMsg(d.finish_msg);
-            setEnableReview(d.enable_review);
-            setStartTime(d.start_time);
-            setEndTime(d.end_time);
-            setQuestions(d.questions.map(q => {
-                // Parse cond_detail for UI compatibility
-                let extra = { _min: '', _max: '' };
-                if (q.cond === '4') {
-                    const parts = q.cond_detail.split(',');
-                    extra._min = parts[0] || '0';
-                    extra._max = parts[1] || '-1';
-                }
-                return { ...q, ...extra };
-            }));
-            setIsEditing(n);
-            setActiveStep(0);
-            showToast(`正在編輯問卷：${n}`, 'info');
+            const res = await api.get(`/questionnaire/detail/${encodeURIComponent(questionnaireNote)}`, authHeaders);
+            setPreviewRows(res.data.questions || []);
         } catch (e) {
-            showToast('讀取詳情失敗', 'error');
+            showToast(e.response?.data?.error || '讀取問卷內容失敗', 'error');
+        } finally {
+            setLoadingPreview(false);
         }
     };
 
-    const handleCopy = async (n) => {
-        await handleEdit(n);
+    const handleEdit = async (questionnaireNote) => {
+        try {
+            const res = await api.get(`/questionnaire/detail/${encodeURIComponent(questionnaireNote)}`, authHeaders);
+            const data = res.data;
+            setSelectedGroupId(data.group_id || '');
+            setNote(data.note || '');
+            setTrigger(data.trigger || '');
+            setFinishMsg(data.finish_msg || '問卷已完成，謝謝您的參與！');
+            setEnableReview(Boolean(data.enable_review));
+            setStartTime(data.start_time || '');
+            setEndTime(data.end_time || '');
+            setQuestions((data.questions || []).map(q => {
+                const question = { ...q, _min: '', _max: '' };
+                if (question.cond === '4') {
+                    const [min = '', max = ''] = (question.cond_detail || '').split(',');
+                    question._min = min;
+                    question._max = max;
+                }
+                return question;
+            }));
+            setIsEditing(questionnaireNote);
+            setActiveStep(0);
+            showToast(`已載入問卷「${questionnaireNote}」`, 'info');
+        } catch (e) {
+            showToast(e.response?.data?.error || '載入問卷失敗', 'error');
+        }
+    };
+
+    const handleCopy = async (questionnaireNote) => {
+        await handleEdit(questionnaireNote);
         setIsEditing(null);
-        setNote(prev => prev + ' - 副本');
-        showToast('已載入問卷副本，請修改名稱後建立。', 'info');
+        setNote(prev => `${prev} - 複製`);
     };
 
     const handleDelete = async () => {
         try {
-            await api.delete(`/questionnaire/${deleteDialog.note}`, authHeaders);
+            await api.delete(`/questionnaire/${encodeURIComponent(deleteDialog.note)}`, authHeaders);
             setDeleteDialog({ open: false, note: '' });
-            if (expandedNote === deleteDialog.note) setExpandedNote(null);
-            showToast(`問卷「${deleteDialog.note}」已成功刪除`, 'success');
+            if (expandedNote === deleteDialog.note) {
+                setExpandedNote(null);
+            }
+            showToast(`問卷「${deleteDialog.note}」已刪除`, 'success');
             fetchList();
         } catch (e) {
-            showToast('刪除失敗: ' + (e.response?.data?.error || e.message), 'error');
+            showToast(e.response?.data?.error || '刪除問卷失敗', 'error');
         }
     };
 
-    // Question helpers
-    const updateQ = (i, q) => setQuestions(prev => { const a = [...prev]; a[i] = q; return a; });
-    const addQ = () => setQuestions(prev => [...prev, emptyQuestion()]);
-    const deleteQ = (i) => setQuestions(prev => prev.filter((_, idx) => idx !== i));
-    const moveUp = (i) => setQuestions(prev => { const a = [...prev];[a[i - 1], a[i]] = [a[i], a[i - 1]]; return a; });
-    const moveDown = (i) => setQuestions(prev => { const a = [...prev];[a[i], a[i + 1]] = [a[i + 1], a[i]]; return a; });
+    const handleCreateGroup = async () => {
+        try {
+            const res = await api.post('/questionnaire/groups', { name: newGroupName }, authHeaders);
+            setNewGroupName('');
+            setGroupDialogOpen(false);
+            await fetchGroups();
+            if (res.data?.group?.id) {
+                setSelectedGroupId(res.data.group.id);
+            }
+            showToast('群組建立成功', 'success');
+        } catch (e) {
+            showToast(e.response?.data?.error || '建立群組失敗', 'error');
+        }
+    };
 
-    const step1Valid = note.trim() && trigger.trim() && finishMsg.trim();
+    const handleDeleteGroup = async (groupId) => {
+        try {
+            await api.delete(`/questionnaire/groups/${groupId}`, authHeaders);
+            if (String(selectedGroupId) === String(groupId)) {
+                setSelectedGroupId('');
+            }
+            await fetchGroups();
+            await fetchList();
+            showToast('群組已刪除', 'success');
+        } catch (e) {
+            showToast(e.response?.data?.error || '刪除群組失敗', 'error');
+        }
+    };
+
+    const handleOpenResponses = async (questionnaireNote) => {
+        setResponsesDialog({ open: true, note: questionnaireNote, responses: [], questions: [], loading: true });
+        try {
+            const res = await api.get(`/questionnaire/responses/${encodeURIComponent(questionnaireNote)}`, authHeaders);
+            setResponsesDialog({
+                open: true,
+                note: questionnaireNote,
+                responses: res.data.responses || [],
+                questions: res.data.questions || [],
+                loading: false,
+            });
+        } catch (e) {
+            setResponsesDialog(prev => ({ ...prev, loading: false }));
+            showToast(e.response?.data?.error || '讀取填答結果失敗', 'error');
+        }
+    };
+
+    const updateQuestion = (index, value) => {
+        setQuestions(prev => prev.map((item, idx) => idx === index ? value : item));
+    };
+
+    const addQuestion = () => {
+        setQuestions(prev => [...prev, emptyQuestion()]);
+    };
+
+    const deleteQuestion = (index) => {
+        setQuestions(prev => prev.filter((_, idx) => idx !== index));
+    };
+
+    const moveQuestionUp = (index) => {
+        setQuestions(prev => {
+            const next = [...prev];
+            [next[index - 1], next[index]] = [next[index], next[index - 1]];
+            return next;
+        });
+    };
+
+    const moveQuestionDown = (index) => {
+        setQuestions(prev => {
+            const next = [...prev];
+            [next[index], next[index + 1]] = [next[index + 1], next[index]];
+            return next;
+        });
+    };
+
+    const step1Valid = selectedGroupId && note.trim() && trigger.trim() && finishMsg.trim();
     const step2Valid = questions.length > 0 && questions.every(q => {
         if (!q.content.trim()) return false;
         if (q.cond === '3' && !q.cond_detail.trim()) return false;
         if (q.cond === '4') {
             const parts = q.cond_detail.split(',');
             if (parts.length !== 2) return false;
-            if (parts.some(p => p.trim() === '' || isNaN(parseInt(p.trim())))) return false;
+            if (parts.some(part => part.trim() === '' || Number.isNaN(Number(part.trim())))) return false;
         }
         return true;
     });
@@ -268,28 +707,31 @@ export default function Questionnaire() {
     const handleSubmit = async () => {
         setSubmitting(true);
         try {
-            // If editing, we first delete the old one
             if (isEditing) {
-                await api.delete(`/questionnaire/${isEditing}`, authHeaders);
+                await api.delete(`/questionnaire/${encodeURIComponent(isEditing)}`, authHeaders);
             }
 
-            const res = await api.post('/questionnaire/build', {
-                note, trigger, finish_msg: finishMsg,
-                questions: questions.map(q => ({ content: q.content, cond: q.cond, cond_detail: q.cond_detail })),
+            const payload = {
+                group_id: selectedGroupId,
+                note,
+                trigger,
+                finish_msg: finishMsg,
+                questions: questions.map(q => ({
+                    content: q.content,
+                    cond: q.cond,
+                    cond_detail: q.cond_detail,
+                })),
                 enable_review: enableReview,
                 start_time: startTime,
-                end_time: endTime
-            }, authHeaders);
+                end_time: endTime,
+            };
 
-            showToast(isEditing ? `問卷「${note}」已更新！` : (res.data.message || `問卷「${note}」已成功建立！`), 'success');
-            fetchList();
-            // Reset form
-            setNote(''); setTrigger(''); setFinishMsg('感謝您的填寫！');
-            setQuestions([emptyQuestion()]); setEnableReview(false);
-            setStartTime(''); setEndTime(''); setIsEditing(null);
-            setActiveStep(0);
+            const res = await api.post('/questionnaire/build', payload, authHeaders);
+            showToast(res.data?.message || '問卷建立成功', 'success');
+            await fetchList();
+            resetForm();
         } catch (e) {
-            showToast(e.response?.data?.error || '儲存失敗', 'error');
+            showToast(e.response?.data?.error || '儲存問卷失敗', 'error');
         } finally {
             setSubmitting(false);
         }
@@ -297,132 +739,179 @@ export default function Questionnaire() {
 
     return (
         <Box sx={{ display: 'flex', gap: 4, minHeight: '80vh' }}>
-            {/* ─── Left: Questionnaire List ─── */}
-            <Box sx={{ width: 300, flexShrink: 0 }}>
-                <Typography variant="h6" sx={{ color: 'var(--primary-yellow)', mb: 2, fontWeight: 'bold' }}>
-                    已建立的問卷
-                </Typography>
+            <Box sx={{ width: 360, flexShrink: 0 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="h6" sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold' }}>
+                        問卷群組與列表
+                    </Typography>
+                    <Button
+                        startIcon={<GroupAddIcon />}
+                        variant="outlined"
+                        onClick={() => setGroupDialogOpen(true)}
+                        sx={{ color: 'var(--primary-yellow)', borderColor: 'var(--primary-yellow)' }}
+                    >
+                        新增群組
+                    </Button>
+                </Box>
+
+                <Paper sx={{ p: 2, mb: 2, background: '#222', border: '1px solid #444' }}>
+                    <Typography sx={{ color: '#B0B0B0', mb: 1, fontSize: '0.9rem' }}>已建立的群組</Typography>
+                    {loadingGroups ? (
+                        <CircularProgress size={20} sx={{ color: 'var(--primary-yellow)' }} />
+                    ) : groups.length === 0 ? (
+                        <Typography sx={{ color: '#777', fontSize: '0.9rem' }}>目前還沒有群組，請先建立群組再新增問卷。</Typography>
+                    ) : (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                            {groups.map(group => (
+                                <Chip
+                                    key={group.id}
+                                    label={`${group.name} (${group.questionnaire_count})`}
+                                    onDelete={group.questionnaire_count === 0 ? () => handleDeleteGroup(group.id) : undefined}
+                                    sx={{
+                                        background: String(selectedGroupId) === String(group.id) ? '#5c4b00' : '#333',
+                                        color: 'white',
+                                    }}
+                                />
+                            ))}
+                        </Box>
+                    )}
+                </Paper>
+
                 {loadingList ? (
                     <CircularProgress size={24} sx={{ color: 'var(--primary-yellow)' }} />
                 ) : questionnaires.length === 0 ? (
-                    <Typography sx={{ color: '#666', fontSize: '0.9rem' }}>尚無問卷，請在右側建立。</Typography>
-                ) : questionnaires.map(q => (
-                    <Paper key={q.note} sx={{ mb: 1, background: '#222', border: '1px solid #444', overflow: 'hidden' }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', px: 2, py: 1.5 }}>
-                            <Box sx={{ flex: 1, cursor: 'pointer', '&:hover': { color: 'var(--primary-yellow)' } }} onClick={() => handleExpandNote(q.note)}>
-                                <Typography sx={{ color: 'white', fontWeight: 'bold', fontSize: '1rem' }}>
-                                    {q.note}
-                                </Typography>
-                                <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5, flexWrap: 'wrap' }}>
-                                    <Chip label={`ID: ${q.id}`} size="small" sx={{ height: 18, fontSize: '0.65rem', background: '#333', color: '#888' }} />
-                                    {q.enable_review && <Chip label="檢查" size="small" sx={{ height: 18, fontSize: '0.65rem', background: '#2e7d32', color: 'white' }} />}
-                                    {(q.start_time || q.end_time) && <Chip label="定時" size="small" sx={{ height: 18, fontSize: '0.65rem', background: '#0288d1', color: 'white' }} />}
+                    <Typography sx={{ color: '#777' }}>目前沒有問卷。</Typography>
+                ) : groupedQuestionnaires.map(([groupName, items]) => (
+                    <Box key={groupName} sx={{ mb: 2.5 }}>
+                        <Typography sx={{ color: '#B0B0B0', fontSize: '0.9rem', mb: 1 }}>{groupName}</Typography>
+                        {items.map(item => (
+                            <Paper key={item.note} sx={{ mb: 1, background: '#222', border: '1px solid #444', overflow: 'hidden' }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', px: 2, py: 1.5 }}>
+                                    <Box sx={{ flex: 1, cursor: 'pointer' }} onClick={() => handleExpandNote(item.note)}>
+                                        <Typography sx={{ color: 'white', fontWeight: 'bold' }}>{item.note}</Typography>
+                                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
+                                            <Chip label={`ID: ${item.id}`} size="small" sx={{ height: 20, background: '#333', color: '#aaa' }} />
+                                            {item.enable_review && <Chip label="可回顧" size="small" sx={{ height: 20, background: '#2e7d32', color: 'white' }} />}
+                                            {(item.start_time || item.end_time) && <Chip label="有限時" size="small" sx={{ height: 20, background: '#1565c0', color: 'white' }} />}
+                                        </Box>
+                                    </Box>
+                                    <IconButton size="small" onClick={() => handleExpandNote(item.note)} sx={{ color: '#888' }}>
+                                        {expandedNote === item.note ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                                    </IconButton>
                                 </Box>
-                            </Box>
-                            <IconButton size="small" onClick={() => handleExpandNote(q.note)} sx={{ color: '#888' }}>
-                                {expandedNote === q.note ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                            </IconButton>
-                        </Box>
-                        {expandedNote === q.note && (
-                            <Box sx={{ px: 2, pb: 2, background: '#1a1a1a' }}>
-                                <Divider sx={{ borderColor: '#333', mb: 1.5 }} />
 
-                                {loadingPreview ? (
-                                    <CircularProgress size={16} sx={{ color: '#888', my: 1 }} />
-                                ) : (
-                                    <Box sx={{ mb: 2 }}>
-                                        <Typography sx={{ color: '#888', fontSize: '0.75rem', mb: 1 }}>題目概覽：</Typography>
-                                        {previewRows.map((pq, pi) => (
-                                            <Typography key={pi} sx={{ color: '#aaa', fontSize: '0.75rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                {pi + 1}. {pq.content}
-                                            </Typography>
-                                        ))}
-                                        {q.start_time && (
-                                            <Typography sx={{ color: '#0288d1', fontSize: '0.7rem', mt: 1 }}>
-                                                起：{q.start_time}
-                                            </Typography>
+                                {expandedNote === item.note && (
+                                    <Box sx={{ px: 2, pb: 2, background: '#1a1a1a' }}>
+                                        <Divider sx={{ borderColor: '#333', mb: 1.5 }} />
+                                        {loadingPreview ? (
+                                            <CircularProgress size={16} sx={{ color: '#888' }} />
+                                        ) : (
+                                            <Box sx={{ mb: 2 }}>
+                                                <Typography sx={{ color: '#888', fontSize: '0.75rem', mb: 1 }}>題目預覽</Typography>
+                                                {previewRows.map((row, index) => (
+                                                    <Typography key={index} sx={{ color: '#ccc', fontSize: '0.8rem', mb: 0.5 }}>
+                                                        {index + 1}. {row.content}
+                                                    </Typography>
+                                                ))}
+                                            </Box>
                                         )}
-                                        {q.end_time && (
-                                            <Typography sx={{ color: '#d32f2f', fontSize: '0.7rem' }}>
-                                                止：{q.end_time}
-                                            </Typography>
-                                        )}
+
+                                        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                                            <Tooltip title="查看填答結果">
+                                                <IconButton size="small" onClick={() => handleOpenResponses(item.note)} sx={{ color: '#ffb300' }}>
+                                                    <InsightsIcon fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
+                                            <Tooltip title="編輯問卷">
+                                                <IconButton size="small" onClick={() => handleEdit(item.note)} sx={{ color: '#4fc3f7' }}>
+                                                    <EditIcon fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
+                                            <Tooltip title="複製問卷">
+                                                <IconButton size="small" onClick={() => handleCopy(item.note)} sx={{ color: '#81c784' }}>
+                                                    <ContentCopyIcon fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
+                                            <Tooltip title="刪除問卷">
+                                                <IconButton size="small" onClick={() => setDeleteDialog({ open: true, note: item.note })} sx={{ color: '#e57373' }}>
+                                                    <DeleteIcon fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
+                                        </Box>
                                     </Box>
                                 )}
-
-                                <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 1 }}>
-                                    <Tooltip title="編輯問卷">
-                                        <IconButton size="small" onClick={() => handleEdit(q.note)} sx={{ color: '#4fc3f7' }}>
-                                            <EditIcon fontSize="small" />
-                                        </IconButton>
-                                    </Tooltip>
-                                    <Tooltip title="複製問卷">
-                                        <IconButton size="small" onClick={() => handleCopy(q.note)} sx={{ color: '#81c784' }}>
-                                            <ContentCopyIcon fontSize="small" />
-                                        </IconButton>
-                                    </Tooltip>
-                                    <Tooltip title="刪除問卷">
-                                        <IconButton size="small" onClick={() => setDeleteDialog({ open: true, note: q.note })} sx={{ color: '#e57373' }}>
-                                            <DeleteIcon fontSize="small" />
-                                        </IconButton>
-                                    </Tooltip>
-                                </Box>
-                            </Box>
-                        )}
-                    </Paper>
+                            </Paper>
+                        ))}
+                    </Box>
                 ))}
             </Box>
 
-            {/* ─── Right: Builder ─── */}
             <Box sx={{ flex: 1 }}>
                 <Typography variant="h6" sx={{ color: 'var(--primary-yellow)', mb: 3, fontWeight: 'bold' }}>
                     {isEditing ? `編輯問卷：${isEditing}` : '建立新問卷'}
                 </Typography>
 
-                <Stepper activeStep={activeStep} sx={{
-                    mb: 4,
-                    '& .MuiStepLabel-label': { color: '#888' },
-                    '& .MuiStepLabel-label.Mui-active': { color: 'var(--primary-yellow)' },
-                    '& .MuiStepLabel-label.Mui-completed': { color: '#aaa' },
-                    '& .MuiStepIcon-root': { color: '#444' },
-                    '& .MuiStepIcon-root.Mui-active': { color: 'var(--primary-yellow)' },
-                    '& .MuiStepIcon-root.Mui-completed': { color: 'var(--primary-yellow)' },
-                }}>
+                <Stepper
+                    activeStep={activeStep}
+                    sx={{
+                        mb: 4,
+                        '& .MuiStepLabel-label': { color: '#888' },
+                        '& .MuiStepLabel-label.Mui-active': { color: 'var(--primary-yellow)' },
+                        '& .MuiStepIcon-root': { color: '#444' },
+                        '& .MuiStepIcon-root.Mui-active': { color: 'var(--primary-yellow)' },
+                        '& .MuiStepIcon-root.Mui-completed': { color: 'var(--primary-yellow)' },
+                    }}
+                >
                     {STEPS.map(label => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}
                 </Stepper>
 
-                {/* Step 0: Basic Info */}
                 {activeStep === 0 && (
                     <Box>
-                        <Typography sx={{ color: '#B0B0B0', mb: 2 }}>設定問卷的基本資料。</Typography>
+                        <Alert severity="info" sx={{ mb: 2, background: '#1e2a38', color: '#d7e3f4' }}>
+                            先建立群組，再從群組中建立問卷。
+                        </Alert>
+
+                        <FormControl fullWidth sx={{ mb: 2 }}>
+                            <InputLabel sx={{ color: '#B0B0B0' }}>問卷群組</InputLabel>
+                            <Select
+                                value={selectedGroupId}
+                                label="問卷群組"
+                                onChange={e => setSelectedGroupId(e.target.value)}
+                                sx={selectSx}
+                                MenuProps={{ PaperProps: { sx: { backgroundColor: '#2a2a2a', color: 'white' } } }}
+                            >
+                                {groups.map(group => (
+                                    <MenuItem key={group.id} value={group.id}>{group.name}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+
                         <TextField
-                            fullWidth label="問卷名稱" value={note}
+                            fullWidth
+                            label="問卷名稱"
+                            value={note}
                             onChange={e => setNote(e.target.value)}
-                            helperText="問卷的標題或備註，可填中文 (例如：2024 客戶滿意度調查)"
-                            FormHelperTextProps={{ sx: { color: '#666' } }}
-                            sx={{ ...sx, mb: 2 }}
+                            sx={{ ...fieldSx, mb: 2 }}
                             InputLabelProps={{ sx: { color: '#B0B0B0' } }}
                         />
                         <TextField
-                            fullWidth label="觸發指令" value={trigger}
+                            fullWidth
+                            label="觸發指令"
+                            value={trigger}
                             onChange={e => setTrigger(e.target.value)}
-                            helperText="使用者在 LINE 輸入此文字即可啟動問卷，例如：開始填寫"
+                            helperText="使用者在 LINE 輸入這段文字後會開始填寫問卷。"
                             FormHelperTextProps={{ sx: { color: '#666' } }}
-                            sx={{ ...sx, mb: 2 }}
+                            sx={{ ...fieldSx, mb: 2 }}
                             InputLabelProps={{ sx: { color: '#B0B0B0' } }}
                         />
                         <TextField
-                            fullWidth label="完成訊息" value={finishMsg}
+                            fullWidth
+                            label="完成訊息"
+                            value={finishMsg}
                             onChange={e => setFinishMsg(e.target.value)}
-                            helperText="使用者完成全部問題後顯示的訊息"
-                            FormHelperTextProps={{ sx: { color: '#666' } }}
-                            sx={{ ...sx, mb: 3 }}
+                            sx={{ ...fieldSx, mb: 2 }}
                             InputLabelProps={{ sx: { color: '#B0B0B0' } }}
                         />
-
-                        <Divider sx={{ borderColor: '#444', mb: 3 }} />
-
-                        <Typography sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', mb: 1 }}>進階設定</Typography>
 
                         <FormControlLabel
                             control={
@@ -431,94 +920,82 @@ export default function Questionnaire() {
                                     onChange={e => setEnableReview(e.target.checked)}
                                     sx={{
                                         '& .MuiSwitch-switchBase.Mui-checked': { color: 'var(--primary-yellow)' },
-                                        '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: 'var(--primary-yellow)' }
+                                        '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: 'var(--primary-yellow)' },
                                     }}
                                 />
                             }
-                            label="啟用答案檢查步驟 (使用者最後可預覽並確認答案)"
-                            sx={{ color: '#B0B0B0', mb: 2, display: 'block' }}
+                            label="送出前允許使用者回顧答案"
+                            sx={{ color: '#B0B0B0', mb: 2 }}
                         />
 
-                        <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
+                        <Box sx={{ display: 'flex', gap: 2 }}>
                             <TextField
                                 fullWidth
-                                label="問卷開始時間"
                                 type="datetime-local"
+                                label="開始時間"
                                 value={startTime}
                                 onChange={e => setStartTime(e.target.value)}
-                                sx={sx}
+                                sx={fieldSx}
                                 InputLabelProps={{ shrink: true, sx: { color: '#B0B0B0' } }}
                             />
                             <TextField
                                 fullWidth
-                                label="問卷結束時間"
                                 type="datetime-local"
+                                label="結束時間"
                                 value={endTime}
                                 onChange={e => setEndTime(e.target.value)}
-                                sx={sx}
+                                sx={fieldSx}
                                 InputLabelProps={{ shrink: true, sx: { color: '#B0B0B0' } }}
                             />
                         </Box>
-                        <Typography sx={{ color: '#666', fontSize: '0.8rem', mt: 1 }}>
-                            若不設定時間，則問卷將持續有效。
-                        </Typography>
                     </Box>
                 )}
 
-                {/* Step 1: Questions */}
                 {activeStep === 1 && (
                     <Box>
-                        <Typography sx={{ color: '#B0B0B0', mb: 2 }}>新增題目，並為每一題設定答案條件。</Typography>
-                        {questions.map((q, i) => (
+                        {questions.map((question, index) => (
                             <QuestionCard
-                                key={i} q={q} index={i} total={questions.length}
-                                onChange={(nq) => updateQ(i, nq)}
-                                onDelete={() => deleteQ(i)}
-                                onMoveUp={() => moveUp(i)}
-                                onMoveDown={() => moveDown(i)}
+                                key={index}
+                                q={question}
+                                index={index}
+                                total={questions.length}
+                                onChange={next => updateQuestion(index, next)}
+                                onDelete={() => deleteQuestion(index)}
+                                onMoveUp={() => moveQuestionUp(index)}
+                                onMoveDown={() => moveQuestionDown(index)}
                             />
                         ))}
                         <Button
                             startIcon={<AddIcon />}
-                            onClick={addQ}
-                            sx={{ color: 'var(--primary-yellow)', borderColor: 'var(--primary-yellow)', mt: 1 }}
+                            onClick={addQuestion}
                             variant="outlined"
+                            sx={{ color: 'var(--primary-yellow)', borderColor: 'var(--primary-yellow)' }}
                         >
                             新增題目
                         </Button>
                     </Box>
                 )}
 
-                {/* Step 2: Confirm */}
                 {activeStep === 2 && (
                     <Box>
-                        <Typography sx={{ color: '#B0B0B0', mb: 2 }}>請確認問卷資料後送出建立。</Typography>
                         <Paper sx={{ p: 2, background: '#222', mb: 2, border: '1px solid #444' }}>
-                            <Typography sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', mb: 1 }}>基本資訊</Typography>
-                            <Typography sx={{ color: 'white', mb: 0.5 }}>問卷名稱：<Chip label={note} size="small" sx={{ background: '#444', color: 'white' }} /></Typography>
-                            <Typography sx={{ color: 'white', mb: 0.5 }}>觸發指令：<Chip label={trigger} size="small" sx={{ background: '#444', color: 'white' }} /></Typography>
+                            <Typography sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', mb: 1 }}>基本資料</Typography>
+                            <Typography sx={{ color: 'white', mb: 0.5 }}>群組：{groups.find(group => String(group.id) === String(selectedGroupId))?.name || '-'}</Typography>
+                            <Typography sx={{ color: 'white', mb: 0.5 }}>問卷名稱：{note}</Typography>
+                            <Typography sx={{ color: 'white', mb: 0.5 }}>觸發指令：{trigger}</Typography>
                             <Typography sx={{ color: 'white', mb: 0.5 }}>完成訊息：{finishMsg}</Typography>
-                            <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #333' }}>
-                                <Typography sx={{ color: 'white', mb: 0.5, fontSize: '0.9rem' }}>
-                                    答案檢查：{enableReview ? <Chip label="已開啟" size="small" color="success" /> : <Chip label="未開啟" size="small" variant="outlined" sx={{ color: '#888' }} />}
-                                </Typography>
-                                {(startTime || endTime) && (
-                                    <Typography sx={{ color: '#aaa', fontSize: '0.9rem', mt: 1 }}>
-                                        有效時段：{startTime || '不限'} ~ {endTime || '不限'}
-                                    </Typography>
-                                )}
-                            </Box>
                         </Paper>
+
                         <Paper sx={{ p: 2, background: '#222', border: '1px solid #444' }}>
-                            <Typography sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', mb: 1 }}>題目列表（共 {questions.length} 題）</Typography>
-                            {questions.map((q, i) => (
-                                <Box key={i} sx={{ mb: 1, pl: 1, borderLeft: '2px solid #555' }}>
-                                    <Typography sx={{ color: 'white', fontSize: '0.9rem' }}>
-                                        Q{i + 1}：{q.content}
-                                    </Typography>
-                                    <Typography sx={{ color: '#888', fontSize: '0.8rem' }}>
-                                        條件：{CONDITION_OPTIONS.find(o => o.value === q.cond)?.label}
-                                        {q.cond_detail ? `  ▸  ${q.cond_detail}` : ''}
+                            <Typography sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', mb: 1 }}>
+                                題目清單（共 {questions.length} 題）
+                            </Typography>
+                            {questions.map((question, index) => (
+                                <Box key={index} sx={{ mb: 1.5, pl: 1, borderLeft: '2px solid #555' }}>
+                                    <Typography sx={{ color: 'white' }}>Q{index + 1}. {question.content}</Typography>
+                                    <Typography sx={{ color: '#888', fontSize: '0.85rem' }}>
+                                        限制：{CONDITION_OPTIONS.find(item => item.value === question.cond)?.label}
+                                        {question.cond_detail ? ` / ${question.cond_detail}` : ''}
                                     </Typography>
                                 </Box>
                             ))}
@@ -526,49 +1003,128 @@ export default function Questionnaire() {
                     </Box>
                 )}
 
-                {/* Navigation */}
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 3 }}>
-                    {activeStep > 0 && (
-                        <Button onClick={() => setActiveStep(s => s - 1)} sx={{ color: '#B0B0B0' }}>
-                            上一步
-                        </Button>
-                    )}
-                    {activeStep < 2 && (
-                        <Button
-                            variant="contained"
-                            disabled={(activeStep === 0 && !step1Valid) || (activeStep === 1 && !step2Valid)}
-                            onClick={() => setActiveStep(s => s + 1)}
-                            sx={{ backgroundColor: 'var(--primary-yellow)', color: '#2A2A2A', fontWeight: 'bold', '&:hover': { backgroundColor: '#e6c200' } }}
-                        >
-                            下一步
-                        </Button>
-                    )}
-                    {activeStep === 2 && (
-                        <Button
-                            variant="contained"
-                            disabled={submitting}
-                            onClick={handleSubmit}
-                            sx={{ backgroundColor: 'var(--primary-yellow)', color: '#2A2A2A', fontWeight: 'bold', '&:hover': { backgroundColor: '#e6c200' } }}
-                        >
-                            {submitting ? <CircularProgress size={20} /> : (isEditing ? '儲存修改' : '建立問卷')}
-                        </Button>
-                    )}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
+                    <Button onClick={resetForm} sx={{ color: '#B0B0B0' }}>
+                        重設
+                    </Button>
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                        {activeStep > 0 && (
+                            <Button onClick={() => setActiveStep(step => step - 1)} sx={{ color: '#B0B0B0' }}>
+                                上一步
+                            </Button>
+                        )}
+                        {activeStep < 2 ? (
+                            <Button
+                                variant="contained"
+                                disabled={(activeStep === 0 && !step1Valid) || (activeStep === 1 && !step2Valid)}
+                                onClick={() => setActiveStep(step => step + 1)}
+                                sx={{ backgroundColor: 'var(--primary-yellow)', color: '#2A2A2A', fontWeight: 'bold' }}
+                            >
+                                下一步
+                            </Button>
+                        ) : (
+                            <Button
+                                variant="contained"
+                                disabled={submitting}
+                                onClick={handleSubmit}
+                                sx={{ backgroundColor: 'var(--primary-yellow)', color: '#2A2A2A', fontWeight: 'bold' }}
+                            >
+                                {submitting ? <CircularProgress size={20} /> : (isEditing ? '儲存修改' : '建立問卷')}
+                            </Button>
+                        )}
+                    </Box>
                 </Box>
             </Box>
 
-            {/* Delete Confirmation Dialog */}
+            <Dialog
+                open={groupDialogOpen}
+                onClose={() => setGroupDialogOpen(false)}
+                PaperProps={{ sx: { background: '#222', color: 'white', border: '1px solid #444', minWidth: 420 } }}
+            >
+                <DialogTitle sx={{ color: 'var(--primary-yellow)' }}>建立問卷群組</DialogTitle>
+                <DialogContent>
+                    <TextField
+                        autoFocus
+                        fullWidth
+                        label="群組名稱"
+                        value={newGroupName}
+                        onChange={e => setNewGroupName(e.target.value)}
+                        sx={{ ...fieldSx, mt: 1 }}
+                        InputLabelProps={{ sx: { color: '#B0B0B0' } }}
+                    />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setGroupDialogOpen(false)} sx={{ color: '#B0B0B0' }}>取消</Button>
+                    <Button onClick={handleCreateGroup} variant="contained" sx={{ backgroundColor: 'var(--primary-yellow)', color: '#2A2A2A' }}>
+                        建立
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
             <Dialog
                 open={deleteDialog.open}
                 onClose={() => setDeleteDialog({ open: false, note: '' })}
                 PaperProps={{ sx: { background: '#222', color: 'white', border: '1px solid #444' } }}
             >
-                <DialogTitle sx={{ color: 'var(--primary-yellow)' }}>確認刪除問卷</DialogTitle>
+                <DialogTitle sx={{ color: 'var(--primary-yellow)' }}>刪除問卷</DialogTitle>
                 <DialogContent>
-                    <Typography>確定要刪除問卷「<strong>{deleteDialog.note}</strong>」的所有法則嗎？此動作無法復原。</Typography>
+                    <Typography>確定要刪除問卷「{deleteDialog.note}」嗎？這會移除該問卷的規則。</Typography>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setDeleteDialog({ open: false, note: '' })} sx={{ color: '#B0B0B0' }}>取消</Button>
                     <Button onClick={handleDelete} color="error" variant="contained">刪除</Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog
+                open={responsesDialog.open}
+                onClose={() => setResponsesDialog({ open: false, note: '', responses: [], questions: [], loading: false })}
+                maxWidth="lg"
+                fullWidth
+                PaperProps={{ sx: { background: '#161616', color: 'white', border: '1px solid #444' } }}
+            >
+                <DialogTitle sx={{ color: 'var(--primary-yellow)' }}>
+                    問卷填答結果：{responsesDialog.note}
+                </DialogTitle>
+                <DialogContent dividers sx={{ borderColor: '#333' }}>
+                    {responsesDialog.loading ? (
+                        <CircularProgress size={24} sx={{ color: 'var(--primary-yellow)' }} />
+                    ) : responsesDialog.responses.length === 0 ? (
+                        <Typography sx={{ color: '#888' }}>目前還沒有填答資料。</Typography>
+                    ) : (
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {responsesDialog.responses.map(response => (
+                                <Paper key={response.user_id} sx={{ p: 2, background: '#222', border: '1px solid #444' }}>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                                        <Box>
+                                            <Typography sx={{ color: 'white', fontWeight: 'bold' }}>{response.display_name || response.user_id}</Typography>
+                                            <Typography sx={{ color: '#888', fontSize: '0.8rem' }}>{response.user_id}</Typography>
+                                        </Box>
+                                        <Chip
+                                            label={`已答 ${response.answered_count}/${responsesDialog.questions.length}`}
+                                            size="small"
+                                            sx={{ background: '#5c4b00', color: 'white' }}
+                                        />
+                                    </Box>
+                                    {response.answers.map(answer => (
+                                        <Box key={answer.question_no} sx={{ mb: 1.25, pl: 1, borderLeft: '2px solid #555' }}>
+                                            <Typography sx={{ color: '#ddd', fontSize: '0.9rem' }}>
+                                                Q{answer.question_no}. {answer.question}
+                                            </Typography>
+                                            <Typography sx={{ color: answer.answer ? 'white' : '#777', mt: 0.25 }}>
+                                                {answer.answer || '未作答'}
+                                            </Typography>
+                                        </Box>
+                                    ))}
+                                </Paper>
+                            ))}
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setResponsesDialog({ open: false, note: '', responses: [], questions: [], loading: false })} sx={{ color: '#B0B0B0' }}>
+                        關閉
+                    </Button>
                 </DialogActions>
             </Dialog>
         </Box>
