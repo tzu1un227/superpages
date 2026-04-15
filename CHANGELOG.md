@@ -3,6 +3,8 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **修復 Questionnaire 建立與編輯畫面程式碼層級錯誤 (Questionnaire Parsing Fix)** [2026-04-15]:
+  - **修復語法無法解析崩潰**：解決了 `Questionnaire.jsx` 中因為開發過程片段複製錯誤 (將元件狀態與 UI HTML 重複貼上至 `QuestionCard` 內部) 導致前端在建置與執行期拋出 `Unexpected closing "Box" tag` 與 `Expected ";"` 的致命 Syntax Error。移除了高達 280 行的不明錯置片段，正確復原 `QuestionCard` 的結尾。
 - **「權限設定」表單驗證優化 (OA Config Validation UX)** [2026-04-14]:
   - **全欄位必填化**：將 OA 設定中的所有輸入項（包括 GitHub 與 LINE 設定）改為必填，確保系統功能不因配置缺失而失效。
   - **延遲顯著提示**：實現了新的 UI 交互邏輯，平時不顯示錯誤紅框，僅在點擊儲存且有漏填時才一併標記，提供更精確且不干擾的引導。
