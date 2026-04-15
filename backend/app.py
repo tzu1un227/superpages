@@ -1380,8 +1380,14 @@ def get_statistics():
         t_static = get_suffixed_table('ht_view')
         
         results = {}
-        # Since RDS might not have the stored procedure, we skip the categories loop for now or implement direct SQL
-        # But if the user renamed tables, they likely want the card totals:
+        app_name = get_current_app_id()
+
+        for category in ['follow', 'unfollow', 'user', 'message']:
+            cur.execute(
+                "SELECT * FROM get_events_count_by_category_and_tag(%s, %s, %s, %s, %s)",
+                (start_time, end_time, category, group_unit, app_name)
+            )
+            results[category] = cur.fetchall()
         
         # Add a special 'totals' section for card display
         results['total_counts'] = {}
