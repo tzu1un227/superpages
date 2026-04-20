@@ -293,9 +293,7 @@ function RichMenu() {
                     
                     if (tags.length > 0) {
                         const tagString = tags.join(',');
-                        if (action.type === 'message') {
-                            action.text = `tag_true|${tagString}|${action.text}`;
-                        } else if (action.type === 'postback') {
+                        if (action.type === 'postback') {
                             action.data = `tag_true|${tagString}|${action.data}`;
                         } else if (action.type === 'uri') {
                             const finalVal = action.uri.startsWith('http') ? action.uri : `https://${action.uri}`;
@@ -589,25 +587,9 @@ function RichMenu() {
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                             <div>
                                                 <label className="label">傳送訊息文字</label>
-                                                {(() => {
-                                                    const { cleanValue, tags } = extractTagsFromValue('message', currentMenu.areas[selectedAreaIndex].action.text);
-                                                    return (
-                                                        <>
-                                                            <input type="text" disabled={viewOnly} value={cleanValue || ''} onChange={e => {
-                                                                const currentTags = currentMenu.areas[selectedAreaIndex].action.tags || tags;
-                                                                updateAreaAction(selectedAreaIndex, { text: e.target.value, tags: currentTags });
-                                                            }} />
-                                                            <div style={{ marginTop: '8px' }}>
-                                                                <label className="label" style={{ fontSize: '11px', color: '#888' }}>點擊時標註標籤</label>
-                                                                <TagInput
-                                                                    tags={currentMenu.areas[selectedAreaIndex].action.tags || tags}
-                                                                    onChange={newTags => updateAreaAction(selectedAreaIndex, { tags: newTags })}
-                                                                    readOnly={viewOnly}
-                                                                />
-                                                            </div>
-                                                        </>
-                                                    );
-                                                })()}
+                                                <input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.text || ''} onChange={e => {
+                                                    updateAreaAction(selectedAreaIndex, { text: e.target.value });
+                                                }} />
                                             </div>
                                         </div>
                                     )}
