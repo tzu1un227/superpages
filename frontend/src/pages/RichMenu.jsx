@@ -299,9 +299,18 @@ function RichMenu() {
                             action.data = `tag_true|${tagString}|${action.data}`;
                         } else if (action.type === 'uri') {
                             const finalVal = action.uri.startsWith('http') ? action.uri : `https://${action.uri}`;
-                            const redirectBase = API_BASE_URL.replace(/\/$/, '') + '/redirect';
-                            action.uri = `${redirectBase}?url=${encodeURIComponent(finalVal)}&tags=${encodeURIComponent(tagString)}&userId=<%m.user_id%>&oaId=${oaId}`;
+                            const redirectBase = API_BASE_URL.startsWith('http') 
+                                ? API_BASE_URL.replace(/\/$/, '') + '/redirect'
+                                : window.location.origin + (API_BASE_URL.startsWith('/') ? '' : '/') + API_BASE_URL.replace(/\/$/, '') + '/redirect';
+                            
+                            // Rich Menu URIs are static in LINE's servers, they don't support <%m.user_id%> templates.
+                            // We remove it to avoid "invalid uri" errors. 
+                            // Note: Tagging for static URIs in Rich Menu will not have userId context unless using LIFF.
+                            action.uri = `${redirectBase}?url=${encodeURIComponent(finalVal)}&tags=${encodeURIComponent(tagString)}&oaId=${oaId}`;
                         }
+                    } else if (action.type === 'uri' && action.uri && !action.uri.startsWith('http')) {
+                        // Ensure normal URIs also have a valid scheme
+                        action.uri = `https://${action.uri}`;
                     }
                     // Remove temporary UI state
                     delete action.tags;
