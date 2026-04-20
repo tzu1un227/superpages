@@ -318,24 +318,6 @@ function RichMenu() {
                         const tagString = tags.join(',');
                         if (action.type === 'postback') {
                             action.data = `tag_true|${tagString}|${action.data}`;
-                        } else if (action.type === 'uri') {
-                            const finalVal = action.uri.startsWith('http') ? action.uri : `https://${action.uri}`;
-                            
-                            // Force HTTPS for redirect because LINE requires it for Rich Menu URIs
-                            let base = API_BASE_URL.startsWith('http') 
-                                ? API_BASE_URL.replace(/\/$/, '') 
-                                : window.location.origin + (API_BASE_URL.startsWith('/') ? '' : '/') + API_BASE_URL.replace(/\/$/, '');
-                            
-                            if (base.startsWith('http:')) {
-                                base = base.replace('http:', 'https:');
-                            }
-                            
-                            const redirectBase = base + '/redirect';
-                            
-                            // Rich Menu URIs are static in LINE's servers, they don't support <%m.user_id%> templates.
-                            // We remove it to avoid "invalid uri" errors. 
-                            // Note: Tagging for static URIs in Rich Menu will not have userId context unless using LIFF.
-                            action.uri = `${redirectBase}?url=${encodeURIComponent(finalVal)}&tags=${encodeURIComponent(tagString)}&oaId=${oaId}`;
                         }
                     } else if (action.type === 'uri' && action.uri && !action.uri.startsWith('http')) {
                         // Ensure normal URIs also have a valid scheme
@@ -620,25 +602,9 @@ function RichMenu() {
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                             <div>
                                                 <label className="label">網址 (URL)</label>
-                                                {(() => {
-                                                    const { cleanValue, tags } = extractTagsFromValue('uri', currentMenu.areas[selectedAreaIndex].action.uri);
-                                                    return (
-                                                        <>
-                                                            <input type="text" disabled={viewOnly} value={cleanValue || ''} onChange={e => {
-                                                                const currentTags = currentMenu.areas[selectedAreaIndex].action.tags || tags;
-                                                                updateAreaAction(selectedAreaIndex, { uri: e.target.value, tags: currentTags });
-                                                            }} />
-                                                            <div style={{ marginTop: '8px' }}>
-                                                                <label className="label" style={{ fontSize: '11px', color: '#888' }}>點擊時標註標籤</label>
-                                                                <TagInput
-                                                                    tags={currentMenu.areas[selectedAreaIndex].action.tags || tags}
-                                                                    onChange={newTags => updateAreaAction(selectedAreaIndex, { tags: newTags })}
-                                                                    readOnly={viewOnly}
-                                                                />
-                                                            </div>
-                                                        </>
-                                                    );
-                                                })()}
+                                                <input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.uri || ''} onChange={e => {
+                                                    updateAreaAction(selectedAreaIndex, { uri: e.target.value });
+                                                }} />
                                             </div>
                                         </div>
                                     )}
