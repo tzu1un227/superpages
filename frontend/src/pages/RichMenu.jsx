@@ -157,7 +157,13 @@ function RichMenu() {
         if (viewOnly) return;
         const newAreas = [...currentMenu.areas];
         if (newAreas[index]) {
-            const updatedAction = { ...newAreas[index].action, ...action };
+            let updatedAction;
+            // If type is changing, reset the action object to avoid field pollution (e.g., text vs data)
+            if (action.type && action.type !== newAreas[index].action.type) {
+                updatedAction = { type: action.type };
+            } else {
+                updatedAction = { ...newAreas[index].action, ...action };
+            }
             
             // Special handling for tags array
             if (action.tags) {
@@ -288,9 +294,26 @@ function RichMenu() {
                 name: currentMenu.name.substring(0, 300),
                 chatBarText: currentMenu.chatBarText.substring(0, 14),
                 areas: currentMenu.areas.map(a => {
-                    const action = { ...a.action };
-                    const tags = action.tags || [];
+                    const rawAction = { ...a.action };
+                    const tags = rawAction.tags || [];
                     
+                    // Construct a clean action object based on type to prevent LINE API errors
+                    // like "can not put text and displayText at same time"
+                    const action = { type: rawAction.type };
+
+                    if (action.type === 'message') {
+                        action.text = rawAction.text;
+                    } else if (action.type === 'uri') {
+                        action.uri = rawAction.uri;
+                    } else if (action.type === 'postback') {
+                        action.data = rawAction.data;
+                        if (rawAction.displayText) action.displayText = rawAction.displayText;
+                        // Avoid sending 'text' if it's the same as 'displayText' or left over from previous state
+                    } else if (action.type === 'richmenuswitch') {
+                        action.richMenuAliasId = rawAction.richMenuAliasId;
+                        action.data = rawAction.data;
+                    }
+
                     if (tags.length > 0) {
                         const tagString = tags.join(',');
                         if (action.type === 'postback') {
