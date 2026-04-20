@@ -5,7 +5,7 @@ import {
     Plus, Trash2, Save, Image as ImageIcon, Settings,
     MousePointer2, Move, Maximize, Check, X, AlertCircle,
     ChevronDown, ChevronUp, ExternalLink, MessageSquare,
-    CreditCard, Repeat, Eye, Edit2, RefreshCw, ChevronLeft, ChevronRight, LayoutGrid
+    CreditCard, Repeat, Eye, Edit2, RefreshCw, ChevronLeft, ChevronRight, LayoutGrid, Filter, Calendar, RotateCcw
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useToast } from '../contexts/ToastContext';
@@ -299,9 +299,17 @@ function RichMenu() {
                             action.data = `tag_true|${tagString}|${action.data}`;
                         } else if (action.type === 'uri') {
                             const finalVal = action.uri.startsWith('http') ? action.uri : `https://${action.uri}`;
-                            const redirectBase = API_BASE_URL.startsWith('http') 
-                                ? API_BASE_URL.replace(/\/$/, '') + '/redirect'
-                                : window.location.origin + (API_BASE_URL.startsWith('/') ? '' : '/') + API_BASE_URL.replace(/\/$/, '') + '/redirect';
+                            
+                            // Force HTTPS for redirect because LINE requires it for Rich Menu URIs
+                            let base = API_BASE_URL.startsWith('http') 
+                                ? API_BASE_URL.replace(/\/$/, '') 
+                                : window.location.origin + (API_BASE_URL.startsWith('/') ? '' : '/') + API_BASE_URL.replace(/\/$/, '');
+                            
+                            if (base.startsWith('http:')) {
+                                base = base.replace('http:', 'https:');
+                            }
+                            
+                            const redirectBase = base + '/redirect';
                             
                             // Rich Menu URIs are static in LINE's servers, they don't support <%m.user_id%> templates.
                             // We remove it to avoid "invalid uri" errors. 
@@ -391,6 +399,12 @@ function RichMenu() {
         } finally {
             setLoading(false);
         }
+    };
+    
+    const getSortedMenus = () => {
+        // Sort by richMenuId (UUID) descending to show recent ones first if possible, 
+        // or just alphabetical as requested. 
+        return [...menus].sort((a, b) => b.richMenuId.localeCompare(a.richMenuId));
     };
 
     // Drag & Resize logic
@@ -679,25 +693,35 @@ function RichMenu() {
                     <AlertCircle size={16} style={{ verticalAlign: 'middle', marginRight: '8px' }} />
                     系統僅能顯示與管理透過此介面或 API 建立的選單。原先於 LINE 官方後台 GUI 建立的選單無法讀取。
                 </div>
-                <div style={{ display: 'flex', gap: '15px' }}>
+                <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                    <Tooltip title="重置預設：若設定預設後手機沒更新，可先嘗試解除目前的預設再重新設定。">
+                        <button onClick={handleUnsetDefault} className="secondary" style={{ color: '#ff4d4d', borderColor: '#444' }}><RotateCcw size={18} /> 重置預設</button>
+                    </Tooltip>
                     <button onClick={handleCreateNew} className="primary"><Plus size={20} /> 新增選單</button>
                 </div>
             </div>
             {loading ? <div style={{ padding: '50px', textAlign: 'center' }}>載入中...</div> : menus.length === 0 ? (
                 <div className="card" style={{ padding: '50px', textAlign: 'center' }}><AlertCircle size={48} style={{ color: '#666', marginBottom: '15px' }} /><p style={{ color: '#888' }}>目前還沒有任何圖文選單</p><button onClick={handleCreateNew} className="secondary" style={{ marginTop: '20px' }}>立即建立第一個選單</button></div>
             ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
-                    {menus.map((menu) => (
-                        <div key={menu.richMenuId} className="card" style={{ position: 'relative' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+                    {getSortedMenus().map((menu) => (
+                        <div key={menu.richMenuId} className="card" style={{ position: 'relative', border: menu.status === 'default' ? '1px solid #FFD700' : '1px solid #333' }}>
                             {menu.status === 'default' && <div style={{ position: 'absolute', top: '15px', right: '15px', backgroundColor: '#FFD700', color: '#000', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>預設中</div>}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                <div style={{ height: '120px', backgroundColor: '#222', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: '#666', overflow: 'hidden' }}>
+                                <div style={{ height: '150px', backgroundColor: '#222', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: '#666', overflow: 'hidden' }}>
                                     <RichMenuPreview menuId={menu.richMenuId} />
                                 </div>
-                                <div><h4 style={{ marginBottom: '5px' }}>{menu.name}</h4><p style={{ fontSize: '13px', color: '#888' }}>選單別名: {menu.aliases?.join(', ') || '無'}</p><p style={{ fontSize: '13px', color: '#888' }}>尺寸: {menu.size.width}x{menu.size.height}</p></div>
+                                <div>
+                                    <h4 style={{ marginBottom: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{menu.name}</h4>
+                                    <p style={{ fontSize: '13px', color: '#888' }}>選單別名: {menu.aliases?.join(', ') || '無'}</p>
+                                </div>
                                 <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                                     <button onClick={() => handleEditMenu(menu)} className="secondary" style={{ flex: 1, padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}><Eye size={14} /> 查看</button>
-                                    {menu.status !== 'default' && <button onClick={() => setDefault(menu.richMenuId)} className="secondary" style={{ flex: 1, padding: '8px' }}>設為預設</button>}
+                                    {menu.status !== 'default' ? (
+                                        <button onClick={() => setDefault(menu.richMenuId)} className="secondary" style={{ flex: 1, padding: '8px' }}>設為預設</button>
+                                    ) : (
+                                        <button className="secondary" disabled style={{ flex: 1, padding: '8px', opacity: 0.5 }}>已設預設</button>
+                                    )}
                                     <button onClick={() => deleteMenu(menu.richMenuId)} style={{ padding: '8px', border: '1px solid #444', background: 'none', color: '#ff4d4d' }}><Trash2 size={16} /></button>
                                 </div>
                             </div>
