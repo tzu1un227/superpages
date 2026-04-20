@@ -401,6 +401,20 @@ function RichMenu() {
         }
     };
     
+    const handleUnsetDefault = async () => {
+        if (!window.confirm('確定要解除目前的「全域預設選單」嗎？解除後所有未被個別連結的用戶將看不到任何選單。')) return;
+        setLoading(true);
+        try {
+            await api.delete('/richmenu/set-default');
+            fetchMenus();
+            showToast('已解除預設選單設定', 'success');
+        } catch (err) {
+            showToast('解除失敗: ' + (err.response?.data?.line_error || err.message), 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+    
     const getSortedMenus = () => {
         // Sort by richMenuId (UUID) descending to show recent ones first if possible, 
         // or just alphabetical as requested. 
