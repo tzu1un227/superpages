@@ -10,6 +10,8 @@ import {
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useToast } from '../contexts/ToastContext';
 import { Tooltip as MuiTooltip } from '@mui/material';
+import TagInput from '../components/TagInput';
+import { API_BASE_URL } from '../api';
 
 // Styled or aliased Tooltip to avoid conflict
 const Tooltip = ({ title, children }) => {
@@ -156,6 +158,12 @@ function RichMenu() {
         const newAreas = [...currentMenu.areas];
         if (newAreas[index]) {
             const updatedAction = { ...newAreas[index].action, ...action };
+            
+            // Special handling for tags array
+            if (action.tags) {
+                updatedAction.tags = action.tags;
+            }
+
             // Auto-fill data for richmenuswitch
             if (updatedAction.type === 'richmenuswitch' && action.richMenuAliasId) {
                 updatedAction.data = `switch-to-${action.richMenuAliasId}`;
@@ -163,6 +171,35 @@ function RichMenu() {
             newAreas[index].action = updatedAction;
             setCurrentMenu({ ...currentMenu, areas: newAreas });
         }
+    };
+
+    const extractTagsFromValue = (type, value) => {
+        if (!value || typeof value !== 'string') return { cleanValue: value, tags: [] };
+        
+        // 1. tag_true format: tag_true|tag1,tag2|content
+        if (value.startsWith('tag_true|')) {
+            const parts = value.split('|');
+            if (parts.length >= 3) {
+                const tags = parts[1].split(',').map(t => t.trim()).filter(t => t);
+                const content = parts.slice(2).join('|');
+                return { cleanValue: content, tags };
+            }
+            // Fallback for tag_true|content
+            return { cleanValue: value.replace('tag_true|', ''), tags: [] };
+        }
+
+        // 2. Redirect URL format: /api/redirect?url=...&tags=...
+        if (type === 'uri' && value.includes('/redirect?')) {
+            const urlMatch = value.match(/[?&]url=([^&]*)/);
+            const tagsMatch = value.match(/[?&]tags=([^&#]*)/);
+            if (urlMatch && urlMatch[1]) {
+                const cleanValue = decodeURIComponent(urlMatch[1]);
+                const tags = tagsMatch && tagsMatch[1] ? decodeURIComponent(tagsMatch[1]).split(',').map(t => t.trim()).filter(t => t) : [];
+                return { cleanValue, tags };
+            }
+        }
+
+        return { cleanValue: value, tags: [] };
     };
 
     const handleImageUpload = (e) => {
@@ -250,15 +287,35 @@ function RichMenu() {
                 selected: currentMenu.selected || false,
                 name: currentMenu.name.substring(0, 300),
                 chatBarText: currentMenu.chatBarText.substring(0, 14),
-                areas: currentMenu.areas.map(a => ({
-                    bounds: {
-                        x: Math.round(a.bounds.x),
-                        y: Math.round(a.bounds.y),
-                        width: Math.round(a.bounds.width),
-                        height: Math.round(a.bounds.height)
-                    },
-                    action: { ...a.action }
-                }))
+                areas: currentMenu.areas.map(a => {
+                    const action = { ...a.action };
+                    const tags = action.tags || [];
+                    
+                    if (tags.length > 0) {
+                        const tagString = tags.join(',');
+                        if (action.type === 'message') {
+                            action.text = `tag_true|${tagString}|${action.text}`;
+                        } else if (action.type === 'postback') {
+                            action.data = `tag_true|${tagString}|${action.data}`;
+                        } else if (action.type === 'uri') {
+                            const finalVal = action.uri.startsWith('http') ? action.uri : `https://${action.uri}`;
+                            const redirectBase = API_BASE_URL.replace(/\/$/, '') + '/redirect';
+                            action.uri = `${redirectBase}?url=${encodeURIComponent(finalVal)}&tags=${encodeURIComponent(tagString)}&userId=<%m.user_id%>&oaId=${oaId}`;
+                        }
+                    }
+                    // Remove temporary UI state
+                    delete action.tags;
+
+                    return {
+                        bounds: {
+                            x: Math.round(a.bounds.x),
+                            y: Math.round(a.bounds.y),
+                            width: Math.round(a.bounds.width),
+                            height: Math.round(a.bounds.height)
+                        },
+                        action
+                    };
+                })
             };
 
             const createRes = await api.post('/richmenu/', metaData);
@@ -492,14 +549,81 @@ function RichMenu() {
                                     </div>
 
                                     {currentMenu.areas[selectedAreaIndex]?.action?.type === 'message' && (
-                                        <div><label className="label">傳送訊息文字</label><input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.text || ''} onChange={e => updateAreaAction(selectedAreaIndex, { text: e.target.value })} /></div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                            <div>
+                                                <label className="label">傳送訊息文字</label>
+                                                {(() => {
+                                                    const { cleanValue, tags } = extractTagsFromValue('message', currentMenu.areas[selectedAreaIndex].action.text);
+                                                    return (
+                                                        <>
+                                                            <input type="text" disabled={viewOnly} value={cleanValue || ''} onChange={e => {
+                                                                const currentTags = currentMenu.areas[selectedAreaIndex].action.tags || tags;
+                                                                updateAreaAction(selectedAreaIndex, { text: e.target.value, tags: currentTags });
+                                                            }} />
+                                                            <div style={{ marginTop: '8px' }}>
+                                                                <label className="label" style={{ fontSize: '11px', color: '#888' }}>點擊時標註標籤</label>
+                                                                <TagInput
+                                                                    tags={currentMenu.areas[selectedAreaIndex].action.tags || tags}
+                                                                    onChange={newTags => updateAreaAction(selectedAreaIndex, { tags: newTags })}
+                                                                    readOnly={viewOnly}
+                                                                />
+                                                            </div>
+                                                        </>
+                                                    );
+                                                })()}
+                                            </div>
+                                        </div>
                                     )}
                                     {currentMenu.areas[selectedAreaIndex]?.action?.type === 'uri' && (
-                                        <div><label className="label">網址 (URL)</label><input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.uri || ''} onChange={e => updateAreaAction(selectedAreaIndex, { uri: e.target.value })} /></div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                            <div>
+                                                <label className="label">網址 (URL)</label>
+                                                {(() => {
+                                                    const { cleanValue, tags } = extractTagsFromValue('uri', currentMenu.areas[selectedAreaIndex].action.uri);
+                                                    return (
+                                                        <>
+                                                            <input type="text" disabled={viewOnly} value={cleanValue || ''} onChange={e => {
+                                                                const currentTags = currentMenu.areas[selectedAreaIndex].action.tags || tags;
+                                                                updateAreaAction(selectedAreaIndex, { uri: e.target.value, tags: currentTags });
+                                                            }} />
+                                                            <div style={{ marginTop: '8px' }}>
+                                                                <label className="label" style={{ fontSize: '11px', color: '#888' }}>點擊時標註標籤</label>
+                                                                <TagInput
+                                                                    tags={currentMenu.areas[selectedAreaIndex].action.tags || tags}
+                                                                    onChange={newTags => updateAreaAction(selectedAreaIndex, { tags: newTags })}
+                                                                    readOnly={viewOnly}
+                                                                />
+                                                            </div>
+                                                        </>
+                                                    );
+                                                })()}
+                                            </div>
+                                        </div>
                                     )}
                                     {currentMenu.areas[selectedAreaIndex]?.action?.type === 'postback' && (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                            <div><label className="label">Postback Data</label><input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.data || ''} onChange={e => updateAreaAction(selectedAreaIndex, { data: e.target.value })} /></div>
+                                            <div>
+                                                <label className="label">Postback Data</label>
+                                                {(() => {
+                                                    const { cleanValue, tags } = extractTagsFromValue('postback', currentMenu.areas[selectedAreaIndex].action.data);
+                                                    return (
+                                                        <>
+                                                            <input type="text" disabled={viewOnly} value={cleanValue || ''} onChange={e => {
+                                                                const currentTags = currentMenu.areas[selectedAreaIndex].action.tags || tags;
+                                                                updateAreaAction(selectedAreaIndex, { data: e.target.value, tags: currentTags });
+                                                            }} />
+                                                            <div style={{ marginTop: '8px' }}>
+                                                                <label className="label" style={{ fontSize: '11px', color: '#888' }}>點擊時標註標籤</label>
+                                                                <TagInput
+                                                                    tags={currentMenu.areas[selectedAreaIndex].action.tags || tags}
+                                                                    onChange={newTags => updateAreaAction(selectedAreaIndex, { tags: newTags })}
+                                                                    readOnly={viewOnly}
+                                                                />
+                                                            </div>
+                                                        </>
+                                                    );
+                                                })()}
+                                            </div>
                                             <div><label className="label">顯示文字 (displayText)</label><input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.displayText || ''} onChange={e => updateAreaAction(selectedAreaIndex, { displayText: e.target.value })} /></div>
                                         </div>
                                     )}

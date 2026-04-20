@@ -76,6 +76,7 @@ function RuleDesigner() {
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [rowErrors, setRowErrors] = useState({}); // { rowIndex: ['error1', 'error2'] }
+    const [designMode, setDesignMode] = useState('simple'); // 'simple' | 'engineering'
     
     // Modal State for msg_rpy
     const [isMsgModalOpen, setIsMsgModalOpen] = useState(false);
@@ -107,6 +108,7 @@ function RuleDesigner() {
     };
 
     const handleNewRule = () => {
+        const isSimple = designMode === 'simple';
         const newRule = ['q_bank', 'ad_bank'].includes(bankType) ? {
             state_in: ['*'],
             type: 'Message',
@@ -116,7 +118,7 @@ function RuleDesigner() {
             state_out: '00000',
             function: '',
             history: true,
-            note: '新規則',
+            note: isSimple ? '新規則 (簡易模式)' : '新規則',
             _isDirty: true,
             _isNew: true
         } : {
@@ -351,6 +353,42 @@ function RuleDesigner() {
                 </div>
             </div>
 
+            {/* Mode Switcher Tabs */}
+            <div style={{ display: 'flex', borderBottom: '1px solid #333', marginBottom: '5px' }}>
+                <button
+                    onClick={() => setDesignMode('simple')}
+                    style={{
+                        padding: '10px 24px',
+                        backgroundColor: 'transparent',
+                        border: 'none',
+                        borderBottom: designMode === 'simple' ? '3px solid var(--primary-yellow)' : '3px solid transparent',
+                        color: designMode === 'simple' ? 'var(--primary-yellow)' : '#888',
+                        cursor: 'pointer',
+                        fontSize: '15px',
+                        fontWeight: 'bold',
+                        transition: 'all 0.3s'
+                    }}
+                >
+                    簡易模式
+                </button>
+                <button
+                    onClick={() => setDesignMode('engineering')}
+                    style={{
+                        padding: '10px 24px',
+                        backgroundColor: 'transparent',
+                        border: 'none',
+                        borderBottom: designMode === 'engineering' ? '3px solid var(--primary-yellow)' : '3px solid transparent',
+                        color: designMode === 'engineering' ? 'var(--primary-yellow)' : '#888',
+                        cursor: 'pointer',
+                        fontSize: '15px',
+                        fontWeight: 'bold',
+                        transition: 'all 0.3s'
+                    }}
+                >
+                    工程模式
+                </button>
+            </div>
+
             {/* Toolbar */}
             <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
                 <div className="search-box" style={{ flex: 1, position: 'relative', maxWidth: '400px' }}>
@@ -385,23 +423,27 @@ function RuleDesigner() {
                                 <th style={{ padding: '12px', width: '60px' }}>ID</th>
                                 {['q_bank', 'ad_bank'].includes(bankType) ? (
                                     <>
-                                        <th style={{ padding: '4px', width: '8%' }}>state_in</th>
-                                        <th style={{ padding: '4px', width: '15%' }}>content</th>
+                                        {designMode === 'engineering' && <th style={{ padding: '4px', width: '8%' }}>state_in</th>}
+                                        <th style={{ padding: '4px', width: designMode === 'simple' ? '25%' : '15%' }}>content</th>
                                         <th style={{ padding: '4px', width: '12%' }}>note</th>
-                                        <th style={{ padding: '4px', width: '8%' }}>state_out</th>
-                                        <th style={{ padding: '4px', width: '10%' }}>check</th>
-                                        <th style={{ padding: '4px', width: '10%' }}>function</th>
-                                        <th style={{ padding: '4px', width: '8%' }}>type</th>
-                                        <th style={{ padding: '4px', width: '6%' }}>history</th>
+                                        {designMode === 'engineering' && (
+                                            <>
+                                                <th style={{ padding: '4px', width: '8%' }}>state_out</th>
+                                                <th style={{ padding: '4px', width: '10%' }}>check</th>
+                                                <th style={{ padding: '4px', width: '10%' }}>function</th>
+                                                <th style={{ padding: '4px', width: '8%' }}>type</th>
+                                                <th style={{ padding: '4px', width: '6%' }}>history</th>
+                                            </>
+                                        )}
                                     </>
                                 ) : (
                                     <>
                                         <th style={{ padding: '4px', width: '15%' }}>tag</th>
-                                        <th style={{ padding: '4px', width: '10%' }}>io</th>
-                                        <th style={{ padding: '4px', width: '10%' }}>check</th>
+                                        {designMode === 'engineering' && <th style={{ padding: '4px', width: '10%' }}>io</th>}
+                                        {designMode === 'engineering' && <th style={{ padding: '4px', width: '10%' }}>check</th>}
                                         <th style={{ padding: '4px', width: '15%' }}>ans</th>
-                                        <th style={{ padding: '4px', width: '10%' }}>function</th>
-                                        <th style={{ padding: '4px', width: '8%' }}>type</th>
+                                        {designMode === 'engineering' && <th style={{ padding: '4px', width: '10%' }}>function</th>}
+                                        {designMode === 'engineering' && <th style={{ padding: '4px', width: '8%' }}>type</th>}
                                     </>
                                 )}
                                 <th style={{ padding: '4px', width: '10%' }}>msg_rpy</th>
@@ -434,12 +476,14 @@ function RuleDesigner() {
                                         
                                         {['q_bank', 'ad_bank'].includes(bankType) ? (
                                             <>
-                                                <td style={{ padding: '4px' }}>
-                                                    <TableCellTextarea 
-                                                        value={Array.isArray(rule.state_in) ? rule.state_in.join(', ') : (rule.state_in || '')}
-                                                        onChange={val => handleFieldChange(idx, 'state_in', val)}
-                                                    />
-                                                </td>
+                                                {designMode === 'engineering' && (
+                                                    <td style={{ padding: '4px' }}>
+                                                        <TableCellTextarea 
+                                                            value={Array.isArray(rule.state_in) ? rule.state_in.join(', ') : (rule.state_in || '')}
+                                                            onChange={val => handleFieldChange(idx, 'state_in', val)}
+                                                        />
+                                                    </td>
+                                                )}
                                                 <td style={{ padding: '4px' }}>
                                                     <TableCellTextarea 
                                                         value={Array.isArray(rule.content) ? rule.content.join(', ') : (rule.content || '')}
@@ -452,38 +496,42 @@ function RuleDesigner() {
                                                         onChange={val => handleFieldChange(idx, 'note', val)}
                                                     />
                                                 </td>
-                                                <td style={{ padding: '4px' }}>
-                                                    <TableCellTextarea 
-                                                        value={rule.state_out || ''}
-                                                        onChange={val => handleFieldChange(idx, 'state_out', val)}
-                                                    />
-                                                </td>
-                                                <td style={{ padding: '4px' }}>
-                                                    <TableCellTextarea 
-                                                        value={Array.isArray(rule.check) ? rule.check.join(', ') : (rule.check || '')}
-                                                        onChange={val => handleFieldChange(idx, 'check', val)}
-                                                    />
-                                                </td>
-                                                <td style={{ padding: '4px' }}>
-                                                    <TableCellTextarea 
-                                                        value={rule.function || ''}
-                                                        onChange={val => handleFieldChange(idx, 'function', val)}
-                                                    />
-                                                </td>
-                                                <td style={{ padding: '4px' }}>
-                                                    <TableCellTextarea 
-                                                        value={rule.type || ''}
-                                                        onChange={val => handleFieldChange(idx, 'type', val)}
-                                                    />
-                                                </td>
-                                                <td style={{ padding: '4px', textAlign: 'center' }}>
-                                                    <input 
-                                                        type="checkbox"
-                                                        checked={!!rule.history}
-                                                        onChange={e => handleFieldChange(idx, 'history', e.target.checked)}
-                                                        style={{ cursor: 'pointer' }}
-                                                    />
-                                                </td>
+                                                {designMode === 'engineering' && (
+                                                    <>
+                                                        <td style={{ padding: '4px' }}>
+                                                            <TableCellTextarea 
+                                                                value={rule.state_out || ''}
+                                                                onChange={val => handleFieldChange(idx, 'state_out', val)}
+                                                            />
+                                                        </td>
+                                                        <td style={{ padding: '4px' }}>
+                                                            <TableCellTextarea 
+                                                                value={Array.isArray(rule.check) ? rule.check.join(', ') : (rule.check || '')}
+                                                                onChange={val => handleFieldChange(idx, 'check', val)}
+                                                            />
+                                                        </td>
+                                                        <td style={{ padding: '4px' }}>
+                                                            <TableCellTextarea 
+                                                                value={rule.function || ''}
+                                                                onChange={val => handleFieldChange(idx, 'function', val)}
+                                                            />
+                                                        </td>
+                                                        <td style={{ padding: '4px' }}>
+                                                            <TableCellTextarea 
+                                                                value={rule.type || ''}
+                                                                onChange={val => handleFieldChange(idx, 'type', val)}
+                                                            />
+                                                        </td>
+                                                        <td style={{ padding: '4px', textAlign: 'center' }}>
+                                                            <input 
+                                                                type="checkbox"
+                                                                checked={!!rule.history}
+                                                                onChange={e => handleFieldChange(idx, 'history', e.target.checked)}
+                                                                style={{ cursor: 'pointer' }}
+                                                            />
+                                                        </td>
+                                                    </>
+                                                )}
                                             </>
                                         ) : (
                                             <>
@@ -493,36 +541,44 @@ function RuleDesigner() {
                                                         onChange={val => handleFieldChange(idx, 'tag', val)}
                                                     />
                                                 </td>
-                                                <td style={{ padding: '4px' }}>
-                                                    <TableCellTextarea 
-                                                        value={rule.io || ''}
-                                                        onChange={val => handleFieldChange(idx, 'io', val)}
-                                                    />
-                                                </td>
-                                                <td style={{ padding: '4px' }}>
-                                                    <TableCellTextarea 
-                                                        value={Array.isArray(rule.check) ? rule.check.join(', ') : (rule.check || '')}
-                                                        onChange={val => handleFieldChange(idx, 'check', val)}
-                                                    />
-                                                </td>
+                                                {designMode === 'engineering' && (
+                                                    <td style={{ padding: '4px' }}>
+                                                        <TableCellTextarea 
+                                                            value={rule.io || ''}
+                                                            onChange={val => handleFieldChange(idx, 'io', val)}
+                                                        />
+                                                    </td>
+                                                )}
+                                                {designMode === 'engineering' && (
+                                                    <td style={{ padding: '4px' }}>
+                                                        <TableCellTextarea 
+                                                            value={Array.isArray(rule.check) ? rule.check.join(', ') : (rule.check || '')}
+                                                            onChange={val => handleFieldChange(idx, 'check', val)}
+                                                        />
+                                                    </td>
+                                                )}
                                                 <td style={{ padding: '4px' }}>
                                                     <TableCellTextarea 
                                                         value={Array.isArray(rule.ans) ? rule.ans.join(', ') : (rule.ans || '')}
                                                         onChange={val => handleFieldChange(idx, 'ans', val)}
                                                     />
                                                 </td>
-                                                <td style={{ padding: '4px' }}>
-                                                    <TableCellTextarea 
-                                                        value={rule.function || ''}
-                                                        onChange={val => handleFieldChange(idx, 'function', val)}
-                                                    />
-                                                </td>
-                                                <td style={{ padding: '4px' }}>
-                                                    <TableCellTextarea 
-                                                        value={rule.type || ''}
-                                                        onChange={val => handleFieldChange(idx, 'type', val)}
-                                                    />
-                                                </td>
+                                                {designMode === 'engineering' && (
+                                                    <>
+                                                        <td style={{ padding: '4px' }}>
+                                                            <TableCellTextarea 
+                                                                value={rule.function || ''}
+                                                                onChange={val => handleFieldChange(idx, 'function', val)}
+                                                            />
+                                                        </td>
+                                                        <td style={{ padding: '4px' }}>
+                                                            <TableCellTextarea 
+                                                                value={rule.type || ''}
+                                                                onChange={val => handleFieldChange(idx, 'type', val)}
+                                                            />
+                                                        </td>
+                                                    </>
+                                                )}
                                             </>
                                         )}
                                         

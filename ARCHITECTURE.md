@@ -3,6 +3,7 @@
 ## System Overview
 This project is a web application with a Flask backend and a React frontend. It manages users, projects, and scheduled events, integrating with a Socket.IO server for real-time communication.
 
+
 ## Scheduled Event Management (定時觸發事件 - Refactored)
 
 All scheduling is now managed via **Projects** using the `cron_table`. The legacy `scheduled_events` table and processor have been removed.
@@ -88,6 +89,10 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
  - **Protocol**: Tags are embedded in the `postback.data` payload using the `|set_tag|tag1|tag2|...` command suffix.
  - **Event Splitting (Simulation)**: For simulation/websocket triggers, the Superpages backend splits combined data into two events (Message + Postback) to ensure correct rule matching and tagging simultaneously.
  - **Frontend Component**: `TagInput.jsx` provides a dedicated UI for multi-tag selection with autocomplete support fetching from `/api/tags`.
+ - **Rich Menu Extension**: 
+    - **Tagging Support**: Rich Menu areas (Message, Postback, URI) now support multiple tags.
+    - **Redirect Proxy Protocol**: When a URI action has tags, it is automatically converted to a proxy URL: `https://[BASE_URL]/api/redirect?url=[URL]&tags=[TAGS]`. The proxy logs the tags via WebSocket before redirecting the user.
+    - **Prefix Protocol**: Message and Postback content for tagged buttons are stored with the `tag_true|tag1,tag2|content` prefix, allowing the rule engine to process tags via the `tag_true|*` rule matching.
  
 ### Lottery Management (抽獎管理)
 
@@ -256,6 +261,14 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
         - Message 類型的 `content` 非空檢查。
         - QA_bank 的 `tag` 非空檢查。
     - **獨立語法驗證端點**: `POST /validate-syntax` 接受 `code` 與 `field` 參數，供前端即時語法檢查使用。
+
+### 法則表雙模式設計 (Dual-Mode Rule Designer) [2026-04-20]
+- **簡易模式 (Simple Mode)**：專為非技術背景人員設計。
+    - **欄位隱藏**：隱藏 `state_in`, `state_out`, `check`, `function`, `type`, `history` 等工程參數。
+    - **專注內容**：僅顯示 `ID` (唯讀), `內容 (content)`, `回應訊息 (msg_rpy)` 與 `備註 (note)`。
+    - **預設賦值**：在簡易模式下新增規則時，系統會自動填入預設的工程欄位（如 `state_in: ["*"]`）。
+- **工程模式 (Engineering Mode)**：提供完整欄位控制，與原先設計一致，用於精細調整狀態機與邏輯判斷。
+- **UI 實作**：使用 `designMode` 狀態控制 Tab 切換，並動態過濾表格欄位及其對應的 `TableCellTextarea` 渲染。
 
 ### Database Viewer (資料庫檢視)
 - **Frontend**: `DatabaseViewer.jsx`. (Route: `/dbviewer`).

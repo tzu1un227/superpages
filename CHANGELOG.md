@@ -3,6 +3,12 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **法則表設計雙模式與圖文選單標籤功能增強 (Rule Designer Dual-Mode & Rich Menu Tagging)** [2026-04-20]:
+  - **法則表雙分頁模式**：在法表設計頁面加入「簡易模式」與「工程模式」切換。簡易模式大幅精簡欄位（僅顯內容與回應），優化非技術人員的操作體感。
+  - **圖文選單標籤整合**：
+    - **按鈕上標籤**：為圖文選單的「傳送文字」與「Postback」按鈕加入標籤設定，儲存時自動轉換為 `tag_true|` 協議格式。
+    - **連結上標籤 (轉跳代理)**：為「跳轉網頁」按鈕加入標籤支援。若有標籤，系統會自動將網址封裝為 `/api/redirect` 代理連結，確保使用者點擊網頁時能同步觸發機器人上標籤。
+    - **編輯器偵測與解析**：實作 `extractTagsFromValue` 邏輯，讓編輯器能自動從現有的代理連結或 `tag_true` 格式中還原標籤與原始內容，維持編輯體驗的一致性。
 - **修復 Questionnaire 建立與編輯畫面程式碼層級錯誤 (Questionnaire Parsing Fix)** [2026-04-15]:
   - **修復語法無法解析崩潰**：解決了 `Questionnaire.jsx` 中因為開發過程片段複製錯誤 (將元件狀態與 UI HTML 重複貼上至 `QuestionCard` 內部) 導致前端在建置與執行期拋出 `Unexpected closing "Box" tag` 與 `Expected ";"` 的致命 Syntax Error。移除了高達 280 行的不明錯置片段，正確復原 `QuestionCard` 的結尾。
 - **「權限設定」表單驗證優化 (OA Config Validation UX)** [2026-04-14]:
