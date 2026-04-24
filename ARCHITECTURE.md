@@ -323,3 +323,9 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - **樣式微調**: 調整輸入框高度以確保在不同內容長度下點擊區域的一致性。
 - **問卷管理**:
     - **功能修復**: 修正 TagInput 於 Questionnaire.jsx 中的 Prop 名稱不匹配問題 (selectedTags -> tags, setSelectedTags -> onChange)，恢復問卷建立時的新增標籤功能。
+
+### Flex 訊息佈局優化 [2026-04-24]
+- **佈局對齊邏輯**: 
+    - 針對 Carousel 中的純圖片卡片，強制包含空的 body 與 footer 容器，並透過 styles 設定其背景色，以消除因高度自動對焦而產生的預設白色區域。
+- **預覽模擬升級**: 
+    - JourneyPreview 組件現在使用 Flex 佈局模擬 LINE 的高度對齊行為，確保編輯器中的預覽與手機端看到的畫面高度一致。

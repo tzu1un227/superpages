@@ -366,15 +366,23 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                 bubble.hero.aspectMode = 'cover';
                 bubble.hero.backgroundColor = '#000000';
                 
+                // Add explicit empty body and footer to ensure styles are applied when stretched in a carousel
+                bubble.body = {
+                    type: 'box',
+                    layout: 'vertical',
+                    contents: []
+                };
+                bubble.footer = {
+                    type: 'box',
+                    layout: 'vertical',
+                    contents: []
+                };
+
                 // Add styles to ensure any remaining space (due to other tall cards) is black, not white
                 bubble.styles = {
                     body: { backgroundColor: '#000000' },
                     footer: { backgroundColor: '#000000' }
                 };
-                
-                // Explicitly ensure no empty body/footer properties exist for pure image cards to reduce height normalization side-effects
-                if (bubble.body) delete bubble.body;
-                if (bubble.footer) delete bubble.footer;
             }
 
             return bubble;

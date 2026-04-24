@@ -86,3 +86,7 @@ All notable changes to this project will be documented in this file.
   - **標籤元件與問卷互動優化 (TagInput & Questionnaire UI Fixes)** [2026-04-24]:
     - **修正問卷標籤功能**: 解決 Questionnaire.jsx 中 TagInput 的 Prop 名稱不匹配問題，恢復新增標籤功能。
     - **優化標籤輸入互動**: 實現點擊 TagInput 容器任何位置自動聚焦輸入框，並加大點擊判定區域，提升使用體驗。
+
+  - **Flex 訊息佈局與預覽優化 (Flex Layout & Preview Optimization)** [2026-04-24]:
+    - **修復輪播高度不對齊問題**: 解決混合使用卡片時圖片卡片底部出現白塊的問題，透過明確定義 body/footer 並填充背景色實現視覺統一。
+    - **增強預覽準確性**: 更新 JourneyPreview 組件，使其能更真實地模擬 LINE 的氣泡對齊與樣式細節。

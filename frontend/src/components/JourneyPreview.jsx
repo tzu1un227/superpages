@@ -129,12 +129,28 @@ const JourneyPreview = ({ steps = [] }) => {
 
         if (isImageCard) {
             return (
-                <div key={index} style={{ ...styles.flexBubble, backgroundColor: 'transparent', boxShadow: 'none' }}>
-                    <div style={{ ...styles.flexImage, height: 'auto', minHeight: '160px', position: 'relative', borderRadius: '10px', overflow: 'hidden' }}>
+                <div key={index} style={{ 
+                    ...styles.flexBubble, 
+                    backgroundColor: '#000', 
+                    display: 'flex',
+                    flexDirection: 'column'
+                }}>
+                    <div style={{ 
+                        ...styles.flexImage, 
+                        height: 'auto', 
+                        flex: 1,
+                        position: 'relative', 
+                        borderRadius: '0', 
+                        overflow: 'hidden',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: '#000'
+                    }}>
                         {card.imageUrl ? (
-                            <img src={card.imageUrl} alt="Card" style={{ width: '100%', display: 'block', borderRadius: '10px' }} />
+                            <img src={card.imageUrl} alt="Card" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         ) : (
-                            <div style={{ width: '100%', height: '160px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ccc', color: '#666' }}>
+                            <div style={{ width: '100%', height: '160px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666' }}>
                                 No Image
                             </div>
                         )}
