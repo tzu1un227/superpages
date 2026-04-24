@@ -1386,7 +1386,7 @@ function MessageCenter() {
                                     const showDateHeader = mDate && mDate !== lastDate;
                                     if (mDate) lastDate = mDate;
 
-                                    const isAdmin = m.user_id === 'yzuadmin' || m.category === 'Response' || m.category === 'sys_reply' || m.category === 'sys_push';
+                                    const isAdmin = m.user_id === 'yzuadmin' || m.category === 'Response' || m.category === 'sys_reply';
                                     let displayContent = m.content;
                                     if (isAdmin && typeof displayContent === 'string' && displayContent.startsWith('MSG|')) {
                                         displayContent = displayContent.substring(4);
