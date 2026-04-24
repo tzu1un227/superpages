@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     Alert,
     Box,
@@ -39,6 +39,7 @@ import { useParams } from 'react-router-dom';
 import api from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
+import TagInput from '../components/TagInput';
 
 const CONDITION_OPTIONS = [
     { value: '1', label: '不限格式' },
@@ -74,6 +75,7 @@ const emptyQuestion = () => ({
     content: '',
     cond: '1',
     cond_detail: '',
+    tags: [],
     _min: '',
     _max: '',
 });
@@ -171,6 +173,15 @@ function QuestionCard({ q, index, total, onChange, onDelete, onMoveUp, onMoveDow
                     />
                 </Box>
             )}
+
+            <Box sx={{ mt: 2 }}>
+                <Typography sx={{ color: '#B0B0B0', fontSize: '0.85rem', mb: 0.5 }}>回答此題後自動上標籤</Typography>
+                <TagInput
+                    selectedTags={q.tags || []}
+                    setSelectedTags={newTags => onChange({ ...q, tags: newTags })}
+                    placeholder="輸入標籤並按 Enter"
+                />
+            </Box>
         </Paper>
     );
 }
@@ -297,7 +308,7 @@ export default function Questionnaire() {
             setStartTime(data.start_time || '');
             setEndTime(data.end_time || '');
             setQuestions((data.questions || []).map(q => {
-                const question = { ...q, _min: '', _max: '' };
+                const question = { ...q, tags: q.tags || [], _min: '', _max: '' };
                 if (question.cond === '4') {
                     const [min = '', max = ''] = (question.cond_detail || '').split(',');
                     question._min = min;
@@ -435,6 +446,7 @@ export default function Questionnaire() {
                     content: q.content,
                     cond: q.cond,
                     cond_detail: q.cond_detail,
+                    tags: q.tags || [],
                 })),
                 enable_review: enableReview,
                 start_time: startTime,

@@ -143,6 +143,7 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - **排程邏輯**: 確保 Step 0 作為旅程起點不可刪除，維護流程完整性。
     - **用戶管理 (UserSelectModal)**: 整合 `/api/registered-users` 與 `/api/tags`，支援複合式（名稱 + 標籤）搜尋，提供視覺化標籤篩選控制項。
   - **問卷管理 (Questionnaire)**:
+    - **問卷自動上標籤 (Auto-tagging)**: 支援在題目設定中加入標籤。當用戶回答該題目時，系統會透過規則庫中的 `function` 欄位執行 `set_tag` 指令，將對應標籤自動標註於該用戶。這有助於即時捕捉用戶偏好並進行分眾。
     - **動態狀態產生**: 系統自動產生 `Q[ID][SEQ]` 模式的狀態。若啟用「答案檢查」，則會額外產生一個跳轉至 `Q[ID]99` 的回顧狀態。
     - **時間限制邏輯**: 利用 `sys.now_between` 或 `sys.now()` 比較邏輯，在問卷入口規則的 `check` 欄位中實現時段判斷。
     - **資料持久化**: 每一題的答案會透過 `pri_set` 儲存於 `ans_{問卷名稱}_Q{題號}`，並在回顧階段透過 `sys.pri_get` 動態讀取呈現。
@@ -264,6 +265,7 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - Manages `broadcasts` table.
     - Integrates with `QA_bank` for message storage and `cron_table` for scheduling.
     - Audience count logic uses `Private_var` for tag/all logic and calculates coverage ratio.
+    - **排除封鎖用戶 (Excluding Blocked Users)**: 系統在計算受眾人數及發送訊息前，會先過濾掉最新狀態為 `Unfollow` 的用戶（比對 `history` 中的 `Follow` 與 `Unfollow` 事件），確保推播僅送達目前仍追蹤官方帳號的活躍好友。
     - **Stability Pattern**: Uses a top-level `ErrorBoundary` to capture rendering exceptions and provide copyable stack traces. Employs defensive rendering guards (optional chaining, default values) for all derived data (stats, message summaries) and filters null messages from legacy data sequences.
 
 ### Rule Designer (法則表設計) [2026-03-18 更新]

@@ -194,6 +194,17 @@ def _extract_text_from_msg(msg_item):
     return str(msg_item)
 
 
+def _extract_tags_from_fn(fn_str):
+    if not fn_str:
+        return []
+    if "set_tag|" in fn_str:
+        parts = fn_str.split("set_tag|")
+        if len(parts) > 1:
+            tags_part = parts[1].split(";")[0]
+            return [t for t in tags_part.split("|") if t.strip()]
+    return []
+
+
 def _parse_time(value):
     if not value:
         return None
@@ -275,18 +286,22 @@ def _extract_questionnaire_questions(rows):
     questions = []
     first_text = _extract_text_from_msg((entry_rule.get("msg_rpy") or [None])[0])
     if first_text:
-        questions.append({"content": first_text, "cond": "1", "cond_detail": ""})
+        questions.append({"content": first_text, "cond": "1", "cond_detail": "", "tags": []})
 
     for index, row in enumerate(question_rules):
         check_str = (row.get("check") or [""])[0]
+        fn_str = (row.get("function") or "")
         cond, cond_detail = _parse_condition_from_check(check_str)
+        tags = _extract_tags_from_fn(fn_str)
+        
         if index < len(questions):
             questions[index]["cond"] = cond
             questions[index]["cond_detail"] = cond_detail
+            questions[index]["tags"] = tags
 
         next_text = _extract_text_from_msg((row.get("msg_rpy") or [None])[0])
         if index < len(question_rules) - 1 and next_text:
-            questions.append({"content": next_text, "cond": "1", "cond_detail": ""})
+            questions.append({"content": next_text, "cond": "1", "cond_detail": "", "tags": []})
 
     return entry_rule, questions
 
@@ -339,6 +354,12 @@ def build_questionnaire_direct(data, app_id, conn, quest_id):
 
         check_str = _parse_condition(question.get("cond", "1"), question.get("cond_detail", ""))
         save_fn = f"pri_set('ans_{note}_Q{current_index}', m.content)"
+        
+        tags = question.get("tags")
+        if tags and isinstance(tags, list):
+            tags_str = "|".join([str(t).strip() for t in tags if str(t).strip()])
+            if tags_str:
+                save_fn += f"; set_tag|{tags_str}"
 
         if is_last:
             if enable_review:

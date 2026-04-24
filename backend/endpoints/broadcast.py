@@ -122,28 +122,38 @@ def get_audience_count():
         conn = get_db_connection(oa.db_url)
         cur = conn.cursor()
         
-        # Get total followers (friends)
-        # Assuming app_id can be extracted from db_url or we need another way to get it
-        # Based on app.py, get_current_app_id() returns the DB name.
         app_id = get_logical_app_id(oa)
         
+        # Subquery to identify active users (Latest status in Follow/Unfollow is not Unfollow)
+        active_user_subquery = f"""
+            SELECT p.user_id FROM "Private_var:{app_id}" p
+            WHERE p.name = 'name'
+            AND (
+                SELECT h.category FROM "history:{app_id}" h
+                WHERE h.user_id = p.user_id 
+                AND h.category IN ('Follow', 'Unfollow')
+                ORDER BY h.timestamp DESC LIMIT 1
+            ) IS DISTINCT FROM 'Unfollow'
+        """
+
         # Count target users
         count = 0
         if target_type == 'all':
-            cur.execute(f'SELECT count(*) FROM "Private_var:{app_id}" WHERE name = \'name\'')
+            cur.execute(f"SELECT count(*) FROM ({active_user_subquery}) AS active_users")
             count = cur.fetchone()[0]
         elif target_type == 'tag':
-            # Tags are stored as JSON strings in Private_var:app_id WHERE name = 'tag'
-            # We use LIKE for simplicity, but a more robust JSON check would be better
-            cur.execute(f'SELECT count(*) FROM "Private_var:{app_id}" WHERE name = \'tag\' AND value LIKE %s', (f'%{target_value}%',))
+            cur.execute(f"""
+                SELECT count(*) FROM "Private_var:{app_id}" p
+                WHERE p.name = 'tag' AND p.value LIKE %s
+                AND p.user_id IN ({active_user_subquery})
+            """, (f'%{target_value}%',))
             count = cur.fetchone()[0]
         elif target_type == 'ids':
             ids = [i.strip() for i in target_value.split(',') if i.strip()]
             count = len(ids)
             
-        # Get total users (friends count from person_table or similar)
-        # Let's use Private_var:name count as base for 'friend total'
-        cur.execute(f'SELECT count(*) FROM "Private_var:{app_id}" WHERE name = \'name\'')
+        # Get total users (Active friends count)
+        cur.execute(f"SELECT count(*) FROM ({active_user_subquery}) AS active_users")
         total = cur.fetchone()[0]
         
         cur.close()
@@ -397,26 +407,41 @@ def execute_broadcast(id):
     
     try:
         from utils.socket_utils import send_socket_event
-        # Add timeout to prevent Network Error from hanging connection
         conn_oa = get_db_connection(oa.db_url)
         cur_oa = conn_oa.cursor()
         
+        # Subquery to identify active users (Latest status in Follow/Unfollow is not Unfollow)
+        active_user_subquery = f"""
+            SELECT p.user_id FROM "Private_var:{app_id}" p
+            WHERE p.name = 'name'
+            AND (
+                SELECT h.category FROM "history:{app_id}" h
+                WHERE h.user_id = p.user_id 
+                AND h.category IN ('Follow', 'Unfollow')
+                ORDER BY h.timestamp DESC LIMIT 1
+            ) IS DISTINCT FROM 'Unfollow'
+        """
+
         # 1. Immediate send via WebSocket
         if bc['send_type'] == 'immediate':
-            # Get targets
             user_ids = []
             if bc['target_type'] == 'all':
-                cur_oa.execute(f'SELECT DISTINCT user_id FROM "Private_var:{app_id}"')
+                cur_oa.execute(f'SELECT user_id FROM ({active_user_subquery}) AS active_users')
                 user_ids = [r[0] for r in cur_oa.fetchall()]
             elif bc['target_type'] == 'tag':
-                cur_oa.execute(f'SELECT DISTINCT user_id FROM "Private_var:{app_id}" WHERE name = \'tag\' AND value LIKE %s', (f"%{bc['target_value']}%",))
+                cur_oa.execute(f"""
+                    SELECT DISTINCT user_id FROM "Private_var:{app_id}" 
+                    WHERE name = 'tag' AND value LIKE %s
+                    AND user_id IN ({active_user_subquery})
+                """, (f"%{bc['target_value']}%",))
                 user_ids = [r[0] for r in cur_oa.fetchall()]
             elif bc['target_type'] == 'ids':
                 user_ids = [i.strip() for i in bc['target_value'].split(',') if i.strip()]
             
-            # Use Python list string format as requested
+            if not user_ids:
+                return jsonify({'status': 'success', 'targets': 0, 'message': '沒有找到符合條件的受眾'}), 200
+
             ids_str = str(user_ids)
-            
             data = {
                 "user": "system", 
                 "type": "Sensor",
@@ -434,10 +459,14 @@ def execute_broadcast(id):
         try:
             user_ids = []
             if bc['target_type'] == 'all':
-                cur_oa.execute(f'SELECT user_id FROM "Private_var:{app_id}" WHERE name = \'name\'')
+                cur_oa.execute(f'SELECT user_id FROM ({active_user_subquery}) AS active_users')
                 user_ids = [r[0] for r in cur_oa.fetchall()]
             elif bc['target_type'] == 'tag':
-                cur_oa.execute(f'SELECT user_id FROM "Private_var:{app_id}" WHERE name = \'tag\' AND value LIKE %s', (f"%{bc['target_value']}%",))
+                cur_oa.execute(f"""
+                    SELECT DISTINCT user_id FROM "Private_var:{app_id}" 
+                    WHERE name = 'tag' AND value LIKE %s
+                    AND user_id IN ({active_user_subquery})
+                """, (f"%{bc['target_value']}%",))
                 user_ids = [r[0] for r in cur_oa.fetchall()]
             elif bc['target_type'] == 'ids':
                 user_ids = [i.strip() for i in bc['target_value'].split(',') if i.strip()]
@@ -445,12 +474,9 @@ def execute_broadcast(id):
             if not user_ids:
                 return jsonify({'status': 'success', 'targets': 0, 'message': '沒有找到符合條件的受眾'}), 200
 
-            # Insert into RDS cron_table using bulk insert (execute_values)
-            # This prevents Network Error / Timeout by performing one DB trip
             push_time = bc['scheduled_at'] if bc['scheduled_at'] else datetime.now(timezone.utc).replace(tzinfo=None)
             msg_content = f"QA|{bc['message_tag']}"
             
-            # Prepare values for bulk insert: [(uid, msg, time, status), ...]
             insert_data = [(uid, msg_content, push_time, 'active') for uid in user_ids]
             
             sql = f"INSERT INTO {t_cron} (user_id, message_content, push_time, status) VALUES %s"

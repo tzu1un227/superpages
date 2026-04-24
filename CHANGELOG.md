@@ -3,6 +3,12 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **群發訊息與問卷自動化增強 (Broadcast & Questionnaire Automation Enhancement)** [2026-04-24]:
+  - **排除封鎖用戶 (Exclude Blocked Users)**：在群發訊息（Broadcast）的受眾篩選與發送階段，新增自動排除「封鎖/取消追蹤 (Unfollow)」用戶的邏輯。透過比對歷史紀錄中的最新狀態，確保訊息僅送達仍在使用中的好友，提升發送準確率並精確統計受眾人數。
+  - **問卷自動上標籤 (Questionnaire Auto-tagging)**：
+    - **題目級別標籤設定**：在問卷編輯介面的每個題目下方新增「標籤設定」欄位。
+    - **即時觸發標註**：當用戶回答問卷題目時，系統會自動將設定的標籤標註至該用戶身上，實現即時的用戶行為追蹤與分眾標籤化。
+    - **資料持久化與還原**：優化問卷後端邏輯，支援在編輯已存在的問卷時正確還原題目對應的標籤設定。
 - **UI/UX 持久化與圖文選單自動化權限控管 (UI/UX Persistence & Rich Menu Automation)** [2026-04-24]:
   - **全域任務進度條 (Task Persistence)**：實作 `TaskContext` 全域狀態管理，將「自動旅程」的匯入與排序進度條搬移至全域佈局。現在使用者在執行長任務時切換分頁，進度條仍會持續顯示並更新，不會因頁面卸載而消失。
   - **訊息中心雜訊過濾 (Message Center Filtering)**：在訊息中心對話紀錄中自動過濾 `Postback` 類別的系統訊息與 `set_tag` 指令，大幅減少客服人員查閱時的干擾。
