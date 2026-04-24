@@ -337,3 +337,7 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 ### 歷史紀錄去重與類別優化 [2026-04-24]
 - **去重邏輯**: 移除 cronjobs.py 中的手動 dd_history，改由 maingame.py 在 lush_msg 階段根據事件來源動態決定類別（sys_push 或 sys_reply）。
 - **對齊邏輯**: 將 sys_push 納入前端 isAdmin 判斷，確保系統推播訊息與機器人回覆一樣靠右顯示。
+
+### 介面邏輯優化 [2026-04-24]
+- **側邊欄過濾**: 在後端 /api/users 的 SQL 查詢中加入了更嚴格的 category 過濾條件，確保左側清單只抓取有意義的對話內容作為 last_message。
+- **Flex 單一模板限制**: 修改 FlexMessageEditor.jsx 的 updateCurrentCard，當切換模板（	emplate）時，將會透過 map 強制覆寫所有卡片的模板設定，確保輪播一致性。

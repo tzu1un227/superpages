@@ -1697,7 +1697,7 @@ def get_users_list():
                        SELECT content 
                        FROM "history:{app_id}" 
                        WHERE user_id = sub.user_id 
-                         AND (category NOT IN ('Sensor', 'Postback') OR category IS NULL)
+                         AND (LOWER(category) NOT IN ('sensor', 'postback', 'follow', 'unfollow', 'beacon') OR category IS NULL)
                        ORDER BY timestamp DESC 
                        LIMIT 1
                    ) as last_message,
@@ -1705,7 +1705,7 @@ def get_users_list():
                        SELECT category 
                        FROM "history:{app_id}" 
                        WHERE user_id = sub.user_id 
-                         AND (category NOT IN ('Sensor', 'Postback') OR category IS NULL)
+                         AND (LOWER(category) NOT IN ('sensor', 'postback', 'follow', 'unfollow', 'beacon') OR category IS NULL)
                        ORDER BY timestamp DESC 
                        LIMIT 1
                    ) as last_message_category,

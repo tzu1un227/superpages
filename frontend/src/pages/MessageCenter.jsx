@@ -421,11 +421,6 @@ function MessageCenter() {
     const formatSidebarMessage = (userObj) => {
         const msgString = userObj.last_message;
         const category = (userObj.last_message_category || '').toLowerCase();
-        
-        // 如果是 Postback 或系統感測器，不顯示其原始內容
-        if (['postback', 'sensor', 'follow', 'unfollow', 'beacon'].includes(category)) {
-            return '[系統指令]';
-        }
 
         if (category === 'image') return '[圖片訊息]';
         if (category === 'video') return '[影片訊息]';

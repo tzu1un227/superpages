@@ -429,6 +429,10 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
     const updateCurrentCard = (field, value) => {
         setCards(prevCards => {
             const newCards = [...prevCards];
+            // 若為切換模板，強制套用至所有卡片，確保輪播中只有一種模板
+            if (field === 'template') {
+                return newCards.map(c => ({ ...c, template: value }));
+            }
             newCards[currentCardIndex] = { ...newCards[currentCardIndex], [field]: value };
             return newCards;
         });

@@ -98,3 +98,7 @@ All notable changes to this project will be documented in this file.
   - **歷史紀錄與對齊優化** [2026-04-24]:
     - 解決自動旅程重複存檔問題（移除 cronjobs.py 重複紀錄）。
     - 訊息中心 sys_push 訊息改為靠右對齊，符合發送者邏輯。
+
+  - **介面邏輯優化** [2026-04-24]:
+    - 修正訊息中心左側用戶清單，現在會過濾掉系統指令 (Postback, Sensor等)，真實顯示使用者最新互動訊息。
+    - 優化 Flex 編輯器：強制輪播訊息（Carousel）必須統一使用單一模板（選項型或圖片型），防止版面因混用而跑版。
