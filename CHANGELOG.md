@@ -94,3 +94,7 @@ All notable changes to this project will be documented in this file.
   - **訊息中心與推播邏輯優化 (Message Center & Push Logic Optimization)** [2026-04-24]:
     - **訊息中心過濾**: 隱藏 Postback、Sensor、Follow 等系統事件，並優化側邊欄顯示，將這些指令標示為「[系統指令]」。
     - **Flex 編輯器**: 增加圖片型卡片的「延伸背景顏色」設定，解決輪播對齊時的背景色差問題。
+
+  - **歷史紀錄與對齊優化** [2026-04-24]:
+    - 解決自動旅程重複存檔問題（移除 cronjobs.py 重複紀錄）。
+    - 訊息中心 sys_push 訊息改為靠右對齊，符合發送者邏輯。

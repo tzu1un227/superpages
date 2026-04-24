@@ -333,3 +333,7 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 ### 訊息中心與推播邏輯優化 [2026-04-24]
 - **訊息中心過濾**: 在前端 displayedMessages 與 ormatSidebarMessage 加入分類過濾，排除非人類對話的系統事件（如 postback）。
 - **Flex 圖片背景**: 為圖片範本新增 ackgroundColor 欄位，並將其應用於生成的 Flex Bubble 樣式中，以達到輪播視覺一致性。
+
+### 歷史紀錄去重與類別優化 [2026-04-24]
+- **去重邏輯**: 移除 cronjobs.py 中的手動 dd_history，改由 maingame.py 在 lush_msg 階段根據事件來源動態決定類別（sys_push 或 sys_reply）。
+- **對齊邏輯**: 將 sys_push 納入前端 isAdmin 判斷，確保系統推播訊息與機器人回覆一樣靠右顯示。
