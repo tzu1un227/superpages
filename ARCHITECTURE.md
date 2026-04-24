@@ -329,3 +329,7 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - 針對 Carousel 中的純圖片卡片，強制包含空的 body 與 footer 容器，並透過 styles 設定其背景色，以消除因高度自動對焦而產生的預設白色區域。
 - **預覽模擬升級**: 
     - JourneyPreview 組件現在使用 Flex 佈局模擬 LINE 的高度對齊行為，確保編輯器中的預覽與手機端看到的畫面高度一致。
+
+### 訊息中心與推播邏輯優化 [2026-04-24]
+- **訊息中心過濾**: 在前端 displayedMessages 與 ormatSidebarMessage 加入分類過濾，排除非人類對話的系統事件（如 postback）。
+- **Flex 圖片背景**: 為圖片範本新增 ackgroundColor 欄位，並將其應用於生成的 Flex Bubble 樣式中，以達到輪播視覺一致性。
