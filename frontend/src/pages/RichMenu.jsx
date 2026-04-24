@@ -37,6 +37,7 @@ function RichMenu() {
     const [backgroundImage, setBackgroundImage] = useState(null);
     const [allAliases, setAllAliases] = useState([]);
     const [viewOnly, setViewOnly] = useState(false);
+    const [menuSearch, setMenuSearch] = useState(''); // 新增搜尋功能
 
     // Initial menu state
     const emptyMenu = {
@@ -419,9 +420,16 @@ function RichMenu() {
     };
     
     const getSortedMenus = () => {
-        // Sort by richMenuId (UUID) descending to show recent ones first if possible, 
-        // or just alphabetical as requested. 
-        return [...menus].sort((a, b) => b.richMenuId.localeCompare(a.richMenuId));
+        let filtered = [...menus];
+        if (menuSearch.trim()) {
+            const q = menuSearch.toLowerCase().trim();
+            filtered = filtered.filter(m => 
+                (m.name && m.name.toLowerCase().includes(q)) || 
+                (m.richMenuId && m.richMenuId.toLowerCase().includes(q))
+            );
+        }
+        // 依照 richMenuId 降序排列 ( UUID 在 LINE 系統中通常較新的較大，或作為一種基準排序 )
+        return filtered.sort((a, b) => b.richMenuId.localeCompare(a.richMenuId));
     };
 
     // Drag & Resize logic
@@ -673,10 +681,37 @@ function RichMenu() {
     return (
         <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
-                <div><h1 style={{ fontSize: '32px', marginBottom: '10px' }}>圖文選單</h1><p style={{ color: '#B0B0B0' }}>管理並設計 OA 的圖文選單按鈕與功能</p></div>
-                <div style={{ padding: '10px 15px', backgroundColor: 'rgba(255, 215, 0, 0.1)', border: '1px solid rgba(255, 215, 0, 0.3)', borderRadius: '8px', fontSize: '13px', color: '#FFD700', maxWidth: '500px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                    <div>
+                        <h1 style={{ fontSize: '32px', marginBottom: '10px' }}>圖文選單</h1>
+                        <p style={{ color: '#B0B0B0' }}>管理並設計 OA 的圖文選單按鈕與功能</p>
+                    </div>
+                    <div style={{ position: 'relative', marginLeft: '20px' }}>
+                        <Filter size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
+                        <input
+                            type="text"
+                            placeholder="搜尋選單名稱或 ID..."
+                            value={menuSearch}
+                            onChange={(e) => setMenuSearch(e.target.value)}
+                            style={{
+                                padding: '10px 12px 10px 34px',
+                                backgroundColor: '#222',
+                                border: '1px solid #444',
+                                borderRadius: '8px',
+                                color: 'white',
+                                fontSize: '13px',
+                                width: '240px',
+                                outline: 'none',
+                                transition: 'all 0.2s'
+                            }}
+                            onFocus={(e) => e.target.style.borderColor = 'var(--primary-yellow)'}
+                            onBlur={(e) => e.target.style.borderColor = '#444'}
+                        />
+                    </div>
+                </div>
+                <div style={{ padding: '10px 15px', backgroundColor: 'rgba(255, 215, 0, 0.1)', border: '1px solid rgba(255, 215, 0, 0.3)', borderRadius: '8px', fontSize: '13px', color: '#FFD700', maxWidth: '400px' }}>
                     <AlertCircle size={16} style={{ verticalAlign: 'middle', marginRight: '8px' }} />
-                    系統僅能顯示與管理透過此介面或 API 建立的選單。原先於 LINE 官方後台 GUI 建立的選單無法讀取。
+                    系統僅能管理透過此介面建立的選單。
                 </div>
                 <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
                     <Tooltip title="重置預設：若設定預設後手機沒更新，可先嘗試解除目前的預設再重新設定。">

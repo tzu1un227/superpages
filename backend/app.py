@@ -455,7 +455,7 @@ def google_login():
         
         # Update user name
         google_name = idinfo.get('name')
-        if google_name and user.name != google_name:
+        if google_name and not user.name:
             user.name = google_name
             db.session.commit()
         
@@ -1266,7 +1266,7 @@ def get_schedules():
                                 if otype == 'TextSendMessage':
                                     s['message_preview'] = first_msg_obj.get('text', '')
                                 elif otype == 'FlexSendMessage':
-                                    s['message_preview'] = f"[Flex] {first_msg_obj.get('alt_text', 'Flex Message')}"
+                                    s['message_preview'] = f"[圖文] {first_msg_obj.get('alt_text', '圖文訊息')}"
                                 elif otype == 'ImageSendMessage':
                                     s['message_preview'] = "[圖片]"
                                 elif otype == 'VideoSendMessage':

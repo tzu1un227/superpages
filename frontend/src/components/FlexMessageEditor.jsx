@@ -461,7 +461,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
             {/* Header / Mode Switcher */}
             <div style={{ padding: '15px', borderBottom: '1px solid #444', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-                    <h3 style={{ margin: 0, fontSize: '18px', color: '#fff' }}>Flex 編輯器</h3>
+                    <h3 style={{ margin: 0, fontSize: '18px', color: '#fff' }}>圖文訊息編輯器</h3>
                     <div style={{ display: 'flex', backgroundColor: '#333', borderRadius: '20px', padding: '3px' }}>
                         <button
                             onClick={() => { setMode('single'); setCards([cards[0]]); setCurrentCardIndex(0); }}

@@ -73,13 +73,14 @@ const TagInput = ({ tags = [], onChange, placeholder = "選擇或輸入標籤...
                 display: 'flex',
                 flexWrap: 'wrap',
                 gap: '8px',
-                padding: '8px 12px',
+                padding: '10px 15px',
                 background: '#222',
                 border: '1px solid #444',
                 borderRadius: '8px',
-                minHeight: '42px',
+                minHeight: '48px',
                 alignItems: 'center',
-                cursor: 'text'
+                cursor: 'text',
+                transition: 'border-color 0.2s, box-shadow 0.2s'
             }} onClick={() => setShowDropdown(true)}>
                 {tags.map((tag, idx) => (
                     <span key={idx} style={{
@@ -119,10 +120,11 @@ const TagInput = ({ tags = [], onChange, placeholder = "選擇或輸入標籤...
                         background: 'transparent',
                         border: 'none',
                         color: 'white',
-                        padding: '0',
+                        padding: '10px 0',
                         fontSize: '13px',
                         minWidth: '100px',
-                        outline: 'none'
+                        outline: 'none',
+                        height: '100%'
                     }}
                 />
             </div>

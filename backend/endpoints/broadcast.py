@@ -418,7 +418,7 @@ def execute_broadcast(id):
             ids_str = str(user_ids)
             
             data = {
-                "user": "yzuadmin", 
+                "user": "system", 
                 "type": "Sensor",
                 "message": f"bmcast|{ids_str}|{bc['message_tag']}"
             }

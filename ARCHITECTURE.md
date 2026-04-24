@@ -57,6 +57,19 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 - **Rich Menu Management**: Standardized to Chinese (Traditional). Implemented form validation (disabling save unless an image and all area actions are properly configured) and fixed runtime crashes using optional chaining and safe state resets.
 - **Rich Menu Localization**: TERMINOLOGY in the Rich Menu module is standardized to Chinese to improve usability for non-English speakers.
 
+### UI/UX 優化與內容驗證 (UI/UX Optimization & Content Validation) [2026-04-24]
+- **訊息中心 (Message Center)**:
+    - **閃爍修復與 Skeleton 優化**: 優化 `loadingUsers` 狀態下的 Skeleton 顯示邏輯，僅在初始載入或搜尋結果為空時顯示，防止自動輪詢與標籤切換時出現畫面跳動。
+    - **標籤異動即時同步**: 實作標籤新增與刪除後的 `fetchAvailableTags` 回調機制，確保篩選列按鈕能即時反映標籤池的變動。
+- **全域術語統一 (Standardization)**:
+    - **圖文訊息 (Rich Message)**: 將全系統（包含法則表、廣播發送、訊息中心與編輯器）中原有的 "Flex Message" 或 "Flex 訊息" 統一更名為「圖文訊息」，提升非技術背景使用者對功能的認知度。
+- **圖文選單 (Rich Menu)**:
+    - **搜尋與排序增強**: 在列表視圖中整合「搜尋框」，並將排序基準固定為 `richMenuId` 降序（最新在前），提升管理大量選單時的檢索效率。
+- **標籤輸入框 (TagInput Component)**:
+    - **互動判定範圍優化**: 調整 `TagInput` 元件的 `min-height` 至 48px 並增加內距，解決觸控裝置或點擊時判定區域過窄、不易觸發輸入框焦點的問題。
+- **後端身份驗證 (Backend Security/Consistency)**:
+    - **廣播觸發身份管理**: 修正立即發送廣播時的 WebSocket 事件 `user` 參數。由原先固定為 `yzuadmin` 改為 `system`，確保系統自動觸發的訊息標籤不會被誤關聯至管理員帳號。
+
 ### UI/UX 優化與內容驗證 (UI/UX Optimization & Content Validation) [2026-03-18]
 - **圖文選單 (Rich Menu)**:
     - **載入失敗處理**: 分離主清單 (`/richmenu/`) 與別名清單 (`/richmenu/aliases`) 的 API 錯誤攔截。若主清單失敗，將根據 HTTP 狀態碼提供具體原因（如「尚未設定 LINE Token」）；別名清單失敗則採靜默處理，不阻擋頁面主體渲染。

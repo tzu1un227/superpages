@@ -183,8 +183,8 @@ function RuleDesigner() {
         let newMsg = { OTYPE: type };
         if (type === 'TextSendMessage') newMsg.text = '新訊息';
         else if (type === 'FlexSendMessage') {
-            newMsg.alt_text = 'Flex Message';
-            newMsg.contents = { type: 'bubble', body: { type: 'box', layout: 'vertical', contents: [{ type: 'text', text: 'Flex Content' }] } };
+            newMsg.alt_text = '圖文訊息';
+            newMsg.contents = { type: 'bubble', body: { type: 'box', layout: 'vertical', contents: [{ type: 'text', text: '圖文訊息內容' }] } };
         }
         else if (type === 'ImageSendMessage') {
             newMsg.original_content_url = 'https://via.placeholder.com/800x400';
@@ -668,7 +668,7 @@ function RuleDesigner() {
                                     <div style={{ display: 'flex', gap: '8px' }}>
                                         <button onClick={() => handleAddMessage('TextSendMessage')} style={{ fontSize: '11px', padding: '4px 8px' }} className="secondary">+ 文字</button>
                                         <button onClick={() => handleAddMessage('ImageSendMessage')} style={{ fontSize: '11px', padding: '4px 8px' }} className="secondary">+ 圖片</button>
-                                        <button onClick={() => handleAddMessage('FlexSendMessage')} style={{ fontSize: '11px', padding: '4px 8px' }} className="secondary">+ Flex</button>
+                                        <button onClick={() => handleAddMessage('FlexSendMessage')} style={{ fontSize: '11px', padding: '4px 8px' }} className="secondary">+ 圖文訊息</button>
                                     </div>
                                 </div>
                                 
@@ -714,7 +714,7 @@ function RuleDesigner() {
                                                 </div>
                                             )}
 
-                                            {/* Editor for Flex */}
+                                            {/* Editor for 圖文訊息 */}
                                             {(msg.OTYPE === 'FlexSendMessage' || msg.Line?.OTYPE === 'FlexSendMessage') && (
                                                 <div>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>

@@ -473,7 +473,7 @@ function BroadcastContent() {
                 }
             } else if (msg.OTYPE === 'FlexSendMessage') {
                 if (!msg.contents || (typeof msg.contents === 'object' && Object.keys(msg.contents).length === 0)) {
-                    showToast(`第 ${i + 1} 則 Flex 訊息內容未設定`, 'warning');
+                    showToast(`第 ${i + 1} 則圖文訊息內容未設定`, 'warning');
                     return;
                 }
                 // Deep validation for Flex links/return text
@@ -486,7 +486,7 @@ function BroadcastContent() {
                     if (bubble.hero?.action) {
                         const val = bubble.hero.action.uri || bubble.hero.action.data || bubble.hero.action.text || '';
                         if (!val.trim()) {
-                            showToast(`第 ${i + 1} 則 Flex 訊息 ${bubbleNum}圖片點擊內容不能為空`, 'warning');
+                            showToast(`第 ${i + 1} 則圖文訊息 ${bubbleNum}圖片點擊內容不能為空`, 'warning');
                             return;
                         }
                     }
@@ -496,7 +496,7 @@ function BroadcastContent() {
                         const btn = buttons[k];
                         const val = btn.action?.uri || btn.action?.data || btn.action?.text || '';
                         if (!val.trim()) {
-                            showToast(`第 ${i + 1} 則 Flex 訊息 ${bubbleNum}按鈕 #${k + 1} 文字或連結不能為空`, 'warning');
+                            showToast(`第 ${i + 1} 則圖文訊息 ${bubbleNum}按鈕 #${k + 1} 文字或連結不能為空`, 'warning');
                             return;
                         }
                     }

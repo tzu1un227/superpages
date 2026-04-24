@@ -437,7 +437,7 @@ function MessageCenter() {
                     case 'audio': return '[語音訊息]';
                     case 'location': return '[位置訊息]';
                     case 'sticker': return '[貼圖訊息]';
-                    case 'flex': return '[Flex 訊息]';
+                    case 'flex': return '[圖文訊息]';
                     case 'template': return '[樣板訊息]';
                     case 'carousel': return '[輪播訊息]';
                     case 'imagemap': return '[圖片選單]';
@@ -852,6 +852,7 @@ function MessageCenter() {
                 api_index: 0
             });
             showToast(`已新增標籤: ${tagToSent}`, 'success');
+            fetchAvailableTags(); // 立即重新整理標籤篩選清單
             
             // API 成功後，等待一段時間再觸發刷新，fetchUsers 的過濾邏輯會利用時間戳記維持穩定
             setTimeout(() => {
@@ -893,6 +894,7 @@ function MessageCenter() {
                 api_index: 0
             });
             showToast(`標籤 [${tagName}] 正在刪除中...`, 'success');
+            fetchAvailableTags(); // 立即重新整理標籤篩選清單
             
             // API 成功後，由 fetchUsers 根據護欄邏輯獲取最新狀態
             setTimeout(() => {
@@ -1088,7 +1090,7 @@ function MessageCenter() {
                         setSidebarDisplayCount(prev => Math.min(prev + 15, sortedUsers.length));
                     }
                 }}>
-                    {(loading || loadingUsers) ? (
+                    {(loading || (loadingUsers && sortedUsers.length === 0)) ? (
                         Array.from({ length: 8 }).map((_, idx) => (
                             <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', marginBottom: '8px', borderRadius: '8px', backgroundColor: '#222' }}>
                                 <div style={{ width: '34px', height: '34px', borderRadius: '50%', backgroundColor: '#333' }} />
