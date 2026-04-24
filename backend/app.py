@@ -508,6 +508,9 @@ def url_redirect():
                     # Forward the event using the internal helper function
                     send_socket_event(payload)
                     print(f"DEBUG /api/redirect: Forwarded tag {tag} via send_socket_event")
+                    
+                    # Rich Menu 自動分配
+                    check_and_update_rich_menu(user_id, tag)
                 except Exception as req_err:
                     print(f"DEBUG /api/redirect: Failed to trigger for tag {tag}: {req_err}")
                 
@@ -1744,11 +1747,67 @@ def get_users_list():
 # Note: send_socket_event is imported from utils.socket_utils
 
 
+def check_and_update_rich_menu(user_id, tag):
+    """
+    檢查標籤是否有對應的 Rich Menu，若有則呼叫 LINE API 切換。
+    """
+    from models import OAConfig
+    current_oa_id = getattr(g, 'current_oa_id', None)
+    if not current_oa_id:
+        return
+
+    try:
+        oa = OAConfig.query.get(int(current_oa_id))
+        if not oa or not oa.other_settings or not isinstance(oa.other_settings, dict):
+            return
+        
+        mappings = oa.other_settings.get('rich_menu_mappings', [])
+        if not mappings:
+            return
+        
+        # 尋找對應此標籤的選單 (取最後一個匹配的)
+        mapping = next((m for m in reversed(mappings) if m.get('tag') == tag), None)
+        if not mapping:
+            return
+        
+        rich_menu_id = mapping.get('richMenuId')
+        if not rich_menu_id:
+            return
+            
+        # 取得 Token
+        from endpoints.richmenu import get_line_token
+        token = get_line_token()
+        if not token:
+            print(f"DEBUG: check_and_update_rich_menu | Line token not configured for OA {current_oa_id}")
+            return
+            
+        headers = {'Authorization': f'Bearer {token}'}
+        url = f'https://api.line.me/v2/bot/user/{user_id}/richmenu/{rich_menu_id}'
+        
+        resp = requests.post(url, headers=headers)
+        if resp.status_code == 200:
+            print(f"DEBUG: check_and_update_rich_menu | Successfully linked rich menu {rich_menu_id} to user {user_id}")
+        else:
+            print(f"DEBUG: check_and_update_rich_menu | Failed to link rich menu: {resp.text}")
+            
+    except Exception as e:
+        print(f"DEBUG: check_and_update_rich_menu | Error: {e}")
+
+
 @app.route('/api/trigger', methods=['POST'])
 def trigger_socket_event_route():
     data = request.json
     try:
         send_socket_event(data)
+        
+        # 檢查 Rich Menu 分配
+        msg = data.get('message', '')
+        if msg.startswith('set_tag|'):
+            tag = msg.split('|', 1)[1]
+            user_id = data.get('user')
+            if user_id:
+                check_and_update_rich_menu(user_id, tag)
+                
         return jsonify({"status": "success"})
     except Exception as e:
         print(f"Socket.IO Trigger Error: {e}")

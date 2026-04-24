@@ -69,6 +69,10 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - **互動判定範圍優化**: 調整 `TagInput` 元件的 `min-height` 至 48px 並增加內距，解決觸控裝置或點擊時判定區域過窄、不易觸發輸入框焦點的問題。
 - **後端身份驗證 (Backend Security/Consistency)**:
     - **廣播觸發身份管理**: 修正立即發送廣播時的 WebSocket 事件 `user` 參數。由原先固定為 `yzuadmin` 改為 `system`，確保系統自動觸發的訊息標籤不會被誤關聯至管理員帳號。
+- **全域任務狀態管理 (Global Task State Persistence)** [2026-04-24]:
+    - **TaskContext**: 實作全域 React Context，管理 `isProcessing`、`progress` 與 `processingMessage`。
+    - **UI 持久化**: 將 `StatusIndicator` 搬移至 `App.jsx` 的全域佈局中，解決「自動旅程」在匯入或排序期間切換分頁時，進度條會因組件卸載而消失的問題。
+    - **任務重置**: 提供 `resetTask` 方法，確保操作完成或失敗後能正確清理全域狀態。
 
 ### UI/UX 優化與內容驗證 (UI/UX Optimization & Content Validation) [2026-03-18]
 - **圖文選單 (Rich Menu)**:
@@ -245,6 +249,10 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - Directly proxies requests to the Line Messaging API to manage rich menus.
     - Handles metadata creation, image upload, alias management, and setting default menus.
     - Security: All requests are protected by `@token_required` and use the OA-specific `line_token` from `other_settings`.
+    - **標籤權限控管與自動化分配 (Tag-based Automation)** [2026-04-24]:
+        - **映射存儲**: 標籤與選單的對應關係儲存於 `OAConfig.other_settings['rich_menu_mappings']`。
+        - **後端觸發**: 實作 `check_and_update_rich_menu` 助手。當系統偵測到 `set_tag` 指令（透過 `/api/trigger` 或 `/api/redirect`）時，會比對映射表並透過 LINE API 為用戶切換選單。
+        - **管理介面**: 在 `RichMenu.jsx` 中新增「權限控管」分頁，提供可視化的規則編輯與儲存功能。
 
 ### Broadcast Center (群發訊息中心)
 - **Frontend**: `Broadcast.jsx`.

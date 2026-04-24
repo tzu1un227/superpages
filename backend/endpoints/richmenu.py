@@ -252,3 +252,38 @@ def unset_default_rich_menu():
         return jsonify({'message': 'Unset default failed', 'line_error': resp.text}), resp.status_code
     except Exception as e:
         return jsonify({'message': 'Error', 'error': str(e)}), 500
+
+@richmenu_bp.route('/permissions', methods=['GET'])
+@token_required
+def get_rich_menu_permissions():
+    oa_config = getattr(g, 'current_oa_config', None)
+    if not oa_config:
+        return jsonify({'error': 'OA config not found'}), 404
+    
+    mappings = oa_config.other_settings.get('rich_menu_mappings', []) if (oa_config.other_settings and isinstance(oa_config.other_settings, dict)) else []
+    return jsonify({'mappings': mappings})
+
+@richmenu_bp.route('/permissions', methods=['POST'])
+@token_required
+def save_rich_menu_permissions():
+    from models import db, OAConfig
+    oa_config = getattr(g, 'current_oa_config', None)
+    if not oa_config:
+        return jsonify({'error': 'OA config not found'}), 404
+    
+    data = request.json
+    mappings = data.get('mappings', [])
+    
+    # 確保是字典
+    if not oa_config.other_settings or not isinstance(oa_config.other_settings, dict):
+        oa_config.other_settings = {}
+    
+    # 深拷貝以觸發 SQLAlchemy 變動偵測
+    settings = dict(oa_config.other_settings)
+    settings['rich_menu_mappings'] = mappings
+    
+    actual_oa = OAConfig.query.get(oa_config.id)
+    actual_oa.other_settings = settings
+    db.session.commit()
+    
+    return jsonify({'status': 'success'})

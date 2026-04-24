@@ -5,7 +5,7 @@ import {
     Plus, Trash2, Save, Image as ImageIcon, Settings,
     MousePointer2, Move, Maximize, Check, X, AlertCircle,
     ChevronDown, ChevronUp, ExternalLink, MessageSquare,
-    CreditCard, Repeat, Eye, Edit2, RefreshCw, ChevronLeft, ChevronRight, LayoutGrid, Filter, Calendar, RotateCcw
+    CreditCard, Repeat, Eye, Edit2, RefreshCw, ChevronLeft, ChevronRight, LayoutGrid, Filter, Calendar, RotateCcw, Shield
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useToast } from '../contexts/ToastContext';
@@ -38,6 +38,8 @@ function RichMenu() {
     const [allAliases, setAllAliases] = useState([]);
     const [viewOnly, setViewOnly] = useState(false);
     const [menuSearch, setMenuSearch] = useState(''); // 新增搜尋功能
+    const [mappings, setMappings] = useState([]); // 標籤權限映射
+    const [savingMappings, setSavingMappings] = useState(false);
 
     // Initial menu state
     const emptyMenu = {
@@ -54,6 +56,9 @@ function RichMenu() {
     useEffect(() => {
         if (view === 'list') {
             fetchMenus();
+        } else if (view === 'permissions') {
+            fetchMappings();
+            if (menus.length === 0) fetchMenus(); // 確保有選單資料可用於下拉選單
         }
     }, [view, oaId]);
 
@@ -91,6 +96,28 @@ function RichMenu() {
         }
 
         setLoading(false);
+    };
+
+    const fetchMappings = async () => {
+        try {
+            const res = await api.get('/richmenu/permissions');
+            setMappings(res.data.mappings || []);
+        } catch (err) {
+            console.error('Failed to fetch mappings:', err);
+            showToast('載入權限設定失敗', 'error');
+        }
+    };
+
+    const saveMappings = async () => {
+        setSavingMappings(true);
+        try {
+            await api.post('/richmenu/permissions', { mappings });
+            showToast('權限設定已儲存', 'success');
+        } catch (err) {
+            showToast('儲存失敗', 'error');
+        } finally {
+            setSavingMappings(false);
+        }
     };
 
     const handleCreateNew = () => {
@@ -678,6 +705,99 @@ function RichMenu() {
         );
     }
 
+    if (view === 'permissions') {
+        return (
+            <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+                    <div>
+                        <button onClick={() => setView('list')} style={{ background: 'none', color: '#888', marginBottom: '10px', padding: 0 }}>← 返回列表</button>
+                        <h1 style={{ fontSize: '32px' }}>Rich Menu 權限控管</h1>
+                        <p style={{ color: '#B0B0B0' }}>依據用戶標籤自動分配對應的圖文選單</p>
+                    </div>
+                    <button onClick={saveMappings} className="primary" disabled={savingMappings}>
+                        <Save size={18} /> {savingMappings ? '儲存中...' : '儲存設定'}
+                    </button>
+                </div>
+
+                <div className="card">
+                    <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: 'rgba(255, 215, 0, 0.05)', borderRadius: '8px', border: '1px solid rgba(255, 215, 0, 0.2)' }}>
+                        <h4 style={{ color: 'var(--primary-yellow)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Settings size={16} /> 自動化邏輯說明
+                        </h4>
+                        <p style={{ fontSize: '14px', color: '#aaa', lineHeight: '1.6' }}>
+                            當用戶被標註指定「標籤」時，系統將自動呼叫 LINE API 為該用戶切換為對應的「圖文選單」。<br />
+                            注意：若用戶擁有多個匹配的標籤，將採用列表中越下方的規則（最後匹配原則）。
+                        </p>
+                    </div>
+
+                    <table style={{ width: '100%' }}>
+                        <thead>
+                            <tr>
+                                <th style={{ width: '250px' }}>用戶標籤 (Tag)</th>
+                                <th>目標 Rich Menu</th>
+                                <th style={{ width: '100px' }}>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {mappings.map((m, idx) => (
+                                <tr key={idx}>
+                                    <td>
+                                        <input 
+                                            type="text" 
+                                            placeholder="輸入標籤名稱..." 
+                                            value={m.tag} 
+                                            onChange={e => {
+                                                const newMappings = [...mappings];
+                                                newMappings[idx].tag = e.target.value;
+                                                setMappings(newMappings);
+                                            }}
+                                        />
+                                    </td>
+                                    <td>
+                                        <select 
+                                            value={m.richMenuId} 
+                                            onChange={e => {
+                                                const newMappings = [...mappings];
+                                                newMappings[idx].richMenuId = e.target.value;
+                                                setMappings(newMappings);
+                                            }}
+                                        >
+                                            <option value="">請選擇選單...</option>
+                                            {menus.map(menu => (
+                                                <option key={menu.richMenuId} value={menu.richMenuId}>
+                                                    {menu.name} ({menu.richMenuId.slice(-6)})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <button 
+                                            onClick={() => setMappings(mappings.filter((_, i) => i !== idx))}
+                                            style={{ background: 'none', border: 'none', color: '#ff4d4d', cursor: 'pointer' }}
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                            <tr>
+                                <td colSpan="3">
+                                    <button 
+                                        className="secondary" 
+                                        onClick={() => setMappings([...mappings, { tag: '', richMenuId: '' }])}
+                                        style={{ width: '100%', borderStyle: 'dashed', marginTop: '10px' }}
+                                    >
+                                        <Plus size={18} /> 新增規則
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
@@ -714,6 +834,9 @@ function RichMenu() {
                     系統僅能管理透過此介面建立的選單。
                 </div>
                 <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                    <button onClick={() => setView('permissions')} className="secondary" style={{ borderColor: 'var(--primary-yellow)', color: 'var(--primary-yellow)' }}>
+                        <Shield size={18} /> 權限控管
+                    </button>
                     <Tooltip title="重置預設：若設定預設後手機沒更新，可先嘗試解除目前的預設再重新設定。">
                         <button onClick={handleUnsetDefault} className="secondary" style={{ color: '#ff4d4d', borderColor: '#444' }}><RotateCcw size={18} /> 重置預設</button>
                     </Tooltip>

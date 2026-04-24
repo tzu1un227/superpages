@@ -942,7 +942,8 @@ function MessageCenter() {
 
     // 聊天室中實際顯示的訊息（過濾掉系統指令與 follow 事件，但不因搜尋而隱藏）
     const displayedMessages = messages.filter(m => {
-        if (m.category === 'Sensor' || m.category === 'Follow' || m.category === 'follow') return false;
+        const cat = m.category || '';
+        if (cat === 'Sensor' || cat === 'Follow' || cat === 'follow' || cat === 'Postback' || cat === 'postback') return false;
         return true;
     });
 

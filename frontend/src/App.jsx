@@ -14,7 +14,9 @@ import AdminPage from './pages/AdminPage';
 import Questionnaire from './pages/Questionnaire';
 import api from './api';
 import { ToastProvider, useToast } from './contexts/ToastContext';
+import { TaskProvider, useTask } from './contexts/TaskContext';
 import Toast from './components/Toast';
+import StatusIndicator from './components/StatusIndicator';
 import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send, Gift, Shield, LayoutGrid, ClipboardList, Workflow, Database, Play } from 'lucide-react';
 import RuleDesigner from './pages/RuleDesigner';
 import DatabaseViewer from './pages/DatabaseViewer';
@@ -66,6 +68,7 @@ const PAGE_ICON_MAP = {
 
 const MainLayout = () => {
   const { isAuthenticated, logout, user, myOAs, isLoading } = useAuth();
+  const { taskState } = useTask();
   const location = useLocation();
 
   if (isLoading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: '#fff', background: '#111' }}>Loading...</div>;
@@ -184,6 +187,9 @@ const MainLayout = () => {
           } />
         </Routes>
       </main>
+      {taskState.isProcessing && (
+        <StatusIndicator message={taskState.processingMessage} progress={taskState.progress} />
+      )}
     </div>
   );
 };
@@ -200,10 +206,12 @@ function App() {
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <ToastProvider>
-        <AuthProvider>
-          <AppContent />
-          <Toast />
-        </AuthProvider>
+        <TaskProvider>
+          <AuthProvider>
+            <AppContent />
+            <Toast />
+          </AuthProvider>
+        </TaskProvider>
       </ToastProvider>
     </GoogleOAuthProvider>
   );

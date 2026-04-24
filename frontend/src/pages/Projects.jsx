@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTask } from '../contexts/TaskContext';
 import { useLocation } from 'react-router-dom';
 import api from '../api';
 import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, User, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type, BarChart2, Download, Upload, Play, ExternalLink, TrendingUp, CheckCircle2, Circle, ChevronLeft, ChevronRight, BarChart3, RotateCcw, GripVertical } from 'lucide-react';
@@ -24,6 +25,7 @@ import {
 const ProjectsManagement = () => {
     const location = useLocation();
     const { showToast } = useToast();
+    const { updateTask, resetTask } = useTask();
 
 
     const handlePreviewProject = async () => {
@@ -169,9 +171,10 @@ const ProjectsManagement = () => {
 
     const [projectStats, setProjectStats] = useState({ tc: 0, cc: 0, ms: 0, mss: 0, msf: 0, completion_rate: 0 });
     const [isCreatingProject, setIsCreatingProject] = useState(false);
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [processingMessage, setProcessingMessage] = useState('');
-    const [importProgress, setImportProgress] = useState(0);
+    // 全域狀態取代本地狀態
+    // const [isProcessing, setIsProcessing] = useState(false);
+    // const [processingMessage, setProcessingMessage] = useState('');
+    // const [importProgress, setImportProgress] = useState(0);
     const [draggedItemIndex, setDraggedItemIndex] = useState(null);
     const [isCreatingSchedule, setIsCreatingSchedule] = useState(false);
     const [pageLoading, setPageLoading] = useState(false);
@@ -419,9 +422,11 @@ const ProjectsManagement = () => {
         const file = event.target.files[0];
         if (!file) return;
 
-        setIsProcessing(true);
-        setImportProgress(0);
-        setProcessingMessage('正在讀取檔案...');
+        updateTask({
+            isProcessing: true,
+            progress: 0,
+            processingMessage: '正在讀取檔案...'
+        });
         
         try {
             const fileReader = new FileReader();
@@ -439,7 +444,7 @@ const ProjectsManagement = () => {
                         end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16)
                     };
 
-                    setProcessingMessage(`正在建立專案「${newProjectPayload.project_name}」...`);
+                    updateTask({ processingMessage: `正在建立專案「${newProjectPayload.project_name}」...` });
                     const createRes = await api.post('/projects', newProjectPayload);
                     const newProjectId = createRes.data.project_id || createRes.data.id;
 
@@ -447,8 +452,10 @@ const ProjectsManagement = () => {
                     for (let i = 0; i < totalSchedules; i++) {
                         const s = data.schedules[i];
                         const progress = Math.round(((i + 1) / totalSchedules) * 100);
-                        setImportProgress(progress);
-                        setProcessingMessage(`正在匯入步驟 ${i + 1}/${totalSchedules} (${progress}%)...`);
+                        updateTask({
+                            progress: progress,
+                            processingMessage: `正在匯入步驟 ${i + 1}/${totalSchedules} (${progress}%)...`
+                        });
                         
                         let finalMessageContent = s.message_content;
 
@@ -475,16 +482,14 @@ const ProjectsManagement = () => {
                 } catch (parseErr) {
                     showToast('讀取或解析檔案失敗: ' + parseErr.message, 'error');
                 } finally {
-                    setIsProcessing(false);
-                    setImportProgress(0);
+                    resetTask();
                     if (fileInputRef.current) fileInputRef.current.value = ''; 
                 }
             };
             fileReader.readAsText(file);
         } catch (err) {
             showToast('匯入失敗: ' + err.message, 'error');
-            setIsProcessing(false);
-            setImportProgress(0);
+            resetTask();
             if (fileInputRef.current) fileInputRef.current.value = ''; 
         }
     };
@@ -656,8 +661,7 @@ const ProjectsManagement = () => {
     const handleDragEnd = async () => {
         if (!selectedProjectId) return;
         
-        setIsProcessing(true);
-        setProcessingMessage('正在儲存新順序...');
+        updateTask({ isProcessing: true, processingMessage: '正在儲存新順序...' });
         try {
             const scheduleIds = schedules.filter(s => s.project_id == selectedProjectId).map(s => s.schedule_id);
             await api.post(`/projects/${selectedProjectId}/schedules/reorder`, { schedule_ids: scheduleIds });
@@ -668,7 +672,7 @@ const ProjectsManagement = () => {
         } catch (err) {
             showToast('更新順序失敗: ' + err.message, 'error');
         } finally {
-            setIsProcessing(false);
+            resetTask();
             setDraggedItemIndex(null);
         }
     };
@@ -821,8 +825,7 @@ const ProjectsManagement = () => {
             return;
         }
         try {
-            setIsProcessing(true);
-            setProcessingMessage('正在更新旅程設定...');
+            updateTask({ isProcessing: true, processingMessage: '正在更新旅程設定...' });
             await api.put(`/projects/${editingProjectId}`, editProjectFormData);
             setEditingProjectId(null);
             fetchProjects();
@@ -832,22 +835,21 @@ const ProjectsManagement = () => {
             console.error("Update project error:", err);
             setError('更新失敗: ' + (err.response?.data?.error || err.message));
         } finally {
-            setIsProcessing(false);
+            resetTask();
         }
     };
 
     const handleDeleteProject = async (id) => {
         if (window.confirm('確定要刪除此專案嗎？相關排程也可能受到影響。')) {
             try {
-                setIsProcessing(true);
-                setProcessingMessage('正在刪除旅程...');
+                updateTask({ isProcessing: true, processingMessage: '正在刪除旅程...' });
                 await api.delete(`/projects/${id}`);
                 showToast('旅程已刪除', 'success');
                 fetchProjects();
             } catch (err) {
                 showToast('刪除失敗: ' + err.message, 'error');
             } finally {
-                setIsProcessing(false);
+                resetTask();
             }
         }
     };
@@ -885,7 +887,7 @@ const ProjectsManagement = () => {
             setError('建立失敗: ' + (err.response?.data?.error || err.message));
         } finally {
             setIsCreatingProject(false);
-            setIsProcessing(false);
+            resetTask();
         }
     };
 
@@ -1122,37 +1124,8 @@ const ProjectsManagement = () => {
         </>
     );
 
-    const StatusIndicator = ({ message, progress }) => (
-        <div style={{
-            position: 'fixed',
-            top: '80px', // Header offset
-            right: '20px',
-            backgroundColor: '#222',
-            border: '1px solid #444',
-            borderRadius: '8px',
-            padding: '15px 20px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-            zIndex: 9999,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '10px',
-            minWidth: '250px'
-        }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <CircularProgress size={20} sx={{ color: 'var(--primary-yellow)' }} />
-                <span style={{ fontSize: '14px', color: '#fff', fontWeight: 'bold' }}>{message}</span>
-            </div>
-            {progress > 0 && (
-                <div style={{ width: '100%', height: '6px', backgroundColor: '#333', borderRadius: '3px', overflow: 'hidden' }}>
-                    <div style={{ width: `${progress}%`, height: '100%', backgroundColor: 'var(--primary-yellow)', transition: 'width 0.3s ease' }} />
-                </div>
-            )}
-        </div>
-    );
-
     return (
         <div style={{ padding: '30px' }}>
-            {isProcessing && <StatusIndicator message={processingMessage} progress={importProgress} />}
             <div style={{ marginBottom: '40px' }}>
                 <h1 style={{ fontSize: '32px', marginBottom: '10px' }}>自動旅程管理</h1>
                 <p style={{ color: '#B0B0B0' }}>管理自動化推播旅程及其對應的執行排程</p>
