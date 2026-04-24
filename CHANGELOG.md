@@ -77,3 +77,8 @@ All notable changes to this project will be documented in this file.
   - **Flex 編輯器與預覽引擎全面升級 (Flex Editor & Journey Preview UI)** [2026-04-08]:
     - **版面重構**：將 `FlexMessageEditor.jsx` 原先在左側填表、右側受限尺寸 (`380px`) 預覽的雙欄設計，重構為「上下堆疊」的寬版介面。編輯表單置頂，即時預覽置底並自動釋放畫面寬度，解決過去預覽 Flex 畫面倒置過小不易閱讀的詬病。
     - **安全渲染引擎機制 (Safe Render Guard)**：深入強固了 `JourneyPreview.jsx` 中解析 Flex 訊息的每一層邏輯 (確保 Carousel / Bubble 型別對外來未規範 JSON 的抵禦)。針對陳舊、未定義、甚至陣列錯亂的卡片，均實作即時 try-catch 與型別驗證，根絕了使用者點擊「檢視群發內容」時因非同步渲染失敗導致的「全白/全黑畫面崩潰」災情。
+
+- **�۰ʮȵ{�µe���״_�P�ݨ������޿��s (Projects Fix & Questionnaire Tag Logic Update)** [2026-04-24]:
+  - **�״_�۰ʮȵ{�µe��**: �ץ��F Projects.jsx ���]�~�R���a���A�ܼƦӾɭP�� ReferenceError�C�{�b�w���T�ޥ� TaskContext ���Ѫ� 	askState ���쪬�A�C
+  - **��s�ݨ������x�s�榡**: �ݨ��޲z�ͦ������ҫ��O�q set_tag| �ܧ󬰲ŦX�зǪ� pri_push('tag','...')�C
+  - **�W�j�ݨ����Ҵ����ۮe��**: ��� _extract_tags_from_fn �{�b�䴩�P���ѧO�ô����s�¨�خ榡�����ҳ]�w�C

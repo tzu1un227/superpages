@@ -197,12 +197,21 @@ def _extract_text_from_msg(msg_item):
 def _extract_tags_from_fn(fn_str):
     if not fn_str:
         return []
+    
+    tags = []
+    # Support new format: pri_push('tag','...')
+    push_tags = re.findall(r"pri_push\('tag','(.*?)'\)", fn_str)
+    if push_tags:
+        tags.extend(push_tags)
+
+    # Support legacy format: set_tag|...
     if "set_tag|" in fn_str:
         parts = fn_str.split("set_tag|")
         if len(parts) > 1:
             tags_part = parts[1].split(";")[0]
-            return [t for t in tags_part.split("|") if t.strip()]
-    return []
+            tags.extend([t for t in tags_part.split("|") if t.strip()])
+            
+    return list(dict.fromkeys(tags))
 
 
 def _parse_time(value):
@@ -357,9 +366,10 @@ def build_questionnaire_direct(data, app_id, conn, quest_id):
         
         tags = question.get("tags")
         if tags and isinstance(tags, list):
-            tags_str = "|".join([str(t).strip() for t in tags if str(t).strip()])
-            if tags_str:
-                save_fn += f"; set_tag|{tags_str}"
+            for t in tags:
+                tag = str(t).strip()
+                if tag:
+                    save_fn += f",pri_push('tag','{tag}')"
 
         if is_last:
             if enable_review:

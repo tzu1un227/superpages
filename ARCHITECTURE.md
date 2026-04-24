@@ -309,3 +309,10 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - `project_schedules` Х┬┤ `cron_table` Е╥╡Хё°И╫┼ SERIAL Д╦╩И█╣ (`schedule_id` / `task_id`)О╪▄Х╖ёФ╠╨Г╥╗Х╪╞Ф▌▓Г╗▀Ф≥┌Г └ `null` И▄╞Х╙╓Е∙▐И║▄Ц─┌
 - **Socket И─ёГ╥ Е÷╥Х║▄Г╥▓Е╝┴Е┘╗Х┬┤Е█■Х╜╟Е└╙Е▄√**О╪ Г┌╨Д╨├Х╖ёФ╠╨И╚≤Д╫╣Г≥╪Д╦▀Г └И─ёГ╥ Д╦╜Ф√╥Е∙▐И║▄О╪▄`send_socket_event` Е╥╡И┤█Ф╖▀Г┌╨Ц─▄Х╚▀Ф╠┌Д╫°Г■╗Е÷÷ (Request-Scoped)Ц─█Ф╗║Е╪▐Ц─┌Ф╞▐Ф╛║Х╙©Г■╗Г ├Ф°┐Е╩╨Г╚▀Г█╗Г╚▀Г └ Socket.IO Е╝╒Ф┬╤Г╚╞Е╞╕Д╬▀Ц─┌Е░▄Ф≥┌Е└╙Е▄√Д╨├Е┌ЁХ╪╦Е█■Х╜╟О╪▄Е└╙Е┘┬Д╫©Г■╗ WebSocket Д╦╕Е°╗Е╓╠Ф∙≈Ф≥┌Х┤╙Е▀∙Е⌡·И──Х┤Ё PollingО╪▄Г╖╩И≥╓И┤²Е╟█ Heroku Г └Е╪╥Е┬╤И≥░Е┬╤О╪▄И║╞Х▒≈Ф▐░Е█┤Д╨├ `yzulabuse` Г▓╟Е╒┐Г └И─ Х╗┼Г╘╘Е╝ Ф─╖Ц─┌
 - **И┤²Е╟█ yzulabuse Г └Г┴╧Ф╝┼Х≥∙Г░├**О╪ Е°╗ `yzulabuse` Г▓╟Е╒┐Д╦▀О╪▄ГЁ╩Г╣╠Ф°┐Е└╙Е┘┬Ф░°Е╟▀ `OAConfig.other_settings` Д╦╜Г └ `socket_url`Ц─┌Х▀╔Ф°╙Х╗╜Е╝ О╪▄Е┴┤И═░Х╗╜И─ёФ▌╔Х┤Ё `https://yzulabuse.herokuapp.com`Ц─┌Ф╜╓Ф╘÷Е┬╤Г╒╨Д©²Д╨├Х╗┼Ф│╞Х┐╫Ф╜ёГ╒╨Х╥╞Г■╠Х┤ЁХ╘╡Г▓╟Е╒┐Г └Ф╘÷Е≥╗Д╨╨Д╪╨Ф°█Е≥╗О╪▄И│©Е┘█Х┬┤ `5013` Г▓╟Е╒┐Ф╥╥Ф╥├Ц─┌Е╬▄Г╚╞ `send_socket_event` Е╥╡Е╞╕Д╫° OA Context Ф└÷Г÷╔Ф╘÷Е┬╤О╪▄Г╒╨Д©²Х╗┼Ф│╞Х┐╫Ф═╧Ф⌠  `X-OA-ID` Е╟▌Е╬─Ф╜ёГ╒╨Г └Ф╘÷Е≥╗Д╨╨Е╪∙Ф⌠▌О╪▄Х╖ёФ╠╨Х╙╓Е╟▌Е░▒Х┤Ё 5013 Г └Е∙▐И║▄Ц─┌
+
+### ╗t╡н╛[╨cюu╓ф╩P╪перЁB╡zеч©Х╖С╥s [2026-04-24]
+- **╟щ╗В╨ч╡z (Questionnaire)**:
+    - **╪пер╝Ф╕║╖С╥s**: ╪перЁB╡zеч©Х╠qбб╕Ё╙╨ ; set_tag|tag1|tag2 ╝Ф╕║╬E╡╬╕э╡е╕X Superpages ╝ж╓ъ╓чю╨╪п╥г╙╨ ,pri_push('tag','tag1'),pri_push('tag','tag2') ╝Ф╕║║C
+    - **╛ш╝e╘й╢ё╗З**: _extract_tags_from_fn ╗Г╪ф╓w╖С╥s║A╓Д╢╘╕P╝и╠q╥s╝Ф╕║ pri_push ╩Pбб╝Ф╕║ set_tag ╓╓╢ё╗З╪пер║A╫T╚O╛J╕Ё╟щ╗В╙╨╪пер╞Ю╔©╫T╦Э╓J╕^ UI║C
+- **╕ш╟й╝х╣{ (Projects)**:
+    - **╚e╨щ╙╛╨A╨ч╡z╩P╤б╣e╜╠╜в╢_**: ╜в╔©╓F Projects.jsx ╓╓ useTask ╙╛╨A╙╨╓ч╔н╓Х╕║║C╠N╜Л╔Щ╕]╡╬╟ё╔╩╕a╙╛╨A╕с╬и╜P╙╨╔╪╘w╦qеэ╪ф©Ы╩~║]isProcessing, processingMessage ╣╔║^╖О╛╟╔©╫T╓ч╔н 	askState ╧О╤H║CЁo╧Щ╘Ё╦я╗M╓F╤i╓J╕ш╟й╝х╣{╜╤╜╠╝и╕] ReferenceError ╬и╜P╙╨ React ╢Х╛V╠Y╪Л║]╤б╣e╜╠║^╟щцD║C

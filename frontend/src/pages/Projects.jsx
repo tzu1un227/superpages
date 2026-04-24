@@ -25,7 +25,7 @@ import {
 const ProjectsManagement = () => {
     const location = useLocation();
     const { showToast } = useToast();
-    const { updateTask, resetTask } = useTask();
+    const { taskState, updateTask, resetTask } = useTask();
 
 
     const handlePreviewProject = async () => {
@@ -171,10 +171,6 @@ const ProjectsManagement = () => {
 
     const [projectStats, setProjectStats] = useState({ tc: 0, cc: 0, ms: 0, mss: 0, msf: 0, completion_rate: 0 });
     const [isCreatingProject, setIsCreatingProject] = useState(false);
-    // 全域狀態取代本地狀態
-    // const [isProcessing, setIsProcessing] = useState(false);
-    // const [processingMessage, setProcessingMessage] = useState('');
-    // const [importProgress, setImportProgress] = useState(0);
     const [draggedItemIndex, setDraggedItemIndex] = useState(null);
     const [isCreatingSchedule, setIsCreatingSchedule] = useState(false);
     const [pageLoading, setPageLoading] = useState(false);
@@ -864,8 +860,7 @@ const ProjectsManagement = () => {
         }
 
         setIsCreatingProject(true);
-        setIsProcessing(true);
-        setProcessingMessage('正在建立新旅程...');
+        updateTask({ isProcessing: true, processingMessage: '正在建立新旅程...' });
         try {
             await api.post('/projects', newProject);
             setShowAddProjectForm(false);
@@ -1186,8 +1181,8 @@ const ProjectsManagement = () => {
                         <h3 style={{ fontSize: '20px' }}>專案列表</h3>
                         <div style={{ display: 'flex', gap: '10px' }}>
                             <input type="file" ref={fileInputRef} onChange={handleImportFileChange} accept=".json" style={{ display: 'none' }} />
-                            <button className="secondary" onClick={() => fileInputRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', background: '#333', color: '#fff', border: '1px solid #555' }} disabled={isProcessing}>
-                                <Upload size={18} /> {isProcessing && importProgress > 0 ? '匯入中...' : '匯入旅程'}
+                            <button className="secondary" onClick={() => fileInputRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', background: '#333', color: '#fff', border: '1px solid #555' }} disabled={taskState.isProcessing}>
+                                <Upload size={18} /> {taskState.isProcessing && taskState.progress > 0 ? '匯入中...' : '匯入旅程'}
                             </button>
                             <button className="primary" onClick={() => setShowAddProjectForm(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
                                 <Plus size={18} /> 新增旅程
