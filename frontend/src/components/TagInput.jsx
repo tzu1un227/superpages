@@ -67,6 +67,13 @@ const TagInput = ({ tags = [], onChange, placeholder = "選擇或輸入標籤...
         t.toLowerCase().includes(input.toLowerCase())
     );
 
+    const inputRef = useRef(null);
+
+    const handleContainerClick = () => {
+        inputRef.current?.focus();
+        setShowDropdown(true);
+    };
+
     return (
         <div style={{ position: 'relative', width: '100%' }} ref={dropdownRef}>
             <div style={{
@@ -81,7 +88,7 @@ const TagInput = ({ tags = [], onChange, placeholder = "選擇或輸入標籤...
                 alignItems: 'center',
                 cursor: 'text',
                 transition: 'border-color 0.2s, box-shadow 0.2s'
-            }} onClick={() => setShowDropdown(true)}>
+            }} onClick={handleContainerClick}>
                 {tags.map((tag, idx) => (
                     <span key={idx} style={{
                         display: 'flex',
@@ -106,6 +113,7 @@ const TagInput = ({ tags = [], onChange, placeholder = "選擇或輸入標籤...
                     </span>
                 ))}
                 <input
+                    ref={inputRef}
                     type="text"
                     value={input}
                     onChange={(e) => {
@@ -120,11 +128,11 @@ const TagInput = ({ tags = [], onChange, placeholder = "選擇或輸入標籤...
                         background: 'transparent',
                         border: 'none',
                         color: 'white',
-                        padding: '10px 0',
+                        padding: '5px 0',
                         fontSize: '13px',
                         minWidth: '100px',
                         outline: 'none',
-                        height: '100%'
+                        height: '30px' // 固定高度以確保點擊區域穩定
                     }}
                 />
             </div>

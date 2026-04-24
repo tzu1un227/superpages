@@ -177,8 +177,8 @@ function QuestionCard({ q, index, total, onChange, onDelete, onMoveUp, onMoveDow
             <Box sx={{ mt: 2 }}>
                 <Typography sx={{ color: '#B0B0B0', fontSize: '0.85rem', mb: 0.5 }}>回答此題後自動上標籤</Typography>
                 <TagInput
-                    selectedTags={q.tags || []}
-                    setSelectedTags={newTags => onChange({ ...q, tags: newTags })}
+                    tags={q.tags || []}
+                    onChange={newTags => onChange({ ...q, tags: newTags })}
                     placeholder="輸入標籤並按 Enter"
                 />
             </Box>

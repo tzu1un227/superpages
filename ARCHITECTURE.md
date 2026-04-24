@@ -316,3 +316,10 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - **�ۮe�ʴ���**: _extract_tags_from_fn ��Ƥw��s�A�䴩�P�ɱq�s�榡 pri_push �P�®榡 set_tag ���������ҡA�T�O�J���ݨ������үॿ�T���J�^ UI�C
 - **�۰ʮȵ{ (Projects)**:
     - **�e�ݪ��A�޲z�P�µe���״_**: �ץ��F Projects.jsx �� useTask ���A���ޥΤ覡�C�N����]�������a���A�ӾɭP�����w�q�ܼƿ��~�]isProcessing, processingMessage ���^�אּ���T�ޥ� 	askState ��H�C�o�����ѨM�F�i�J�۰ʮȵ{�����ɦ] ReferenceError �ɭP�� React ��V�Y��]�µe���^���D�C
+
+### 標籤元件與問卷互動優化 [2026-04-24]
+- **TagInput 元件**:
+    - **互動體驗優化**: 實現點擊標籤輸入框容器任何位置自動聚焦 (Focus) 輸入欄位，解決判定區域過窄問題。
+    - **樣式微調**: 調整輸入框高度以確保在不同內容長度下點擊區域的一致性。
+- **問卷管理**:
+    - **功能修復**: 修正 TagInput 於 Questionnaire.jsx 中的 Prop 名稱不匹配問題 (selectedTags -> tags, setSelectedTags -> onChange)，恢復問卷建立時的新增標籤功能。

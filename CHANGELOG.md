@@ -82,3 +82,7 @@ All notable changes to this project will be documented in this file.
   - **­×´_¦Û°Ê®Èµ{¶Âµe­±**: ­×¥¿¤F Projects.jsx ¤¤¦]»~§R¥»¦aª¬ºAÅÜ¼Æ¦Ó¾É­Pªº ReferenceError¡C²{¦b¤w¥¿½T¤Ş¥Î TaskContext ´£¨Ñªº 	askState ¥ş°ìª¬ºA¡C
   - **§ó·s°İ¨÷¼ĞÅÒÀx¦s®æ¦¡**: °İ¨÷ºŞ²z¥Í¦¨ªº¼ĞÅÒ«ü¥O±q set_tag| ÅÜ§ó¬°²Å¦X¼Ğ·Çªº pri_push('tag','...')¡C
   - **¼W±j°İ¨÷¼ĞÅÒ´£¨ú¬Û®e©Ê**: «áºİ _extract_tags_from_fn ²{¦b¤ä´©¦P®ÉÃÑ§O¨Ã´£¨ú·sÂÂ¨âºØ®æ¦¡ªº¼ĞÅÒ³]©w¡C
+
+  - **æ¨™ç±¤å…ƒä»¶èˆ‡å•å·äº’å‹•å„ªåŒ– (TagInput & Questionnaire UI Fixes)** [2026-04-24]:
+    - **ä¿®æ­£å•å·æ¨™ç±¤åŠŸèƒ½**: è§£æ±º Questionnaire.jsx ä¸­ TagInput çš„ Prop åç¨±ä¸åŒ¹é…å•é¡Œï¼Œæ¢å¾©æ–°å¢æ¨™ç±¤åŠŸèƒ½ã€‚
+    - **å„ªåŒ–æ¨™ç±¤è¼¸å…¥äº’å‹•**: å¯¦ç¾é»æ“Š TagInput å®¹å™¨ä»»ä½•ä½ç½®è‡ªå‹•èšç„¦è¼¸å…¥æ¡†ï¼Œä¸¦åŠ å¤§é»æ“Šåˆ¤å®šå€åŸŸï¼Œæå‡ä½¿ç”¨é«”é©—ã€‚
