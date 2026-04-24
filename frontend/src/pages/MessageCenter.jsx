@@ -420,11 +420,17 @@ function MessageCenter() {
     // --- 輔助：格式化側邊欄的最後一則訊息 ---
     const formatSidebarMessage = (userObj) => {
         const msgString = userObj.last_message;
-        const category = userObj.last_message_category;
+        const category = (userObj.last_message_category || '').toLowerCase();
+        
+        // 如果是 Postback 或系統感測器，不顯示其原始內容
+        if (['postback', 'sensor', 'follow', 'unfollow', 'beacon'].includes(category)) {
+            return '[系統指令]';
+        }
 
-        if (category === 'Image') return '[圖片訊息]';
-        if (category === 'Video') return '[影片訊息]';
-        if (category === 'Audio') return '[語音訊息]';
+        if (category === 'image') return '[圖片訊息]';
+        if (category === 'video') return '[影片訊息]';
+        if (category === 'audio') return '[語音訊息]';
+        if (category === 'sticker') return '[貼圖訊息]';
 
         if (!msgString) return '';
         try {
@@ -942,8 +948,9 @@ function MessageCenter() {
 
     // 聊天室中實際顯示的訊息（過濾掉系統指令與 follow 事件，但不因搜尋而隱藏）
     const displayedMessages = messages.filter(m => {
-        const cat = m.category || '';
-        if (cat === 'Sensor' || cat === 'Follow' || cat === 'follow' || cat === 'Postback' || cat === 'postback') return false;
+        const cat = (m.category || '').toLowerCase();
+        // 過濾 Postback, Sensor, Follow, Beacon 等不需要顯示給客服看的系統訊息
+        if (['sensor', 'follow', 'postback', 'beacon'].includes(cat)) return false;
         return true;
     });
 
