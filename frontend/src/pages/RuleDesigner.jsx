@@ -424,8 +424,8 @@ function RuleDesigner() {
                                 {['q_bank', 'ad_bank'].includes(bankType) ? (
                                     <>
                                         {designMode === 'engineering' && <th style={{ padding: '4px', width: '8%' }}>state_in</th>}
-                                        <th style={{ padding: '4px', width: designMode === 'simple' ? '25%' : '15%' }}>content</th>
-                                        <th style={{ padding: '4px', width: '12%' }}>note</th>
+                                        <th style={{ padding: '4px', width: designMode === 'simple' ? '25%' : '15%' }}>{designMode === 'simple' ? '使用者輸入' : 'content'}</th>
+                                        <th style={{ padding: '4px', width: '12%' }}>{designMode === 'simple' ? '備註說明' : 'note'}</th>
                                         {designMode === 'engineering' && (
                                             <>
                                                 <th style={{ padding: '4px', width: '8%' }}>state_out</th>
@@ -438,15 +438,15 @@ function RuleDesigner() {
                                     </>
                                 ) : (
                                     <>
-                                        <th style={{ padding: '4px', width: '15%' }}>tag</th>
+                                        <th style={{ padding: '4px', width: '15%' }}>{designMode === 'simple' ? '標籤' : 'tag'}</th>
                                         {designMode === 'engineering' && <th style={{ padding: '4px', width: '10%' }}>io</th>}
                                         {designMode === 'engineering' && <th style={{ padding: '4px', width: '10%' }}>check</th>}
-                                        <th style={{ padding: '4px', width: '15%' }}>ans</th>
+                                        <th style={{ padding: '4px', width: '15%' }}>{designMode === 'simple' ? '回應內容' : 'ans'}</th>
                                         {designMode === 'engineering' && <th style={{ padding: '4px', width: '10%' }}>function</th>}
                                         {designMode === 'engineering' && <th style={{ padding: '4px', width: '8%' }}>type</th>}
                                     </>
                                 )}
-                                <th style={{ padding: '4px', width: '10%' }}>msg_rpy</th>
+                                <th style={{ padding: '4px', width: '10%' }}>{designMode === 'simple' ? '回覆訊息' : 'msg_rpy'}</th>
                                 <th style={{ padding: '4px', width: '100px', textAlign: 'right' }}>操作</th>
                             </tr>
                         </thead>

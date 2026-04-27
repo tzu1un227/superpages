@@ -77,7 +77,12 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
             if (isExternalChange || (hasInitialized && isSignificantDiff)) {
                 if (incoming.type === 'carousel') {
                     setMode('carousel');
-                    setCards(incoming.contents.map(b => parseBubbleToCard(b)));
+                    const parsedCards = incoming.contents.map(b => parseBubbleToCard(b));
+                    if (parsedCards.length > 0) {
+                        const firstTemplate = parsedCards[0].template;
+                        parsedCards.forEach(c => c.template = firstTemplate);
+                    }
+                    setCards(parsedCards);
                 } else if (incoming.type === 'bubble') {
                     setMode('single');
                     setCards([parseBubbleToCard(incoming)]);
@@ -513,6 +518,35 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                 <div style={{ borderBottom: '1px solid #444', display: 'flex', flexDirection: 'column' }}>
                     <fieldset disabled={readOnly} style={{ border: 'none', padding: '20px', margin: 0, opacity: readOnly ? 0.7 : 1, minWidth: 0 }}>
 
+                    {/* Template Selector (Global) */}
+                    <div style={{ marginBottom: '20px' }}>
+                        <div style={{ marginBottom: '10px', fontSize: '13px', color: '#aaa' }}>
+                            {mode === 'carousel' ? '輪播排版模板 (套用至所有卡片)' : '卡片排版模板'}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                            <div
+                                onClick={() => updateCurrentCard('template', 'option')}
+                                style={{
+                                    padding: '10px', border: currentCard.template === 'option' ? '2px solid var(--primary-yellow)' : '1px solid #444',
+                                    borderRadius: '8px', cursor: 'pointer', backgroundColor: '#333', textAlign: 'center'
+                                }}
+                            >
+                                <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>選項型</div>
+                                <div style={{ fontSize: '11px', color: '#888' }}>圖 + 文 + 按鈕</div>
+                            </div>
+                            <div
+                                onClick={() => updateCurrentCard('template', 'image')}
+                                style={{
+                                    padding: '10px', border: currentCard.template === 'image' ? '2px solid var(--primary-yellow)' : '1px solid #444',
+                                    borderRadius: '8px', cursor: 'pointer', backgroundColor: '#333', textAlign: 'center'
+                                }}
+                            >
+                                <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>圖片型</div>
+                                <div style={{ fontSize: '11px', color: '#888' }}>純圖片 + 點擊與否</div>
+                            </div>
+                        </div>
+                    </div>
+
                     {/* Carousel Nav */}
                     {mode === 'carousel' && (
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', backgroundColor: '#333', padding: '10px', borderRadius: '8px' }}>
@@ -551,33 +585,6 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                             </div>
                         </div>
                     )}
-
-                    {/* Template Selector */}
-                    <div style={{ marginBottom: '20px' }}>
-                        <div style={{ marginBottom: '10px', fontSize: '13px', color: '#aaa' }}>卡片模板</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                            <div
-                                onClick={() => updateCurrentCard('template', 'option')}
-                                style={{
-                                    padding: '10px', border: currentCard.template === 'option' ? '2px solid var(--primary-yellow)' : '1px solid #444',
-                                    borderRadius: '8px', cursor: 'pointer', backgroundColor: '#333', textAlign: 'center'
-                                }}
-                            >
-                                <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>選項型</div>
-                                <div style={{ fontSize: '11px', color: '#888' }}>圖 + 文 + 按鈕</div>
-                            </div>
-                            <div
-                                onClick={() => updateCurrentCard('template', 'image')}
-                                style={{
-                                    padding: '10px', border: currentCard.template === 'image' ? '2px solid var(--primary-yellow)' : '1px solid #444',
-                                    borderRadius: '8px', cursor: 'pointer', backgroundColor: '#333', textAlign: 'center'
-                                }}
-                            >
-                                <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>圖片型</div>
-                                <div style={{ fontSize: '11px', color: '#888' }}>純圖片 + 點擊與否</div>
-                            </div>
-                        </div>
-                    </div>
 
                     <div key={currentCardIndex} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                         {/* Image Field */}

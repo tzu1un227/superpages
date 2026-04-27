@@ -102,3 +102,5 @@ All notable changes to this project will be documented in this file.
   - **介面邏輯優化** [2026-04-24]:
     - 修正訊息中心左側用戶清單，現在會過濾掉系統指令 (Postback, Sensor等)，真實顯示使用者最新互動訊息。
     - 優化 Flex 編輯器：強制輪播訊息（Carousel）必須統一使用單一模板（選項型或圖片型），防止版面因混用而跑版。
+-   2 0 2 6 / 0 4 / 2 7 :   *QS  R u l e D e s i g n e r   !|f!j_�vkMOT1z�N&{T^��bS��N�T�v�v���&N7_6R  F l e x M e s s a g e E d i t o r   (W*��d!j_Nq} N!jg<h_�N�MQэHr0 
+ 

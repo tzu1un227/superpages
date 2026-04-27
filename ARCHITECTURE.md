@@ -341,3 +341,9 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 ### 介面邏輯優化 [2026-04-24]
 - **側邊欄過濾**: 在後端 /api/users 的 SQL 查詢中加入了更嚴格的 category 過濾條件，確保左側清單只抓取有意義的對話內容作為 last_message。
 - **Flex 單一模板限制**: 修改 FlexMessageEditor.jsx 的 updateCurrentCard，當切換模板（	emplate）時，將會透過 map 強制覆寫所有卡片的模板設定，確保輪播一致性。
+# #   [ 2 0 2 6 - 0 4 - 2 7 ]   U I / U X   9e�U 
+ -   * * R u l e D e s i g n e r * * :   !|f!j_N���fǌ�eh�kMOT1z  ( �Y:   c o n t e n t   - >   O(u�8�eQ,   n o t e   - >   �P;���f,   m s g _ r p y   - >   �V��
+�o`) ��X�R�d\O�v��'`0 
+ -   * * F l e x M e s s a g e E d i t o r * * :   �[\O*��d!j_N�v!jg7_6Rq} N_j6R�&N\!jgx��dhV�y�*��daSGr�c6RR
+N�e��MQO(u���(u�m-d!jg\�Hrb�/��N0 
+ 
