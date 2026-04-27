@@ -438,7 +438,7 @@ function MessageCenter() {
                     case 'audio': return '[語音訊息]';
                     case 'location': return '[位置訊息]';
                     case 'sticker': return '[貼圖訊息]';
-                    case 'flex': return '[圖文訊息]';
+                    case 'flex': return '圖文訊息';
                     case 'template': return '[樣板訊息]';
                     case 'carousel': return '[輪播訊息]';
                     case 'imagemap': return '[圖片選單]';

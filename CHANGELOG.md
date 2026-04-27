@@ -103,4 +103,10 @@ All notable changes to this project will be documented in this file.
     - 修正訊息中心左側用戶清單，現在會過濾掉系統指令 (Postback, Sensor等)，真實顯示使用者最新互動訊息。
     - 優化 Flex 編輯器：強制輪播訊息（Carousel）必須統一使用單一模板（選項型或圖片型），防止版面因混用而跑版。
 -   2 0 2 6 / 0 4 / 2 7 :   *QS  R u l e D e s i g n e r   !|f!j_�vkMOT1z�N&{T^��bS��N�T�v�v���&N7_6R  F l e x M e s s a g e E d i t o r   (W*��d!j_Nq} N!jg<h_�N�MQэHr0 
- 
+ - **自動旅程預覽功能增強** [2026-04-27]:
+  - 在 Projects.jsx 的預覽旅程 Modal 中，新增「設定基準時間」欄位。
+  - 將原始 interval_hours 傳入 JourneyPreview 前，根據基準時間計算並顯示準確的「預計發送時間」，提升直覺性。
+  - 調整 JourneyPreview.jsx 中 delayLabel 樣式支援 white-space: pre-wrap 以正常顯示換行。
+
+- **訊息中心顯示優化** [2026-04-27]:
+  - 在 MessageCenter.jsx 的用戶列表，針對 Flex 訊息類型，將顯示格式從「[圖文訊息]」更改為簡潔的「圖文訊息」。

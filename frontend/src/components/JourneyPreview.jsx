@@ -117,6 +117,7 @@ const styles = {
         borderRadius: '4px',
         marginBottom: '5px',
         alignSelf: 'flex-start',
+        whiteSpace: 'pre-wrap'
     }
 };
 

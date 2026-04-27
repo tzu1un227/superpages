@@ -32,6 +32,9 @@ const ProjectsManagement = () => {
         setPreviewLoading(true);
         setIsPreviewModalOpen(true);
         setPreviewSteps([]);
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        setPreviewBaseTime(now.toISOString().slice(0, 16));
 
         try {
             // Determine sort order
@@ -64,15 +67,15 @@ const ProjectsManagement = () => {
                             const { label: intervalLabel } = formatInterval(s.interval_hours);
                             const stepLabel = `Step ${s.step_id} (間隔 ${intervalLabel})`;
                             const delay = i === 0 ? stepLabel : '';
-                            steps.push({ ...m, delay });
+                            steps.push({ ...m, delay, raw_interval_hours: s.interval_hours, is_first: i === 0 });
                         }
                     } catch (e) {
                         console.error("Failed to fetch QA content", e);
-                        steps.push({ OTYPE: 'TextSendMessage', text: `[無法讀取訊息內容: ${tag}]`, delay: `Step ${s.step_id}` });
+                        steps.push({ OTYPE: 'TextSendMessage', text: `[無法讀取訊息內容: ${tag}]`, delay: `Step ${s.step_id}`, raw_interval_hours: s.interval_hours, is_first: true });
                     }
                 } else if (content) {
                     const { label: intervalLabel } = formatInterval(s.interval_hours);
-                    steps.push({ OTYPE: 'TextSendMessage', text: content, delay: `Step ${s.step_id} (間隔 ${intervalLabel})` });
+                    steps.push({ OTYPE: 'TextSendMessage', text: content, delay: `Step ${s.step_id} (間隔 ${intervalLabel})`, raw_interval_hours: s.interval_hours, is_first: true });
                 }
             }
 
@@ -191,6 +194,22 @@ const ProjectsManagement = () => {
     const [richModalConfig, setRichModalConfig] = useState({ initialTag: '', projectId: '', stepId: '', onSave: null });
     const [previewSteps, setPreviewSteps] = useState([]);
     const [previewLoading, setPreviewLoading] = useState(false);
+    const [previewBaseTime, setPreviewBaseTime] = useState('');
+
+    const computedPreviewSteps = React.useMemo(() => {
+        if (!previewBaseTime) return previewSteps;
+        const base = new Date(previewBaseTime).getTime();
+        return previewSteps.map(step => {
+            if (!step.is_first || step.raw_interval_hours === undefined) return step;
+            const offsetMs = parseFloat(step.raw_interval_hours || 0) * 60 * 60 * 1000;
+            const targetTime = new Date(base + offsetMs);
+            const timeStr = targetTime.toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+            return {
+                ...step,
+                delay: `${step.delay}\n預計發送: ${timeStr}`
+            };
+        });
+    }, [previewSteps, previewBaseTime]);
 
     const colors = [
         '#2196F3', '#4CAF50', '#FFD700', '#F44336', '#9C27B0',
@@ -1752,13 +1771,22 @@ const ProjectsManagement = () => {
                                 <h3 style={{ margin: 0, fontSize: '16px', color: '#333' }}>專案預覽</h3>
                                 <X style={{ cursor: 'pointer', color: '#666' }} onClick={() => setIsPreviewModalOpen(false)} />
                             </div>
+                            <div style={{ padding: '10px 15px', borderBottom: '1px solid #eee', backgroundColor: '#fdfdfd' }}>
+                                <label style={{ display: 'block', fontSize: '13px', color: '#666', marginBottom: '6px', fontWeight: 'bold' }}>設定基準時間 (預覽計算用)：</label>
+                                <input 
+                                    type="datetime-local" 
+                                    value={previewBaseTime} 
+                                    onChange={e => setPreviewBaseTime(e.target.value)} 
+                                    style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px' }} 
+                                />
+                            </div>
                             <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
                                 {previewLoading && (
                                     <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 }}>
                                         <LoadingSpinner message="正在生成預覽..." />
                                     </div>
                                 )}
-                                <JourneyPreview steps={previewSteps} />
+                                <JourneyPreview steps={computedPreviewSteps} />
                             </div>
                         </div>
                     </div>

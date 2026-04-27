@@ -347,3 +347,7 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
  -   * * F l e x M e s s a g e E d i t o r * * :   �[\O*��d!j_N�v!jg7_6Rq} N_j6R�&N\!jgx��dhV�y�*��daSGr�c6RR
 N�e��MQO(u���(u�m-d!jg\�Hrb�/��N0 
  
+### UI/UX 改善與旅程預覽增強 [2026-04-27]
+- **預覽基準時間**: 在自動旅程的預覽視窗 (Projects.jsx) 中引入基準時間設定機制 (previewBaseTime state)，可動態將 interval_hours (以小時計) 轉換為實際的預計發送時間。
+- **排版優化**: JourneyPreview 支援換行顯示附加的預計時間，讓排程可視性大幅提高。
+- **訊息摘要精簡**: 訊息中心清單 (MessageCenter.jsx) 針對 flex 訊息，直接顯示為「圖文訊息」去除多餘括號，讓畫面更加乾淨。
