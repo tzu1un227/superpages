@@ -135,10 +135,12 @@ def send_socket_events_batch(events, namespace=None, socket_url=None, bot_name=N
 
     try:
         local_sio.connect(target_ws_url, namespaces=[final_namespace], wait_timeout=10, transports=['polling'])
+        print(f"DEBUG: [BATCH_CONNECTED] URL: {target_ws_url} | NS: {final_namespace}")
         for data in events:
             local_sio.emit(event_name, data, namespace=final_namespace)
-            time.sleep(0.01)
-        time.sleep(0.1)
+            time.sleep(0.02)
+        time.sleep(1.0) # Increased to ensure flush
+        print(f"DEBUG: [BATCH_FLUSHED] Sent {len(events)} events")
     finally:
         try: local_sio.disconnect()
         except: pass

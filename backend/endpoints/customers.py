@@ -89,6 +89,8 @@ def get_customers():
                     u['group_name'] = [u['group_name']]
             else:
                 u['group_name'] = []
+            
+            u['api_index'] = 0
                 
             filtered_users.append(u)
             
@@ -375,11 +377,17 @@ def delete_tag(tag_name):
             s_name = settings.get('socket_name')
             
             def notify_socket():
-                events = [{"user": uid, "message": f"del_tag|{tag_name}", "type": "Sensor"} for uid in affected_uids]
-                # Explicitly pass namespace
+                events = [{
+                    "user": uid, 
+                    "message": f"del_tag|{tag_name}", 
+                    "type": "Sensor",
+                    "api_index": 0
+                } for uid in affected_uids]
                 target_ns = f"/{s_name}" if s_name else "/websoc"
+                print(f"DEBUG: notify_socket (del_tag) | URL: {s_url} | NS: {target_ns} | Count: {len(events)}")
                 send_socket_events_batch(events, socket_url=s_url, bot_name=s_name, namespace=target_ns)
             threading.Thread(target=notify_socket).start()
+
 
 
 
@@ -444,11 +452,17 @@ def add_tag_batch():
             s_name = settings.get('socket_name')
 
             def notify_socket():
-                events = [{"user": uid, "message": f"set_tag|{tag_name}", "type": "Sensor"} for uid in affected_uids]
-                # Explicitly pass namespace
+                events = [{
+                    "user": uid, 
+                    "message": f"set_tag|{tag_name}", 
+                    "type": "Sensor",
+                    "api_index": 0
+                } for uid in affected_uids]
                 target_ns = f"/{s_name}" if s_name else "/websoc"
+                print(f"DEBUG: notify_socket (set_tag) | URL: {s_url} | NS: {target_ns} | Count: {len(events)}")
                 send_socket_events_batch(events, socket_url=s_url, bot_name=s_name, namespace=target_ns)
             threading.Thread(target=notify_socket).start()
+
 
 
             
