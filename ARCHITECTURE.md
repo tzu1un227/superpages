@@ -356,3 +356,8 @@ N�e��MQO(u���(u�m-d!jg\�Hrb�/��N0 
 - **前端實作**：rontend/src/pages/CustomerCenter.jsx，提供客戶列表、客群清單與標籤管理的統一介面。
 - **後端實作**：ackend/endpoints/customers.py 提供 /api/customers (聚合 private_var 與 history) 以及 /api/customers/groups (從 private_var 撈取 g_group 的統計資料)。
 - **路由**：整合至 App.jsx 並以 CustomerCenter 頁面名稱對應路徑 /oa/:oaId/customers。
+
+
+### 客戶中心進階功能與群發整合 (Customer Center Enhanced) [2026-04-28]
+- **前端架構**：CustomerCenter.jsx 加入大量選取狀態 (selectedUserIds)、客群與標籤的操作 Modal。實作與 Broadcast.jsx 的跨頁面狀態傳遞 (location.state)。
+- **後端擴充**：customers.py 中 /groups 端點擴充支援讀寫 Global_var 的 group_descriptions，並實作批次更新 Private_var g_group 的 POST 邏輯。

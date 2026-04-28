@@ -174,6 +174,32 @@ function BroadcastContent() {
         try {
             const res = await api.get('/registered-users');
             setAvailableUsers(res.data || []);
+            
+            // Check for passed state from CustomerCenter
+            if (location.state && location.state.presetTarget) {
+                const preset = location.state.presetTarget;
+                if (preset.type === 'ids') {
+                    const idList = preset.value.split(',');
+                    const sUsers = idList.map(id => {
+                        const found = (res.data || []).find(u => u.user_id === id.trim?.() || u.user_id === id);
+                        return found || { user_id: id, name: id };
+                    });
+                    setFormData(prev => ({
+                        ...prev,
+                        target_type: 'ids',
+                        target_value: preset.value,
+                        selectedUsers: sUsers,
+                        name: preset.name || prev.name || `新群發 ${new Date().toLocaleDateString()}`,
+                        status: 'draft'
+                    }));
+                    setView('create');
+                    if (preset.autoStep2) {
+                        setTimeout(() => setStep(2), 300);
+                    }
+                }
+                // Clear state so it doesn't trigger again on refresh
+                window.history.replaceState({}, document.title);
+            }
         } catch (err) { console.error('Error fetching users:', err); }
     };
 

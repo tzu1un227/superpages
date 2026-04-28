@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Filter, Download, UserPlus, Users, Tag, Clock, Phone, Mail, MoreHorizontal, ArrowUpDown, ArrowUp, ArrowDown, X } from 'lucide-react';
+import { Search, Filter, Download, UserPlus, Users, Tag, Clock, Phone, Mail, MoreHorizontal, ArrowUpDown, ArrowUp, ArrowDown, X, MessageSquare, Plus } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
 import api from '../api';
 import { useToast } from '../contexts/ToastContext';
 
@@ -17,9 +18,20 @@ const CustomerCenter = () => {
   const [filterDraft, setFilterDraft] = useState({ tags: [], joinTime: '全部時間', lastInteractionTime: '全部時間', phone: '全部', email: '全部' });
   const [advancedFilters, setAdvancedFilters] = useState({ tags: [], joinTime: '全部時間', lastInteractionTime: '全部時間', phone: '全部', email: '全部' });
 
+  const [selectedUserIds, setSelectedUserIds] = useState([]);
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [groupForm, setGroupForm] = useState({ mode: 'existing', groupName: '', newGroupName: '', description: '' });
+  
+  const [isTagModalOpen, setIsTagModalOpen] = useState(false);
+  const [tagInput, setTagInput] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const navigate = useNavigate();
+  const { oaId } = useParams();
   const { addToast } = useToast();
 
   useEffect(() => {
+    setSelectedUserIds([]); // clear selection when tab changes
     if (activeTab === 'customers') {
       fetchCustomers();
     } else if (activeTab === 'groups') {
@@ -76,9 +88,10 @@ const CustomerCenter = () => {
     setSortConfig({ key, direction });
   };
 
-  const handleView = (type, value) => {
-    setFilterContext({ type, value });
+  const handleView = (type, value, description = '') => {
+    setFilterContext({ type, value, description });
     setActiveTab('customers');
+    setSelectedUserIds([]);
   };
 
   const filteredCustomers = useMemo(() => {
@@ -243,12 +256,107 @@ const CustomerCenter = () => {
     addToast('資料匯出成功！', 'success');
   };
 
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedUserIds(sortedCustomers.map(c => c.user_id));
+    } else {
+      setSelectedUserIds([]);
+    }
+  };
+
+  const handleSelectUser = (userId) => {
+    setSelectedUserIds(prev => 
+      prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const handleSaveToGroup = async () => {
+    if (selectedUserIds.length === 0) return;
+    const finalGroupName = groupForm.mode === 'existing' ? groupForm.groupName : groupForm.newGroupName;
+    if (!finalGroupName.trim()) {
+      addToast('請輸入或選擇客群名稱', 'error');
+      return;
+    }
+    
+    setIsProcessing(true);
+    try {
+      await api.post('/customers/groups', {
+        group_name: finalGroupName,
+        description: groupForm.mode === 'existing' ? (groups.find(g => g.group_name === finalGroupName)?.description || '') : groupForm.description,
+        user_ids: selectedUserIds
+      });
+      addToast(`成功將 ${selectedUserIds.length} 名用戶加入客群: ${finalGroupName}`, 'success');
+      setIsGroupModalOpen(false);
+      setSelectedUserIds([]);
+      fetchCustomers();
+      fetchGroups();
+    } catch (err) {
+      addToast('加入客群失敗', 'error');
+      console.error(err);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleAddTagToGroup = async () => {
+    if (!tagInput.trim() || filteredCustomers.length === 0) return;
+    setIsProcessing(true);
+    let successCount = 0;
+    try {
+      for (const u of filteredCustomers) {
+        if (!u.user_id) continue;
+        try {
+          await api.post('/trigger', {
+            user: u.user_id,
+            message: `set_tag|${tagInput.trim()}`,
+            type: 'Sensor',
+            api_index: 0
+          });
+          successCount++;
+        } catch (e) { console.error('Tag fail for user', u.user_id, e); }
+      }
+      addToast(`成功為 ${successCount} 名用戶加入標籤: ${tagInput}`, 'success');
+      setIsTagModalOpen(false);
+      setTagInput('');
+      fetchCustomers();
+      fetchTags();
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSendGroupMessage = () => {
+    const userIds = filteredCustomers.map(c => c.user_id).filter(Boolean).join(',');
+    if (!userIds) {
+      addToast('該群組目前沒有用戶可發送訊息', 'error');
+      return;
+    }
+    navigate(`/project/${oaId}/broadcast`, { 
+      state: { 
+        presetTarget: { 
+          type: 'ids', 
+          value: userIds, 
+          name: filterContext.type === 'group' ? `發送給客群：${filterContext.value}` : `發送給選定目標`,
+          autoStep2: true 
+        } 
+      } 
+    });
+  };
+
   const renderCustomersTable = () => (
     <div style={{ backgroundColor: '#222', borderRadius: '12px', overflow: 'hidden', border: '1px solid #333' }}>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#fff' }}>
           <thead>
             <tr style={{ backgroundColor: '#2A2A2A', borderBottom: '1px solid #444' }}>
+              <th style={{ padding: '16px', width: '40px' }}>
+                <input 
+                  type="checkbox" 
+                  checked={selectedUserIds.length > 0 && selectedUserIds.length === sortedCustomers.length}
+                  onChange={handleSelectAll}
+                  style={{ cursor: 'pointer', transform: 'scale(1.2)' }}
+                />
+              </th>
               <th onClick={() => handleSort('name')} style={{ padding: '16px', fontWeight: '500', color: '#888', cursor: 'pointer', userSelect: 'none' }}>
                 客戶名稱 <SortIcon columnKey="name" />
               </th>
@@ -260,9 +368,6 @@ const CustomerCenter = () => {
               </th>
               <th onClick={() => handleSort('tag')} style={{ padding: '16px', fontWeight: '500', color: '#888', cursor: 'pointer', userSelect: 'none' }}>
                 標籤 <SortIcon columnKey="tag" />
-              </th>
-              <th style={{ padding: '16px', fontWeight: '500', color: '#888' }}>
-                狀態
               </th>
               <th style={{ padding: '16px', fontWeight: '500', color: '#888', textAlign: 'center' }}>操作</th>
             </tr>
@@ -278,7 +383,15 @@ const CustomerCenter = () => {
               </tr>
             ) : (
               sortedCustomers.map((c, idx) => (
-                <tr key={idx} style={{ borderBottom: '1px solid #333', transition: 'background-color 0.2s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#2A2A2A'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                <tr key={idx} style={{ borderBottom: '1px solid #333', transition: 'background-color 0.2s', backgroundColor: selectedUserIds.includes(c.user_id) ? 'rgba(255, 215, 0, 0.05)' : 'transparent' }} onMouseEnter={e => {if(!selectedUserIds.includes(c.user_id)) e.currentTarget.style.backgroundColor = '#2A2A2A'}} onMouseLeave={e => {if(!selectedUserIds.includes(c.user_id)) e.currentTarget.style.backgroundColor = 'transparent'}}>
+                  <td style={{ padding: '16px' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={selectedUserIds.includes(c.user_id)}
+                      onChange={() => handleSelectUser(c.user_id)}
+                      style={{ cursor: 'pointer', transform: 'scale(1.2)' }}
+                    />
+                  </td>
                   <td style={{ padding: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#444', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -319,11 +432,6 @@ const CustomerCenter = () => {
                       <span style={{ color: '#666', fontSize: '13px' }}>無標籤</span>
                     )}
                   </td>
-                  <td style={{ padding: '16px' }}>
-                    <div style={{ display: 'inline-flex', padding: '4px 8px', borderRadius: '4px', backgroundColor: 'rgba(136, 136, 136, 0.2)', color: '#888', fontSize: '12px' }}>
-                      未規劃
-                    </div>
-                  </td>
                   <td style={{ padding: '16px', textAlign: 'center' }}>
                     <button onClick={() => handleActionClick('編輯客戶', c.name)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: '4px' }} title="更多選項">
                       <MoreHorizontal size={18} />
@@ -360,17 +468,18 @@ const CustomerCenter = () => {
           ) : (
             filteredGroups.map((g, idx) => (
               <tr key={idx} style={{ borderBottom: '1px solid #333' }}>
-                <td style={{ padding: '16px', fontWeight: '500', cursor: 'pointer' }} onClick={() => handleView('group', g.group_name)}>
+                <td style={{ padding: '16px', fontWeight: '500', cursor: 'pointer' }} onClick={() => handleView('group', g.group_name, g.description)}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Users size={16} className="text-yellow" />
                     <span style={{ transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#FFD700'} onMouseLeave={e => e.currentTarget.style.color = 'inherit'}>
                       {g.group_name}
                     </span>
                   </div>
+                  {g.description && <div style={{ fontSize: '12px', color: '#888', marginTop: '4px', marginLeft: '24px' }}>{g.description}</div>}
                 </td>
                 <td style={{ padding: '16px', color: '#ccc' }}>{g.member_count} 人</td>
                 <td style={{ padding: '16px', textAlign: 'right' }}>
-                  <button onClick={() => handleView('group', g.group_name)} style={{ padding: '6px 12px', backgroundColor: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', marginRight: '8px' }}>
+                  <button onClick={() => handleView('group', g.group_name, g.description)} style={{ padding: '6px 12px', backgroundColor: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', marginRight: '8px' }}>
                     查看
                   </button>
                   <button onClick={() => handleActionClick('刪除客群', g.group_name)} style={{ padding: '6px 12px', backgroundColor: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.5)', color: '#ef4444', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>
@@ -446,7 +555,7 @@ const CustomerCenter = () => {
             </button>
           )}
           {activeTab === 'groups' && (
-            <button style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', backgroundColor: '#FFD700', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
+            <button onClick={() => { setActiveTab('customers'); setIsGroupModalOpen(true); }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', backgroundColor: '#FFD700', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
               <UserPlus size={16} /> 新增客群
             </button>
           )}
@@ -492,14 +601,32 @@ const CustomerCenter = () => {
       </div>
 
       {filterContext.type && activeTab === 'customers' && (
-        <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: 'rgba(255, 215, 0, 0.1)', border: '1px solid rgba(255, 215, 0, 0.3)', borderRadius: '8px' }}>
-          <span style={{ color: '#FFD700', fontWeight: 'bold' }}>
-            過濾中：{filterContext.type === 'group' ? '目標客群' : '標籤'} = {filterContext.value}
-          </span>
-          <button onClick={() => setFilterContext({ type: null, value: null })} style={{ background: 'transparent', border: 'none', color: '#FFD700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <X size={16} /> 取消過濾
-          </button>
-        </div>
+        filterContext.type === 'group' ? (
+          <div style={{ backgroundColor: '#2a2a2a', padding: '20px', borderRadius: '12px', marginBottom: '20px', border: '1px solid #444', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+             <div>
+                <h2 style={{ margin: 0, color: '#FFD700', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '20px' }}><Users size={20} /> {filterContext.value}</h2>
+                {filterContext.description && <p style={{ margin: '8px 0 0 0', color: '#ccc', fontSize: '14px' }}>{filterContext.description}</p>}
+                <p style={{ margin: '4px 0 0 0', color: '#888', fontSize: '13px' }}>共 {filteredCustomers.length} 名用戶</p>
+             </div>
+             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                 <button onClick={() => setIsTagModalOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', backgroundColor: '#333', color: 'white', border: '1px solid #555', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor='#444'} onMouseLeave={e => e.currentTarget.style.backgroundColor='#333'}><Tag size={16} /> 上標籤</button>
+                 <button onClick={handleSendGroupMessage} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', backgroundColor: '#FFD700', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform='scale(1.02)'} onMouseLeave={e => e.currentTarget.style.transform='scale(1)'}><MessageSquare size={16} /> 發訊息</button>
+                 <div style={{ width: '1px', height: '24px', backgroundColor: '#555', margin: '0 4px' }}></div>
+                 <button onClick={() => setFilterContext({ type: null, value: null })} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '14px' }} onMouseEnter={e => e.currentTarget.style.color='#fff'} onMouseLeave={e => e.currentTarget.style.color='#888'}>
+                   <X size={16} /> 返回
+                 </button>
+             </div>
+          </div>
+        ) : (
+          <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: 'rgba(255, 215, 0, 0.1)', border: '1px solid rgba(255, 215, 0, 0.3)', borderRadius: '8px' }}>
+            <span style={{ color: '#FFD700', fontWeight: 'bold' }}>
+              過濾中：標籤 = {filterContext.value}
+            </span>
+            <button onClick={() => setFilterContext({ type: null, value: null })} style={{ background: 'transparent', border: 'none', color: '#FFD700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <X size={16} /> 取消過濾
+            </button>
+          </div>
+        )
       )}
 
       {activeTab === 'customers' && renderCustomersTable()}
@@ -626,6 +753,123 @@ const CustomerCenter = () => {
           </div>
         </div>
       )}
+
+      {/* Group Modal */}
+      {isGroupModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <div style={{ backgroundColor: '#222', color: '#fff', width: '400px', borderRadius: '12px', padding: '24px', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', border: '1px solid #333' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}><Users size={20} className="text-yellow" /> 加入客戶群</h2>
+              <X size={20} color="#888" style={{ cursor: 'pointer' }} onClick={() => setIsGroupModalOpen(false)} />
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+              <button 
+                onClick={() => setGroupForm({...groupForm, mode: 'existing'})} 
+                style={{ flex: 1, padding: '8px', backgroundColor: groupForm.mode === 'existing' ? '#FFD700' : '#333', color: groupForm.mode === 'existing' ? '#000' : '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+              >現有客群</button>
+              <button 
+                onClick={() => setGroupForm({...groupForm, mode: 'new'})} 
+                style={{ flex: 1, padding: '8px', backgroundColor: groupForm.mode === 'new' ? '#FFD700' : '#333', color: groupForm.mode === 'new' ? '#000' : '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+              >建立新客群</button>
+            </div>
+
+            {groupForm.mode === 'existing' ? (
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', color: '#ccc', fontSize: '14px' }}>選擇客群</label>
+                <select 
+                  value={groupForm.groupName} 
+                  onChange={(e) => setGroupForm({...groupForm, groupName: e.target.value})}
+                  style={{ width: '100%', padding: '10px', backgroundColor: '#111', color: '#fff', border: '1px solid #444', borderRadius: '6px', outline: 'none' }}
+                >
+                  <option value="">請選擇客群...</option>
+                  {groups.map(g => <option key={g.group_name} value={g.group_name}>{g.group_name}</option>)}
+                </select>
+              </div>
+            ) : (
+              <>
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#ccc', fontSize: '14px' }}>新客群名稱</label>
+                  <input 
+                    type="text" 
+                    value={groupForm.newGroupName} 
+                    onChange={(e) => setGroupForm({...groupForm, newGroupName: e.target.value})}
+                    placeholder="輸入客群名稱..."
+                    style={{ width: '100%', padding: '10px', backgroundColor: '#111', color: '#fff', border: '1px solid #444', borderRadius: '6px', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#ccc', fontSize: '14px' }}>客群描述 (選填)</label>
+                  <textarea 
+                    value={groupForm.description} 
+                    onChange={(e) => setGroupForm({...groupForm, description: e.target.value})}
+                    placeholder="輸入客群描述..."
+                    rows={3}
+                    style={{ width: '100%', padding: '10px', backgroundColor: '#111', color: '#fff', border: '1px solid #444', borderRadius: '6px', outline: 'none', resize: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button onClick={() => setIsGroupModalOpen(false)} style={{ padding: '8px 16px', backgroundColor: 'transparent', color: '#ccc', border: '1px solid #555', borderRadius: '6px', cursor: 'pointer' }}>取消</button>
+              <button onClick={handleSaveToGroup} disabled={isProcessing} style={{ padding: '8px 16px', backgroundColor: '#FFD700', color: '#000', border: 'none', borderRadius: '6px', cursor: isProcessing ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+                {isProcessing ? '儲存中...' : '儲存並加入'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tag Modal */}
+      {isTagModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <div style={{ backgroundColor: '#222', color: '#fff', width: '400px', borderRadius: '12px', padding: '24px', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', border: '1px solid #333' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}><Tag size={20} className="text-yellow" /> 批次上標籤</h2>
+              <X size={20} color="#888" style={{ cursor: 'pointer' }} onClick={() => setIsTagModalOpen(false)} />
+            </div>
+            
+            <p style={{ color: '#ccc', fontSize: '14px', marginBottom: '16px' }}>將為客群「{filterContext.value}」中的 {filteredCustomers.length} 名用戶統一加上標籤：</p>
+
+            <div style={{ marginBottom: '24px' }}>
+              <input 
+                type="text" 
+                value={tagInput} 
+                onChange={(e) => setTagInput(e.target.value)}
+                placeholder="輸入要新增的標籤名稱..."
+                list="tag-options"
+                style={{ width: '100%', padding: '10px', backgroundColor: '#111', color: '#fff', border: '1px solid #444', borderRadius: '6px', outline: 'none', boxSizing: 'border-box' }}
+              />
+              <datalist id="tag-options">
+                {tags.map(t => <option key={t.tag_name} value={t.tag_name} />)}
+              </datalist>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button onClick={() => setIsTagModalOpen(false)} style={{ padding: '8px 16px', backgroundColor: 'transparent', color: '#ccc', border: '1px solid #555', borderRadius: '6px', cursor: 'pointer' }}>取消</button>
+              <button onClick={handleAddTagToGroup} disabled={isProcessing || !tagInput.trim()} style={{ padding: '8px 16px', backgroundColor: '#FFD700', color: '#000', border: 'none', borderRadius: '6px', cursor: (isProcessing || !tagInput.trim()) ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+                {isProcessing ? '處理中...' : '確定新增'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Action Bar */}
+      {selectedUserIds.length > 0 && activeTab === 'customers' && (
+        <div style={{ position: 'fixed', bottom: '30px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#FFD700', color: '#000', padding: '12px 24px', borderRadius: '30px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', gap: '20px', zIndex: 100 }}>
+          <div style={{ fontWeight: 'bold', fontSize: '15px' }}>已選擇 {selectedUserIds.length} 名用戶</div>
+          <div style={{ width: '1px', height: '20px', backgroundColor: 'rgba(0,0,0,0.2)' }}></div>
+          <button onClick={() => setIsGroupModalOpen(true)} style={{ background: 'transparent', border: 'none', color: '#000', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '14px' }}>
+            <Plus size={16} /> 加入客群
+          </button>
+          <button onClick={() => setSelectedUserIds([])} style={{ background: 'transparent', border: 'none', color: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '13px' }}>
+            取消
+          </button>
+        </div>
+      )}
+
     </div>
   );
 };

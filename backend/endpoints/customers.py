@@ -97,8 +97,20 @@ def get_groups():
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
         pv_table = f'"Private_var:{app_id}"'
+        gv_table = f'"Global_var:{app_id}"'
         
-        # fetch distinct group names (based on sensors/group.py logic where name='g_group')
+        # Get descriptions from Global_var
+        cur.execute(f"SELECT value FROM {gv_table} WHERE name = 'group_descriptions'")
+        desc_row = cur.fetchone()
+        descriptions = {}
+        if desc_row and desc_row['value']:
+            import json
+            try:
+                descriptions = json.loads(desc_row['value'])
+            except:
+                pass
+        
+        # fetch distinct group names
         query = f"""
             SELECT value as group_name, COUNT(user_id) as member_count
             FROM {pv_table}
@@ -108,11 +120,63 @@ def get_groups():
         cur.execute(query)
         groups = cur.fetchall()
         
+        for g in groups:
+            g['description'] = descriptions.get(g['group_name'], '')
+            
         cur.close()
         conn.close()
         return jsonify(groups)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@customers_bp.route('/groups', methods=['POST'])
+@token_required
+def create_group():
+    data = request.json
+    group_name = data.get('group_name')
+    description = data.get('description', '')
+    user_ids = data.get('user_ids', [])
+    
+    if not group_name:
+        return jsonify({"error": "Missing group_name"}), 400
+
+    app_id = get_current_app_id()
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+        # Update Global_var group_descriptions
+        gv_table = f'"Global_var:{app_id}"'
+        cur.execute(f"SELECT value FROM {gv_table} WHERE name = 'group_descriptions'")
+        row = cur.fetchone()
+        
+        import json
+        if row and row[0]:
+            try:
+                descriptions = json.loads(row[0])
+            except:
+                descriptions = {}
+            descriptions[group_name] = description
+            cur.execute(f"UPDATE {gv_table} SET value = %s WHERE name = 'group_descriptions'", (json.dumps(descriptions, ensure_ascii=False),))
+        else:
+            descriptions = {group_name: description}
+            cur.execute(f"INSERT INTO {gv_table} (name, value) VALUES ('group_descriptions', %s)", (json.dumps(descriptions, ensure_ascii=False),))
+
+        # Update Private_var
+        pv_table = f'"Private_var:{app_id}"'
+        if user_ids:
+            cur.execute(f"DELETE FROM {pv_table} WHERE name = 'g_group' AND user_id = ANY(%s)", (user_ids,))
+            args_str = b",".join(cur.mogrify("(%s, 'g_group', %s)", (uid, group_name)) for uid in user_ids).decode('utf-8')
+            cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES {args_str}")
+
+        conn.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
 
 @customers_bp.route('/tags', methods=['GET'])
 @token_required
