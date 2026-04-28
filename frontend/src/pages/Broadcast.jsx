@@ -710,11 +710,11 @@ function BroadcastContent() {
                 <div style={{ marginTop: '25px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px', color: '#888' }}>
                         <span>推播覆蓋率</span>
-                        <span>{stats.ratio}%</span>
+                        <span>{stats?.ratio || 0}%</span>
                     </div>
                     <div style={{ height: '8px', backgroundColor: '#333', borderRadius: '4px', overflow: 'hidden' }}>
                         <div style={{
-                            width: `${stats.ratio}%`,
+                            width: `${stats?.ratio || 0}%`,
                             height: '100%',
                             backgroundColor: 'var(--primary-yellow)',
                             transition: 'width 0.5s ease-out'
@@ -1037,9 +1037,9 @@ function BroadcastContent() {
                 </div>
 
                 <div style={{ minHeight: '400px', opacity: (formData.status === 'sent' || formData.status === 'scheduled') && step !== 1 ? 0.9 : 1, pointerEvents: ((formData.status === 'sent' || formData.status === 'scheduled') && step === 3) ? 'none' : 'auto' }}>
-                    {step === 1 && renderStep1()}
-                    {step === 2 && renderStep2()}
-                    {step === 3 && renderStep3()}
+                    {step === 1 && renderStep1 && renderStep1()}
+                    {step === 2 && renderStep2 && renderStep2()}
+                    {step === 3 && renderStep3 && renderStep3()}
                 </div>
 
                 <div style={{
