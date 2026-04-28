@@ -82,7 +82,7 @@ function BroadcastContent() {
     const { showToast } = useToast();
 
     // View state
-    const [view, setView] = useState('list'); // 'list' or 'create'
+    const [view, setView] = useState(location.state?.presetTarget ? 'create' : 'list'); 
     const [listTab, setListTab] = useState('all'); // all, scheduled, draft, sent
     const [broadcasts, setBroadcasts] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -178,11 +178,12 @@ function BroadcastContent() {
             // Check for passed state from CustomerCenter
             if (location.state && location.state.presetTarget) {
                 const preset = location.state.presetTarget;
-                if (preset.type === 'ids') {
+                if (preset.type === 'ids' && preset.value) {
                     const idList = preset.value.split(',');
                     const sUsers = idList.map(id => {
-                        const found = (res.data || []).find(u => u.user_id === id.trim?.() || u.user_id === id);
-                        return found || { user_id: id, name: id };
+                        const trimmedId = (id && typeof id === 'string') ? id.trim() : id;
+                        const found = (res.data || []).find(u => u.user_id === trimmedId);
+                        return found || { user_id: trimmedId, name: trimmedId };
                     });
                     setFormData(prev => ({
                         ...prev,
@@ -192,7 +193,6 @@ function BroadcastContent() {
                         name: preset.name || prev.name || `新群發 ${new Date().toLocaleDateString()}`,
                         status: 'draft'
                     }));
-                    setView('create');
                     if (preset.autoStep2) {
                         setTimeout(() => setStep(2), 300);
                     }

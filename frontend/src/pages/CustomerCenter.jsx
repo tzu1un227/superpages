@@ -30,15 +30,8 @@ const CustomerCenter = () => {
   const { oaId } = useParams();
   const { addToast } = useToast();
 
-  useEffect(() => {
-    setSelectedUserIds([]); // clear selection when tab changes
-    fetchCustomers();
-    fetchGroups();
-    fetchTags();
-  }, [activeTab]);
-
-  const fetchCustomers = async () => {
-    setIsLoading(true);
+  const fetchCustomers = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       const response = await api.get('/customers');
       setCustomers(response.data);
@@ -46,12 +39,12 @@ const CustomerCenter = () => {
       console.error('Error fetching customers:', error);
       addToast('無法取得客戶名單', 'error');
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 
-  const fetchGroups = async () => {
-    setIsLoading(true);
+  const fetchGroups = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       const response = await api.get('/customers/groups');
       setGroups(response.data);
@@ -59,12 +52,12 @@ const CustomerCenter = () => {
       console.error('Error fetching groups:', error);
       addToast('無法取得客群列表', 'error');
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 
-  const fetchTags = async () => {
-    setIsLoading(true);
+  const fetchTags = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       const response = await api.get('/customers/tags');
       setTags(response.data);
@@ -72,9 +65,28 @@ const CustomerCenter = () => {
       console.error('Error fetching tags:', error);
       addToast('無法取得標籤列表', 'error');
     } finally {
+      if (!silent) setIsLoading(false);
+    }
+  };
+
+  const refreshAllData = async () => {
+    setIsLoading(true);
+    try {
+      await Promise.all([
+        fetchCustomers(true),
+        fetchGroups(true),
+        fetchTags(true)
+      ]);
+    } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    setSelectedUserIds([]); // clear selection when tab changes
+    refreshAllData();
+  }, [activeTab]);
+
 
   const handleSort = (key) => {
     let direction = 'asc';
@@ -205,7 +217,7 @@ const CustomerCenter = () => {
           if (filterContext.type === 'group' && filterContext.value === item) {
             setFilterContext({ type: 'all', value: '', description: '' });
           }
-          await Promise.all([fetchGroups(), fetchCustomers()]);
+          await refreshAllData();
         } catch (error) {
           console.error(error);
           addToast('刪除客群失敗', 'error');
@@ -224,7 +236,7 @@ const CustomerCenter = () => {
           if (filterContext.type === 'tag' && filterContext.value === item) {
             setFilterContext({ type: 'all', value: '', description: '' });
           }
-          await Promise.all([fetchTags(), fetchCustomers()]);
+          await refreshAllData();
         } catch (error) {
           console.error(error);
           addToast('刪除標籤失敗', 'error');
@@ -322,7 +334,7 @@ const CustomerCenter = () => {
       setIsGroupModalOpen(false);
       addToast(`成功將 ${selectedUserIds.length} 名用戶加入客群: ${finalGroupName}`, 'success');
       setSelectedUserIds([]);
-      await Promise.all([fetchCustomers(), fetchGroups()]);
+      await refreshAllData();
     } catch (err) {
       addToast('加入客群失敗', 'error');
       console.error(err);
@@ -351,7 +363,7 @@ const CustomerCenter = () => {
       setIsTagModalOpen(false);
       addToast(`成功為 ${successCount} 名用戶加入標籤: ${tagInput}`, 'success');
       setTagInput('');
-      await Promise.all([fetchCustomers(), fetchTags()]);
+      await refreshAllData();
     } finally {
       setIsProcessing(false);
     }

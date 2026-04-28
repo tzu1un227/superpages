@@ -59,6 +59,16 @@ def insert_data():
         )
     """)
     
+    # Check if data already exists
+    cur.execute(f"SELECT COUNT(*) FROM {pv_table}")
+    if cur.fetchone()[0] > 0:
+        print("Data already exists in Private_var. Skipping test data insertion to preserve manual changes.")
+        cur.close()
+        conn.close()
+        cur_rds.close()
+        conn_rds.close()
+        return
+    
     gv_table = f'"Global_var:{app_name}"'
     cur.execute(f"""
         CREATE TABLE IF NOT EXISTS {gv_table} (
