@@ -56,9 +56,20 @@ def get_customers():
             print(f"Error fetching history: {e}")
             history_dict = {}
         
+        import ast
         for u in users:
             dt = history_dict.get(u['user_id'])
             u['last_interaction'] = dt.strftime('%Y-%m-%d %H:%M:%S') if dt else None
+            
+            # Parse tag list
+            if u['tag']:
+                try:
+                    parsed = ast.literal_eval(u['tag'])
+                    u['tag'] = parsed if isinstance(parsed, list) else [str(parsed)]
+                except:
+                    u['tag'] = [u['tag']]
+            else:
+                u['tag'] = []
             
         cur.close()
         conn.close()
@@ -103,14 +114,33 @@ def get_tags():
         
         pv_table = f'"Private_var:{app_id}"'
         
+        import ast
+        from collections import Counter
+        
         query = f"""
-            SELECT value as tag_name, COUNT(user_id) as member_count
+            SELECT value as tag_string
             FROM {pv_table}
             WHERE name = 'tag'
-            GROUP BY value
         """
         cur.execute(query)
-        tags = cur.fetchall()
+        rows = cur.fetchall()
+        
+        tag_counts = Counter()
+        for r in rows:
+            val = r['tag_string']
+            if val:
+                try:
+                    parsed = ast.literal_eval(val)
+                    if isinstance(parsed, list):
+                        tag_counts.update(parsed)
+                    else:
+                        tag_counts.update([str(parsed)])
+                except:
+                    if str(val).strip() != '[]':
+                        tag_counts.update([val])
+                        
+        tags = [{"tag_name": k, "member_count": v} for k, v in tag_counts.items() if k]
+        tags.sort(key=lambda x: x['member_count'], reverse=True)
         
         cur.close()
         conn.close()

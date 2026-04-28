@@ -73,6 +73,14 @@ const CustomerCenter = () => {
     let sortableItems = [...customers];
     if (sortConfig.key !== null) {
       sortableItems.sort((a, b) => {
+        if (sortConfig.key === 'tag') {
+          const aTags = Array.isArray(a.tag) ? a.tag.join(', ') : '';
+          const bTags = Array.isArray(b.tag) ? b.tag.join(', ') : '';
+          if (aTags < bTags) return sortConfig.direction === 'asc' ? -1 : 1;
+          if (aTags > bTags) return sortConfig.direction === 'asc' ? 1 : -1;
+          return 0;
+        }
+
         let aValue = a[sortConfig.key];
         let bValue = b[sortConfig.key];
         
@@ -167,10 +175,14 @@ const CustomerCenter = () => {
                     </div>
                   </td>
                   <td style={{ padding: '16px' }}>
-                    {c.tag ? (
-                      <div style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 8px', borderRadius: '16px', backgroundColor: '#333', fontSize: '12px', border: '1px solid #444', color: '#FFD700' }}>
-                        <Tag size={12} style={{ marginRight: '4px' }} />
-                        {c.tag}
+                    {Array.isArray(c.tag) && c.tag.length > 0 ? (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {c.tag.map((t, i) => (
+                          <div key={i} style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 8px', borderRadius: '16px', backgroundColor: '#333', fontSize: '12px', border: '1px solid #444', color: '#FFD700' }}>
+                            <Tag size={12} style={{ marginRight: '4px' }} />
+                            {t}
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <span style={{ color: '#666', fontSize: '13px' }}>無標籤</span>
