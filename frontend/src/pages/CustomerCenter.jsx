@@ -33,7 +33,7 @@ const CustomerCenter = () => {
   const fetchCustomers = async (silent = false) => {
     if (!silent) setIsLoading(true);
     try {
-      const response = await api.get('/customers');
+      const response = await api.get(`/customers?t=${Date.now()}`);
       setCustomers(response.data);
     } catch (error) {
       console.error('Error fetching customers:', error);
@@ -46,7 +46,7 @@ const CustomerCenter = () => {
   const fetchGroups = async (silent = false) => {
     if (!silent) setIsLoading(true);
     try {
-      const response = await api.get('/customers/groups');
+      const response = await api.get(`/customers/groups?t=${Date.now()}`);
       setGroups(response.data);
     } catch (error) {
       console.error('Error fetching groups:', error);
@@ -59,7 +59,7 @@ const CustomerCenter = () => {
   const fetchTags = async (silent = false) => {
     if (!silent) setIsLoading(true);
     try {
-      const response = await api.get('/customers/tags');
+      const response = await api.get(`/customers/tags?t=${Date.now()}`);
       setTags(response.data);
     } catch (error) {
       console.error('Error fetching tags:', error);
@@ -69,10 +69,12 @@ const CustomerCenter = () => {
     }
   };
 
+
   const refreshAllData = async () => {
     setIsLoading(true);
     console.log('Refreshing data...');
     try {
+      await new Promise(r => setTimeout(r, 100));
       await fetchCustomers(true);
       await fetchGroups(true);
       await fetchTags(true);
@@ -83,6 +85,7 @@ const CustomerCenter = () => {
       setIsLoading(false);
     }
   };
+
 
 
   useEffect(() => {
@@ -239,6 +242,7 @@ const CustomerCenter = () => {
           if (filterContext.type === 'tag' && filterContext.value === item) {
             setFilterContext({ type: 'all', value: '', description: '' });
           }
+          console.log('Tag deletion successful, triggering refresh...');
           await refreshAllData();
         } catch (error) {
           console.error(error);
@@ -360,13 +364,15 @@ const CustomerCenter = () => {
       setIsTagModalOpen(false);
       addToast(`成功為 ${userIds.length} 名用戶加入標籤: ${tagInput.trim()}`, 'success');
       setTagInput('');
+      console.log('Batch tagging successful, triggering refresh...');
       await refreshAllData();
     } catch (err) {
       addToast('標籤批次更新失敗', 'error');
-      console.error(err);
+      console.error('Batch tagging error:', err);
     } finally {
       setIsProcessing(false);
     }
+
   };
 
   const handleSendGroupMessage = () => {

@@ -18,6 +18,7 @@ def get_current_app_id():
 @customers_bp.route('', methods=['GET'])
 @token_required
 def get_customers():
+    print("DEBUG: get_customers called")
     try:
         app_id = get_current_app_id()
         conn = get_db_connection()
@@ -101,6 +102,7 @@ def get_customers():
 @customers_bp.route('/groups', methods=['GET'])
 @token_required
 def get_groups():
+    print("DEBUG: get_groups called")
     try:
         app_id = get_current_app_id()
         conn = get_db_connection()
@@ -285,6 +287,7 @@ def delete_group(group_name):
 @customers_bp.route('/tags', methods=['GET'])
 @token_required
 def get_tags():
+    print("DEBUG: get_tags called")
     try:
         app_id = get_current_app_id()
         conn = get_db_connection()
