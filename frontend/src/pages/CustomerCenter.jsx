@@ -11,6 +11,7 @@ const CustomerCenter = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [filterContext, setFilterContext] = useState({ type: null, value: null });
+  const [searchQuery, setSearchQuery] = useState('');
   const { addToast } = useToast();
 
   useEffect(() => {
@@ -82,8 +83,16 @@ const CustomerCenter = () => {
     } else if (filterContext.type === 'tag') {
       filtered = filtered.filter(c => Array.isArray(c.tag) ? c.tag.includes(filterContext.value) : c.tag === filterContext.value);
     }
+    if (searchQuery) {
+      const lowerQuery = searchQuery.toLowerCase();
+      filtered = filtered.filter(c => 
+        (c.name && c.name.toLowerCase().includes(lowerQuery)) ||
+        (c.user_id && c.user_id.toLowerCase().includes(lowerQuery)) ||
+        (c.email && c.email.toLowerCase().includes(lowerQuery))
+      );
+    }
     return filtered;
-  }, [customers, filterContext]);
+  }, [customers, filterContext, searchQuery]);
 
   const sortedCustomers = useMemo(() => {
     let sortableItems = [...filteredCustomers];
@@ -126,6 +135,16 @@ const CustomerCenter = () => {
   const handleActionClick = (action, item) => {
     addToast(`${action}功能開發中: ${item}`, 'info');
   };
+
+  const filteredGroups = useMemo(() => {
+    if (!searchQuery) return groups;
+    return groups.filter(g => g.group_name && g.group_name.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [groups, searchQuery]);
+
+  const filteredTags = useMemo(() => {
+    if (!searchQuery) return tags;
+    return tags.filter(t => t.tag_name && t.tag_name.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [tags, searchQuery]);
 
   const renderCustomersTable = () => (
     <div style={{ backgroundColor: '#222', borderRadius: '12px', overflow: 'hidden', border: '1px solid #333' }}>
@@ -172,9 +191,8 @@ const CustomerCenter = () => {
                           <Users size={20} color="#888" />
                         )}
                       </div>
-                      <div>
-                        <div style={{ fontWeight: '500' }}>{c.name || '未命名用戶'}</div>
-                        <div style={{ fontSize: '12px', color: '#888' }}>ID: {c.user_id?.substring(0, 8)}...</div>
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <div style={{ fontWeight: '500', fontSize: '15px' }}>{c.name || '未命名用戶'}</div>
                       </div>
                     </div>
                   </td>
@@ -238,12 +256,12 @@ const CustomerCenter = () => {
             <tr>
               <td colSpan="3" style={{ padding: '32px', textAlign: 'center', color: '#888' }}>載入中...</td>
             </tr>
-          ) : groups.length === 0 ? (
+          ) : filteredGroups.length === 0 ? (
             <tr>
               <td colSpan="3" style={{ padding: '32px', textAlign: 'center', color: '#888' }}>無客群資料</td>
             </tr>
           ) : (
-            groups.map((g, idx) => (
+            filteredGroups.map((g, idx) => (
               <tr key={idx} style={{ borderBottom: '1px solid #333' }}>
                 <td style={{ padding: '16px', fontWeight: '500', cursor: 'pointer' }} onClick={() => handleView('group', g.group_name)}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -257,9 +275,6 @@ const CustomerCenter = () => {
                 <td style={{ padding: '16px', textAlign: 'right' }}>
                   <button onClick={() => handleView('group', g.group_name)} style={{ padding: '6px 12px', backgroundColor: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', marginRight: '8px' }}>
                     查看
-                  </button>
-                  <button onClick={() => handleActionClick('編輯客群', g.group_name)} style={{ padding: '6px 12px', backgroundColor: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', marginRight: '8px' }}>
-                    編輯
                   </button>
                   <button onClick={() => handleActionClick('刪除客群', g.group_name)} style={{ padding: '6px 12px', backgroundColor: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.5)', color: '#ef4444', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>
                     刪除
@@ -288,12 +303,12 @@ const CustomerCenter = () => {
             <tr>
               <td colSpan="3" style={{ padding: '32px', textAlign: 'center', color: '#888' }}>載入中...</td>
             </tr>
-          ) : tags.length === 0 ? (
+          ) : filteredTags.length === 0 ? (
             <tr>
               <td colSpan="3" style={{ padding: '32px', textAlign: 'center', color: '#888' }}>無標籤資料</td>
             </tr>
           ) : (
-            tags.map((t, idx) => (
+            filteredTags.map((t, idx) => (
               <tr key={idx} style={{ borderBottom: '1px solid #333' }}>
                 <td style={{ padding: '16px', fontWeight: '500', cursor: 'pointer' }} onClick={() => handleView('tag', t.tag_name)}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -307,9 +322,6 @@ const CustomerCenter = () => {
                 <td style={{ padding: '16px', textAlign: 'right' }}>
                   <button onClick={() => handleView('tag', t.tag_name)} style={{ padding: '6px 12px', backgroundColor: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', marginRight: '8px' }}>
                     查看
-                  </button>
-                  <button onClick={() => handleActionClick('編輯標籤', t.tag_name)} style={{ padding: '6px 12px', backgroundColor: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', marginRight: '8px' }}>
-                    編輯
                   </button>
                   <button onClick={() => handleActionClick('刪除標籤', t.tag_name)} style={{ padding: '6px 12px', backgroundColor: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.5)', color: '#ef4444', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>
                     刪除
@@ -334,9 +346,11 @@ const CustomerCenter = () => {
           <button style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', backgroundColor: '#333', color: 'white', border: '1px solid #444', borderRadius: '8px', cursor: 'pointer', fontSize: '14px' }}>
             <Download size={16} /> 匯出資料
           </button>
-          <button style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', backgroundColor: '#FFD700', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
-            <UserPlus size={16} /> 新增客群
-          </button>
+          {activeTab === 'groups' && (
+            <button style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', backgroundColor: '#FFD700', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
+              <UserPlus size={16} /> 新增客群
+            </button>
+          )}
         </div>
       </div>
 
@@ -367,7 +381,9 @@ const CustomerCenter = () => {
           <Search size={18} color="#888" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
           <input
             type="text"
-            placeholder="搜尋客戶名稱、ID 或信箱..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={activeTab === 'customers' ? "搜尋客戶名稱、ID 或信箱..." : activeTab === 'groups' ? "搜尋客群名稱..." : "搜尋標籤名稱..."}
             style={{ width: '100%', padding: '12px 16px 12px 48px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '8px', color: 'white', fontSize: '14px', outline: 'none' }}
           />
         </div>
