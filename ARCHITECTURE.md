@@ -310,12 +310,12 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 - **Socket 連線執行緒安全與協議優化**：為了解決高併發下的連線中斷問題，`send_socket_event` 已重構為「請求作用域 (Request-Scoped)」模式。每次調用皆會建立獨立的 Socket.IO 客戶端實例。同時優化了傳輸協議，優先使用 WebSocket 並在失敗時自動回退至 Polling，移除針對 Heroku 的強制限制，顯著提升了 `yzulabuse` 環境的通訊穩定性。
 - **針對 yzulabuse 的特殊處理**：在 `yzulabuse` 環境下，系統會優先搜尋 `OAConfig.other_settings` 中的 `socket_url`。若未設定，則預設連接至 `https://yzulabuse.herokuapp.com`。此機制確保了訊息能正確路由至該環境的機器人伺服器，避免與 `5013` 環境混淆。後端 `send_socket_event` 已實作 OA Context 感知機制，確保訊息能根據 `X-OA-ID` 導往正確的機器人引擎，解決誤導向至 5013 的問題。
 
-### �t�ά[�c�u�ƻP���ҳB�z�޿��s [2026-04-24]
-- **�ݨ��޲z (Questionnaire)**:
-    - **���Ү榡��s**: ���ҳB�z�޿�q�¦��� ; set_tag|tag1|tag2 �榡�E���ܲŦX Superpages �֤ߤ����зǪ� ,pri_push('tag','tag1'),pri_push('tag','tag2') �榡�C
-    - **�ۮe�ʴ���**: _extract_tags_from_fn ��Ƥw��s�A�䴩�P�ɱq�s�榡 pri_push �P�®榡 set_tag ���������ҡA�T�O�J���ݨ������үॿ�T���J�^ UI�C
-- **�۰ʮȵ{ (Projects)**:
-    - **�e�ݪ��A�޲z�P�µe���״_**: �ץ��F Projects.jsx �� useTask ���A���ޥΤ覡�C�N����]�������a���A�ӾɭP�����w�q�ܼƿ��~�]isProcessing, processingMessage ���^�אּ���T�ޥ� 	askState ��H�C�o�����ѨM�F�i�J�۰ʮȵ{�����ɦ] ReferenceError �ɭP�� React ��V�Y��]�µe���^���D�C
+### tά[cuƻPҳBz޿s [2026-04-24]
+- **ݨ޲z (Questionnaire)**:
+    - **Ү榡s**: ҳBz޿q¦ ; set_tag|tag1|tag2 榡EܲŦX Superpages ֤ߤзǪ ,pri_push('tag','tag1'),pri_push('tag','tag2') 榡C
+    - **ۮeʴ**: _extract_tags_from_fn ƤwsA䴩Pɱqs榡 pri_push P®榡 set_tag ҡATOJݨүॿTJ^ UIC
+- **۰ʮȵ{ (Projects)**:
+    - **eݪA޲zPµe״_**: ץF Projects.jsx  useTask AޥΤ覡CN]aAӾɭPwqܼƿ~]isProcessing, processingMessage ^אּTޥ 	askState HCoѨMFiJ۰ʮȵ{ɦ] ReferenceError ɭP React VY]µe^DC
 
 ### 標籤元件與問卷互動優化 [2026-04-24]
 - **TagInput 元件**:
@@ -341,11 +341,11 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 ### 介面邏輯優化 [2026-04-24]
 - **側邊欄過濾**: 在後端 /api/users 的 SQL 查詢中加入了更嚴格的 category 過濾條件，確保左側清單只抓取有意義的對話內容作為 last_message。
 - **Flex 單一模板限制**: 修改 FlexMessageEditor.jsx 的 updateCurrentCard，當切換模板（	emplate）時，將會透過 map 強制覆寫所有卡片的模板設定，確保輪播一致性。
-# #   [ 2 0 2 6 - 0 4 - 2 7 ]   U I / U X   9e�U 
- -   * * R u l e D e s i g n e r * * :   !|f!j_N���fǌ�eh�kMOT1z  ( �Y:   c o n t e n t   - >   O(u�8�eQ,   n o t e   - >   �P;���f,   m s g _ r p y   - >   �V��
-�o`) ��X�R�d\O�v��'`0 
- -   * * F l e x M e s s a g e E d i t o r * * :   �[\O*��d!j_N�v!jg7_6Rq} N_j6R�&N\!jgx��dhV�y�*��daSGr�c6RR
-N�e��MQO(u���(u�m-d!jg\�Hrb�/��N0 
+# #   [ 2 0 2 6 - 0 4 - 2 7 ]   U I / U X   9eU 
+ -   * * R u l e D e s i g n e r * * :   !|f!j_NfǌehkMOT1z  ( Y:   c o n t e n t   - >   O(u8eQ,   n o t e   - >   P;f,   m s g _ r p y   - >   V
+o`) XRd\Ov'`0 
+ -   * * F l e x M e s s a g e E d i t o r * * :   [\O*d!j_Nv!jg7_6Rq} N_j6R&N\!jgxdhVy*daSGrc6RR
+NeMQO(u(um-d!jg\Hrb/N0 
  
 ### UI/UX 改善與旅程預覽增強 [2026-04-27]
 - **預覽基準時間**: 在自動旅程的預覽視窗 (Projects.jsx) 中引入基準時間設定機制 (previewBaseTime state)，可動態將 interval_hours (以小時計) 轉換為實際的預計發送時間。
@@ -361,3 +361,5 @@ N�e��MQO(u���(u�m-d!jg\�Hrb�/��N0 
 ### 客戶中心進階功能與群發整合 (Customer Center Enhanced) [2026-04-28]
 - **前端架構**：CustomerCenter.jsx 加入大量選取狀態 (selectedUserIds)、客群與標籤的操作 Modal。實作與 Broadcast.jsx 的跨頁面狀態傳遞 (location.state)。
 - **後端擴充**：customers.py 中 /groups 端點擴充支援讀寫 Global_var 的 group_descriptions，並實作批次更新 Private_var g_group 的 POST 邏輯。
+
+- **標籤管理 (Tag Management)**: 支援批次標籤操作與全域刪除機制。
