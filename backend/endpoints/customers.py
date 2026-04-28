@@ -38,7 +38,6 @@ def get_customers():
                 MAX(CASE WHEN name = 'email' THEN value END) as email
             FROM {pv_table}
             GROUP BY user_id
-            HAVING MAX(CASE WHEN name = 'name' THEN value END) IS NOT NULL
         """
         cur.execute(query)
         users = cur.fetchall()
@@ -58,7 +57,14 @@ def get_customers():
             history_dict = {}
         
         import ast
+        
+        filtered_users = []
         for u in users:
+            # strict filter for name existence
+            name_val = u.get('name')
+            if not name_val or str(name_val).strip() == '' or str(name_val) == 'None' or str(name_val) == '未命名用戶':
+                continue
+                
             dt = history_dict.get(u['user_id'])
             u['last_interaction'] = dt.strftime('%Y-%m-%d %H:%M:%S') if dt else None
             
@@ -71,10 +77,12 @@ def get_customers():
                     u['tag'] = [u['tag']]
             else:
                 u['tag'] = []
+                
+            filtered_users.append(u)
             
         cur.close()
         conn.close()
-        return jsonify(users)
+        return jsonify(filtered_users)
     except Exception as e:
         print(f"Error in get_customers: {e}")
         return jsonify({"error": str(e)}), 500
