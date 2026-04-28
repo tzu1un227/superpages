@@ -97,7 +97,7 @@ const CustomerCenter = () => {
   const filteredCustomers = useMemo(() => {
     let filtered = customers;
     if (filterContext.type === 'group') {
-      filtered = filtered.filter(c => c.group_name === filterContext.value);
+      filtered = filtered.filter(c => Array.isArray(c.group_name) ? c.group_name.includes(filterContext.value) : c.group_name === filterContext.value);
     } else if (filterContext.type === 'tag') {
       filtered = filtered.filter(c => Array.isArray(c.tag) ? c.tag.includes(filterContext.value) : c.tag === filterContext.value);
     }
@@ -206,11 +206,34 @@ const CustomerCenter = () => {
         try {
           await api.delete(`/customers/groups/${encodeURIComponent(item)}`);
           addToast(`已成功刪除客群: ${item}`, 'success');
+          if (filterContext.type === 'group' && filterContext.value === item) {
+            setFilterContext({ type: 'all', value: '', description: '' });
+          }
           fetchGroups();
-          if (activeTab === 'customers') fetchCustomers();
+          fetchCustomers();
         } catch (error) {
           console.error(error);
           addToast('刪除客群失敗', 'error');
+        } finally {
+          setIsProcessing(false);
+        }
+      }
+      return;
+    }
+    if (action === '刪除標籤') {
+      if (window.confirm(`確定要刪除標籤「${item}」嗎？\n此操作將解除所有使用者的該標籤綁定。`)) {
+        setIsProcessing(true);
+        try {
+          await api.delete(`/customers/tags/${encodeURIComponent(item)}`);
+          addToast(`已成功刪除標籤: ${item}`, 'success');
+          if (filterContext.type === 'tag' && filterContext.value === item) {
+            setFilterContext({ type: 'all', value: '', description: '' });
+          }
+          fetchTags();
+          fetchCustomers();
+        } catch (error) {
+          console.error(error);
+          addToast('刪除標籤失敗', 'error');
         } finally {
           setIsProcessing(false);
         }

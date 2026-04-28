@@ -325,3 +325,49 @@ def get_tags():
         return jsonify(tags)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@customers_bp.route('/tags/<tag_name>', methods=['DELETE'])
+@token_required
+def delete_tag(tag_name):
+    app_id = get_current_app_id()
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+        pv_table = f'"Private_var:{app_id}"'
+        cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = 'tag'")
+        rows = cur.fetchall()
+        
+        import ast
+        updates = []
+        for r in rows:
+            uid = r[0]
+            val = r[1]
+            try:
+                parsed = ast.literal_eval(val)
+                if isinstance(parsed, list):
+                    if tag_name in parsed:
+                        parsed.remove(tag_name)
+                        updates.append((uid, str(parsed)))
+                elif parsed == tag_name:
+                    updates.append((uid, "[]"))
+            except:
+                if val == tag_name:
+                    updates.append((uid, "[]"))
+                    
+        if updates:
+            affected_uids = [u[0] for u in updates]
+            cur.execute(f"DELETE FROM {pv_table} WHERE name = 'tag' AND user_id = ANY(%s)", (affected_uids,))
+            
+            insert_args = [(uid, 'tag', val) for uid, val in updates]
+            args_str = b",".join(cur.mogrify("(%s, 'tag', %s)", arg) for arg in insert_args).decode('utf-8')
+            cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES {args_str}")
+
+        conn.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
