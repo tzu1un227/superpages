@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Search, Filter, Download, UserPlus, Users, Tag, Clock, Phone, Mail, MoreHorizontal, ArrowUpDown, ArrowUp, ArrowDown, X, MessageSquare, Plus } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../api';
@@ -70,11 +70,11 @@ const CustomerCenter = () => {
   };
 
 
-  const refreshAllData = async () => {
+  const refreshAllData = useCallback(async () => {
     console.log('refreshAllData triggered');
     setIsLoading(true);
     try {
-      // Use sequential await with catch for better compatibility and error handling
+      console.log('Start fetching all data...');
       await fetchCustomers(true).catch(e => console.error('Customers refresh fail:', e));
       await fetchGroups(true).catch(e => console.error('Groups refresh fail:', e));
       await fetchTags(true).catch(e => console.error('Tags refresh fail:', e));
@@ -84,7 +84,8 @@ const CustomerCenter = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [oaId]); // eslint-disable-line
+
 
 
 
@@ -227,8 +228,9 @@ const CustomerCenter = () => {
           }
           setIsProcessing(false);
           console.log('Group deletion successful, refreshing...');
-          refreshAllData();
+          await refreshAllData();
         } catch (error) {
+
           console.error(error);
           addToast('刪除客群失敗', 'error');
           setIsProcessing(false);
@@ -248,8 +250,9 @@ const CustomerCenter = () => {
           }
           setIsProcessing(false);
           console.log('Tag deletion successful, refreshing...');
-          refreshAllData();
+          await refreshAllData();
         } catch (error) {
+
           console.error(error);
           addToast('刪除標籤失敗', 'error');
           setIsProcessing(false);
@@ -369,9 +372,11 @@ const CustomerCenter = () => {
       setIsTagModalOpen(false);
       addToast(`成功為 ${userIds.length} 名用戶加入標籤: ${tagInput.trim()}`, 'success');
       setTagInput('');
+      setIsProcessing(false);
       console.log('Batch tagging successful, refreshing...');
-      refreshAllData();
+      await refreshAllData();
     } catch (err) {
+
       addToast('標籤批次更新失敗', 'error');
       console.error('Batch tagging error:', err);
     } finally {
