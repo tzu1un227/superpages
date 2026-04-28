@@ -28,7 +28,7 @@ const CustomerCenter = () => {
 
   const navigate = useNavigate();
   const { oaId } = useParams();
-  const { addToast } = useToast();
+  const { showToast } = useToast();
 
   const fetchCustomers = async (silent = false) => {
     if (!silent) setIsLoading(true);
@@ -37,7 +37,7 @@ const CustomerCenter = () => {
       setCustomers(response.data);
     } catch (error) {
       console.error('Error fetching customers:', error);
-      addToast('無法取得客戶名單', 'error');
+      showToast('無法取得客戶名單', 'error');
     } finally {
       if (!silent) setIsLoading(false);
     }
@@ -50,7 +50,7 @@ const CustomerCenter = () => {
       setGroups(response.data);
     } catch (error) {
       console.error('Error fetching groups:', error);
-      addToast('無法取得客群列表', 'error');
+      showToast('無法取得客群列表', 'error');
     } finally {
       if (!silent) setIsLoading(false);
     }
@@ -63,7 +63,7 @@ const CustomerCenter = () => {
       setTags(response.data);
     } catch (error) {
       console.error('Error fetching tags:', error);
-      addToast('無法取得標籤列表', 'error');
+      showToast('無法取得標籤列表', 'error');
     } finally {
       if (!silent) setIsLoading(false);
     }
@@ -222,7 +222,7 @@ const CustomerCenter = () => {
         setIsProcessing(true);
         try {
           await api.delete(`/customers/groups/${encodeURIComponent(item)}`);
-          addToast(`已成功刪除客群: ${item}`, 'success');
+          showToast(`已成功刪除客群: ${item}`, 'success');
           if (filterContext.type === 'group' && filterContext.value === item) {
             setFilterContext({ type: 'all', value: '', description: '' });
           }
@@ -232,7 +232,7 @@ const CustomerCenter = () => {
         } catch (error) {
 
           console.error(error);
-          addToast('刪除客群失敗', 'error');
+          showToast('刪除客群失敗', 'error');
           setIsProcessing(false);
         }
 
@@ -244,7 +244,7 @@ const CustomerCenter = () => {
         setIsProcessing(true);
         try {
           await api.delete(`/customers/tags/${encodeURIComponent(item)}`);
-          addToast(`已成功刪除標籤: ${item}`, 'success');
+          showToast(`已成功刪除標籤: ${item}`, 'success');
           if (filterContext.type === 'tag' && filterContext.value === item) {
             setFilterContext({ type: 'all', value: '', description: '' });
           }
@@ -254,14 +254,14 @@ const CustomerCenter = () => {
         } catch (error) {
 
           console.error(error);
-          addToast('刪除標籤失敗', 'error');
+          showToast('刪除標籤失敗', 'error');
           setIsProcessing(false);
         }
 
       }
       return;
     }
-    addToast(`${action}功能開發中: ${item}`, 'info');
+    showToast(`${action}功能開發中: ${item}`, 'info');
   };
 
   const handleOpenFilter = () => {
@@ -284,7 +284,7 @@ const CustomerCenter = () => {
 
   const handleExport = () => {
     if (sortedCustomers.length === 0) {
-      addToast('目前沒有資料可以匯出', 'info');
+      showToast('目前沒有資料可以匯出', 'info');
       return;
     }
 
@@ -314,7 +314,7 @@ const CustomerCenter = () => {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     
-    addToast('資料匯出成功！', 'success');
+    showToast('資料匯出成功！', 'success');
   };
 
   const handleSelectAll = (e) => {
@@ -335,7 +335,7 @@ const CustomerCenter = () => {
     if (selectedUserIds.length === 0) return;
     const finalGroupName = groupForm.mode === 'existing' ? groupForm.groupName : groupForm.newGroupName;
     if (!finalGroupName.trim()) {
-      addToast('請輸入或選擇客群名稱', 'error');
+      showToast('請輸入或選擇客群名稱', 'error');
       return;
     }
     
@@ -347,11 +347,11 @@ const CustomerCenter = () => {
         user_ids: selectedUserIds
       });
       setIsGroupModalOpen(false);
-      addToast(`成功將 ${selectedUserIds.length} 名用戶加入客群: ${finalGroupName}`, 'success');
+      showToast(`成功將 ${selectedUserIds.length} 名用戶加入客群: ${finalGroupName}`, 'success');
       setSelectedUserIds([]);
       await refreshAllData();
     } catch (err) {
-      addToast('加入客群失敗', 'error');
+      showToast('加入客群失敗', 'error');
       console.error(err);
     } finally {
       setIsProcessing(false);
@@ -370,14 +370,14 @@ const CustomerCenter = () => {
       });
       
       setIsTagModalOpen(false);
-      addToast(`成功為 ${userIds.length} 名用戶加入標籤: ${tagInput.trim()}`, 'success');
+      showToast(`成功為 ${userIds.length} 名用戶加入標籤: ${tagInput.trim()}`, 'success');
       setTagInput('');
       setIsProcessing(false);
       console.log('Batch tagging successful, refreshing...');
       await refreshAllData();
     } catch (err) {
 
-      addToast('標籤批次更新失敗', 'error');
+      showToast('標籤批次更新失敗', 'error');
       console.error('Batch tagging error:', err);
     } finally {
       setIsProcessing(false);
@@ -390,7 +390,7 @@ const CustomerCenter = () => {
   const handleSendGroupMessage = () => {
     const userIds = filteredCustomers.map(c => c.user_id).filter(Boolean).join(',');
     if (!userIds) {
-      addToast('該群組目前沒有用戶可發送訊息', 'error');
+      showToast('該群組目前沒有用戶可發送訊息', 'error');
       return;
     }
     navigate(`/project/${oaId}/broadcast`, { 
@@ -636,7 +636,7 @@ const CustomerCenter = () => {
           {activeTab === 'groups' && (
             <button onClick={() => { 
                 setActiveTab('customers'); 
-                addToast('請先在列表左側勾選您要加入客群的用戶', 'info'); 
+                showToast('請先在列表左側勾選您要加入客群的用戶', 'info'); 
               }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', backgroundColor: '#FFD700', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
               <UserPlus size={16} /> 新增客群
             </button>
