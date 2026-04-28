@@ -60,6 +60,36 @@ def insert_data():
         )
     """)
     
+    gv_table = f'"Global_var:{app_name}"'
+    cur.execute(f"""
+        CREATE TABLE IF NOT EXISTS {gv_table} (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(255),
+            value TEXT
+        )
+    """)
+    
+    import json
+    test_descriptions = {
+        "新春專案": "針對農曆新年活動加入的受眾群體",
+        "高階客群": "消費金額高且互動頻繁的VIP客戶",
+        "未分群": "尚未歸類的預設客群"
+    }
+    
+    cur.execute(f"SELECT value FROM {gv_table} WHERE name = 'group_descriptions'")
+    row = cur.fetchone()
+    
+    if row and row[0]:
+        try:
+            descriptions = json.loads(row[0])
+        except:
+            descriptions = {}
+        descriptions.update(test_descriptions)
+        cur.execute(f"UPDATE {gv_table} SET value = %s WHERE name = 'group_descriptions'", (json.dumps(descriptions, ensure_ascii=False),))
+    else:
+        cur.execute(f"INSERT INTO {gv_table} (name, value) VALUES ('group_descriptions', %s)", (json.dumps(test_descriptions, ensure_ascii=False),))
+
+    
     # Insert private_var
     for u in test_users:
         uid = u['id']
