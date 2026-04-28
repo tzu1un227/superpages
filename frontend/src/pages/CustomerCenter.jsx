@@ -97,8 +97,8 @@ const CustomerCenter = () => {
                   </td>
                   <td style={{ padding: '16px' }}>
                     <div style={{ fontSize: '13px', color: '#ccc', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Phone size={12} color="#888" />未設定</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Mail size={12} color="#888" />未設定</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Phone size={12} color="#888" />{c.phone || '未設定'}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Mail size={12} color="#888" />{c.email || '未設定'}</span>
                     </div>
                   </td>
                   <td style={{ padding: '16px' }}>

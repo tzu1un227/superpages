@@ -31,11 +31,11 @@ def insert_data():
     history_table = f'"history:{app_name}"'
     
     test_users = [
-        {"id": "U1234567890abcdef1234567890abcdef", "name": "張大明", "pic": "https://i.pravatar.cc/150?u=1", "tag": "VIP客戶", "group": "新春專案"},
-        {"id": "U234567890abcdef1234567890abcdef1", "name": "李小華", "pic": "https://i.pravatar.cc/150?u=2", "tag": "一般會員", "group": "新春專案"},
-        {"id": "U34567890abcdef1234567890abcdef12", "name": "王建民", "pic": "https://i.pravatar.cc/150?u=3", "tag": "潛在客戶", "group": "未分群"},
-        {"id": "U4567890abcdef1234567890abcdef123", "name": "陳美玲", "pic": "https://i.pravatar.cc/150?u=4", "tag": "VIP客戶", "group": "高階客群"},
-        {"id": "U567890abcdef1234567890abcdef1234", "name": "林婉容", "pic": "https://i.pravatar.cc/150?u=5", "tag": "一般會員", "group": "高階客群"},
+        {"id": "U1234567890abcdef1234567890abcdef", "name": "張大明", "pic": "https://i.pravatar.cc/150?u=1", "tag": "VIP客戶", "group": "新春專案", "phone": "0912-345-678", "email": "daming@example.com"},
+        {"id": "U234567890abcdef1234567890abcdef1", "name": "李小華", "pic": "https://i.pravatar.cc/150?u=2", "tag": "一般會員", "group": "新春專案", "phone": "0988-765-432", "email": "xiaohua@example.com"},
+        {"id": "U34567890abcdef1234567890abcdef12", "name": "王建民", "pic": "https://i.pravatar.cc/150?u=3", "tag": "潛在客戶", "group": "未分群", "phone": "0933-111-222", "email": "chienming@example.com"},
+        {"id": "U4567890abcdef1234567890abcdef123", "name": "陳美玲", "pic": "https://i.pravatar.cc/150?u=4", "tag": "VIP客戶", "group": "高階客群", "phone": "0922-333-444", "email": "meiling@example.com"},
+        {"id": "U567890abcdef1234567890abcdef1234", "name": "林婉容", "pic": "https://i.pravatar.cc/150?u=5", "tag": "一般會員", "group": "高階客群", "phone": "0955-666-777", "email": "wanrong@example.com"},
     ]
     
     # Drop the mistakenly created table
@@ -68,6 +68,8 @@ def insert_data():
         cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, 'pic', %s)", (uid, u['pic']))
         cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, 'tag', %s)", (uid, u['tag']))
         cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, 'g_group', %s)", (uid, u['group']))
+        cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, 'phone', %s)", (uid, u['phone']))
+        cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, 'email', %s)", (uid, u['email']))
         
         # Insert history (1 to 5 days ago)
         days_ago = test_users.index(u) + 1

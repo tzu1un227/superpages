@@ -33,7 +33,9 @@ def get_customers():
                 MAX(CASE WHEN name = 'name' THEN value END) as name,
                 MAX(CASE WHEN name = 'pic' THEN value END) as pic,
                 MAX(CASE WHEN name = 'tag' THEN value END) as tag,
-                MAX(CASE WHEN name = 'g_group' THEN value END) as group_name
+                MAX(CASE WHEN name = 'g_group' THEN value END) as group_name,
+                MAX(CASE WHEN name = 'phone' THEN value END) as phone,
+                MAX(CASE WHEN name = 'email' THEN value END) as email
             FROM {pv_table}
             GROUP BY user_id
         """
