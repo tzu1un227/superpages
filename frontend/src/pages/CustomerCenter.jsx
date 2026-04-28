@@ -12,6 +12,11 @@ const CustomerCenter = () => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [filterContext, setFilterContext] = useState({ type: null, value: null });
   const [searchQuery, setSearchQuery] = useState('');
+  
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [filterDraft, setFilterDraft] = useState({ tags: [], joinTime: '全部時間', lastInteractionTime: '全部時間', phone: '全部', email: '全部' });
+  const [advancedFilters, setAdvancedFilters] = useState({ tags: [], joinTime: '全部時間', lastInteractionTime: '全部時間', phone: '全部', email: '全部' });
+
   const { addToast } = useToast();
 
   useEffect(() => {
@@ -83,6 +88,52 @@ const CustomerCenter = () => {
     } else if (filterContext.type === 'tag') {
       filtered = filtered.filter(c => Array.isArray(c.tag) ? c.tag.includes(filterContext.value) : c.tag === filterContext.value);
     }
+    
+    // Advanced Filters
+    if (advancedFilters.tags.length > 0) {
+      filtered = filtered.filter(c => {
+        const cTags = Array.isArray(c.tag) ? c.tag : (c.tag ? [c.tag] : []);
+        return advancedFilters.tags.some(t => cTags.includes(t));
+      });
+    }
+    
+    const now = new Date();
+    
+    if (advancedFilters.joinTime !== '全部時間') {
+      filtered = filtered.filter(c => {
+        if (!c.join_time) return false;
+        const joinDate = new Date(c.join_time);
+        const diffDays = (now - joinDate) / (1000 * 60 * 60 * 24);
+        if (advancedFilters.joinTime === '最近7天') return diffDays <= 7;
+        if (advancedFilters.joinTime === '最近30天') return diffDays <= 30;
+        if (advancedFilters.joinTime === '最近90天') return diffDays <= 90;
+        if (advancedFilters.joinTime === '最近一年') return diffDays <= 365;
+        return true;
+      });
+    }
+
+    if (advancedFilters.lastInteractionTime !== '全部時間') {
+      filtered = filtered.filter(c => {
+        if (!c.last_interaction) return advancedFilters.lastInteractionTime === '超過90天';
+        const intDate = new Date(c.last_interaction);
+        const diffDays = (now - intDate) / (1000 * 60 * 60 * 24);
+        if (advancedFilters.lastInteractionTime === '24小時內') return diffDays <= 1;
+        if (advancedFilters.lastInteractionTime === '最近7天') return diffDays <= 7;
+        if (advancedFilters.lastInteractionTime === '最近30天') return diffDays <= 30;
+        if (advancedFilters.lastInteractionTime === '最近90天') return diffDays <= 90;
+        if (advancedFilters.lastInteractionTime === '超過90天') return diffDays > 90;
+        return true;
+      });
+    }
+    
+    if (advancedFilters.phone !== '全部') {
+      filtered = filtered.filter(c => advancedFilters.phone === '是' ? (c.phone && c.phone !== '未設定') : (!c.phone || c.phone === '未設定'));
+    }
+    
+    if (advancedFilters.email !== '全部') {
+      filtered = filtered.filter(c => advancedFilters.email === '是' ? (c.email && c.email !== '未設定') : (!c.email || c.email === '未設定'));
+    }
+
     if (searchQuery) {
       const lowerQuery = searchQuery.toLowerCase();
       filtered = filtered.filter(c => {
@@ -95,7 +146,7 @@ const CustomerCenter = () => {
       });
     }
     return filtered;
-  }, [customers, filterContext, searchQuery]);
+  }, [customers, filterContext, searchQuery, advancedFilters]);
 
   const sortedCustomers = useMemo(() => {
     let sortableItems = [...filteredCustomers];
@@ -138,6 +189,14 @@ const CustomerCenter = () => {
   const handleActionClick = (action, item) => {
     addToast(`${action}功能開發中: ${item}`, 'info');
   };
+
+  const handleOpenFilter = () => {
+    if (tags.length === 0) fetchTags();
+    setFilterDraft(advancedFilters);
+    setIsFilterModalOpen(true);
+  };
+  
+  const hasAdvancedFilter = advancedFilters.tags.length > 0 || advancedFilters.joinTime !== '全部時間' || advancedFilters.lastInteractionTime !== '全部時間' || advancedFilters.phone !== '全部' || advancedFilters.email !== '全部';
 
   const filteredGroups = useMemo(() => {
     if (!searchQuery) return groups;
@@ -427,8 +486,8 @@ const CustomerCenter = () => {
             style={{ width: '100%', padding: '12px 16px 12px 48px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '8px', color: 'white', fontSize: '14px', outline: 'none' }}
           />
         </div>
-        <button style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', backgroundColor: '#222', color: 'white', border: '1px solid #333', borderRadius: '8px', cursor: 'pointer', fontSize: '14px' }}>
-          <Filter size={16} /> 篩選條件
+        <button onClick={handleOpenFilter} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', backgroundColor: hasAdvancedFilter ? 'rgba(255, 215, 0, 0.1)' : '#222', color: hasAdvancedFilter ? '#FFD700' : 'white', border: hasAdvancedFilter ? '1px solid #FFD700' : '1px solid #333', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', transition: 'all 0.2s' }}>
+          <Filter size={16} /> 篩選條件 {hasAdvancedFilter && <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#FFD700' }}></div>}
         </button>
       </div>
 
@@ -446,6 +505,127 @@ const CustomerCenter = () => {
       {activeTab === 'customers' && renderCustomersTable()}
       {activeTab === 'groups' && renderGroupsTable()}
       {activeTab === 'tags' && renderTagsTable()}
+
+      {/* Filter Modal */}
+      {isFilterModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <div style={{ backgroundColor: '#fff', color: '#333', width: '500px', borderRadius: '12px', padding: '24px', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold' }}>篩選客戶</h2>
+                <div style={{ color: '#666', fontSize: '13px', marginTop: '4px' }}>設定篩選條件以找到目標客戶</div>
+              </div>
+              <X size={20} color="#666" style={{ cursor: 'pointer' }} onClick={() => setIsFilterModalOpen(false)} />
+            </div>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>標籤篩選</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', maxHeight: '120px', overflowY: 'auto', padding: '4px 0' }}>
+                {tags.map(t => (
+                  <div 
+                    key={t.tag_name}
+                    onClick={() => {
+                      const newTags = filterDraft.tags.includes(t.tag_name) 
+                        ? filterDraft.tags.filter(tg => tg !== t.tag_name) 
+                        : [...filterDraft.tags, t.tag_name];
+                      setFilterDraft({...filterDraft, tags: newTags});
+                    }}
+                    style={{ 
+                      padding: '6px 12px', 
+                      borderRadius: '20px', 
+                      border: filterDraft.tags.includes(t.tag_name) ? '1px solid #111' : '1px solid #eee',
+                      backgroundColor: filterDraft.tags.includes(t.tag_name) ? '#111' : '#fff',
+                      color: filterDraft.tags.includes(t.tag_name) ? '#fff' : '#333',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {t.tag_name}
+                  </div>
+                ))}
+                {tags.length === 0 && <span style={{ color: '#999', fontSize: '13px' }}>尚無標籤資料</span>}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>加入時間</div>
+              <select 
+                value={filterDraft.joinTime} 
+                onChange={(e) => setFilterDraft({...filterDraft, joinTime: e.target.value})}
+                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', backgroundColor: '#f9f9f9', outline: 'none' }}
+              >
+                <option value="全部時間">全部時間</option>
+                <option value="最近7天">最近7天</option>
+                <option value="最近30天">最近30天</option>
+                <option value="最近90天">最近90天</option>
+                <option value="最近一年">最近一年</option>
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>最近互動時間</div>
+              <select 
+                value={filterDraft.lastInteractionTime} 
+                onChange={(e) => setFilterDraft({...filterDraft, lastInteractionTime: e.target.value})}
+                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', backgroundColor: '#f9f9f9', outline: 'none' }}
+              >
+                <option value="全部時間">全部時間</option>
+                <option value="24小時內">24小時內</option>
+                <option value="最近7天">最近7天</option>
+                <option value="最近30天">最近30天</option>
+                <option value="最近90天">最近90天</option>
+                <option value="超過90天">超過90天</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>是否有手機</div>
+                <select 
+                  value={filterDraft.phone} 
+                  onChange={(e) => setFilterDraft({...filterDraft, phone: e.target.value})}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', backgroundColor: '#f9f9f9', outline: 'none' }}
+                >
+                  <option value="全部">全部</option>
+                  <option value="是">是</option>
+                  <option value="否">否</option>
+                </select>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>是否有 Email</div>
+                <select 
+                  value={filterDraft.email} 
+                  onChange={(e) => setFilterDraft({...filterDraft, email: e.target.value})}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', backgroundColor: '#f9f9f9', outline: 'none' }}
+                >
+                  <option value="全部">全部</option>
+                  <option value="是">是</option>
+                  <option value="否">否</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button 
+                onClick={() => setFilterDraft({ tags: [], joinTime: '全部時間', lastInteractionTime: '全部時間', phone: '全部', email: '全部' })}
+                style={{ padding: '10px 20px', backgroundColor: '#fff', border: '1px solid #ddd', borderRadius: '8px', cursor: 'pointer', fontWeight: '500' }}
+              >
+                清除條件
+              </button>
+              <button 
+                onClick={() => {
+                  setAdvancedFilters(filterDraft);
+                  setIsFilterModalOpen(false);
+                }}
+                style={{ padding: '10px 20px', backgroundColor: '#0a0a0a', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '500' }}
+              >
+                套用條件
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

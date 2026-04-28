@@ -43,18 +43,16 @@ def get_customers():
         users = cur.fetchall()
         
         # Also get latest history timestamp
-        h_query = f"""
-            SELECT user_id, MAX(timestamp) as last_interaction
+        query_history = f"""
+            SELECT user_id, 
+                   MAX(timestamp) as last_interaction,
+                   MIN(CASE WHEN category = 'follow' THEN timestamp END) as join_time
             FROM {history_table}
             GROUP BY user_id
         """
-        try:
-            cur.execute(h_query)
-            histories = cur.fetchall()
-            history_dict = {h['user_id']: h['last_interaction'] for h in histories}
-        except Exception as e:
-            print(f"Error fetching history: {e}")
-            history_dict = {}
+        cur.execute(query_history)
+        history_rows = cur.fetchall()
+        history_dict = {r['user_id']: r for r in history_rows}
         
         import ast
         
@@ -65,8 +63,11 @@ def get_customers():
             if not name_val or str(name_val).strip() == '' or str(name_val) == 'None' or str(name_val) == '未命名用戶':
                 continue
                 
-            dt = history_dict.get(u['user_id'])
+            h_data = history_dict.get(u['user_id'], {})
+            dt = h_data.get('last_interaction')
+            jt = h_data.get('join_time')
             u['last_interaction'] = dt.strftime('%Y-%m-%d %H:%M:%S') if dt else None
+            u['join_time'] = jt.strftime('%Y-%m-%d %H:%M:%S') if jt else None
             
             # Parse tag list
             if u['tag']:

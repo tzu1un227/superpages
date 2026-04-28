@@ -71,10 +71,16 @@ def insert_data():
         cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, 'phone', %s)", (uid, u['phone']))
         cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, 'email', %s)", (uid, u['email']))
         
-        # Insert history (1 to 5 days ago)
+        # Insert history (last interaction and follow event)
         days_ago = test_users.index(u) + 1
         ts = datetime.datetime.now() - datetime.timedelta(days=days_ago)
+        
+        # Follow event older than interaction (e.g., 10 to 400 days ago)
+        join_days_ago = days_ago * 50
+        join_ts = datetime.datetime.now() - datetime.timedelta(days=join_days_ago)
+        
         cur.execute(f"DELETE FROM {history_table} WHERE user_id = %s", (uid,))
+        cur.execute(f"INSERT INTO {history_table} (user_id, timestamp, category, content) VALUES (%s, %s, 'follow', '加入好友')", (uid, join_ts))
         cur.execute(f"INSERT INTO {history_table} (user_id, timestamp, category, content) VALUES (%s, %s, 'Message', '測試互動')", (uid, ts))
         
     conn.commit()
