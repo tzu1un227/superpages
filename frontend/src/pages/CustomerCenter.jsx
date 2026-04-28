@@ -199,7 +199,24 @@ const CustomerCenter = () => {
       <ArrowDown size={14} style={{ marginLeft: '4px', color: '#FFD700', display: 'inline-block', verticalAlign: 'middle' }} />;
   };
 
-  const handleActionClick = (action, item) => {
+  const handleActionClick = async (action, item) => {
+    if (action === '刪除客群') {
+      if (window.confirm(`確定要刪除客群「${item}」嗎？\n此操作將移除該客群的所有資訊，並解除所有使用者的客群綁定。`)) {
+        setIsProcessing(true);
+        try {
+          await api.delete(`/customers/groups/${encodeURIComponent(item)}`);
+          addToast(`已成功刪除客群: ${item}`, 'success');
+          fetchGroups();
+          if (activeTab === 'customers') fetchCustomers();
+        } catch (error) {
+          console.error(error);
+          addToast('刪除客群失敗', 'error');
+        } finally {
+          setIsProcessing(false);
+        }
+      }
+      return;
+    }
     addToast(`${action}功能開發中: ${item}`, 'info');
   };
 
@@ -369,17 +386,20 @@ const CustomerCenter = () => {
               <th onClick={() => handleSort('tag')} style={{ padding: '16px', fontWeight: '500', color: '#888', cursor: 'pointer', userSelect: 'none' }}>
                 標籤 <SortIcon columnKey="tag" />
               </th>
+              <th onClick={() => handleSort('group_name')} style={{ padding: '16px', fontWeight: '500', color: '#888', cursor: 'pointer', userSelect: 'none' }}>
+                客群 <SortIcon columnKey="group_name" />
+              </th>
               <th style={{ padding: '16px', fontWeight: '500', color: '#888', textAlign: 'center' }}>操作</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan="6" style={{ padding: '32px', textAlign: 'center', color: '#888' }}>載入中...</td>
+                <td colSpan="7" style={{ padding: '32px', textAlign: 'center', color: '#888' }}>載入中...</td>
               </tr>
             ) : sortedCustomers.length === 0 ? (
               <tr>
-                <td colSpan="6" style={{ padding: '32px', textAlign: 'center', color: '#888' }}>無客戶資料</td>
+                <td colSpan="7" style={{ padding: '32px', textAlign: 'center', color: '#888' }}>無客戶資料</td>
               </tr>
             ) : (
               sortedCustomers.map((c, idx) => (
@@ -430,6 +450,20 @@ const CustomerCenter = () => {
                       </div>
                     ) : (
                       <span style={{ color: '#666', fontSize: '13px' }}>無標籤</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '16px' }}>
+                    {Array.isArray(c.group_name) && c.group_name.length > 0 ? (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {c.group_name.map((g, i) => (
+                          <div key={i} style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 8px', borderRadius: '16px', backgroundColor: '#FFD700', color: '#000', fontSize: '12px', fontWeight: 'bold' }}>
+                            <Users size={12} style={{ marginRight: '4px' }} />
+                            {g}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span style={{ color: '#666', fontSize: '13px' }}>未規劃</span>
                     )}
                   </td>
                   <td style={{ padding: '16px', textAlign: 'center' }}>
@@ -555,7 +589,10 @@ const CustomerCenter = () => {
             </button>
           )}
           {activeTab === 'groups' && (
-            <button onClick={() => { setActiveTab('customers'); setIsGroupModalOpen(true); }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', backgroundColor: '#FFD700', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
+            <button onClick={() => { 
+                setActiveTab('customers'); 
+                addToast('請先在列表左側勾選您要加入客群的用戶', 'info'); 
+              }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', backgroundColor: '#FFD700', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
               <UserPlus size={16} /> 新增客群
             </button>
           )}
