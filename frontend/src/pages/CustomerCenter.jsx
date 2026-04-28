@@ -149,6 +149,41 @@ const CustomerCenter = () => {
     return tags.filter(t => t.tag_name && t.tag_name.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [tags, searchQuery]);
 
+  const handleExport = () => {
+    if (sortedCustomers.length === 0) {
+      addToast('目前沒有資料可以匯出', 'info');
+      return;
+    }
+
+    const headers = ['客戶名稱', '最近互動時間', '聯絡電話', '電子信箱', '標籤', '目標客群'];
+    
+    const csvContent = [
+      headers.join(','),
+      ...sortedCustomers.map(c => {
+        const name = `"${c.name || ''}"`;
+        const lastInteraction = `"${c.last_interaction || ''}"`;
+        const phone = `"${c.phone || ''}"`;
+        const email = `"${c.email || ''}"`;
+        const tag = `"${Array.isArray(c.tag) ? c.tag.join(';') : (c.tag || '')}"`;
+        const group = `"${c.group_name || ''}"`;
+        return [name, lastInteraction, phone, email, tag, group].join(',');
+      })
+    ].join('\n');
+
+    // Add BOM for Excel UTF-8 compatibility
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `customer_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    addToast('資料匯出成功！', 'success');
+  };
+
   const renderCustomersTable = () => (
     <div style={{ backgroundColor: '#222', borderRadius: '12px', overflow: 'hidden', border: '1px solid #333' }}>
       <div style={{ overflowX: 'auto' }}>
@@ -346,9 +381,11 @@ const CustomerCenter = () => {
           客戶中心
         </h1>
         <div style={{ display: 'flex', gap: '12px' }}>
-          <button style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', backgroundColor: '#333', color: 'white', border: '1px solid #444', borderRadius: '8px', cursor: 'pointer', fontSize: '14px' }}>
-            <Download size={16} /> 匯出資料
-          </button>
+          {activeTab === 'customers' && (
+            <button onClick={handleExport} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', backgroundColor: '#333', color: 'white', border: '1px solid #444', borderRadius: '8px', cursor: 'pointer', fontSize: '14px' }}>
+              <Download size={16} /> 匯出資料
+            </button>
+          )}
           {activeTab === 'groups' && (
             <button style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', backgroundColor: '#FFD700', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
               <UserPlus size={16} /> 新增客群
