@@ -32,13 +32,9 @@ const CustomerCenter = () => {
 
   useEffect(() => {
     setSelectedUserIds([]); // clear selection when tab changes
-    if (activeTab === 'customers') {
-      fetchCustomers();
-    } else if (activeTab === 'groups') {
-      fetchGroups();
-    } else if (activeTab === 'tags') {
-      fetchTags();
-    }
+    fetchCustomers();
+    fetchGroups();
+    fetchTags();
   }, [activeTab]);
 
   const fetchCustomers = async () => {
@@ -209,8 +205,7 @@ const CustomerCenter = () => {
           if (filterContext.type === 'group' && filterContext.value === item) {
             setFilterContext({ type: 'all', value: '', description: '' });
           }
-          fetchGroups();
-          fetchCustomers();
+          await Promise.all([fetchGroups(), fetchCustomers()]);
         } catch (error) {
           console.error(error);
           addToast('刪除客群失敗', 'error');
@@ -229,8 +224,7 @@ const CustomerCenter = () => {
           if (filterContext.type === 'tag' && filterContext.value === item) {
             setFilterContext({ type: 'all', value: '', description: '' });
           }
-          fetchTags();
-          fetchCustomers();
+          await Promise.all([fetchTags(), fetchCustomers()]);
         } catch (error) {
           console.error(error);
           addToast('刪除標籤失敗', 'error');
@@ -328,8 +322,7 @@ const CustomerCenter = () => {
       setIsGroupModalOpen(false);
       addToast(`成功將 ${selectedUserIds.length} 名用戶加入客群: ${finalGroupName}`, 'success');
       setSelectedUserIds([]);
-      fetchCustomers();
-      fetchGroups();
+      await Promise.all([fetchCustomers(), fetchGroups()]);
     } catch (err) {
       addToast('加入客群失敗', 'error');
       console.error(err);
@@ -358,8 +351,7 @@ const CustomerCenter = () => {
       setIsTagModalOpen(false);
       addToast(`成功為 ${successCount} 名用戶加入標籤: ${tagInput}`, 'success');
       setTagInput('');
-      fetchCustomers();
-      fetchTags();
+      await Promise.all([fetchCustomers(), fetchTags()]);
     } finally {
       setIsProcessing(false);
     }
