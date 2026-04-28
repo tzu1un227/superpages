@@ -85,11 +85,14 @@ const CustomerCenter = () => {
     }
     if (searchQuery) {
       const lowerQuery = searchQuery.toLowerCase();
-      filtered = filtered.filter(c => 
-        (c.name && c.name.toLowerCase().includes(lowerQuery)) ||
-        (c.user_id && c.user_id.toLowerCase().includes(lowerQuery)) ||
-        (c.email && c.email.toLowerCase().includes(lowerQuery))
-      );
+      filtered = filtered.filter(c => {
+        const matchesName = c.name && c.name.toLowerCase().includes(lowerQuery);
+        const matchesEmail = c.email && c.email.toLowerCase().includes(lowerQuery);
+        const matchesPhone = c.phone && c.phone.toLowerCase().includes(lowerQuery);
+        const matchesTag = Array.isArray(c.tag) ? c.tag.some(t => t.toLowerCase().includes(lowerQuery)) : (c.tag && c.tag.toLowerCase().includes(lowerQuery));
+        
+        return matchesName || matchesEmail || matchesPhone || matchesTag;
+      });
     }
     return filtered;
   }, [customers, filterContext, searchQuery]);
@@ -383,7 +386,7 @@ const CustomerCenter = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={activeTab === 'customers' ? "搜尋客戶名稱、ID 或信箱..." : activeTab === 'groups' ? "搜尋客群名稱..." : "搜尋標籤名稱..."}
+            placeholder={activeTab === 'customers' ? "搜尋客戶名稱、電話、信箱或標籤..." : activeTab === 'groups' ? "搜尋客群名稱..." : "搜尋標籤名稱..."}
             style={{ width: '100%', padding: '12px 16px 12px 48px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '8px', color: 'white', fontSize: '14px', outline: 'none' }}
           />
         </div>
