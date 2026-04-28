@@ -351,3 +351,8 @@ N�e��MQO(u���(u�m-d!jg\�Hrb�/��N0 
 - **預覽基準時間**: 在自動旅程的預覽視窗 (Projects.jsx) 中引入基準時間設定機制 (previewBaseTime state)，可動態將 interval_hours (以小時計) 轉換為實際的預計發送時間。
 - **排版優化**: JourneyPreview 支援換行顯示附加的預計時間，讓排程可視性大幅提高。
 - **訊息摘要精簡**: 訊息中心清單 (MessageCenter.jsx) 針對 flex 訊息，直接顯示為「圖文訊息」去除多餘括號，讓畫面更加乾淨。
+
+### 新增模組：客戶中心 (Customer Center) [2026-04-28]
+- **前端實作**：rontend/src/pages/CustomerCenter.jsx，提供客戶列表、客群清單與標籤管理的統一介面。
+- **後端實作**：ackend/endpoints/customers.py 提供 /api/customers (聚合 private_var 與 history) 以及 /api/customers/groups (從 private_var 撈取 g_group 的統計資料)。
+- **路由**：整合至 App.jsx 並以 CustomerCenter 頁面名稱對應路徑 /oa/:oaId/customers。

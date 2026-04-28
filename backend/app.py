@@ -89,6 +89,10 @@ app.register_blueprint(db_viewer_bp, url_prefix='/api/db')
 from endpoints.test_runner import test_runner_bp
 app.register_blueprint(test_runner_bp, url_prefix='/api/test-runner')
 
+# Register Customers Blueprint
+from endpoints.customers import customers_bp
+app.register_blueprint(customers_bp, url_prefix='/api/customers')
+
 with app.app_context():
     db.create_all()
 
@@ -107,7 +111,8 @@ with app.app_context():
             {'name': 'Questionnaire', 'description': '問卷管理'},
             {'name': 'RuleDesigner', 'description': '法則表設計'},
             {'name': 'DatabaseViewer', 'description': '資料庫檢視'},
-            {'name': 'TestRunner', 'description': '系統測試'}
+            {'name': 'TestRunner', 'description': '系統測試'},
+            {'name': 'CustomerCenter', 'description': '客戶中心'}
         ]
         
         for p in default_pages:

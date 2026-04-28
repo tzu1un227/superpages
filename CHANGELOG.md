@@ -110,3 +110,10 @@ All notable changes to this project will be documented in this file.
 
 - **訊息中心顯示優化** [2026-04-27]:
   - 在 MessageCenter.jsx 的用戶列表，針對 Flex 訊息類型，將顯示格式從「[圖文訊息]」更改為簡潔的「圖文訊息」。
+
+## [Unreleased]
+- **客戶中心實作 (Customer Center Implementation)** [2026-04-28]:
+  - **前端頁面**：建立 CustomerCenter.jsx 並套用暗色系主題。
+  - **頁籤設計**：提供「客戶資訊」、「目標客群」、「標籤管理」三大頁籤。
+  - **後端 API**：建立 /api/customers 與 /api/customers/groups 以從 private_var 和 history 表格撈取客戶資料。
+  - **導覽列整合**：於 App.jsx 的路由及選單加入客戶中心。

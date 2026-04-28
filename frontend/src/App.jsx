@@ -21,6 +21,8 @@ import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send, Gift, S
 import RuleDesigner from './pages/RuleDesigner';
 import DatabaseViewer from './pages/DatabaseViewer';
 import TestRunner from './pages/TestRunner';
+import CustomerCenter from './pages/CustomerCenter';
+import { Users } from 'lucide-react';
 
 const GOOGLE_CLIENT_ID = "909213734319-feblc4e1vhgu7e0r340e43h9aabc8iqf.apps.googleusercontent.com";
 
@@ -49,7 +51,8 @@ const PAGE_ROUTE_MAP = {
   'Questionnaire': 'questionnaire',
   'RuleDesigner': 'ruledesigner',
   'DatabaseViewer': 'dbviewer',
-  'TestRunner': 'testrunner'
+  'TestRunner': 'testrunner',
+  'CustomerCenter': 'customers'
 };
 
 const PAGE_ICON_MAP = {
@@ -63,7 +66,8 @@ const PAGE_ICON_MAP = {
   'Questionnaire': ClipboardList,
   'RuleDesigner': Workflow,
   'DatabaseViewer': Database,
-  'TestRunner': Play
+  'TestRunner': Play,
+  'CustomerCenter': Users
 };
 
 const MainLayout = () => {
@@ -119,7 +123,8 @@ const MainLayout = () => {
                           page.name === 'RuleDesigner' ? '法則表設計' :
                             page.name === 'DatabaseViewer' ? '資料庫檢視' :
                               page.name === 'TestRunner' ? '系統測試' :
-                                page.description;
+                                page.name === 'CustomerCenter' ? '客戶中心' :
+                                  page.description;
 
                     return (
                       <li key={page.id} style={{ marginBottom: '5px' }}>
@@ -177,6 +182,7 @@ const MainLayout = () => {
           <Route path="/oa/:oaId/ruledesigner" element={<ProtectedRoute><RuleDesigner /></ProtectedRoute>} />
           <Route path="/oa/:oaId/dbviewer" element={<ProtectedRoute><DatabaseViewer /></ProtectedRoute>} />
           <Route path="/oa/:oaId/testrunner" element={<ProtectedRoute><TestRunner /></ProtectedRoute>} />
+          <Route path="/oa/:oaId/customers" element={<ProtectedRoute><CustomerCenter /></ProtectedRoute>} />
 
           <Route path="/" element={
             isAuthenticated && myOAs.length > 0 ? (
