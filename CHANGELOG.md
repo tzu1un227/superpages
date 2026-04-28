@@ -117,3 +117,7 @@ All notable changes to this project will be documented in this file.
   - **頁籤設計**：提供「客戶資訊」、「目標客群」、「標籤管理」三大頁籤。
   - **後端 API**：建立 /api/customers 與 /api/customers/groups 以從 private_var 和 history 表格撈取客戶資料。
   - **導覽列整合**：於 App.jsx 的路由及選單加入客戶中心。
+
+  - **客戶中心：排序與標籤管理功能** [2026-04-28]:
+    - **欄位排序**：實作 CustomerCenter.jsx 的前端點擊欄位標題排序功能 (客戶名稱、最近互動時間、標籤)。
+    - **標籤管理頁籤**：實作 /api/customers/tags 後端 API，撈取 Private_var 內的標籤統計，並在前端標籤管理頁籤以列表顯示各標籤之標記人數。

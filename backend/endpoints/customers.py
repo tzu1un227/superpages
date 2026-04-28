@@ -92,3 +92,28 @@ def get_groups():
         return jsonify(groups)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@customers_bp.route('/tags', methods=['GET'])
+@token_required
+def get_tags():
+    try:
+        app_id = get_current_app_id()
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        pv_table = f'"Private_var:{app_id}"'
+        
+        query = f"""
+            SELECT value as tag_name, COUNT(user_id) as member_count
+            FROM {pv_table}
+            WHERE name = 'tag'
+            GROUP BY value
+        """
+        cur.execute(query)
+        tags = cur.fetchall()
+        
+        cur.close()
+        conn.close()
+        return jsonify(tags)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

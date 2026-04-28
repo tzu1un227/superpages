@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Filter, Download, UserPlus, Users, Tag, Clock, Phone, Mail, MoreHorizontal } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Search, Filter, Download, UserPlus, Users, Tag, Clock, Phone, Mail, MoreHorizontal, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import api from '../api';
 import { useToast } from '../contexts/ToastContext';
 
@@ -7,7 +7,9 @@ const CustomerCenter = () => {
   const [activeTab, setActiveTab] = useState('customers');
   const [customers, setCustomers] = useState([]);
   const [groups, setGroups] = useState([]);
+  const [tags, setTags] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const { addToast } = useToast();
 
   useEffect(() => {
@@ -15,6 +17,8 @@ const CustomerCenter = () => {
       fetchCustomers();
     } else if (activeTab === 'groups') {
       fetchGroups();
+    } else if (activeTab === 'tags') {
+      fetchTags();
     }
   }, [activeTab]);
 
@@ -44,6 +48,57 @@ const CustomerCenter = () => {
     }
   };
 
+  const fetchTags = async () => {
+    setIsLoading(true);
+    try {
+      const response = await api.get('/customers/tags');
+      setTags(response.data);
+    } catch (error) {
+      console.error('Error fetching tags:', error);
+      addToast('無法取得標籤列表', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const sortedCustomers = useMemo(() => {
+    let sortableItems = [...customers];
+    if (sortConfig.key !== null) {
+      sortableItems.sort((a, b) => {
+        let aValue = a[sortConfig.key];
+        let bValue = b[sortConfig.key];
+        
+        // Handle nulls
+        if (aValue === null || aValue === undefined) aValue = '';
+        if (bValue === null || bValue === undefined) bValue = '';
+        
+        if (aValue < bValue) {
+          return sortConfig.direction === 'asc' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return sortConfig.direction === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [customers, sortConfig]);
+
+  const SortIcon = ({ columnKey }) => {
+    if (sortConfig.key !== columnKey) return <ArrowUpDown size={14} style={{ marginLeft: '4px', opacity: 0.5, display: 'inline-block', verticalAlign: 'middle' }} />;
+    return sortConfig.direction === 'asc' ? 
+      <ArrowUp size={14} style={{ marginLeft: '4px', color: '#FFD700', display: 'inline-block', verticalAlign: 'middle' }} /> : 
+      <ArrowDown size={14} style={{ marginLeft: '4px', color: '#FFD700', display: 'inline-block', verticalAlign: 'middle' }} />;
+  };
+
   const handleActionClick = (action, item) => {
     addToast(`${action}功能開發中: ${item}`, 'info');
   };
@@ -54,11 +109,21 @@ const CustomerCenter = () => {
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#fff' }}>
           <thead>
             <tr style={{ backgroundColor: '#2A2A2A', borderBottom: '1px solid #444' }}>
-              <th style={{ padding: '16px', fontWeight: '500', color: '#888' }}>客戶名稱</th>
-              <th style={{ padding: '16px', fontWeight: '500', color: '#888' }}>最近互動時間</th>
-              <th style={{ padding: '16px', fontWeight: '500', color: '#888' }}>聯絡資訊</th>
-              <th style={{ padding: '16px', fontWeight: '500', color: '#888' }}>標籤</th>
-              <th style={{ padding: '16px', fontWeight: '500', color: '#888' }}>狀態</th>
+              <th onClick={() => handleSort('name')} style={{ padding: '16px', fontWeight: '500', color: '#888', cursor: 'pointer', userSelect: 'none' }}>
+                客戶名稱 <SortIcon columnKey="name" />
+              </th>
+              <th onClick={() => handleSort('last_interaction')} style={{ padding: '16px', fontWeight: '500', color: '#888', cursor: 'pointer', userSelect: 'none' }}>
+                最近互動時間 <SortIcon columnKey="last_interaction" />
+              </th>
+              <th style={{ padding: '16px', fontWeight: '500', color: '#888' }}>
+                聯絡資訊
+              </th>
+              <th onClick={() => handleSort('tag')} style={{ padding: '16px', fontWeight: '500', color: '#888', cursor: 'pointer', userSelect: 'none' }}>
+                標籤 <SortIcon columnKey="tag" />
+              </th>
+              <th style={{ padding: '16px', fontWeight: '500', color: '#888' }}>
+                狀態
+              </th>
               <th style={{ padding: '16px', fontWeight: '500', color: '#888', textAlign: 'center' }}>操作</th>
             </tr>
           </thead>
@@ -67,12 +132,12 @@ const CustomerCenter = () => {
               <tr>
                 <td colSpan="6" style={{ padding: '32px', textAlign: 'center', color: '#888' }}>載入中...</td>
               </tr>
-            ) : customers.length === 0 ? (
+            ) : sortedCustomers.length === 0 ? (
               <tr>
                 <td colSpan="6" style={{ padding: '32px', textAlign: 'center', color: '#888' }}>無客戶資料</td>
               </tr>
             ) : (
-              customers.map((c, idx) => (
+              sortedCustomers.map((c, idx) => (
                 <tr key={idx} style={{ borderBottom: '1px solid #333', transition: 'background-color 0.2s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#2A2A2A'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
                   <td style={{ padding: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -178,6 +243,54 @@ const CustomerCenter = () => {
     </div>
   );
 
+  const renderTagsTable = () => (
+    <div style={{ backgroundColor: '#222', borderRadius: '12px', overflow: 'hidden', border: '1px solid #333' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#fff' }}>
+        <thead>
+          <tr style={{ backgroundColor: '#2A2A2A', borderBottom: '1px solid #444' }}>
+            <th style={{ padding: '16px', fontWeight: '500', color: '#888' }}>標籤名稱</th>
+            <th style={{ padding: '16px', fontWeight: '500', color: '#888' }}>標記人數</th>
+            <th style={{ padding: '16px', fontWeight: '500', color: '#888', textAlign: 'right' }}>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {isLoading ? (
+            <tr>
+              <td colSpan="3" style={{ padding: '32px', textAlign: 'center', color: '#888' }}>載入中...</td>
+            </tr>
+          ) : tags.length === 0 ? (
+            <tr>
+              <td colSpan="3" style={{ padding: '32px', textAlign: 'center', color: '#888' }}>無標籤資料</td>
+            </tr>
+          ) : (
+            tags.map((t, idx) => (
+              <tr key={idx} style={{ borderBottom: '1px solid #333' }}>
+                <td style={{ padding: '16px', fontWeight: '500' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Tag size={16} style={{ color: '#FFD700' }} />
+                    {t.tag_name}
+                  </div>
+                </td>
+                <td style={{ padding: '16px', color: '#ccc' }}>{t.member_count} 人</td>
+                <td style={{ padding: '16px', textAlign: 'right' }}>
+                  <button onClick={() => handleActionClick('查看標籤名單', t.tag_name)} style={{ padding: '6px 12px', backgroundColor: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', marginRight: '8px' }}>
+                    查看
+                  </button>
+                  <button onClick={() => handleActionClick('編輯標籤', t.tag_name)} style={{ padding: '6px 12px', backgroundColor: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', marginRight: '8px' }}>
+                    編輯
+                  </button>
+                  <button onClick={() => handleActionClick('刪除標籤', t.tag_name)} style={{ padding: '6px 12px', backgroundColor: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.5)', color: '#ef4444', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>
+                    刪除
+                  </button>
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', color: '#fff' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
@@ -233,13 +346,7 @@ const CustomerCenter = () => {
 
       {activeTab === 'customers' && renderCustomersTable()}
       {activeTab === 'groups' && renderGroupsTable()}
-      {activeTab === 'tags' && (
-        <div style={{ textAlign: 'center', padding: '60px 20px', backgroundColor: '#222', borderRadius: '12px', border: '1px solid #333', color: '#888' }}>
-          <Tag size={48} style={{ marginBottom: '16px', opacity: 0.5 }} />
-          <h3>標籤管理功能開發中</h3>
-          <p>目前客戶的標籤狀態請參考「客戶資訊」頁籤</p>
-        </div>
-      )}
+      {activeTab === 'tags' && renderTagsTable()}
     </div>
   );
 };
