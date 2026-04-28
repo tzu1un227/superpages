@@ -365,10 +365,17 @@ def delete_tag(tag_name):
             # Send WebSocket events in background
             from utils.socket_utils import send_socket_events_batch
             import threading
+            
+            # Capture config before entering thread
+            settings = getattr(g, 'current_oa_config', None).other_settings if getattr(g, 'current_oa_config', None) else {}
+            s_url = settings.get('socket_url')
+            s_name = settings.get('socket_name')
+            
             def notify_socket():
                 events = [{"user": uid, "message": f"del_tag|{tag_name}", "type": "Sensor"} for uid in affected_uids]
-                send_socket_events_batch(events)
+                send_socket_events_batch(events, socket_url=s_url, bot_name=s_name)
             threading.Thread(target=notify_socket).start()
+
 
         conn.commit()
         return jsonify({"success": True})
@@ -424,10 +431,17 @@ def add_tag_batch():
             # Send WebSocket events in background
             from utils.socket_utils import send_socket_events_batch
             import threading
+            
+            # Capture config before entering thread
+            settings = getattr(g, 'current_oa_config', None).other_settings if getattr(g, 'current_oa_config', None) else {}
+            s_url = settings.get('socket_url')
+            s_name = settings.get('socket_name')
+
             def notify_socket():
                 events = [{"user": uid, "message": f"set_tag|{tag_name}", "type": "Sensor"} for uid in affected_uids]
-                send_socket_events_batch(events)
+                send_socket_events_batch(events, socket_url=s_url, bot_name=s_name)
             threading.Thread(target=notify_socket).start()
+
             
         conn.commit()
         return jsonify({"success": True, "count": len(updates)})

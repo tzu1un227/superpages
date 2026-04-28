@@ -71,14 +71,11 @@ const CustomerCenter = () => {
 
   const refreshAllData = async () => {
     setIsLoading(true);
+    console.log('Refreshing data...');
     try {
-      // Add a small delay to ensure DB consistency before re-fetching
-      await new Promise(resolve => setTimeout(resolve, 500));
-      await Promise.all([
-        fetchCustomers(true),
-        fetchGroups(true),
-        fetchTags(true)
-      ]);
+      await fetchCustomers(true);
+      await fetchGroups(true);
+      await fetchTags(true);
       console.log('Data refreshed successfully');
     } catch (err) {
       console.error('Refresh failed:', err);
@@ -86,6 +83,7 @@ const CustomerCenter = () => {
       setIsLoading(false);
     }
   };
+
 
   useEffect(() => {
     setSelectedUserIds([]); // clear selection when tab changes

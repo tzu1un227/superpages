@@ -109,7 +109,7 @@ def send_socket_event(data, namespace=None):
         except:
             pass
 
-def send_socket_events_batch(events, namespace=None):
+def send_socket_events_batch(events, namespace=None, socket_url=None, bot_name=None):
     """
     Sends multiple events via a single Socket.IO connection.
     events: List of data dicts.
@@ -117,20 +117,21 @@ def send_socket_events_batch(events, namespace=None):
     if not events: return
     
     local_sio = socketio.Client(ssl_verify=False)
-    target_ws_url = WS_URL
-    bot_name = DEFAULT_BOT_NAME
-    current_oa_config = getattr(g, 'current_oa_config', None)
+    target_ws_url = socket_url if socket_url else WS_URL
+    target_bot_name = bot_name if bot_name else DEFAULT_BOT_NAME
     
-    if current_oa_config:
+    if not socket_url or not bot_name:
         try:
-            settings = current_oa_config.other_settings
-            if settings:
-                target_ws_url = settings.get('socket_url') or WS_URL
-                bot_name = settings.get('socket_name') or DEFAULT_BOT_NAME
+            current_oa_config = getattr(g, 'current_oa_config', None)
+            if current_oa_config:
+                settings = current_oa_config.other_settings
+                if settings:
+                    if not socket_url: target_ws_url = settings.get('socket_url') or WS_URL
+                    if not bot_name: target_bot_name = settings.get('socket_name') or DEFAULT_BOT_NAME
         except: pass
 
-    final_namespace = namespace if namespace else f"/{bot_name}"
-    event_name = f'{bot_name}_message'
+    final_namespace = namespace if namespace else f"/{target_bot_name}"
+    event_name = f'{target_bot_name}_message'
 
     try:
         local_sio.connect(target_ws_url, namespaces=[final_namespace], wait_timeout=10, transports=['polling'])
@@ -141,3 +142,4 @@ def send_socket_events_batch(events, namespace=None):
     finally:
         try: local_sio.disconnect()
         except: pass
+
