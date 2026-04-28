@@ -122,8 +122,10 @@ with app.app_context():
                     page.description = p['description']
                     print(f"Updated description for {p['name']}")
             else:
-                page = Page(name=p['name'], description=p['description'])
+                max_id = db.session.query(db.func.max(Page.id)).scalar() or 0
+                page = Page(id=max_id + 1, name=p['name'], description=p['description'])
                 db.session.add(page)
+                db.session.flush()
                 print(f"Created page {p['name']}")
         
         db.session.commit()
