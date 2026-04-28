@@ -360,8 +360,15 @@ def delete_tag(tag_name):
         if updates:
             affected_uids = [u[0] for u in updates]
             cur.execute(f"DELETE FROM {pv_table} WHERE name = 'tag' AND user_id = ANY(%s)", (affected_uids,))
-            
             execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", [(uid, 'tag', val) for uid, val in updates])
+            
+            # Send WebSocket events in background
+            from utils.socket_utils import send_socket_events_batch
+            import threading
+            def notify_socket():
+                events = [{"user": uid, "message": f"del_tag|{tag_name}", "type": "Sensor"} for uid in affected_uids]
+                send_socket_events_batch(events)
+            threading.Thread(target=notify_socket).start()
 
         conn.commit()
         return jsonify({"success": True})
@@ -372,3 +379,62 @@ def delete_tag(tag_name):
     finally:
         cur.close()
         conn.close()
+
+@customers_bp.route('/tags/batch', methods=['POST'])
+@token_required
+def add_tag_batch():
+    app_id = get_current_app_id()
+    conn = get_db_connection()
+    cur = conn.cursor()
+    data = request.json
+    tag_name = data.get('tag_name')
+    user_ids = data.get('user_ids', [])
+    
+    if not tag_name or not user_ids:
+        return jsonify({"error": "Missing tag_name or user_ids"}), 400
+        
+    try:
+        from psycopg2.extras import execute_values
+        pv_table = f'"Private_var:{app_id}"'
+        
+        # Get existing tags for these users
+        cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = 'tag' AND user_id = ANY(%s)", (user_ids,))
+        rows = cur.fetchall()
+        user_tags = {r[0]: r[1] for r in rows}
+        
+        import ast
+        updates = []
+        for uid in user_ids:
+            val = user_tags.get(uid)
+            try:
+                parsed = ast.literal_eval(val) if val else []
+                parsed = parsed if isinstance(parsed, list) else [str(parsed)]
+            except:
+                parsed = [val] if val else []
+            
+            if tag_name not in parsed:
+                parsed.append(tag_name)
+                updates.append((uid, str(parsed)))
+        
+        if updates:
+            affected_uids = [u[0] for u in updates]
+            cur.execute(f"DELETE FROM {pv_table} WHERE name = 'tag' AND user_id = ANY(%s)", (affected_uids,))
+            execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", [(uid, 'tag', val) for uid, val in updates])
+            
+            # Send WebSocket events in background
+            from utils.socket_utils import send_socket_events_batch
+            import threading
+            def notify_socket():
+                events = [{"user": uid, "message": f"set_tag|{tag_name}", "type": "Sensor"} for uid in affected_uids]
+                send_socket_events_batch(events)
+            threading.Thread(target=notify_socket).start()
+            
+        conn.commit()
+        return jsonify({"success": True, "count": len(updates)})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+

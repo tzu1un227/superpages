@@ -109,3 +109,35 @@ def send_socket_event(data, namespace=None):
         except:
             pass
 
+def send_socket_events_batch(events, namespace=None):
+    """
+    Sends multiple events via a single Socket.IO connection.
+    events: List of data dicts.
+    """
+    if not events: return
+    
+    local_sio = socketio.Client(ssl_verify=False)
+    target_ws_url = WS_URL
+    bot_name = DEFAULT_BOT_NAME
+    current_oa_config = getattr(g, 'current_oa_config', None)
+    
+    if current_oa_config:
+        try:
+            settings = current_oa_config.other_settings
+            if settings:
+                target_ws_url = settings.get('socket_url') or WS_URL
+                bot_name = settings.get('socket_name') or DEFAULT_BOT_NAME
+        except: pass
+
+    final_namespace = namespace if namespace else f"/{bot_name}"
+    event_name = f'{bot_name}_message'
+
+    try:
+        local_sio.connect(target_ws_url, namespaces=[final_namespace], wait_timeout=10, transports=['polling'])
+        for data in events:
+            local_sio.emit(event_name, data, namespace=final_namespace)
+            time.sleep(0.05) # Small gap between events
+        time.sleep(0.5)
+    finally:
+        try: local_sio.disconnect()
+        except: pass

@@ -350,25 +350,22 @@ const CustomerCenter = () => {
 
   const handleAddTagToGroup = async () => {
     if (!tagInput.trim() || filteredCustomers.length === 0) return;
+    const userIds = filteredCustomers.map(u => u.user_id).filter(Boolean);
+    
     setIsProcessing(true);
-    let successCount = 0;
     try {
-      for (const u of filteredCustomers) {
-        if (!u.user_id) continue;
-        try {
-          await api.post('/trigger', {
-            user: u.user_id,
-            message: `set_tag|${tagInput.trim()}`,
-            type: 'Sensor',
-            api_index: 0
-          });
-          successCount++;
-        } catch (e) { console.error('Tag fail for user', u.user_id, e); }
-      }
+      await api.post('/customers/tags/batch', {
+        tag_name: tagInput.trim(),
+        user_ids: userIds
+      });
+      
       setIsTagModalOpen(false);
-      addToast(`成功為 ${successCount} 名用戶加入標籤: ${tagInput}`, 'success');
+      addToast(`成功為 ${userIds.length} 名用戶加入標籤: ${tagInput.trim()}`, 'success');
       setTagInput('');
       await refreshAllData();
+    } catch (err) {
+      addToast('標籤批次更新失敗', 'error');
+      console.error(err);
     } finally {
       setIsProcessing(false);
     }
