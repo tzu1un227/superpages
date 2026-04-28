@@ -71,6 +71,7 @@ const CustomerCenter = () => {
 
 
   const refreshAllData = async () => {
+    console.log('refreshAllData triggered');
     setIsLoading(true);
     console.log('Refreshing data...');
     try {
@@ -85,6 +86,7 @@ const CustomerCenter = () => {
       setIsLoading(false);
     }
   };
+
 
 
 
@@ -223,13 +225,15 @@ const CustomerCenter = () => {
           if (filterContext.type === 'group' && filterContext.value === item) {
             setFilterContext({ type: 'all', value: '', description: '' });
           }
-          await refreshAllData();
+          setIsProcessing(false);
+          console.log('Group deletion successful, refreshing...');
+          refreshAllData();
         } catch (error) {
           console.error(error);
           addToast('刪除客群失敗', 'error');
-        } finally {
           setIsProcessing(false);
         }
+
       }
       return;
     }
@@ -242,14 +246,15 @@ const CustomerCenter = () => {
           if (filterContext.type === 'tag' && filterContext.value === item) {
             setFilterContext({ type: 'all', value: '', description: '' });
           }
-          console.log('Tag deletion successful, triggering refresh...');
-          await refreshAllData();
+          setIsProcessing(false);
+          console.log('Tag deletion successful, refreshing...');
+          refreshAllData();
         } catch (error) {
           console.error(error);
           addToast('刪除標籤失敗', 'error');
-        } finally {
           setIsProcessing(false);
         }
+
       }
       return;
     }
@@ -364,14 +369,15 @@ const CustomerCenter = () => {
       setIsTagModalOpen(false);
       addToast(`成功為 ${userIds.length} 名用戶加入標籤: ${tagInput.trim()}`, 'success');
       setTagInput('');
-      console.log('Batch tagging successful, triggering refresh...');
-      await refreshAllData();
+      setIsProcessing(false);
+      console.log('Batch tagging successful, refreshing...');
+      refreshAllData();
     } catch (err) {
       addToast('標籤批次更新失敗', 'error');
       console.error('Batch tagging error:', err);
-    } finally {
       setIsProcessing(false);
     }
+
 
   };
 

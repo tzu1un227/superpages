@@ -376,8 +376,11 @@ def delete_tag(tag_name):
             
             def notify_socket():
                 events = [{"user": uid, "message": f"del_tag|{tag_name}", "type": "Sensor"} for uid in affected_uids]
-                send_socket_events_batch(events, socket_url=s_url, bot_name=s_name)
+                # Explicitly pass namespace
+                target_ns = f"/{s_name}" if s_name else "/websoc"
+                send_socket_events_batch(events, socket_url=s_url, bot_name=s_name, namespace=target_ns)
             threading.Thread(target=notify_socket).start()
+
 
 
         conn.commit()
@@ -442,8 +445,11 @@ def add_tag_batch():
 
             def notify_socket():
                 events = [{"user": uid, "message": f"set_tag|{tag_name}", "type": "Sensor"} for uid in affected_uids]
-                send_socket_events_batch(events, socket_url=s_url, bot_name=s_name)
+                # Explicitly pass namespace
+                target_ns = f"/{s_name}" if s_name else "/websoc"
+                send_socket_events_batch(events, socket_url=s_url, bot_name=s_name, namespace=target_ns)
             threading.Thread(target=notify_socket).start()
+
 
             
         conn.commit()
