@@ -23,7 +23,7 @@ def get_customers():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
-        pv_table = f'"private_var:{app_id}"'
+        pv_table = f'"Private_var:{app_id}"'
         history_table = f'"history:{app_id}"'
         
         # We need to query unique user_id from private_var and aggregate their data
@@ -73,7 +73,7 @@ def get_groups():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
-        pv_table = f'"private_var:{app_id}"'
+        pv_table = f'"Private_var:{app_id}"'
         
         # fetch distinct group names (based on sensors/group.py logic where name='g_group')
         query = f"""
