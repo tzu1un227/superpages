@@ -393,7 +393,7 @@ const CustomerCenter = () => {
       showToast('該群組目前沒有用戶可發送訊息', 'error');
       return;
     }
-    navigate(`/project/${oaId}/broadcast`, { 
+    navigate(`/oa/${oaId}/broadcast`, { 
       state: { 
         presetTarget: { 
           type: 'ids', 
