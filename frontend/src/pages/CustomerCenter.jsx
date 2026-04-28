@@ -74,14 +74,13 @@ const CustomerCenter = () => {
     console.log('refreshAllData triggered');
     setIsLoading(true);
     try {
-      await Promise.allSettled([
-        fetchCustomers(true),
-        fetchGroups(true),
-        fetchTags(true)
-      ]);
+      // Use sequential await with catch for better compatibility and error handling
+      await fetchCustomers(true).catch(e => console.error('Customers refresh fail:', e));
+      await fetchGroups(true).catch(e => console.error('Groups refresh fail:', e));
+      await fetchTags(true).catch(e => console.error('Tags refresh fail:', e));
       console.log('Data refresh finished');
     } catch (err) {
-      console.error('Refresh failed:', err);
+      console.error('Refresh logic error:', err);
     } finally {
       setIsLoading(false);
     }
