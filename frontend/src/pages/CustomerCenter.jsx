@@ -325,8 +325,8 @@ const CustomerCenter = () => {
         description: groupForm.mode === 'existing' ? (groups.find(g => g.group_name === finalGroupName)?.description || '') : groupForm.description,
         user_ids: selectedUserIds
       });
-      addToast(`成功將 ${selectedUserIds.length} 名用戶加入客群: ${finalGroupName}`, 'success');
       setIsGroupModalOpen(false);
+      addToast(`成功將 ${selectedUserIds.length} 名用戶加入客群: ${finalGroupName}`, 'success');
       setSelectedUserIds([]);
       fetchCustomers();
       fetchGroups();
@@ -355,8 +355,8 @@ const CustomerCenter = () => {
           successCount++;
         } catch (e) { console.error('Tag fail for user', u.user_id, e); }
       }
-      addToast(`成功為 ${successCount} 名用戶加入標籤: ${tagInput}`, 'success');
       setIsTagModalOpen(false);
+      addToast(`成功為 ${successCount} 名用戶加入標籤: ${tagInput}`, 'success');
       setTagInput('');
       fetchCustomers();
       fetchTags();

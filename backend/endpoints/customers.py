@@ -208,8 +208,8 @@ def create_group():
                 insert_args.append((uid, 'g_group', str(parsed)))
                 
             if insert_args:
-                args_str = b",".join(cur.mogrify("(%s, %s, %s)", arg) for arg in insert_args).decode('utf-8')
-                cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES {args_str}")
+                from psycopg2.extras import execute_values
+                execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", insert_args)
 
         conn.commit()
         return jsonify({"success": True})
@@ -269,8 +269,8 @@ def delete_group(group_name):
             
             insert_args = [(uid, 'g_group', val) for val, uid in updates]
             if insert_args:
-                args_str = b",".join(cur.mogrify("(%s, %s, %s)", arg) for arg in insert_args).decode('utf-8')
-                cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES {args_str}")
+                from psycopg2.extras import execute_values
+                execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", insert_args)
         
         conn.commit()
         return jsonify({"success": True})
@@ -334,6 +334,7 @@ def delete_tag(tag_name):
     cur = conn.cursor()
 
     try:
+        from psycopg2.extras import execute_values
         pv_table = f'"Private_var:{app_id}"'
         cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = 'tag'")
         rows = cur.fetchall()
@@ -343,6 +344,7 @@ def delete_tag(tag_name):
         for r in rows:
             uid = r[0]
             val = r[1]
+            if not val: continue
             try:
                 parsed = ast.literal_eval(val)
                 if isinstance(parsed, list):
@@ -359,14 +361,13 @@ def delete_tag(tag_name):
             affected_uids = [u[0] for u in updates]
             cur.execute(f"DELETE FROM {pv_table} WHERE name = 'tag' AND user_id = ANY(%s)", (affected_uids,))
             
-            insert_args = [(uid, 'tag', val) for uid, val in updates]
-            args_str = b",".join(cur.mogrify("(%s, 'tag', %s)", arg) for arg in insert_args).decode('utf-8')
-            cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES {args_str}")
+            execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", [(uid, 'tag', val) for uid, val in updates])
 
         conn.commit()
         return jsonify({"success": True})
     except Exception as e:
         conn.rollback()
+        print(f"Error in delete_tag: {e}")
         return jsonify({"error": str(e)}), 500
     finally:
         cur.close()
