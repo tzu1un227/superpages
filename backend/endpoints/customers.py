@@ -38,6 +38,7 @@ def get_customers():
                 MAX(CASE WHEN name = 'email' THEN value END) as email
             FROM {pv_table}
             GROUP BY user_id
+            HAVING MAX(CASE WHEN name = 'name' THEN value END) IS NOT NULL
         """
         cur.execute(query)
         users = cur.fetchall()
