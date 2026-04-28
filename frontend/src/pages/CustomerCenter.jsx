@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Filter, Download, UserPlus, Users, Tag, Clock, Phone, Mail, MoreHorizontal, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, Filter, Download, UserPlus, Users, Tag, Clock, Phone, Mail, MoreHorizontal, ArrowUpDown, ArrowUp, ArrowDown, X } from 'lucide-react';
 import api from '../api';
 import { useToast } from '../contexts/ToastContext';
 
@@ -10,6 +10,7 @@ const CustomerCenter = () => {
   const [tags, setTags] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [filterContext, setFilterContext] = useState({ type: null, value: null });
   const { addToast } = useToast();
 
   useEffect(() => {
@@ -69,8 +70,23 @@ const CustomerCenter = () => {
     setSortConfig({ key, direction });
   };
 
+  const handleView = (type, value) => {
+    setFilterContext({ type, value });
+    setActiveTab('customers');
+  };
+
+  const filteredCustomers = useMemo(() => {
+    let filtered = customers;
+    if (filterContext.type === 'group') {
+      filtered = filtered.filter(c => c.group_name === filterContext.value);
+    } else if (filterContext.type === 'tag') {
+      filtered = filtered.filter(c => Array.isArray(c.tag) ? c.tag.includes(filterContext.value) : c.tag === filterContext.value);
+    }
+    return filtered;
+  }, [customers, filterContext]);
+
   const sortedCustomers = useMemo(() => {
-    let sortableItems = [...customers];
+    let sortableItems = [...filteredCustomers];
     if (sortConfig.key !== null) {
       sortableItems.sort((a, b) => {
         if (sortConfig.key === 'tag') {
@@ -98,7 +114,7 @@ const CustomerCenter = () => {
       });
     }
     return sortableItems;
-  }, [customers, sortConfig]);
+  }, [filteredCustomers, sortConfig]);
 
   const SortIcon = ({ columnKey }) => {
     if (sortConfig.key !== columnKey) return <ArrowUpDown size={14} style={{ marginLeft: '4px', opacity: 0.5, display: 'inline-block', verticalAlign: 'middle' }} />;
@@ -229,15 +245,17 @@ const CustomerCenter = () => {
           ) : (
             groups.map((g, idx) => (
               <tr key={idx} style={{ borderBottom: '1px solid #333' }}>
-                <td style={{ padding: '16px', fontWeight: '500' }}>
+                <td style={{ padding: '16px', fontWeight: '500', cursor: 'pointer' }} onClick={() => handleView('group', g.group_name)}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Users size={16} className="text-yellow" />
-                    {g.group_name}
+                    <span style={{ transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#FFD700'} onMouseLeave={e => e.currentTarget.style.color = 'inherit'}>
+                      {g.group_name}
+                    </span>
                   </div>
                 </td>
                 <td style={{ padding: '16px', color: '#ccc' }}>{g.member_count} 人</td>
                 <td style={{ padding: '16px', textAlign: 'right' }}>
-                  <button onClick={() => handleActionClick('查看名單', g.group_name)} style={{ padding: '6px 12px', backgroundColor: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', marginRight: '8px' }}>
+                  <button onClick={() => handleView('group', g.group_name)} style={{ padding: '6px 12px', backgroundColor: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', marginRight: '8px' }}>
                     查看
                   </button>
                   <button onClick={() => handleActionClick('編輯客群', g.group_name)} style={{ padding: '6px 12px', backgroundColor: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', marginRight: '8px' }}>
@@ -277,15 +295,17 @@ const CustomerCenter = () => {
           ) : (
             tags.map((t, idx) => (
               <tr key={idx} style={{ borderBottom: '1px solid #333' }}>
-                <td style={{ padding: '16px', fontWeight: '500' }}>
+                <td style={{ padding: '16px', fontWeight: '500', cursor: 'pointer' }} onClick={() => handleView('tag', t.tag_name)}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Tag size={16} style={{ color: '#FFD700' }} />
-                    {t.tag_name}
+                    <span style={{ transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#FFD700'} onMouseLeave={e => e.currentTarget.style.color = 'inherit'}>
+                      {t.tag_name}
+                    </span>
                   </div>
                 </td>
                 <td style={{ padding: '16px', color: '#ccc' }}>{t.member_count} 人</td>
                 <td style={{ padding: '16px', textAlign: 'right' }}>
-                  <button onClick={() => handleActionClick('查看標籤名單', t.tag_name)} style={{ padding: '6px 12px', backgroundColor: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', marginRight: '8px' }}>
+                  <button onClick={() => handleView('tag', t.tag_name)} style={{ padding: '6px 12px', backgroundColor: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', marginRight: '8px' }}>
                     查看
                   </button>
                   <button onClick={() => handleActionClick('編輯標籤', t.tag_name)} style={{ padding: '6px 12px', backgroundColor: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', marginRight: '8px' }}>
@@ -355,6 +375,17 @@ const CustomerCenter = () => {
           <Filter size={16} /> 篩選條件
         </button>
       </div>
+
+      {filterContext.type && activeTab === 'customers' && (
+        <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: 'rgba(255, 215, 0, 0.1)', border: '1px solid rgba(255, 215, 0, 0.3)', borderRadius: '8px' }}>
+          <span style={{ color: '#FFD700', fontWeight: 'bold' }}>
+            過濾中：{filterContext.type === 'group' ? '目標客群' : '標籤'} = {filterContext.value}
+          </span>
+          <button onClick={() => setFilterContext({ type: null, value: null })} style={{ background: 'transparent', border: 'none', color: '#FFD700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <X size={16} /> 取消過濾
+          </button>
+        </div>
+      )}
 
       {activeTab === 'customers' && renderCustomersTable()}
       {activeTab === 'groups' && renderGroupsTable()}

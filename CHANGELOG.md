@@ -121,3 +121,6 @@ All notable changes to this project will be documented in this file.
   - **客戶中心：排序與標籤管理功能** [2026-04-28]:
     - **欄位排序**：實作 CustomerCenter.jsx 的前端點擊欄位標題排序功能 (客戶名稱、最近互動時間、標籤)。
     - **標籤管理頁籤**：實作 /api/customers/tags 後端 API，撈取 Private_var 內的標籤統計，並在前端標籤管理頁籤以列表顯示各標籤之標記人數。
+
+  - **客戶中心：客群與標籤連動查看功能** [2026-04-28]:
+    - **客戶過濾聯動**：實作 CustomerCenter.jsx 中，目標客群與標籤管理頁面的「查看」按鈕及名稱點擊功能，點擊後會自動跳轉回客戶列表，並根據所選取的客群或標籤進行名單過濾顯示。
