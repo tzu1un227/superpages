@@ -73,19 +73,20 @@ const CustomerCenter = () => {
   const refreshAllData = async () => {
     console.log('refreshAllData triggered');
     setIsLoading(true);
-    console.log('Refreshing data...');
     try {
-      await new Promise(r => setTimeout(r, 100));
-      await fetchCustomers(true);
-      await fetchGroups(true);
-      await fetchTags(true);
-      console.log('Data refreshed successfully');
+      await Promise.allSettled([
+        fetchCustomers(true),
+        fetchGroups(true),
+        fetchTags(true)
+      ]);
+      console.log('Data refresh finished');
     } catch (err) {
       console.error('Refresh failed:', err);
     } finally {
       setIsLoading(false);
     }
   };
+
 
 
 
@@ -369,14 +370,15 @@ const CustomerCenter = () => {
       setIsTagModalOpen(false);
       addToast(`成功為 ${userIds.length} 名用戶加入標籤: ${tagInput.trim()}`, 'success');
       setTagInput('');
-      setIsProcessing(false);
       console.log('Batch tagging successful, refreshing...');
       refreshAllData();
     } catch (err) {
       addToast('標籤批次更新失敗', 'error');
       console.error('Batch tagging error:', err);
+    } finally {
       setIsProcessing(false);
     }
+
 
 
   };

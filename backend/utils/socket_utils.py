@@ -137,8 +137,8 @@ def send_socket_events_batch(events, namespace=None, socket_url=None, bot_name=N
         local_sio.connect(target_ws_url, namespaces=[final_namespace], wait_timeout=10, transports=['polling'])
         for data in events:
             local_sio.emit(event_name, data, namespace=final_namespace)
-            time.sleep(0.05) # Small gap between events
-        time.sleep(0.5)
+            time.sleep(0.01)
+        time.sleep(0.1)
     finally:
         try: local_sio.disconnect()
         except: pass
