@@ -27,76 +27,90 @@ def get_customers():
         pv_table = f'"Private_var:{app_id}"'
         history_table = f'"history:{app_id}"'
         
-        # We need to query unique user_id from private_var and aggregate their data
+        # Single optimized query to fetch user data and interaction stats
+        # Filtering empty names in SQL to drastically reduce processing rows
         query = f"""
-            SELECT 
-                user_id,
-                MAX(CASE WHEN name = 'name' THEN value END) as name,
-                MAX(CASE WHEN name = 'pic' THEN value END) as pic,
-                MAX(CASE WHEN name = 'tag' THEN value END) as tag,
-                MAX(CASE WHEN name = 'g_group' THEN value END) as group_name,
-                MAX(CASE WHEN name = 'phone' THEN value END) as phone,
-                MAX(CASE WHEN name = 'email' THEN value END) as email
-            FROM {pv_table}
-            GROUP BY user_id
+            WITH user_data AS (
+                SELECT 
+                    user_id,
+                    MAX(CASE WHEN name = 'name' THEN value END) as name,
+                    MAX(CASE WHEN name = 'pic' THEN value END) as pic,
+                    MAX(CASE WHEN name = 'tag' THEN value END) as tag,
+                    MAX(CASE WHEN name = 'g_group' THEN value END) as group_name,
+                    MAX(CASE WHEN name = 'phone' THEN value END) as phone,
+                    MAX(CASE WHEN name = 'email' THEN value END) as email
+                FROM {pv_table}
+                GROUP BY user_id
+                HAVING MAX(CASE WHEN name = 'name' THEN value END) IS NOT NULL 
+                   AND MAX(CASE WHEN name = 'name' THEN value END) NOT IN ('', 'None', '未命名用戶')
+            ),
+            history_stats AS (
+                SELECT 
+                    user_id, 
+                    MAX(timestamp) as last_interaction,
+                    MIN(CASE WHEN category = 'follow' THEN timestamp END) as join_time
+                FROM {history_table}
+                GROUP BY user_id
+            )
+            SELECT u.*, h.last_interaction, h.join_time
+            FROM user_data u
+            LEFT JOIN history_stats h ON u.user_id = h.user_id
+            ORDER BY h.last_interaction DESC NULLS LAST
+            LIMIT 2000
         """
-        cur.execute(query)
-        users = cur.fetchall()
         
-        # Also get latest history timestamp
-        query_history = f"""
-            SELECT user_id, 
-                   MAX(timestamp) as last_interaction,
-                   MIN(CASE WHEN category = 'follow' THEN timestamp END) as join_time
-            FROM {history_table}
-            GROUP BY user_id
-        """
-        cur.execute(query_history)
-        history_rows = cur.fetchall()
-        history_dict = {r['user_id']: r for r in history_rows}
+        print(f"DEBUG: Executing optimized customer query for {app_id}")
+        cur.execute(query)
+        rows = cur.fetchall()
         
         import ast
         
-        filtered_users = []
-        for u in users:
-            # strict filter for name existence
-            name_val = u.get('name')
-            if not name_val or str(name_val).strip() == '' or str(name_val) == 'None' or str(name_val) == '未命名用戶':
-                continue
-                
-            h_data = history_dict.get(u['user_id'], {})
-            dt = h_data.get('last_interaction')
-            jt = h_data.get('join_time')
-            u['last_interaction'] = dt.strftime('%Y-%m-%d %H:%M:%S') if dt else None
-            u['join_time'] = jt.strftime('%Y-%m-%d %H:%M:%S') if jt else None
+        results = []
+        for r in rows:
+            # Format times
+            dt = r['last_interaction']
+            jt = r['join_time']
+            r['last_interaction'] = dt.strftime('%Y-%m-%d %H:%M:%S') if dt else None
+            r['join_time'] = jt.strftime('%Y-%m-%d %H:%M:%S') if jt else None
             
-            # Parse tag list
-            if u['tag']:
-                try:
-                    parsed = ast.literal_eval(u['tag'])
-                    u['tag'] = parsed if isinstance(parsed, list) else [str(parsed)]
-                except:
-                    u['tag'] = [u['tag']]
+            # Efficiently parse tag list
+            tag_val = r.get('tag')
+            if tag_val:
+                if tag_val.startswith('['):
+                    try:
+                        parsed = ast.literal_eval(tag_val)
+                        r['tag'] = parsed if isinstance(parsed, list) else [str(parsed)]
+                    except:
+                        r['tag'] = [tag_val]
+                else:
+                    r['tag'] = [tag_val]
             else:
-                u['tag'] = []
+                r['tag'] = []
 
-            # Parse group list
-            if u['group_name']:
-                try:
-                    parsed = ast.literal_eval(u['group_name'])
-                    u['group_name'] = parsed if isinstance(parsed, list) else [str(parsed)]
-                except:
-                    u['group_name'] = [u['group_name']]
+            # Efficiently parse group list
+            group_val = r.get('group_name')
+            if group_val:
+                if group_val.startswith('['):
+                    try:
+                        parsed = ast.literal_eval(group_val)
+                        r['group_name'] = parsed if isinstance(parsed, list) else [str(parsed)]
+                    except:
+                        r['group_name'] = [group_val]
+                else:
+                    r['group_name'] = [group_val]
             else:
-                u['group_name'] = []
+                r['group_name'] = []
             
-            u['api_index'] = 0
-                
-            filtered_users.append(u)
+            r['api_index'] = 0
+            results.append(r)
             
         cur.close()
         conn.close()
-        return jsonify(filtered_users)
+        print(f"DEBUG: get_customers finished, returning {len(results)} users")
+        return jsonify(results)
+    except Exception as e:
+        print(f"Error in get_customers: {e}")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
         print(f"Error in get_customers: {e}")
         return jsonify({"error": str(e)}), 500
