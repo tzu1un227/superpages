@@ -21,8 +21,7 @@ const Tooltip = ({ title, children }) => {
 
 const ACTION_TYPES = [
     { value: 'message', label: '傳送文字', icon: MessageSquare },
-    { value: 'uri', label: '跳轉網頁', icon: ExternalLink },
-    { value: 'postback', label: 'Postback', icon: CreditCard },
+    { value: 'uri', label: '開啟連結', icon: ExternalLink },
     { value: 'richmenuswitch', label: '切換選單', icon: Repeat },
 ];
 
@@ -210,7 +209,7 @@ function RichMenu() {
     const extractTagsFromValue = (type, value) => {
         if (!value || typeof value !== 'string') return { cleanValue: value, tags: [] };
         
-        // 1. tag_true format: tag_true|tag1,tag2|content
+        // 1. tag_true format: tag_true|tag1,tag2|content (Legacy for Postback)
         if (value.startsWith('tag_true|')) {
             const parts = value.split('|');
             if (parts.length >= 3) {
@@ -218,7 +217,6 @@ function RichMenu() {
                 const content = parts.slice(2).join('|');
                 return { cleanValue: content, tags };
             }
-            // Fallback for tag_true|content
             return { cleanValue: value.replace('tag_true|', ''), tags: [] };
         }
 
@@ -229,6 +227,18 @@ function RichMenu() {
             if (urlMatch && urlMatch[1]) {
                 const cleanValue = decodeURIComponent(urlMatch[1]);
                 const tags = tagsMatch && tagsMatch[1] ? decodeURIComponent(tagsMatch[1]).split(',').map(t => t.trim()).filter(t => t) : [];
+                return { cleanValue, tags };
+            }
+        }
+
+        // 3. LIFF Tagging URL: https://liff.line.me/2009851813-AgTeSa4r?bot={appname}&tag={標籤}&redirect={連結}
+        if (type === 'uri' && value.includes('2009851813-AgTeSa4r')) {
+            const botMatch = value.match(/[?&]bot=([^&]*)/);
+            const tagMatch = value.match(/[?&]tag=([^&]*)/);
+            const redirectMatch = value.match(/[?&]redirect=([^&#]*)/);
+            if (redirectMatch && redirectMatch[1]) {
+                const cleanValue = decodeURIComponent(redirectMatch[1]);
+                const tags = tagMatch && tagMatch[1] ? [decodeURIComponent(tagMatch[1])] : [];
                 return { cleanValue, tags };
             }
         }
@@ -291,13 +301,14 @@ function RichMenu() {
             const prefix = `區塊 ${idx + 1}: `;
             if (type === 'message' && !a.action.text?.trim()) errors.push(prefix + "請輸入訊息文字");
             if (type === 'uri' && !a.action.uri?.trim()) errors.push(prefix + "請輸入網址");
-            if (type === 'postback' && !a.action.data?.trim()) errors.push(prefix + "請輸入 Postback 資料");
             if (type === 'richmenuswitch' && !a.action.richMenuAliasId?.trim()) errors.push(prefix + "請選擇目標別名");
         });
         return errors;
     };
 
     const isFormValid = () => getValidationErrors().length === 0;
+
+    const { currentAccount } = useAuth();
 
     const saveMenu = async () => {
         if (viewOnly) return;
@@ -325,32 +336,25 @@ function RichMenu() {
                     const rawAction = { ...a.action };
                     const tags = rawAction.tags || [];
                     
-                    // Construct a clean action object based on type to prevent LINE API errors
-                    // like "can not put text and displayText at same time"
                     const action = { type: rawAction.type };
 
                     if (action.type === 'message') {
                         action.text = rawAction.text;
                     } else if (action.type === 'uri') {
-                        action.uri = rawAction.uri;
-                    } else if (action.type === 'postback') {
-                        action.data = rawAction.data;
-                        if (rawAction.displayText) action.displayText = rawAction.displayText;
-                        // Avoid sending 'text' if it's the same as 'displayText' or left over from previous state
+                        let finalUri = rawAction.uri;
+                        if (tags.length > 0) {
+                            const appName = currentAccount?.other_settings?.app_name || 'default';
+                            const tag = tags[0]; // LIFF tagging uses only one tag
+                            finalUri = `https://liff.line.me/2009851813-AgTeSa4r?bot=${appName}&tag=${encodeURIComponent(tag)}&redirect=${encodeURIComponent(finalUri)}`;
+                        } else if (finalUri && !finalUri.startsWith('http')) {
+                            finalUri = `https://${finalUri}`;
+                        }
+                        action.uri = finalUri;
                     } else if (action.type === 'richmenuswitch') {
                         action.richMenuAliasId = rawAction.richMenuAliasId;
                         action.data = rawAction.data;
                     }
 
-                    if (tags.length > 0) {
-                        const tagString = tags.join(',');
-                        if (action.type === 'postback') {
-                            action.data = `tag_true|${tagString}|${action.data}`;
-                        }
-                    } else if (action.type === 'uri' && action.uri && !action.uri.startsWith('http')) {
-                        // Ensure normal URIs also have a valid scheme
-                        action.uri = `https://${action.uri}`;
-                    }
                     // Remove temporary UI state
                     delete action.tags;
 
@@ -637,29 +641,23 @@ function RichMenu() {
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                             <div>
                                                 <label className="label">網址 (URL)</label>
-                                                <input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.uri || ''} onChange={e => {
-                                                    updateAreaAction(selectedAreaIndex, { uri: e.target.value });
-                                                }} />
-                                            </div>
-                                        </div>
-                                    )}
-                                    {currentMenu.areas[selectedAreaIndex]?.action?.type === 'postback' && (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                            <div>
-                                                <label className="label">Postback Data</label>
                                                 {(() => {
-                                                    const { cleanValue, tags } = extractTagsFromValue('postback', currentMenu.areas[selectedAreaIndex].action.data);
+                                                    const { cleanValue, tags } = extractTagsFromValue('uri', currentMenu.areas[selectedAreaIndex].action.uri);
                                                     return (
                                                         <>
                                                             <input type="text" disabled={viewOnly} value={cleanValue || ''} onChange={e => {
                                                                 const currentTags = currentMenu.areas[selectedAreaIndex].action.tags || tags;
-                                                                updateAreaAction(selectedAreaIndex, { data: e.target.value, tags: currentTags });
+                                                                updateAreaAction(selectedAreaIndex, { uri: e.target.value, tags: currentTags });
                                                             }} />
                                                             <div style={{ marginTop: '8px' }}>
-                                                                <label className="label" style={{ fontSize: '11px', color: '#888' }}>點擊時標註標籤</label>
+                                                                <label className="label" style={{ fontSize: '11px', color: '#888' }}>點擊時標註標籤 (選填，限一個)</label>
                                                                 <TagInput
                                                                     tags={currentMenu.areas[selectedAreaIndex].action.tags || tags}
-                                                                    onChange={newTags => updateAreaAction(selectedAreaIndex, { tags: newTags })}
+                                                                    onChange={newTags => {
+                                                                        // 限定只能有一個標籤
+                                                                        const limitedTags = newTags.slice(-1);
+                                                                        updateAreaAction(selectedAreaIndex, { tags: limitedTags });
+                                                                    }}
                                                                     readOnly={viewOnly}
                                                                 />
                                                             </div>
@@ -667,7 +665,6 @@ function RichMenu() {
                                                     );
                                                 })()}
                                             </div>
-                                            <div><label className="label">顯示文字 (displayText)</label><input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.displayText || ''} onChange={e => updateAreaAction(selectedAreaIndex, { displayText: e.target.value })} /></div>
                                         </div>
                                     )}
                                     {currentMenu.areas[selectedAreaIndex]?.action?.type === 'richmenuswitch' && (

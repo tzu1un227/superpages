@@ -363,3 +363,21 @@ NeMQO(u(um-d!jg\Hrb/N0 
 - **å¾Œç«¯æ“´å……**ï¼šcustomers.py ä¸­ /groups ç«¯é»æ“´å……æ”¯æ´è®€å¯« Global_var çš„ group_descriptionsï¼Œä¸¦å¯¦ä½œæ‰¹æ¬¡æ›´æ–° Private_var g_group çš„ POST é‚è¼¯ã€‚
 
 - **æ¨™ç±¤ç®¡ç† (Tag Management)**: æ”¯æ´æ‰¹æ¬¡æ¨™ç±¤æ“ä½œèˆ‡å…¨åŸŸåˆªé™¤æ©Ÿåˆ¶ã€‚
+### ¹Ï¤å¿ï³æ¼W±j (Rich Menu Enhancements) [2026-04-30]
+- **°Ê§@Ãş«¬Â²¤Æ**: ²¾°£ postback °Ê§@Ãş«¬¡A±N¡u¸õÂàºô­¶¡v§ó¦W¬°¡u¶}±Ò³sµ²¡v¡C
+- **LIFF ¼ĞÅÒ°lÂÜ¨óÄ³**: 
+    - ¤ä´©¦b¡u¶}±Ò³sµ²¡v°Ê§@¤¤³]©w³æ¤@¼ĞÅÒ¡C
+    - ·í³]©w¼ĞÅÒ®É¡Aºô§}±N¦Û°ÊÂà´«¬° LIFF ¥N²z®æ¦¡¡Ghttps://liff.line.me/2009851813-AgTeSa4r?bot={appname}&tag={¼ĞÅÒ}&redirect={³sµ²}¡C
+    - {appname} ¥Ñ OA ³]©w¤¤ªº other_settings.app_name ´£¨Ñ¡C
+    - ¨t²Î·|¦Û°Ê¸ÑªR²{¦³ªº LIFF ¥N²zºô§}¨ÃÁÙ­ì¼ĞÅÒ»P­ì©l³sµ²¨Ñ¨Ï¥ÎªÌ½s¿è¡C
+
+### ªk«hªíÂ²©ö¼Ò¦¡­«ºc (Rule Designer Simple Mode Redesign) [2026-04-30]
+- **¥ô°È¤Æ»öªíªO**: Â²©ö¼Ò¦¡¥Ñ­ì¥»ªºº¡ª©ªí®æ­«ºc¬°¡u¥ô°È¥d¤ù¡v§Î¦¡¡C
+- **Äæ¦ì»y¸q¤Æ**: 
+    - ¼ĞÃD: ¹ïÀ³ note Äæ¦ì¡C
+    - ÃöÁä¦r: ¹ïÀ³ content °}¦C¡]¤ä´©³r¸¹¤À¹j¿é¤J¡^¡C
+    - ¥Í®Ä´Á¶¡: ¹ïÀ³ check Äæ¦ì¤¤ªº check_date_range('YYYY-MM-DD', 'YYYY-MM-DD')¡C
+    - ¨C¤é®É¬q: ¹ïÀ³ check Äæ¦ì¤¤ªº check_time_range('HH:mm', 'HH:mm')¡C
+    - §¹¦¨¼ĞÅÒ: ¹ïÀ³ function Äæ¦ì¤¤ªº update(f'set_tag|{¼ĞÅÒ}')¡C
+- **§Y®É¦P¨B**: ½s¿è¥ô°È¥d¤ù·|§Y®É§ó·s©³¼hªº¤uµ{Äæ¦ì¡A½T«O¸ê®Æµ²ºcªº¤@­P©Ê¡C
+- **Âù¼Ò¦¡¤Á´«**: ¨Ï¥ÎªÌ¥iÀH®É¤Á´«¦Ü¡u¤uµ{¼Ò¦¡¡v¶i¦æ²Ó¸`°Ñ¼Æ½Õ¾ã¡]¦pª¬ºAÂà²¾¡B½ÆÂø§PÂ_¦¡µ¥¡^¡C

@@ -5,7 +5,8 @@ import {
     Plus, Search, Edit2, Trash2, Save, X, Eye, 
     Workflow, MessageSquare, ChevronRight, AlertCircle, 
     PlusCircle, Info, ArrowRight, Layers, FileJson,
-    SplitSquareVertical, RefreshCw, Layers as LayersIcon
+    SplitSquareVertical, RefreshCw, Layers as LayersIcon,
+    Calendar, Clock, Tag, ChevronDown, ChevronUp
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import JourneyPreview from '../components/JourneyPreview';
@@ -64,6 +65,52 @@ const TableCellTextarea = ({ value, onChange }) => {
         />
     );
 };
+
+// --- Helpers for Simple Mode Logic ---
+const parseCheck = (checkArray) => {
+    const result = { startDate: '', endDate: '', startTime: '', endTime: '' };
+    if (!Array.isArray(checkArray)) return result;
+
+    checkArray.forEach(item => {
+        if (item.includes('check_date_range')) {
+            const match = item.match(/'([^']+)',\s*'([^']+)'/);
+            if (match) {
+                result.startDate = match[1];
+                result.endDate = match[2];
+            }
+        } else if (item.includes('check_time_range')) {
+            const match = item.match(/'([^']+)',\s*'([^']+)'/);
+            if (match) {
+                result.startTime = match[1];
+                result.endTime = match[2];
+            }
+        }
+    });
+    return result;
+};
+
+const stringifyCheck = ({ startDate, endDate, startTime, endTime }) => {
+    const checkArray = [];
+    if (startDate && endDate) {
+        checkArray.push(`check_date_range('${startDate}', '${endDate}')`);
+    }
+    if (startTime && endTime) {
+        checkArray.push(`check_time_range('${startTime}', '${endTime}')`);
+    }
+    return checkArray;
+};
+
+const parseFunction = (funcStr) => {
+    if (!funcStr) return { tag: '' };
+    const match = funcStr.match(/set_tag\|([^"']+)/);
+    return { tag: match ? match[1] : '' };
+};
+
+const stringifyFunction = (tag) => {
+    if (!tag || !tag.trim()) return '';
+    return `update(f"set_tag|${tag.trim()}")`;
+};
+// --------------------------------------
 
 function RuleDesigner() {
     const { oaId } = useParams();
@@ -410,8 +457,161 @@ function RuleDesigner() {
                 </button>
             </div>
 
-            {/* Table Area */}
-            <div className="card" style={{ flex: 1, padding: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+            {/* Task View for Simple Mode */}
+            {designMode === 'simple' && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '20px', paddingBottom: '40px' }}>
+                    {draftRules.map((rule, idx) => {
+                        if (searchTerm && !matchesSearch(rule, searchTerm)) return null;
+                        
+                        const checkData = parseCheck(rule.check);
+                        const funcData = parseFunction(rule.function);
+                        const msgCount = Array.isArray(rule.msg_rpy) ? rule.msg_rpy.length : 0;
+                        
+                        return (
+                            <div key={rule.id || `task-${idx}`} className="card" style={{ 
+                                padding: '20px', 
+                                border: rule._isDirty ? '1px solid var(--primary-yellow)' : '1px solid #333',
+                                position: 'relative',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '15px'
+                            }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>
+                                            {rule._isNew ? <span style={{ color: '#FFD700' }}>[新任務]</span> : `任務 ID: ${rule.id}`}
+                                        </div>
+                                        <input 
+                                            type="text"
+                                            placeholder="請輸入任務標題 (備註)"
+                                            value={rule.note || ''}
+                                            onChange={e => handleFieldChange(idx, 'note', e.target.value)}
+                                            style={{ 
+                                                fontSize: '18px', 
+                                                fontWeight: 'bold', 
+                                                width: '100%', 
+                                                background: 'transparent', 
+                                                border: 'none', 
+                                                color: '#fff',
+                                                padding: '4px 0',
+                                                borderBottom: '1px solid #222'
+                                            }}
+                                        />
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        {rule._isDirty && (
+                                            <button onClick={() => handleSaveRow(idx)} className="primary" style={{ padding: '6px', borderRadius: '50%' }}>
+                                                <Save size={16} />
+                                            </button>
+                                        )}
+                                        <button onClick={() => handleDeleteRow(idx)} style={{ padding: '6px', background: 'transparent', border: 'none', color: '#ff4d4d', cursor: 'pointer' }}>
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    {/* Keyword Setting */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <MessageSquare size={16} style={{ color: '#888', flexShrink: 0 }} />
+                                        <input 
+                                            type="text"
+                                            placeholder="設定觸發關鍵字 (用逗號分隔)"
+                                            value={Array.isArray(rule.content) ? rule.content.join(', ') : (rule.content || '')}
+                                            onChange={e => handleFieldChange(idx, 'content', e.target.value)}
+                                            style={{ flex: 1, fontSize: '13px', padding: '6px 10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '4px', color: '#eee' }}
+                                        />
+                                    </div>
+
+                                    {/* Effective Period */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <Calendar size={16} style={{ color: '#888', flexShrink: 0 }} />
+                                        <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flex: 1 }}>
+                                            <input 
+                                                type="date"
+                                                value={checkData.startDate}
+                                                onChange={e => {
+                                                    const newCheck = stringifyCheck({ ...checkData, startDate: e.target.value });
+                                                    handleFieldChange(idx, 'check', newCheck.join(', '));
+                                                }}
+                                                style={{ flex: 1, fontSize: '12px', padding: '4px 8px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '4px', color: '#eee' }}
+                                            />
+                                            <span style={{ color: '#666' }}>~</span>
+                                            <input 
+                                                type="date"
+                                                value={checkData.endDate}
+                                                onChange={e => {
+                                                    const newCheck = stringifyCheck({ ...checkData, endDate: e.target.value });
+                                                    handleFieldChange(idx, 'check', newCheck.join(', '));
+                                                }}
+                                                style={{ flex: 1, fontSize: '12px', padding: '4px 8px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '4px', color: '#eee' }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Daily Time */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <Clock size={16} style={{ color: '#888', flexShrink: 0 }} />
+                                        <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flex: 1 }}>
+                                            <input 
+                                                type="time"
+                                                value={checkData.startTime}
+                                                onChange={e => {
+                                                    const newCheck = stringifyCheck({ ...checkData, startTime: e.target.value });
+                                                    handleFieldChange(idx, 'check', newCheck.join(', '));
+                                                }}
+                                                style={{ flex: 1, fontSize: '12px', padding: '4px 8px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '4px', color: '#eee' }}
+                                            />
+                                            <span style={{ color: '#666' }}>~</span>
+                                            <input 
+                                                type="time"
+                                                value={checkData.endTime}
+                                                onChange={e => {
+                                                    const newCheck = stringifyCheck({ ...checkData, endTime: e.target.value });
+                                                    handleFieldChange(idx, 'check', newCheck.join(', '));
+                                                }}
+                                                style={{ flex: 1, fontSize: '12px', padding: '4px 8px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '4px', color: '#eee' }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Tag Setting */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <Tag size={16} style={{ color: '#888', flexShrink: 0 }} />
+                                        <input 
+                                            type="text"
+                                            placeholder="設定完成標籤 (限填一個)"
+                                            value={funcData.tag}
+                                            onChange={e => {
+                                                const newFunc = stringifyFunction(e.target.value);
+                                                handleFieldChange(idx, 'function', newFunc);
+                                            }}
+                                            style={{ flex: 1, fontSize: '13px', padding: '6px 10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '4px', color: '#eee' }}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Message Editor & Button */}
+                                <div style={{ marginTop: '5px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ fontSize: '12px', color: msgCount > 0 ? '#4CAF50' : '#888' }}>
+                                        已設定 {msgCount} 則回覆訊息
+                                    </div>
+                                    <button 
+                                        onClick={() => handleOpenMsgModal(idx)}
+                                        className="secondary"
+                                        style={{ padding: '8px 16px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                    >
+                                        <Edit2 size={14} /> 編輯訊息內容
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Table Area (Engineering Mode) */}
+            <div className="card" style={{ flex: 1, padding: 0, overflow: 'auto', display: designMode === 'engineering' ? 'flex' : 'none', flexDirection: 'column' }}>
                 {loading && draftRules.length === 0 ? (
                     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
                         <LoadingSpinner size={32} message="載入法則中..." />
