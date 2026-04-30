@@ -832,11 +832,11 @@ function RichMenu() {
                     系統僅能管理透過此介面建立的選單。
                 </div>
                 <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                    <button onClick={() => setView('permissions')} className="secondary" style={{ borderColor: 'var(--primary-yellow)', color: 'var(--primary-yellow)' }}>
+                    <button onClick={() => setView('permissions')} className="secondary" style={{ backgroundColor: '#222', borderColor: 'var(--primary-yellow)', color: 'var(--primary-yellow)', display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 15px' }}>
                         <Shield size={18} /> 權限控管
                     </button>
                     <Tooltip title="重置預設：若設定預設後手機沒更新，可先嘗試解除目前的預設再重新設定。">
-                        <button onClick={handleUnsetDefault} className="secondary" style={{ color: '#ff4d4d', borderColor: '#444' }}><RotateCcw size={18} /> 重置預設</button>
+                        <button onClick={handleUnsetDefault} className="secondary" style={{ backgroundColor: '#222', color: '#ff4d4d', borderColor: '#444', display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 15px' }}><RotateCcw size={18} /> 重置預設</button>
                     </Tooltip>
                     <button onClick={handleCreateNew} className="primary"><Plus size={20} /> 新增選單</button>
                 </div>
