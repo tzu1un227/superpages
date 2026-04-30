@@ -12,6 +12,7 @@ import { useToast } from '../contexts/ToastContext';
 import { Tooltip as MuiTooltip } from '@mui/material';
 import TagInput from '../components/TagInput';
 import { API_BASE_URL } from '../api';
+import { useAuth } from '../contexts/AuthContext';
 
 // Styled or aliased Tooltip to avoid conflict
 const Tooltip = ({ title, children }) => {
@@ -642,17 +643,17 @@ function RichMenu() {
                                             <div>
                                                 <label className="label">網址 (URL)</label>
                                                 {(() => {
-                                                    const { cleanValue, tags } = extractTagsFromValue('uri', currentMenu.areas[selectedAreaIndex].action.uri);
+                                                    const { cleanValue, tags } = extractTagsFromValue('uri', currentMenu.areas[selectedAreaIndex]?.action?.uri);
                                                     return (
                                                         <>
                                                             <input type="text" disabled={viewOnly} value={cleanValue || ''} onChange={e => {
-                                                                const currentTags = currentMenu.areas[selectedAreaIndex].action.tags || tags;
+                                                                const currentTags = currentMenu.areas[selectedAreaIndex]?.action?.tags || tags;
                                                                 updateAreaAction(selectedAreaIndex, { uri: e.target.value, tags: currentTags });
                                                             }} />
                                                             <div style={{ marginTop: '8px' }}>
                                                                 <label className="label" style={{ fontSize: '11px', color: '#888' }}>點擊時標註標籤 (選填，限一個)</label>
                                                                 <TagInput
-                                                                    tags={currentMenu.areas[selectedAreaIndex].action.tags || tags}
+                                                                    tags={currentMenu.areas[selectedAreaIndex]?.action?.tags || tags}
                                                                     onChange={newTags => {
                                                                         // 限定只能有一個標籤
                                                                         const limitedTags = newTags.slice(-1);
