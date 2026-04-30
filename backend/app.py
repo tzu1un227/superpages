@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, g, redirect
 from flask_cors import CORS
 from config import Config
 import psycopg2
+from psycopg2 import pool
 from psycopg2.extras import RealDictCursor, Json
 from datetime import datetime, date, timedelta
 from decimal import Decimal
@@ -149,15 +150,64 @@ BOT_NAME = "websoc"
 
 from utils.socket_utils import send_socket_event
 
-def get_db_connection():
-    # Check if a dynamic DB URL is set in the context
-    if hasattr(g, 'current_db_url') and g.current_db_url:
-        # Assuming g.current_db_url is a DSN string or suitable for psycopg2
-        return psycopg2.connect(g.current_db_url)
+db_pools = {}
+
+class PooledConnectionWrapper:
+    def __init__(self, pool_instance, connection):
+        self._pool = pool_instance
+        self._conn = connection
     
-    # Fallback to default DB
-    conn = psycopg2.connect(**DB_CONFIG)
-    return conn
+    def cursor(self, *args, **kwargs):
+        return self._conn.cursor(*args, **kwargs)
+    
+    def commit(self):
+        return self._conn.commit()
+    
+    def rollback(self):
+        return self._conn.rollback()
+    
+    def close(self):
+        """Instead of closing the physical connection, return it to the pool."""
+        if self._pool and self._conn:
+            self._pool.putconn(self._conn)
+            self._pool = None
+            self._conn = None
+
+    def __enter__(self):
+        return self
+        
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+def get_db_connection():
+    """
+    Get a database connection from a pool.
+    Supports dynamic DB URLs based on OA context.
+    """
+    db_url = getattr(g, 'current_db_url', None)
+    if not db_url:
+        # Fallback to DB_CONFIG
+        db_url = f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
+    
+    global db_pools
+    if db_url not in db_pools:
+        print(f"DEBUG: Creating new connection pool for {db_url.split('@')[-1]}")
+        try:
+            # Min 1, Max 20 connections per pool
+            db_pools[db_url] = pool.ThreadedConnectionPool(1, 20, db_url)
+        except Exception as e:
+            print(f"ERROR: Failed to create pool: {e}")
+            return psycopg2.connect(db_url)
+    
+    try:
+        conn = db_pools[db_url].getconn()
+        return PooledConnectionWrapper(db_pools[db_url], conn)
+    except Exception as e:
+        print(f"ERROR: Failed to get connection from pool: {e}")
+        return psycopg2.connect(db_url)
 
 def get_current_app_id():
     """Returns the current logical app name/id (e.g. '5013')."""
