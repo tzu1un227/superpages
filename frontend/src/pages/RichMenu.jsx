@@ -313,7 +313,6 @@ function RichMenu() {
 
     const isFormValid = () => getValidationErrors().length === 0;
 
-    const { currentAccount } = useAuth();
 
     const saveMenu = async () => {
         if (viewOnly) return;
