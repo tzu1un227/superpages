@@ -46,6 +46,55 @@ def list_rich_menus():
     except Exception as e:
         return jsonify({'message': 'Error', 'error': str(e)}), 500
 
+@richmenu_bp.route('/all', methods=['GET'])
+@token_required
+def list_all_rich_menus():
+    from models import OAConfig
+    user = g.current_user
+    
+    # Determine which OAs the user can access
+    if user.role == 'admin':
+        configs = OAConfig.query.all()
+    else:
+        allowed = user.allowed_oa_configs or []
+        configs = OAConfig.query.filter(OAConfig.id.in_([int(x) for x in allowed])).all()
+
+    results = []
+    for oa in configs:
+        token = oa.other_settings.get('line_token') if (oa.other_settings and isinstance(oa.other_settings, dict)) else None
+        if not token:
+            continue
+            
+        headers = {'Authorization': f'Bearer {token}'}
+        try:
+            # Get rich menus
+            resp = requests.get('https://api.line.me/v2/bot/richmenu/list', headers=headers, timeout=5)
+            if resp.status_code != 200:
+                continue
+            
+            menus = resp.json().get('richmenus', [])
+            
+            # Get default rich menu
+            default_resp = requests.get('https://api.line.me/v2/bot/user/all/richmenu', headers=headers, timeout=5)
+            default_id = default_resp.json().get('richMenuId') if default_resp.status_code == 200 else None
+            
+            # Get aliases
+            alias_resp = requests.get('https://api.line.me/v2/bot/richmenu/alias/list', headers=headers, timeout=5)
+            aliases = alias_resp.json().get('aliases', []) if alias_resp.status_code == 200 else []
+
+            for menu in menus:
+                menu['status'] = 'default' if menu['richMenuId'] == default_id else 'none'
+                menu['aliases'] = [a['richMenuAliasId'] for a in aliases if a['richMenuId'] == menu['richMenuId']]
+                menu['oa_id'] = oa.id
+                menu['oa_name'] = oa.oa_name
+            
+            results.extend(menus)
+        except Exception as e:
+            print(f"Error fetching menus for OA {oa.id}: {e}")
+            continue
+            
+    return jsonify({'richmenus': results})
+
 @richmenu_bp.route('/aliases', methods=['GET'])
 @token_required
 def list_rich_menu_aliases():

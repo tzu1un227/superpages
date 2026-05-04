@@ -73,13 +73,13 @@ const parseCheck = (checkArray) => {
 
     checkArray.forEach(item => {
         if (item.includes('check_date_range')) {
-            const match = item.match(/'([^']+)',\s*'([^']+)'/);
+            const match = item.match(/'([^']*)',\s*'([^']*)'/);
             if (match) {
                 result.startDate = match[1];
                 result.endDate = match[2];
             }
         } else if (item.includes('check_time_range')) {
-            const match = item.match(/'([^']+)',\s*'([^']+)'/);
+            const match = item.match(/'([^']*)',\s*'([^']*)'/);
             if (match) {
                 result.startTime = match[1];
                 result.endTime = match[2];
@@ -91,11 +91,11 @@ const parseCheck = (checkArray) => {
 
 const stringifyCheck = ({ startDate, endDate, startTime, endTime }) => {
     const checkArray = [];
-    if (startDate && endDate) {
-        checkArray.push(`check_date_range('${startDate}', '${endDate}')`);
+    if (startDate || endDate) {
+        checkArray.push(`check_date_range('${startDate || ''}', '${endDate || ''}')`);
     }
-    if (startTime && endTime) {
-        checkArray.push(`check_time_range('${startTime}', '${endTime}')`);
+    if (startTime || endTime) {
+        checkArray.push(`check_time_range('${startTime || ''}', '${endTime || ''}')`);
     }
     return checkArray;
 };

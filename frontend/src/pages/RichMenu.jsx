@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
 import {
     Plus, Trash2, Save, Image as ImageIcon, Settings,
@@ -40,6 +40,9 @@ function RichMenu() {
     const [menuSearch, setMenuSearch] = useState(''); // 新增搜尋功能
     const [mappings, setMappings] = useState([]); // 標籤權限映射
     const [savingMappings, setSavingMappings] = useState(false);
+    const { myOAs, currentAccount } = useAuth();
+    const navigate = useNavigate();
+    const [selectedOAId, setSelectedOAId] = useState(oaId || 'all');
 
     // Initial menu state
     const emptyMenu = {
@@ -60,7 +63,7 @@ function RichMenu() {
             fetchMappings();
             if (menus.length === 0) fetchMenus(); // 確保有選單資料可用於下拉選單
         }
-    }, [view, oaId]);
+    }, [view, oaId, selectedOAId]);
 
     // Clean up object URLs to prevent memory leaks
     useEffect(() => {
@@ -74,7 +77,8 @@ function RichMenu() {
     const fetchMenus = async () => {
         setLoading(true);
         try {
-            const res = await api.get('/richmenu/');
+            const endpoint = selectedOAId === 'all' ? '/richmenu/all' : '/richmenu/';
+            const res = await api.get(endpoint);
             setMenus(res.data.richmenus || []);
         } catch (err) {
             console.error('Failed to fetch menus:', err);
@@ -464,6 +468,22 @@ function RichMenu() {
         return filtered.sort((a, b) => b.richMenuId.localeCompare(a.richMenuId));
     };
 
+    const groupedMenus = React.useMemo(() => {
+        const sorted = getSortedMenus();
+        if (selectedOAId !== 'all') {
+            const label = myOAs.find(oa => oa.id.toString() === selectedOAId.toString())?.oa_name || '當前帳號';
+            return { [label]: sorted };
+        }
+        
+        const groups = {};
+        sorted.forEach(m => {
+            const groupName = m.oa_name || '未知名稱';
+            if (!groups[groupName]) groups[groupName] = [];
+            groups[groupName].push(m);
+        });
+        return groups;
+    }, [menus, selectedOAId, menuSearch, myOAs]);
+
     // Drag & Resize logic
     const [dragInfo, setDragInfo] = useState(null);
     useEffect(() => {
@@ -802,7 +822,34 @@ function RichMenu() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                     <div>
                         <h1 style={{ fontSize: '32px', marginBottom: '10px' }}>圖文選單</h1>
-                        <p style={{ color: '#B0B0B0' }}>管理並設計 OA 的圖文選單按鈕與功能</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <label style={{ fontSize: '14px', color: '#888' }}>選擇帳號:</label>
+                            <select 
+                                value={selectedOAId}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setSelectedOAId(val);
+                                    if (val !== 'all') {
+                                        navigate(`/oa/${val}/richmenu`);
+                                    }
+                                }}
+                                style={{
+                                    padding: '6px 12px',
+                                    backgroundColor: '#222',
+                                    border: '1px solid #444',
+                                    borderRadius: '6px',
+                                    color: 'white',
+                                    fontSize: '14px',
+                                    outline: 'none',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <option value="all">全部帳號 (依照分類顯示)</option>
+                                {myOAs.map(oa => (
+                                    <option key={oa.id} value={oa.id}>{oa.oa_name}</option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
                     <div style={{ position: 'relative', marginLeft: '20px' }}>
                         <Filter size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
@@ -844,27 +891,36 @@ function RichMenu() {
             {loading ? <div style={{ padding: '50px', textAlign: 'center' }}>載入中...</div> : menus.length === 0 ? (
                 <div className="card" style={{ padding: '50px', textAlign: 'center' }}><AlertCircle size={48} style={{ color: '#666', marginBottom: '15px' }} /><p style={{ color: '#888' }}>目前還沒有任何圖文選單</p><button onClick={handleCreateNew} className="secondary" style={{ marginTop: '20px' }}>立即建立第一個選單</button></div>
             ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
-                    {getSortedMenus().map((menu) => (
-                        <div key={menu.richMenuId} className="card" style={{ position: 'relative', border: menu.status === 'default' ? '1px solid #FFD700' : '1px solid #333' }}>
-                            {menu.status === 'default' && <div style={{ position: 'absolute', top: '15px', right: '15px', backgroundColor: '#FFD700', color: '#000', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>預設中</div>}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                <div style={{ height: '150px', backgroundColor: '#222', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: '#666', overflow: 'hidden' }}>
-                                    <RichMenuPreview menuId={menu.richMenuId} />
-                                </div>
-                                <div>
-                                    <h4 style={{ marginBottom: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{menu.name}</h4>
-                                    <p style={{ fontSize: '13px', color: '#888' }}>選單別名: {menu.aliases?.join(', ') || '無'}</p>
-                                </div>
-                                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                                    <button onClick={() => handleEditMenu(menu)} className="secondary" style={{ flex: 1, padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}><Eye size={14} /> 查看</button>
-                                    {menu.status !== 'default' ? (
-                                        <button onClick={() => setDefault(menu.richMenuId)} className="secondary" style={{ flex: 1, padding: '8px' }}>設為預設</button>
-                                    ) : (
-                                        <button className="secondary" disabled style={{ flex: 1, padding: '8px', opacity: 0.5 }}>已設預設</button>
-                                    )}
-                                    <button onClick={() => deleteMenu(menu.richMenuId)} style={{ padding: '8px', border: '1px solid #444', background: 'none', color: '#ff4d4d' }}><Trash2 size={16} /></button>
-                                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
+                    {Object.entries(groupedMenus).map(([oaName, oaMenus]) => (
+                        <div key={oaName}>
+                            <h2 style={{ fontSize: '20px', color: 'var(--primary-yellow)', marginBottom: '20px', borderLeft: '4px solid var(--primary-yellow)', paddingLeft: '15px' }}>
+                                {oaName} ({oaMenus.length})
+                            </h2>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+                                {oaMenus.map((menu) => (
+                                    <div key={menu.richMenuId} className="card" style={{ position: 'relative', border: menu.status === 'default' ? '1px solid #FFD700' : '1px solid #333' }}>
+                                        {menu.status === 'default' && <div style={{ position: 'absolute', top: '15px', right: '15px', backgroundColor: '#FFD700', color: '#000', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>預設中</div>}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                            <div style={{ height: '150px', backgroundColor: '#222', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: '#666', overflow: 'hidden' }}>
+                                                <RichMenuPreview menuId={menu.richMenuId} />
+                                            </div>
+                                            <div>
+                                                <h4 style={{ marginBottom: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{menu.name}</h4>
+                                                <p style={{ fontSize: '13px', color: '#888' }}>選單別名: {menu.aliases?.join(', ') || '無'}</p>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                                                <button onClick={() => handleEditMenu(menu)} className="secondary" style={{ flex: 1, padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}><Eye size={14} /> 查看</button>
+                                                {menu.status !== 'default' ? (
+                                                    <button onClick={() => setDefault(menu.richMenuId)} className="secondary" style={{ flex: 1, padding: '8px' }}>設為預設</button>
+                                                ) : (
+                                                    <button className="secondary" disabled style={{ flex: 1, padding: '8px', opacity: 0.5 }}>已設預設</button>
+                                                )}
+                                                <button onClick={() => deleteMenu(menu.richMenuId)} style={{ padding: '8px', border: '1px solid #444', background: 'none', color: '#ff4d4d' }}><Trash2 size={16} /></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     ))}
