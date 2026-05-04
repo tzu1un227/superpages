@@ -72,31 +72,66 @@ const parseCheck = (checkArray) => {
     if (!Array.isArray(checkArray)) return result;
 
     checkArray.forEach(item => {
+        if (!item) return;
+        
+        // 支援舊格式解析 (相容性)
         if (item.includes('check_date_range')) {
             const match = item.match(/'([^']*)',\s*'([^']*)'/);
             if (match) {
-                result.startDate = match[1];
-                result.endDate = match[2];
+                if (match[1]) result.startDate = match[1];
+                if (match[2]) result.endDate = match[2];
             }
         } else if (item.includes('check_time_range')) {
             const match = item.match(/'([^']*)',\s*'([^']*)'/);
             if (match) {
-                result.startTime = match[1];
-                result.endTime = match[2];
+                if (match[1]) result.startTime = match[1];
+                if (match[2]) result.endTime = match[2];
             }
         }
+
+        // 新格式解析: sys.now()
+        // Date: sys.now() >= '2026-05-04 00:00:00'
+        const dateMatches = [...item.matchAll(/sys\.now\(\)\s*([><]=?)\s*'(\d{4}-\d{2}-\d{2})/g)];
+        dateMatches.forEach(m => {
+            const op = m[1];
+            const date = m[2];
+            if (op.includes('>')) result.startDate = date;
+            if (op.includes('<')) result.endDate = date;
+        });
+
+        // Time: sys.now()[11:16] >= '12:00'
+        const timeMatches = [...item.matchAll(/sys\.now\(\)\[11:16\]\s*([><]=?)\s*'(\d{2}:\d{2})/g)];
+        timeMatches.forEach(m => {
+            const op = m[1];
+            const time = m[2];
+            if (op.includes('>')) result.startTime = time;
+            if (op.includes('<')) result.endTime = time;
+        });
     });
     return result;
 };
 
 const stringifyCheck = ({ startDate, endDate, startTime, endTime }) => {
     const checkArray = [];
-    if (startDate || endDate) {
-        checkArray.push(`check_date_range('${startDate || ''}', '${endDate || ''}')`);
+    
+    // Date Logic
+    if (startDate && endDate) {
+        checkArray.push(`sys.now() >= '${startDate} 00:00:00' and sys.now() <= '${endDate} 23:59:59'`);
+    } else if (startDate) {
+        checkArray.push(`sys.now() >= '${startDate} 00:00:00'`);
+    } else if (endDate) {
+        checkArray.push(`sys.now() <= '${endDate} 23:59:59'`);
     }
-    if (startTime || endTime) {
-        checkArray.push(`check_time_range('${startTime || ''}', '${endTime || ''}')`);
+
+    // Time Logic
+    if (startTime && endTime) {
+        checkArray.push(`sys.now()[11:16] >= '${startTime}' and sys.now()[11:16] <= '${endTime}'`);
+    } else if (startTime) {
+        checkArray.push(`sys.now()[11:16] >= '${startTime}'`);
+    } else if (endTime) {
+        checkArray.push(`sys.now()[11:16] <= '${endTime}'`);
     }
+    
     return checkArray;
 };
 
