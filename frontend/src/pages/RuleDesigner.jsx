@@ -621,6 +621,16 @@ function RuleDesigner() {
                                                 }}
                                                 style={{ flex: 1, fontSize: '12px', padding: '4px 8px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '4px', color: '#eee' }}
                                             />
+                                            {(checkData.startDate || checkData.endDate) && (
+                                                <X 
+                                                    size={14} 
+                                                    style={{ color: '#888', cursor: 'pointer', marginLeft: '2px' }} 
+                                                    onClick={() => {
+                                                        const newCheck = stringifyCheck({ ...checkData, startDate: '', endDate: '' });
+                                                        handleFieldChange(idx, 'check', newCheck);
+                                                    }}
+                                                />
+                                            )}
                                         </div>
                                     </div>
 
@@ -647,6 +657,16 @@ function RuleDesigner() {
                                                 }}
                                                 style={{ flex: 1, fontSize: '12px', padding: '4px 8px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '4px', color: '#eee' }}
                                             />
+                                            {(checkData.startTime || checkData.endTime) && (
+                                                <X 
+                                                    size={14} 
+                                                    style={{ color: '#888', cursor: 'pointer', marginLeft: '2px' }} 
+                                                    onClick={() => {
+                                                        const newCheck = stringifyCheck({ ...checkData, startTime: '', endTime: '' });
+                                                        handleFieldChange(idx, 'check', newCheck);
+                                                    }}
+                                                />
+                                            )}
                                         </div>
                                     </div>
 
