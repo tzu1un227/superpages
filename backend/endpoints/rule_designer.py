@@ -53,35 +53,24 @@ def trigger_sql_reload():
 def validate_python_syntax(code_str, field_name):
     """
     Validate a Python expression/statement string using ast.parse.
-    Returns None if valid, or an error message string if invalid.
+    Returns None if valid, or a list of error messages if invalid.
     """
     if not code_str or not code_str.strip():
-        return None  # Empty is allowed (optional field)
+        return None
     
-    # The check field may contain comma-separated expressions;
-    # the function field may contain semicolon-separated statements.
-    # We validate each segment individually.
-    if field_name == 'check':
-        segments = [s.strip() for s in code_str.split(',') if s.strip()]
-    elif field_name == 'function':
-        segments = [s.strip() for s in code_str.split(';') if s.strip()]
-    else:
-        segments = [code_str.strip()]
-    
-    errors = []
-    for seg in segments:
-        # Skip segments that are only <%...%> template expressions
-        if seg.startswith('<%') and seg.endswith('%>'):
-            continue
-        try:
-            ast.parse(seg, mode='eval')
-        except SyntaxError:
-            try:
-                ast.parse(seg, mode='exec')
-            except SyntaxError as e:
-                errors.append(f"{field_name} 語法錯誤 '{seg}': {e.msg} (第 {e.lineno} 行)")
-    
-    return errors if errors else None
+    # Skip validation if it's purely a template expression
+    if code_str.strip().startswith('<%') and code_str.strip().endswith('%>'):
+        return None
+
+    try:
+        # mode='exec' allows multiple statements/expressions
+        ast.parse(code_str, mode='exec')
+        return None
+    except SyntaxError as e:
+        # Some legacy formats might use commas to separate expressions in 'check'
+        # which Python 'exec' treats as a single tuple. This is fine.
+        # But if it's really a syntax error, we report it.
+        return [f"{field_name} 語法錯誤 '{code_str}': {e.msg} (第 {e.lineno} 行)"]
 
 def validate_rule_fields(rule_data, bank_type):
     """
