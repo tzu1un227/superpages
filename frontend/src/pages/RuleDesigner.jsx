@@ -112,14 +112,28 @@ const parseCheck = (checkArray) => {
             }
         });
 
-        // Time: sys.now()[11:16] >= '12:00'
-        const timeMatches = [...item.matchAll(/sys\.now\(\)\[11:16\]\s*([><]=?)\s*'(\d{2}:\d{2})/g)];
+        // Time: (sys.now() + 28800) % 86400 >= 43200
+        const timeMatches = [...item.matchAll(/\(sys\.now\(\)\s*\+\s*\d+\)\s*%\s*86400\s*([><]=?)\s*(\d+)/g)];
         timeMatches.forEach(m => {
             const op = m[1];
-            const time = m[2];
-            if (op.includes('>')) result.startTime = time;
-            if (op.includes('<')) result.endTime = time;
+            const totalSeconds = parseInt(m[2]);
+            const h = Math.floor(totalSeconds / 3600);
+            const min = Math.floor((totalSeconds % 3600) / 60);
+            const formatted = `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+            if (op.includes('>')) result.startTime = formatted;
+            if (op.includes('<')) result.endTime = formatted;
         });
+
+        // 支援舊格式 (相容性): sys.now()[11:16]
+        if (item.includes('sys.now()[11:16]')) {
+            const oldMatches = [...item.matchAll(/sys\.now\(\)\[11:16\]\s*([><]=?)\s*'(\d{2}:\d{2})/g)];
+            oldMatches.forEach(m => {
+                const op = m[1];
+                const time = m[2];
+                if (op.includes('>')) result.startTime = time;
+                if (op.includes('<')) result.endTime = time;
+            });
+        }
     });
     return result;
 };
@@ -140,13 +154,19 @@ const stringifyCheck = ({ startDate, endDate, startTime, endTime }) => {
         checkArray.push(`sys.now() <= ${e}`);
     }
 
-    // Time Logic
-    if (startTime && endTime) {
-        checkArray.push(`sys.now()[11:16] >= '${startTime}' and sys.now()[11:16] <= '${endTime}'`);
-    } else if (startTime) {
-        checkArray.push(`sys.now()[11:16] >= '${startTime}'`);
-    } else if (endTime) {
-        checkArray.push(`sys.now()[11:16] <= '${endTime}'`);
+    // Time Logic (使用 Modulo 計算當天秒數，假設 UTC+8: 28800s)
+    if (startTime || endTime) {
+        const getSeconds = (t) => {
+            const [h, m] = t.split(':').map(Number);
+            return h * 3600 + m * 60;
+        };
+        if (startTime && endTime) {
+            checkArray.push(`(sys.now() + 28800) % 86400 >= ${getSeconds(startTime)} and (sys.now() + 28800) % 86400 <= ${getSeconds(endTime)}`);
+        } else if (startTime) {
+            checkArray.push(`(sys.now() + 28800) % 86400 >= ${getSeconds(startTime)}`);
+        } else if (endTime) {
+            checkArray.push(`(sys.now() + 28800) % 86400 <= ${getSeconds(endTime)}`);
+        }
     }
     
     return checkArray;
