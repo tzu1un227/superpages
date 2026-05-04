@@ -89,14 +89,27 @@ const parseCheck = (checkArray) => {
             }
         }
 
-        // 新格式解析: sys.now()
-        // Date: sys.now() >= '2026-05-04 00:00:00'
-        const dateMatches = [...item.matchAll(/sys\.now\(\)\s*([><]=?)\s*'(\d{4}-\d{2}-\d{2})/g)];
+        // 新格式解析: sys.now() (支援字串比較與數字比較)
+        // Date: sys.now() >= 1746115200 或 sys.now() >= '2026-05-04 00:00:00'
+        const dateMatches = [...item.matchAll(/sys\.now\(\)\s*([><]=?)\s*(?:'(\d{4}-\d{2}-\d{2})|(\d{10,}))/g)];
         dateMatches.forEach(m => {
             const op = m[1];
-            const date = m[2];
-            if (op.includes('>')) result.startDate = date;
-            if (op.includes('<')) result.endDate = date;
+            const dateStr = m[2];
+            const ts = m[3];
+            
+            if (dateStr) {
+                if (op.includes('>')) result.startDate = dateStr;
+                if (op.includes('<')) result.endDate = dateStr;
+            } else if (ts) {
+                // 將 Timestamp 轉回 YYYY-MM-DD (考慮本地時區)
+                const date = new Date(parseInt(ts) * 1000);
+                const Y = date.getFullYear();
+                const M = String(date.getMonth() + 1).padStart(2, '0');
+                const D = String(date.getDate()).padStart(2, '0');
+                const formatted = `${Y}-${M}-${D}`;
+                if (op.includes('>')) result.startDate = formatted;
+                if (op.includes('<')) result.endDate = formatted;
+            }
         });
 
         // Time: sys.now()[11:16] >= '12:00'
@@ -114,13 +127,17 @@ const parseCheck = (checkArray) => {
 const stringifyCheck = ({ startDate, endDate, startTime, endTime }) => {
     const checkArray = [];
     
-    // Date Logic
+    // Date Logic (使用 Unix Timestamp，因為 sys.now() 是整數)
     if (startDate && endDate) {
-        checkArray.push(`sys.now() >= '${startDate} 00:00:00' and sys.now() <= '${endDate} 23:59:59'`);
+        const s = Math.floor(new Date(`${startDate} 00:00:00`).getTime() / 1000);
+        const e = Math.floor(new Date(`${endDate} 23:59:59`).getTime() / 1000);
+        checkArray.push(`sys.now() >= ${s} and sys.now() <= ${e}`);
     } else if (startDate) {
-        checkArray.push(`sys.now() >= '${startDate} 00:00:00'`);
+        const s = Math.floor(new Date(`${startDate} 00:00:00`).getTime() / 1000);
+        checkArray.push(`sys.now() >= ${s}`);
     } else if (endDate) {
-        checkArray.push(`sys.now() <= '${endDate} 23:59:59'`);
+        const e = Math.floor(new Date(`${endDate} 23:59:59`).getTime() / 1000);
+        checkArray.push(`sys.now() <= ${e}`);
     }
 
     // Time Logic
