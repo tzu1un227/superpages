@@ -186,8 +186,11 @@ function RuleDesigner() {
     const handleFieldChange = (index, field, value) => {
         const newDrafts = [...draftRules];
         
-        // 陣列欄位特殊處理 (以逗號分隔字串轉換為陣列)
-        if (field === 'state_in' || field === 'content' || field === 'check' || field === 'ans') {
+        // 陣列欄位特殊處理
+        if (Array.isArray(value)) {
+            newDrafts[index][field] = value;
+        } else if (field === 'state_in' || field === 'content' || field === 'check' || field === 'ans') {
+            // 以逗號分隔字串轉換為陣列
             newDrafts[index][field] = value.split(',').map(s => s.trim());
         } else {
             newDrafts[index][field] = value;
@@ -532,7 +535,7 @@ function RuleDesigner() {
                                                 value={checkData.startDate}
                                                 onChange={e => {
                                                     const newCheck = stringifyCheck({ ...checkData, startDate: e.target.value });
-                                                    handleFieldChange(idx, 'check', newCheck.join(', '));
+                                                    handleFieldChange(idx, 'check', newCheck);
                                                 }}
                                                 style={{ flex: 1, fontSize: '12px', padding: '4px 8px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '4px', color: '#eee' }}
                                             />
@@ -542,7 +545,7 @@ function RuleDesigner() {
                                                 value={checkData.endDate}
                                                 onChange={e => {
                                                     const newCheck = stringifyCheck({ ...checkData, endDate: e.target.value });
-                                                    handleFieldChange(idx, 'check', newCheck.join(', '));
+                                                    handleFieldChange(idx, 'check', newCheck);
                                                 }}
                                                 style={{ flex: 1, fontSize: '12px', padding: '4px 8px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '4px', color: '#eee' }}
                                             />
@@ -558,7 +561,7 @@ function RuleDesigner() {
                                                 value={checkData.startTime}
                                                 onChange={e => {
                                                     const newCheck = stringifyCheck({ ...checkData, startTime: e.target.value });
-                                                    handleFieldChange(idx, 'check', newCheck.join(', '));
+                                                    handleFieldChange(idx, 'check', newCheck);
                                                 }}
                                                 style={{ flex: 1, fontSize: '12px', padding: '4px 8px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '4px', color: '#eee' }}
                                             />
@@ -568,7 +571,7 @@ function RuleDesigner() {
                                                 value={checkData.endTime}
                                                 onChange={e => {
                                                     const newCheck = stringifyCheck({ ...checkData, endTime: e.target.value });
-                                                    handleFieldChange(idx, 'check', newCheck.join(', '));
+                                                    handleFieldChange(idx, 'check', newCheck);
                                                 }}
                                                 style={{ flex: 1, fontSize: '12px', padding: '4px 8px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '4px', color: '#eee' }}
                                             />

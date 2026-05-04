@@ -347,7 +347,8 @@ function RichMenu() {
                     } else if (action.type === 'uri') {
                         let finalUri = rawAction.uri;
                         if (tags.length > 0) {
-                            const appName = currentAccount?.other_settings?.app_name || 'default';
+                            const currentOA = myOAs.find(oa => oa.id.toString() === (oaId || selectedOAId)?.toString());
+                            const appName = currentOA?.other_settings?.app_name || 'default';
                             const tag = tags[0]; // LIFF tagging uses only one tag
                             finalUri = `https://liff.line.me/2009851813-AgTeSa4r?bot=${appName}&tag=${encodeURIComponent(tag)}&redirect=${encodeURIComponent(finalUri)}`;
                         } else if (finalUri && !finalUri.startsWith('http')) {

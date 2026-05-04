@@ -607,7 +607,9 @@ def get_my_oas():
             oa_data = {
                 'id': c.id, 
                 'oa_name': c.oa_name, 
-                # 'db_url': c.db_url, # Security: Don't expose DB URL to frontend if not necessary
+                'other_settings': {
+                    'app_name': c.other_settings.get('app_name') if c.other_settings else None
+                },
                 'pages': []
             }
             
