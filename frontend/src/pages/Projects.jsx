@@ -198,11 +198,12 @@ const ProjectsManagement = () => {
 
     const computedPreviewSteps = React.useMemo(() => {
         if (!previewBaseTime) return previewSteps;
-        const base = new Date(previewBaseTime).getTime();
+        let currentTime = new Date(previewBaseTime).getTime();
         return previewSteps.map(step => {
             if (!step.is_first || step.raw_interval_hours === undefined) return step;
             const offsetMs = parseFloat(step.raw_interval_hours || 0) * 60 * 60 * 1000;
-            const targetTime = new Date(base + offsetMs);
+            currentTime += offsetMs;
+            const targetTime = new Date(currentTime);
             const timeStr = targetTime.toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
             return {
                 ...step,

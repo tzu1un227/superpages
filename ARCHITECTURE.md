@@ -400,3 +400,7 @@ NeMQO(u(um-d!jg\Hrb/N0 
 - **後端實作**: `backend/endpoints/richmenu.py` 新增 `/all` 路由，可遍歷使用者權限內所有 OA 並獲取其圖文選單。
 - **前端實作**: `RichMenu.jsx` 新增帳號切換下拉選單。支援「全部帳號」視圖，並依據 OA 名稱進行分類顯示。
 - **資料結構**: 在 `/all` 回傳結果中，每個選單物件均標註 `oa_id` 與 `oa_name` 以利前端分組。
+
+### 自動旅程預覽邏輯修正 [2026-05-05]
+- **前端實作**: `frontend/src/pages/Projects.jsx` 中的 `JourneyPreview` 元件預覽邏輯修正。
+- **變更細節**: 修改 `computedPreviewSteps` 的計算方式，讓每一個步驟的預計發送時間，依照前一步驟的執行時間加上間隔時間進行累加，確保預覽時間與後端實際排程邏輯一致。
