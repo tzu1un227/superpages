@@ -31,9 +31,9 @@ const CustomerCenter = () => {
   const { showToast } = useToast();
 
   const fetchCustomers = async (silent = false) => {
-    if (!silent) setIsLoading(true);
+    if (!silent && customers.length === 0) setIsLoading(true);
     try {
-      const response = await api.get(`/customers?t=${Date.now()}`);
+      const response = await api.get('/customers');
       setCustomers(response.data);
     } catch (error) {
       console.error('Error fetching customers:', error);
@@ -44,9 +44,9 @@ const CustomerCenter = () => {
   };
 
   const fetchGroups = async (silent = false) => {
-    if (!silent) setIsLoading(true);
+    if (!silent && groups.length === 0) setIsLoading(true);
     try {
-      const response = await api.get(`/customers/groups?t=${Date.now()}`);
+      const response = await api.get('/customers/groups');
       setGroups(response.data);
     } catch (error) {
       console.error('Error fetching groups:', error);
@@ -57,9 +57,9 @@ const CustomerCenter = () => {
   };
 
   const fetchTags = async (silent = false) => {
-    if (!silent) setIsLoading(true);
+    if (!silent && tags.length === 0) setIsLoading(true);
     try {
-      const response = await api.get(`/customers/tags?t=${Date.now()}`);
+      const response = await api.get('/customers/tags');
       setTags(response.data);
     } catch (error) {
       console.error('Error fetching tags:', error);
@@ -70,30 +70,33 @@ const CustomerCenter = () => {
   };
 
 
-  const refreshAllData = useCallback(async () => {
+  const refreshAllData = useCallback(async (isInitial = false) => {
     console.log('refreshAllData triggered');
-    setIsLoading(true);
+    // Only show global loading spinner on initial load if we have no data
+    if (isInitial && customers.length === 0) setIsLoading(true);
     try {
       console.log('Start fetching all data...');
-      await fetchCustomers(true).catch(e => console.error('Customers refresh fail:', e));
-      await fetchGroups(true).catch(e => console.error('Groups refresh fail:', e));
-      await fetchTags(true).catch(e => console.error('Tags refresh fail:', e));
+      await Promise.all([
+        fetchCustomers(true).catch(e => console.error('Customers refresh fail:', e)),
+        fetchGroups(true).catch(e => console.error('Groups refresh fail:', e)),
+        fetchTags(true).catch(e => console.error('Tags refresh fail:', e))
+      ]);
       console.log('Data refresh finished');
     } catch (err) {
       console.error('Refresh logic error:', err);
     } finally {
-      setIsLoading(false);
+      if (isInitial) setIsLoading(false);
     }
-  }, [oaId]); // eslint-disable-line
+  }, [oaId, customers.length]); // eslint-disable-line
 
+  // Initial load
+  useEffect(() => {
+    refreshAllData(true);
+  }, []);
 
-
-
-
-
+  // When tab changes, just clear selection
   useEffect(() => {
     setSelectedUserIds([]); // clear selection when tab changes
-    refreshAllData();
   }, [activeTab]);
 
 
