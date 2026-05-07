@@ -12,7 +12,7 @@ import Statistics from './pages/Statistics';
 import RichMenu from './pages/RichMenu';
 import AdminPage from './pages/AdminPage';
 import Questionnaire from './pages/Questionnaire';
-import api from './api';
+import api, { preloadPagesData } from './api';
 import { ToastProvider, useToast } from './contexts/ToastContext';
 import { TaskProvider, useTask } from './contexts/TaskContext';
 import Toast from './components/Toast';
@@ -76,6 +76,16 @@ const MainLayout = () => {
   const location = useLocation();
 
   if (isLoading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: '#fff', background: '#111' }}>Loading...</div>;
+
+  React.useEffect(() => {
+    if (isAuthenticated && myOAs && myOAs.length > 0) {
+      const match = location.pathname.match(/\/oa\/(\d+)/);
+      const currentOaId = match ? match[1] : myOAs[0].id;
+      if (currentOaId) {
+        preloadPagesData(currentOaId);
+      }
+    }
+  }, [isAuthenticated, myOAs, location.pathname]);
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>

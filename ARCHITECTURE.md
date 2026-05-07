@@ -404,3 +404,10 @@ NeMQO(u(um-d!jg\Hrb/N0 
 ### 自動旅程預覽邏輯修正 [2026-05-05]
 - **前端實作**: `frontend/src/pages/Projects.jsx` 中的 `JourneyPreview` 元件預覽邏輯修正。
 - **變更細節**: 修改 `computedPreviewSteps` 的計算方式，讓每一個步驟的預計發送時間，依照前一步驟的執行時間加上間隔時間進行累加，確保預覽時間與後端實際排程邏輯一致。
+
+### 2026-05-07 Frontend Background Preloading & Cache Layer
+- **Global API Cache (rontend/src/api.js)**: 
+  - 攔截所有 GET 請求，若快取存在則立即回傳資料，達成切換選單零延遲載入效果。
+  - 當快取資料超過 5 秒，會背景觸發 GET 請求更新快取。
+  - 攔截 POST, PUT, DELETE 等修改類請求，執行後自動清除全域快取，確保資料新鮮度。
+  - 在 App.jsx 初始化時呼叫 preloadPagesData(oaId)，提早為 自動旅程、群發訊息、圖文選單等頁面取得資料。

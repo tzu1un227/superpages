@@ -167,3 +167,11 @@
 ## [Unreleased] - 2026-05-05
 ### Fixed
 - 修正自動旅程預覽功能：預覽時的「間隔時間」計算，改為相對於前一步驟的執行時間累加，而非全部相對於基準時間計算，讓預覽結果更符合實際發送邏輯 (`frontend/src/pages/Projects.jsx`)。
+
+## [Unreleased] - 2026-05-07
+### Added
+- 實作全域 API 快取機制與背景預先載入功能 (Background Preloading)
+- 在 \rontend/src/api.js\ 攔截 \GET\ 請求，提供毫秒級頁面切換體驗
+- 加入頁面切換時自動讀取 Cache 功能，不需重複顯示載入畫面
+- 編輯與新增動作 (POST/PUT/DELETE) 會自動清除快取，確保資料即時更新
+
