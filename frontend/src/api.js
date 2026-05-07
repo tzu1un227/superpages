@@ -103,6 +103,14 @@ api.interceptors.response.use(
             apiCache.clear();
             if (typeof window !== 'undefined') {
                 window.dispatchEvent(new Event('apiCacheInvalidated'));
+                
+                // Immediately reload data in the background instead of waiting for navigation
+                let currentOaId = '';
+                const match = window.location.pathname.match(/\/oa\/(\d+)/);
+                if (match) currentOaId = match[1];
+                if (currentOaId) {
+                    preloadPagesData(currentOaId, true);
+                }
             }
         }
         return response;
@@ -112,8 +120,8 @@ api.interceptors.response.use(
     }
 );
 
-// Preload function to be called after login
-export const preloadPagesData = (oaId) => {
+// Preload function to be called after login or after edits
+export const preloadPagesData = (oaId, force = false) => {
     if (!oaId) return;
     
     const endpointsToPreload = [
@@ -126,7 +134,7 @@ export const preloadPagesData = (oaId) => {
     
     endpointsToPreload.forEach(url => {
         const cacheKey = oaId + '|' + url + '|{}';
-        if (!apiCache.has(cacheKey)) {
+        if (force || !apiCache.has(cacheKey)) {
             originalGet.call(api, url, { headers: { 'X-OA-ID': oaId }, _bypassCache: true })
                 .then(res => {
                     apiCache.set(cacheKey, { data: res, timestamp: Date.now() });
