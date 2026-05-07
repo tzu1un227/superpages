@@ -50,6 +50,7 @@ api.interceptors.request.use(
 
 // Custom Request Cache
 const apiCache = new Map();
+const pendingRequests = new Map();
 const originalGet = api.get;
 
 api.get = async function(url, config) {
@@ -82,29 +83,57 @@ api.get = async function(url, config) {
 
     const cacheKey = oaId + '|' + url + '|' + JSON.stringify(cleanParams);
 
-    if (shouldCache && apiCache.has(cacheKey)) {
-        const cached = apiCache.get(cacheKey);
-        // Background refresh if data is older than 5 seconds
-        if (Date.now() - cached.timestamp > 5000) {
-            originalGet.call(api, url, { ...config, _bypassCache: true }).then(res => {
-                apiCache.set(cacheKey, { data: res, timestamp: Date.now() });
-                // Optional: Fire a custom event here if you want components to auto-update
-                if (typeof window !== 'undefined') {
-                    window.dispatchEvent(new CustomEvent('apiCacheUpdated', { detail: { url } }));
+    if (shouldCache) {
+        if (apiCache.has(cacheKey)) {
+            const cached = apiCache.get(cacheKey);
+            // Background refresh if data is older than 5 seconds
+            if (Date.now() - cached.timestamp > 5000) {
+                // If not already refreshing
+                if (!pendingRequests.has(cacheKey)) {
+                    const promise = originalGet.call(api, url, { ...config, _bypassCache: true }).then(res => {
+                        apiCache.set(cacheKey, { data: res, timestamp: Date.now() });
+                        pendingRequests.delete(cacheKey);
+                        if (typeof window !== 'undefined') {
+                            window.dispatchEvent(new CustomEvent('apiCacheUpdated', { detail: { url } }));
+                        }
+                        return res;
+                    }).catch(err => {
+                        pendingRequests.delete(cacheKey);
+                        throw err;
+                    });
+                    pendingRequests.set(cacheKey, promise);
                 }
-            }).catch(() => {});
+            }
+            // Return cloned response
+            return Promise.resolve({ ...cached.data, data: JSON.parse(JSON.stringify(cached.data.data)) });
         }
-        // Return cloned response to prevent UI from mutating the cached object directly
-        return Promise.resolve({ ...cached.data, data: JSON.parse(JSON.stringify(cached.data.data)) });
+        
+        // Request Deduplication: If already fetching, return the existing promise
+        if (pendingRequests.has(cacheKey)) {
+            const res = await pendingRequests.get(cacheKey);
+            return { ...res, data: JSON.parse(JSON.stringify(res.data)) };
+        }
     }
 
-    const res = await originalGet.call(api, url, config);
+    const promise = originalGet.call(api, url, config);
     if (shouldCache) {
-        apiCache.set(cacheKey, { data: res, timestamp: Date.now() });
-        // Return cloned response
-        return { ...res, data: JSON.parse(JSON.stringify(res.data)) };
+        pendingRequests.set(cacheKey, promise);
     }
-    return res; // Blob/ArrayBuffer etc. return as is without cloning
+    
+    try {
+        const res = await promise;
+        if (shouldCache) {
+            apiCache.set(cacheKey, { data: res, timestamp: Date.now() });
+            pendingRequests.delete(cacheKey);
+            return { ...res, data: JSON.parse(JSON.stringify(res.data)) };
+        }
+        return res;
+    } catch (err) {
+        if (shouldCache) {
+            pendingRequests.delete(cacheKey);
+        }
+        throw err;
+    }
 };
 
 // Response interceptor to invalidate cache on mutations
@@ -141,48 +170,60 @@ api.interceptors.response.use(
 export const preloadPagesData = (oaId, force = false) => {
     if (!oaId) return;
     
-    // Comprehensive list of endpoints needed for all main pages
-    const endpointsToPreload = [
-        '/projects',
-        '/broadcast/',
-        '/richmenu',
-        '/registered-users',
-        '/tags',
-        '/users',
-        '/statistics',
-        '/scheduled-events',
-        '/questionnaire/groups',
-        '/questionnaire/list',
-        '/tickets',
-        '/game-status',
-        '/db/tables',
+    // Group endpoints by priority to prevent slamming the server and DB connection limits.
+    // Chunk 1: Most critical, heavy, and frequently used pages
+    const chunk1 = [
+        '/registered-users', 
+        '/tags', 
+        '/questionnaire/groups', 
         '/customers'
     ];
     
-    endpointsToPreload.forEach(url => {
-        const cacheKey = oaId + '|' + url + '|{}';
-        if (force || !apiCache.has(cacheKey)) {
-            originalGet.call(api, url, { headers: { 'X-OA-ID': oaId }, _bypassCache: true })
-                .then(res => {
-                    apiCache.set(cacheKey, { data: res, timestamp: Date.now() });
-                    
-                    // Special logic: If preloading projects, also preload the first project's schedules and users
-                    if (url === '/projects' && Array.isArray(res.data) && res.data.length > 0) {
-                        const firstProjectId = res.data[0].project_id || res.data[0].id;
-                        if (firstProjectId) {
-                            const schedUrl = `/schedules?project_id=${firstProjectId}`;
-                            originalGet.call(api, schedUrl, { headers: { 'X-OA-ID': oaId }, _bypassCache: true })
-                                .then(schedRes => apiCache.set(oaId + '|' + schedUrl + '|{}', { data: schedRes, timestamp: Date.now() }));
-                                
-                            const usersUrl = `/projects/${firstProjectId}/users`;
-                            originalGet.call(api, usersUrl, { headers: { 'X-OA-ID': oaId }, _bypassCache: true })
-                                .then(usersRes => apiCache.set(oaId + '|' + usersUrl + '|{}', { data: usersRes, timestamp: Date.now() }));
+    // Chunk 2: Secondary data
+    const chunk2 = [
+        '/projects', 
+        '/broadcast/', 
+        '/scheduled-events', 
+        '/users'
+    ];
+    
+    // Chunk 3: Less frequently accessed tabs
+    const chunk3 = [
+        '/richmenu', 
+        '/statistics', 
+        '/questionnaire/list', 
+        '/tickets', 
+        '/game-status', 
+        '/db/tables'
+    ];
+    
+    const prefetchChunk = async (urls) => {
+        await Promise.allSettled(urls.map(url => {
+            const cacheKey = oaId + '|' + url + '|{}';
+            if (force || !apiCache.has(cacheKey)) {
+                // By using api.get instead of originalGet, it automatically leverages deduplication
+                // and sets the cache properly when done.
+                return api.get(url, { headers: { 'X-OA-ID': oaId }, silent: true, _bypassCache: force })
+                    .then(res => {
+                        // Special nested prefetching for projects
+                        if (url === '/projects' && Array.isArray(res?.data) && res.data.length > 0) {
+                            const firstProjectId = res.data[0].project_id || res.data[0].id;
+                            if (firstProjectId) {
+                                api.get(`/schedules?project_id=${firstProjectId}`, { headers: { 'X-OA-ID': oaId }, silent: true, _bypassCache: force });
+                                api.get(`/projects/${firstProjectId}/users`, { headers: { 'X-OA-ID': oaId }, silent: true, _bypassCache: force });
+                            }
                         }
-                    }
-                })
-                .catch(err => console.warn(`Preload failed for ${url}:`, err.message));
-        }
-    });
+                    })
+                    .catch(err => console.warn(`Preload failed for ${url}:`, err.message));
+            }
+            return Promise.resolve();
+        }));
+    };
+
+    // Execute prefetching in staggered chunks (sequentially)
+    prefetchChunk(chunk1)
+        .then(() => prefetchChunk(chunk2))
+        .then(() => prefetchChunk(chunk3));
 };
 
 export default api;
