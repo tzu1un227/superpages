@@ -54,7 +54,7 @@ const originalGet = api.get;
 
 api.get = async function(url, config) {
     // Exclude certain auth/user specific URLs from caching or things that need extreme real-time
-    const noCacheUrls = ['/auth/me', '/auth/my-oas', '/stats'];
+    const noCacheUrls = ['/auth/me', '/auth/my-oas'];
     let shouldCache = !config?._bypassCache && !noCacheUrls.some(u => url.includes(u));
 
     // Never cache binary data like images or files in this simple JSON cache
@@ -137,13 +137,22 @@ api.interceptors.response.use(
 export const preloadPagesData = (oaId, force = false) => {
     if (!oaId) return;
     
+    // Comprehensive list of endpoints needed for all main pages
     const endpointsToPreload = [
         '/projects',
         '/broadcast/',
         '/richmenu',
         '/registered-users',
         '/tags',
-        '/users'
+        '/users',
+        '/statistics',
+        '/scheduled-events',
+        '/questionnaire/groups',
+        '/questionnaire/list',
+        '/tickets',
+        '/game-status',
+        '/db/tables',
+        '/customers'
     ];
     
     endpointsToPreload.forEach(url => {
