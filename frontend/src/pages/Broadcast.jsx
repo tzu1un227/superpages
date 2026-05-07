@@ -84,7 +84,14 @@ function BroadcastContent() {
     // View state
     const [view, setView] = useState(location.state?.presetTarget ? 'create' : 'list'); 
     const [listTab, setListTab] = useState('all'); // all, scheduled, draft, sent
-    const [broadcasts, setBroadcasts] = useState([]);
+    const [allBroadcasts, setAllBroadcasts] = useState([]);
+    
+    // Compute filtered broadcasts locally instead of refetching
+    const broadcasts = React.useMemo(() => {
+        if (listTab === 'all') return allBroadcasts;
+        return allBroadcasts.filter(bc => bc.status === listTab);
+    }, [allBroadcasts, listTab]);
+
     const [loading, setLoading] = useState(false);
     const [executing, setExecuting] = useState(false);
     const [deletingId, setDeletingId] = useState(null);
@@ -121,13 +128,14 @@ function BroadcastContent() {
         fetchBroadcasts();
         fetchTags();
         fetchUsers();
-    }, [oaId, listTab]);
+    }, [oaId]); // removed listTab from dependencies
 
     const fetchBroadcasts = async () => {
-        setLoading(true);
+        if (allBroadcasts.length === 0) setLoading(true);
         try {
-            const res = await api.get('/broadcast/', { params: { status: listTab } });
-            setBroadcasts(res.data.broadcasts || []);
+            // Fetch without status to get all and hit the preloaded cache perfectly
+            const res = await api.get('/broadcast/');
+            setAllBroadcasts(res.data.broadcasts || []);
         } catch (err) {
             console.error('Error fetching broadcasts:', err);
         } finally {
