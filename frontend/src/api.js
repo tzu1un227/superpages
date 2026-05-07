@@ -142,7 +142,8 @@ export const preloadPagesData = (oaId, force = false) => {
         '/broadcast/',
         '/richmenu',
         '/registered-users',
-        '/tags'
+        '/tags',
+        '/users'
     ];
     
     endpointsToPreload.forEach(url => {
