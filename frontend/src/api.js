@@ -110,8 +110,12 @@ api.get = async function(url, config) {
 // Response interceptor to invalidate cache on mutations
 api.interceptors.response.use(
     (response) => {
-        const method = response.config.method.toLowerCase();
+        const method = response.config.method?.toLowerCase() || '';
         if (['post', 'put', 'patch', 'delete'].includes(method)) {
+            // Exclude read receipts or non-mutating POSTs from clearing cache
+            if (response.config.url?.endsWith('/read') || response.config.url?.includes('/read')) {
+                return response;
+            }
             // Simply clear all cache on any mutation to guarantee freshness
             apiCache.clear();
             if (typeof window !== 'undefined') {
@@ -161,6 +165,20 @@ export const preloadPagesData = (oaId, force = false) => {
             originalGet.call(api, url, { headers: { 'X-OA-ID': oaId }, _bypassCache: true })
                 .then(res => {
                     apiCache.set(cacheKey, { data: res, timestamp: Date.now() });
+                    
+                    // Special logic: If preloading projects, also preload the first project's schedules and users
+                    if (url === '/projects' && Array.isArray(res.data) && res.data.length > 0) {
+                        const firstProjectId = res.data[0].project_id || res.data[0].id;
+                        if (firstProjectId) {
+                            const schedUrl = `/schedules?project_id=${firstProjectId}`;
+                            originalGet.call(api, schedUrl, { headers: { 'X-OA-ID': oaId }, _bypassCache: true })
+                                .then(schedRes => apiCache.set(oaId + '|' + schedUrl + '|{}', { data: schedRes, timestamp: Date.now() }));
+                                
+                            const usersUrl = `/projects/${firstProjectId}/users`;
+                            originalGet.call(api, usersUrl, { headers: { 'X-OA-ID': oaId }, _bypassCache: true })
+                                .then(usersRes => apiCache.set(oaId + '|' + usersUrl + '|{}', { data: usersRes, timestamp: Date.now() }));
+                        }
+                    }
                 })
                 .catch(err => console.warn(`Preload failed for ${url}:`, err.message));
         }
