@@ -55,7 +55,12 @@ const originalGet = api.get;
 api.get = async function(url, config) {
     // Exclude certain auth/user specific URLs from caching or things that need extreme real-time
     const noCacheUrls = ['/auth/me', '/auth/my-oas', '/stats'];
-    const shouldCache = !config?._bypassCache && !noCacheUrls.some(u => url.includes(u));
+    let shouldCache = !config?._bypassCache && !noCacheUrls.some(u => url.includes(u));
+
+    // Never cache binary data like images or files in this simple JSON cache
+    if (config?.responseType === 'blob' || config?.responseType === 'arraybuffer') {
+        shouldCache = false;
+    }
 
     // Include X-OA-ID in cache key manually since interceptor adds it later
     let oaId = '';
@@ -69,7 +74,13 @@ api.get = async function(url, config) {
         oaId = config.headers['X-OA-ID'];
     }
 
-    const cacheKey = oaId + '|' + url + '|' + JSON.stringify(config?.params || {});
+    // Strip cache-busting parameters (_t, timestamp) to ensure cache hits
+    const cleanParams = { ...(config?.params || {}) };
+    delete cleanParams._t;
+    delete cleanParams.timestamp;
+    delete cleanParams.t;
+
+    const cacheKey = oaId + '|' + url + '|' + JSON.stringify(cleanParams);
 
     if (shouldCache && apiCache.has(cacheKey)) {
         const cached = apiCache.get(cacheKey);
@@ -90,8 +101,10 @@ api.get = async function(url, config) {
     const res = await originalGet.call(api, url, config);
     if (shouldCache) {
         apiCache.set(cacheKey, { data: res, timestamp: Date.now() });
+        // Return cloned response
+        return { ...res, data: JSON.parse(JSON.stringify(res.data)) };
     }
-    return { ...res, data: JSON.parse(JSON.stringify(res.data)) };
+    return res; // Blob/ArrayBuffer etc. return as is without cloning
 };
 
 // Response interceptor to invalidate cache on mutations
