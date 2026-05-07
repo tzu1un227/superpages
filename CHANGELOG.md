@@ -198,3 +198,6 @@
 
 ### Fixed (Hotfix 5)
 - 修正「群發訊息切換分頁時會重新載入且可能發生內容錯位」的問題：原本切換「預約中/草稿箱/已成功發送」時都會向後端發送請求，導致不必要的等待與快速切換時的競態條件（Race condition）。現在已經改為**本地端篩選 (Local Filtering)**，並完美結合全域快取，切換分頁絕對瞬間完成！
+
+### Fixed (Hotfix 6)
+- 修正「放著一段時間會出現 500 FATAL: too many connections for role」的問題：後端 roadcast.py 中的 API 在發生例外錯誤時沒有正確關閉資料庫連線，導致 Connection Leak (連線洩漏) 耗盡資料庫的連線池。現在已經全面加上 	ry...finally 確保連線一定會釋放。
