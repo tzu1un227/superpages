@@ -4,7 +4,7 @@
 This project is a web application with a Flask backend and a React frontend. It manages users, projects, and scheduled events, integrating with a Socket.IO server for real-time communication.
 
 
-## Scheduled Event Management (定時觸發事件 - Refactored)
+## Scheduled Event Management (摰𡁏�閫貊䔄鈭衤辣 - Refactored)
 
 All scheduling is now managed via **Projects** using the `cron_table`. The legacy `scheduled_events` table and processor have been removed.
 
@@ -44,7 +44,9 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 ### Rich Message Handling
 -   **QA Integration**: Messages can be stored as complex structures (Flex, Image, etc.) in the `qa_bank` table.
 -   **Reference Protocol**: In `project_schedules` or other text fields, these are referenced using the `QA|` prefix followed by the unique tag (e.g., `QA|cron_project_step`).
-- **Schedule Settings**: Managed within the `ProjectsManagement` component in `Projects.jsx`. Supports multi-step messaging workflows with configurable delay intervals (Days/Hours/Minutes).
+- **Schedule Settings**: Managed within the `ProjectsManagement` component in `Projects.jsx`. Supports multi-step messaging workflows with configurable delay intervals (Years/Months/Days/Hours/Minutes).
+- **Schedule Editing UX**: Implementation of "Saving..." feedback state and button locking during schedule updates to prevent race conditions and improve user feedback.
+
 - **Rich Message Previews**: The `get_schedules` API endpoint automatically enriches schedule entries with descriptive previews for Linked QA bank tags. It parses the first message from the message sequence (text, flex, image, etc.) and provides a human-readable summary.
 - **Frontend Robustness**: Implementation uses defensive coding patterns (optional chaining, array guards, fallback values) to ensure UI stability even with incomplete or malformed backend data.
 - **Editor Behavior**: The frontend detects this prefix to open the advanced visual editor instead of a plain text input.
@@ -57,51 +59,51 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 - **Rich Menu Management**: Standardized to Chinese (Traditional). Implemented form validation (disabling save unless an image and all area actions are properly configured) and fixed runtime crashes using optional chaining and safe state resets.
 - **Rich Menu Localization**: TERMINOLOGY in the Rich Menu module is standardized to Chinese to improve usability for non-English speakers.
 
-### UI/UX 優化與內容驗證 (UI/UX Optimization & Content Validation) [2026-04-24]
-- **訊息中心 (Message Center)**:
-    - **閃爍修復與 Skeleton 優化**: 優化 `loadingUsers` 狀態下的 Skeleton 顯示邏輯，僅在初始載入或搜尋結果為空時顯示，防止自動輪詢與標籤切換時出現畫面跳動。
-    - **標籤異動即時同步**: 實作標籤新增與刪除後的 `fetchAvailableTags` 回調機制，確保篩選列按鈕能即時反映標籤池的變動。
-- **全域術語統一 (Standardization)**:
-    - **圖文訊息 (Rich Message)**: 將全系統（包含法則表、廣播發送、訊息中心與編輯器）中原有的 "Flex Message" 或 "Flex 訊息" 統一更名為「圖文訊息」，提升非技術背景使用者對功能的認知度。
-- **圖文選單 (Rich Menu)**:
-    - **搜尋與排序增強**: 在列表視圖中整合「搜尋框」，並將排序基準固定為 `richMenuId` 降序（最新在前），提升管理大量選單時的檢索效率。
-- **標籤輸入框 (TagInput Component)**:
-    - **互動判定範圍優化**: 調整 `TagInput` 元件的 `min-height` 至 48px 並增加內距，解決觸控裝置或點擊時判定區域過窄、不易觸發輸入框焦點的問題。
-- **後端身份驗證 (Backend Security/Consistency)**:
-    - **廣播觸發身份管理**: 修正立即發送廣播時的 WebSocket 事件 `user` 參數。由原先固定為 `yzuadmin` 改為 `system`，確保系統自動觸發的訊息標籤不會被誤關聯至管理員帳號。
-- **全域任務狀態管理 (Global Task State Persistence)** [2026-04-24]:
-    - **TaskContext**: 實作全域 React Context，管理 `isProcessing`、`progress` 與 `processingMessage`。
-    - **UI 持久化**: 將 `StatusIndicator` 搬移至 `App.jsx` 的全域佈局中，解決「自動旅程」在匯入或排序期間切換分頁時，進度條會因組件卸載而消失的問題。
-    - **任務重置**: 提供 `resetTask` 方法，確保操作完成或失敗後能正確清理全域狀態。
+### UI/UX �芸����摰寥�霅� (UI/UX Optimization & Content Validation) [2026-04-24]
+- **閮𦠜�銝剖� (Message Center)**:
+    - **���靽桀儔�� Skeleton �芸�**: �芸� `loadingUsers` ���衤��� Skeleton 憿舐內�讛摩嚗���典�憪贝��交��𨅯�蝯鞉��箇征��＊蝷綽��脫迫�芸�頛芾岷���蝐文��𥟇��箇𣶹�恍𢒰頝喳���
+    - **璅嗵惜�啣��單��峕郊**: 撖虫�璅嗵惜�啣���⏛�文��� `fetchAvailableTags` �噼矽璈笔�嚗𣬚Ⅱ靽萘祟�詨��厰��賢朖����䭾�蝐斗�����𨰻��
+- **�典�銵栞�蝯曹� (Standardization)**:
+    - **�𡝗�閮𦠜� (Rich Message)**: 撠��蝟餌絞嚗���急���”��誨�剔䔄������臭葉敹��蝺刻摩�剁�銝剖��厩� "Flex Message" �� "Flex 閮𦠜�" 蝯曹��游��箝�������胯�㵪��𣂼��墧�銵栞��臭蝙�刻����蠘�����亙漲��
+- **�𡝗��詨鱓 (Rich Menu)**:
+    - **�𨅯����摨誩�撘�**: �典�銵刻��碶葉�游��峕�撠𧢲��㵪�銝血��鍦��箸��箏��� `richMenuId` �滚�嚗���啣銁�㵪�嚗峕���恣��之�誯��格���炎蝝Ｘ�����
+- **璅嗵惜頛詨�獢� (TagInput Component)**:
+    - **鈭鍦��文�蝭���芸�**: 隤踵㟲 `TagInput` ��辣�� `min-height` �� 48px 銝血��惩�頝嘅�閫�捱閫豢綉鋆萘蔭�㚚��𦠜��文����罸�蝒�����栞孛�潸撓�交��阡����憿䎚��
+- **敺𣬚垢頨思遢撽𡑒� (Backend Security/Consistency)**:
+    - **撱�偘閫貊䔄頨思遢蝞∠�**: 靽格迤蝡见朖�潮��誨�剜��� WebSocket 鈭衤辣 `user` ��彍��眏�笔��箏��� `yzuadmin` �寧� `system`嚗𣬚Ⅱ靽萘頂蝯梯䌊�閗孛�潛�閮𦠜�璅嗵惜銝齿�鋡怨炊�𡏭��喟恣��摱撣唾���
+- **�典�隞餃����讠恣�� (Global Task State Persistence)** [2026-04-24]:
+    - **TaskContext**: 撖虫��典� React Context嚗𣬚恣�� `isProcessing`��progress` �� `processingMessage`��
+    - **UI �����**: 撠� `StatusIndicator` �祉宏�� `App.jsx` ����煺�撅�銝哨�閫�捱�諹䌊�閙�蝔卝�滚銁�臬��𡝗�摨𤩺��枏��𥕦����嚗屸�脣漲璇脲��删�隞嗅桊頛㕑�峕�憭梁��誯���
+    - **隞餃��滨蔭**: �𣂷� `resetTask` �寞�嚗𣬚Ⅱ靽脲�雿𨅯��鞉�憭望�敺諹�甇�Ⅱ皜���典����卝��
 
-### UI/UX 優化與內容驗證 (UI/UX Optimization & Content Validation) [2026-03-18]
-- **圖文選單 (Rich Menu)**:
-    - **載入失敗處理**: 分離主清單 (`/richmenu/`) 與別名清單 (`/richmenu/aliases`) 的 API 錯誤攔截。若主清單失敗，將根據 HTTP 狀態碼提供具體原因（如「尚未設定 LINE Token」）；別名清單失敗則採靜默處理，不阻擋頁面主體渲染。
-    - **上傳提示強化**: 於底圖上傳區明確標示 `≤1MB` 的檔案大小限制。
-- **訊息中心 (Message Center)**:
-    - **側邊欄虛擬分頁 (Virtual Pagination)**: 針對用戶清單實作基於滾動事件的前端虛擬分頁機制。初始載入 15 筆，當使用者向下滑動至底部時動態追加上一頁資料，在不修改後端 API 結構的前提下大幅提升渲染效能與初始讀取感受。
-- **自動旅程 (Projects)**:
-    - **標籤視覺化 (Tag Badges)**: 在手動加入用戶的彈出視窗 (`UserSelectModal`) 中，復用並優化了標籤解析邏輯 (`parseTags`)。將原本以字串拼接形式呈現的原始標籤陣列，轉換為獨立、圓角的 pill/badge 樣式呈現，提升操作介面的直觀性。
+### UI/UX �芸����摰寥�霅� (UI/UX Optimization & Content Validation) [2026-03-18]
+- **�𡝗��詨鱓 (Rich Menu)**:
+    - **頛匧�憭望��閧�**: ��𣪧銝餅��� (`/richmenu/`) ��ê̌�齿��� (`/richmenu/aliases`) �� API �航炊�娍⏛��𥅾銝餅��桀仃�梹�撠�覔�� HTTP ���讠Ⅳ�𣂷��琿��笔�嚗������芾身摰� LINE Token�㵪�嚗𥕦ê̌�齿��桀仃�堒��⊿�暺䁅����銝漤獈�钅��Ｖ蜓擃娍葡�瓐��
+    - **銝𠰴��鞟內撘瑕�**: �澆��碶��喳��𡒊Ⅱ璅嗵內 `��1MB` ���獢�之撠誯��嗚��
+- **閮𦠜�銝剖� (Message Center)**:
+    - **�湧�甈���砍��� (Virtual Pagination)**: �嘥��冽�皜�鱓撖虫��箸䲰皛曉�鈭衤辣���蝡航��砍�����嗚���憪贝��� 15 蝑���嗡蝙�刻���銝𧢲��閗秐摨閖�����贝蕭�牐�銝�����辷��其�靽格㺿敺𣬚垢 API 蝯鞉�����𣂷�憭批��𣂼�皜脫�������憪贝��𡝗��𨰜��
+- **�芸���� (Projects)**:
+    - **璅嗵惜閬𤥁死�� (Tag Badges)**: �冽��訫��亦鍂�嗥�敶�枂閬𣇉� (`UserSelectModal`) 銝哨�敺拍鍂銝血��碶�璅嗵惜閫���讛摩 (`parseTags`)�����𧋦隞亙�銝脫𣄽�亙耦撘誩��曄��笔�璅嗵惜���嚗諹��𤤿��函����閫垍� pill/badge 璅����𣶹嚗峕����雿靝��Ｙ��渲��扼��
 
-### UI/UX 優化與內容驗證 (UI/UX Optimization & Content Validation) [2026-03-10]
-- **Loading 狀態管理**: 
-    - 實作 `Projects.jsx` 中的 `pageLoading` 狀態，當切換「自動旅程」分頁或選取不同專案時，會觸發 `LoadingSpinner` 並在 API 回傳前清空舊數據。
-    - 確保用戶在切換專案時，排程列表與統計數據不會出現跨專案的殘留顯示。
-    - **競態條件與資料殘留修復 (2026-03-30)**：
-        - 在 `fetchSchedules` 中加入 `selectedProjectIdRef` 比對鎖，確保異步回傳時若已切換旅程則不更新舊資料。
-        - 在 JSX 渲染層對 `schedules` 列表實施 `filter(s => s.project_id == selectedProjectId)` 之防禦性過濾。
-- **進階訊息編輯器深度驗證**: 
-    - 強化 `Projects.jsx` (RichMessageModal) 與 `Broadcast.jsx` 的儲存驗證邏輯。
-    - 深度解析 Flex Message JSON 結構，針對所有卡片 (Bubbles) 的「圖片點擊動作 (Hero Action)」與「按鈕動作 (Footer Buttons)」進行非空檢查。
-    - 若連結 (URI)、回傳文字 (Text/Data) 為空，系統將會攔截儲存並提示使用者補齊。
-- **參與用戶列表優化**:
-    - **隱私與簡潔**: 移除主清單與手動加入清單中的 User ID 顯示，優先顯示使用者名稱，若無則顯示「未命名」。
-    - **標籤解析**: 針對手動加入彈窗 (`UserSelectModal`) 中的標籤顯示，實作了兼容 JSON List (`["A","B"]`) 與 Pipe 分隔標記 (`|A|B|`) 的強健解析邏輯，確保標籤能作為獨立欄位美觀呈現。
+### UI/UX �芸����摰寥�霅� (UI/UX Optimization & Content Validation) [2026-03-10]
+- **Loading ���讠恣��**: 
+    - 撖虫� `Projects.jsx` 銝剔� `pageLoading` ���页��嗅��䜘�諹䌊�閙�蝔卝�滚�����詨�銝滚�撠�������孛�� `LoadingSpinner` 銝血銁 API �𧼮��齿�蝛箄��豢���
+    - 蝣箔��冽��典��𥕦�獢��嚗峕�蝔见�銵刻�蝯梯��豢�銝齿��箇𣶹頝典�獢��畾条�憿舐內��
+    - **蝡嗆�璇苷辣����蹱��嗘耨敺� (2026-03-30)**嚗�
+        - �� `fetchSchedules` 銝剖��� `selectedProjectIdRef` 瘥𥪜��吔�蝣箔��唳郊�𧼮���𥅾撌脣��𥟇�蝔见�銝齿凒�啗�鞈����
+        - �� JSX 皜脫�撅文� `schedules` �𡑒”撖行鴌 `filter(s => s.project_id == selectedProjectId)` 銋钅俈蝳行�折�瞈整��
+- **�脤�閮𦠜�蝺刻摩�冽楛摨阡�霅�**: 
+    - 撘瑕� `Projects.jsx` (RichMessageModal) �� `Broadcast.jsx` ���摮㗛�霅厰�頛胯��
+    - 瘛勗漲閫�� Flex Message JSON 蝯鞉�嚗屸�撠齿��匧㨃�� (Bubbles) ���������𠰴�雿� (Hero Action)�滩��峕��訫�雿� (Footer Buttons)�漤�脰��䂿征瑼Ｘ䰻��
+    - �仿��� (URI)����單�摮� (Text/Data) �箇征嚗𣬚頂蝯勗�����芸�摮䀝蒂�鞟內雿輻鍂���朣𨳍��
+- **����冽��𡑒”�芸�**:
+    - **�梁���陛瞏�**: 蝘駁膄銝餅��株��见��惩�皜�鱓銝剔� User ID 憿舐內嚗����＊蝷箔蝙�刻���蝔梧��亦���＊蝷箝�峕𧊋�賢��溻��
+    - **璅嗵惜閫��**: �嘥��见��惩�敶�� (`UserSelectModal`) 銝剔�璅嗵惜憿舐內嚗�祕雿靝��澆捆 JSON List (`["A","B"]`) �� Pipe ���璅躰� (`|A|B|`) ��撥�亥圾�鞾�頛荔�蝣箔�璅嗵惜�賭��箇崕蝡𧢲�雿滨�閫���𣶹��
 
-- **捲軸行為最佳化 (Message Center)**: 針對 `MessageCenter.jsx` 的 7 秒自動輪詢更新，導入位置保護機制與 `isAtBottom` 智慧判斷，解決畫面跳動與自動下拉至底部的困擾。
-- **廣播預覽**: 實作前端 `messages` 列表預覽邏輯，提取各類訊息特徵（Type Icon + 文字截斷）顯示於廣播歷史清單中。
+- **�脰遘銵𣬚���雿喳� (Message Center)**: �嘥� `MessageCenter.jsx` �� 7 蝘坿䌊�閗憚閰Ｘ凒�堆�撠𤾸�雿滨蔭靽肽風璈笔��� `isAtBottom` �箸��斗𪃾嚗諹圾瘙箇𧞄�Ｚ歲�閗��芸�銝𧢲��喳��函��唳曎��
+- **撱�偘�鞱汗**: 撖虫��滨垢 `messages` �𡑒”�鞱汗�讛摩嚗峕��硋�憿噼��舐鸌敺蛛�Type Icon + ����芣𪃾嚗厰＊蝷箸䲰撱�偘甇瑕蟮皜�鱓銝准��
 
- ### User Tagging (用戶標註)
+ ### User Tagging (�冽�璅躰酉)
  - **Flex Message Integration**: The Flex Message Editor allows users to associate multiple tags with button actions or image clicks.
  - **Protocol**: Tags are embedded in the `postback.data` payload using the `|set_tag|tag1|tag2|...` command suffix.
  - **Event Splitting (Simulation)**: For simulation/websocket triggers, the Superpages backend splits combined data into two events (Message + Postback) to ensure correct rule matching and tagging simultaneously.
@@ -111,7 +113,7 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - **Redirect Proxy Protocol**: When a URI action has tags, it is automatically converted to a proxy URL: `https://[BASE_URL]/api/redirect?url=[URL]&tags=[TAGS]`. The proxy logs the tags via WebSocket before redirecting the user.
     - **Prefix Protocol**: Message and Postback content for tagged buttons are stored with the `tag_true|tag1,tag2|content` prefix, allowing the rule engine to process tags via the `tag_true|*` rule matching.
  
-### Lottery Management (抽獎管理)
+### Lottery Management (�賜�蝞∠�)
 
 #### Components
 1.  **Frontend**: `PrizeStatus.jsx`.
@@ -133,93 +135,93 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
         -   `source=person_table`: Fetches from `person_table` (returns `user_id`, `name`), used for Lottery.
     -   `get_tickets` and `trigger_socket_event` (existing).
 
-### Message Center (訊息中心)
+### Message Center (閮𦠜�銝剖�)
 - **Frontend**: `MessageCenter.jsx`.
   - Displays list of users and their chat history.
   - Supports sending messages and managing tags.
-  - **發送連發防護 (Anti-Double Send)**: 實作 `isSendingRef` (Ref Lock) 與 `isSending` (State) 機制。當發送中時會暫時禁用輸入框與按鈕，並攔截後續的 Enter 鍵或點擊事件，防止重複發送。
-  - **自動旅程管理 (Projects Management)**:
-    - **訊息編輯器 (RichMessageModal)**: 支援文字、圖片、影片、語音與 Flex 訊息。包含欄位完整度驗證（防止空內容）。
-    - **排程邏輯**: 確保 Step 0 作為旅程起點不可刪除，維護流程完整性。
-    - **用戶管理 (UserSelectModal)**: 整合 `/api/registered-users` 與 `/api/tags`，支援複合式（名稱 + 標籤）搜尋，提供視覺化標籤篩選控制項。
-  - **問卷管理 (Questionnaire)**:
-    - **問卷自動上標籤 (Auto-tagging)**: 支援在題目設定中加入標籤。當用戶回答該題目時，系統會透過規則庫中的 `function` 欄位執行 `set_tag` 指令，將對應標籤自動標註於該用戶。這有助於即時捕捉用戶偏好並進行分眾。
-    - **動態狀態產生**: 系統自動產生 `Q[ID][SEQ]` 模式的狀態。若啟用「答案檢查」，則會額外產生一個跳轉至 `Q[ID]99` 的回顧狀態。
-    - **時間限制邏輯**: 利用 `sys.now_between` 或 `sys.now()` 比較邏輯，在問卷入口規則的 `check` 欄位中實現時段判斷。
-    - **資料持久化**: 每一題的答案會透過 `pri_set` 儲存於 `ans_{問卷名稱}_Q{題號}`，並在回顧階段透過 `sys.pri_get` 動態讀取呈現。
-  - **群發訊息 (Broadcast)**:
-    - **發送驗證**: 在發送或儲存草稿前進行深度訊息內容檢測（包含 Flex 內的連結與按鈕動作）。
-  - **用戶清單搜尋 (User List Search)**:
-    - 搜尋框綁定 `searchQuery` state，透過 debounce（300ms）後發送 API 請求，支援依 `user_id` 與使用者名稱搜尋。
-    - 搜尋框具備即時清除按鈕（X）。
-  - **標籤篩選 (Tag Filtering)**:
-    - 載入所有可用標籤並顯示為可點選的標籤按鈕列表（含「全部」選項）。
-    - 點選標籤後，以 `tag` query parameter 傳入 `/api/users`，僅回傳擁有該標籤的用戶。
-  - **快取與狀態管理 (Cache & State Management)**:
-    - 導入 `messagesCacheRef` 作為切換用戶時的記憶體快取，使得切換回已開啟的聊天室能瞬間載入舊訊息。
-    - 結合 `after` 時間戳的背景輪詢，自動補齊快取後的增量新訊息，實現零等待的無縫切換體驗。
-  - **捲軸位置管理與防跳動 (Scroll Management)**:
-    - **位置持久化 (Scroll Persistence)**: 使用 `userScrollPositionsRef` (Mutable Ref) 紀錄每個用戶的 `distanceFromBottom` 與 `scrollTop`。
-    - **智慧置底與記憶恢復**: 切換用戶時，若有大於 100px 的向上捲動紀錄，則恢復 `scrollTop`；否則執行 `scrollToBottom`。
-    - **防跳動定位 (useLayoutEffect)**: 當載入剩餘歷史訊息（向上撐開）時，利用 `React.useLayoutEffect` 在瀏覽器重繪前計算 `scrollHeight` 差值並補齊 `scrollTop`，實現視覺上的無縫定位。
-    - **穩定 DOM Key**: 訊息列表使用結合 `timestamp` 與 `index` 的穩定字串作為 `key`，防止 React 在更新時銷毀重建 DOM 節點導致捲軸遺失。
-  - **圖片/媒體載入同步化 (LazyImage)**:
-    - **核心機制**: 為了解決非同步媒體載入導致的版面推擠（Layout Shift），導入 `LazyImage` 元件。媒體元件在瀏覽器觸發 `onLoad` 完成渲染前，將以隱形狀態結合佔位框顯示，確保容器高度在可見前已確定。
-    - **即時置底**: 媒體載入完畢後，若 `isAtBottomRef` 為真，則立刻調用 `scrollToBottom`。
-  ### 訊息中心與內容代理 (Message Center & Content Proxy)
-為了確保能正常顯示 LINE 伺服端的使用者媒體（如圖片、影片），系統實作了後端 Proxy 路由：
-- `/api/line/content/<message_id>`: 會附帶官方帳號的 `line_token` 請求 LINE API 並回傳二進位資料。
-- 前端使用 `AuthenticatedImage` 元件，透過 `api.get` (帶有 JWT Token) 獲取內容並轉為 Blob URL 顯示。
-  - **對話內容搜尋 (Message Content Search)**:
-    - 聊天室上方有獨立搜尋框，可搜尋當前選用用戶的對話內容。
-    - 符合的關鍵字以黃色背景高亮顯示（透過 `highlightText` 函式），並顯示符合筆數。
+  - **�潮����䔄�脰風 (Anti-Double Send)**: 撖虫� `isSendingRef` (Ref Lock) �� `isSending` (State) 璈笔���訜�潮��葉����急�蝳�鍂頛詨�獢���厰�嚗䔶蒂�娍⏛敺𣬚��� Enter �菜�暺墧�鈭衤辣嚗屸俈甇ａ�銴�䔄����
+  - **�芸����蝞∠� (Projects Management)**:
+    - **閮𦠜�蝺刻摩�� (RichMessageModal)**: �舀螱����������蔣������唾� Flex 閮𦠜�����急�雿滚��游漲撽𡑒�嚗�俈甇Ｙ征�批捆嚗剹��
+    - **�垍��讛摩**: 蝣箔� Step 0 雿𦦵����韏琿�銝滚虾�芷膄嚗𣬚雁霅瑟�蝔见��湔�扼��
+    - **�冽�蝞∠� (UserSelectModal)**: �游� `/api/registered-users` �� `/api/tags`嚗峕𣈲�渲����嚗��蝔� + 璅嗵惜嚗㗇�撠页��𣂷�閬𤥁死�𡝗�蝐斤祟�豢綉�園���
+  - **�誩㭘蝞∠� (Questionnaire)**:
+    - **�誩㭘�芸�銝𦠜�蝐� (Auto-tagging)**: �舀螱�券��株身摰帋葉�惩�璅嗵惜��訜�冽��䂿�閰脤��格�嚗𣬚頂蝯望��誯�閬誩�摨思葉�� `function` 甈���瑁� `set_tag` ��誘嚗��撠齿�璅嗵惜�芸�璅躰酉�潸府�冽����蹱��拇䲰�單��閙��冽��誩末銝阡�脰���䔿��
+    - **�閙����讠𤩎��**: 蝟餌絞�芸��Ｙ� `Q[ID][SEQ]` 璅∪�����卝��𥅾�毺鍂�𣬚�獢�炎�乓�㵪����憿滚��Ｙ�銝��贝歲頧㕑秐 `Q[ID]99` ���憿抒��卝��
+    - **����𣂼��讛摩**: �拍鍂 `sys.now_between` �� `sys.now()` 瘥磰��讛摩嚗�銁�誩㭘�亙藁閬誩��� `check` 甈��銝剖祕�暹�畾萄ế�瑯��
+    - **鞈�������**: 瘥譍�憿𣬚�蝑娍����誯� `pri_set` �脣��� `ans_{�誩㭘�滨迂}_Q{憿諹�}`嚗䔶蒂�典�憿折�畾菟�誯� `sys.pri_get` �閙�霈��硋��整��
+  - **蝢斤䔄閮𦠜� (Broadcast)**:
+    - **�潮���霅�**: �函䔄����脣��厩阮�漤�脰�瘛勗漲閮𦠜��批捆瑼Ｘ葫嚗���� Flex �抒��������訫�雿頣���
+  - **�冽�皜�鱓�𨅯� (User List Search)**:
+    - �𨅯�獢��摰� `searchQuery` state嚗屸�誯� debounce嚗�300ms嚗匧��潮�� API 隢𧢲�嚗峕𣈲�港� `user_id` ��蝙�刻���蝔望�撠卝��
+    - �𨅯�獢���坔朖����斗��𤏪�X嚗剹��
+  - **璅嗵惜蝭拚� (Tag Filtering)**:
+    - 頛匧����匧虾�冽�蝐支蒂憿舐內�箏虾暺鮋����蝐斗��訫�銵剁��怒����具�漤������
+    - 暺鮋�璅嗵惜敺䕘�隞� `tag` query parameter �喳� `/api/users`嚗���𧼮����閰脫�蝐斤��冽���
+  - **敹怠�����讠恣�� (Cache & State Management)**:
+    - 撠𤾸� `messagesCacheRef` 雿𦦵�����冽����閮䀹�擃𥪜翰�吔�雿踹�����𧼮歇�见����憭拙恕�賜��栞��亥�閮𦠜���
+    - 蝯𣂼� `after` ����喟��峕艶頛芾岷嚗諹䌊�閗�朣𠰴翰�硋�����𤩺鰵閮𦠜�嚗�祕�暸妟蝑匧����蝮怠��偦�撽𨰜��
+  - **�脰遘雿滨蔭蝞∠���俈頝喳� (Scroll Management)**:
+    - **雿滨蔭����� (Scroll Persistence)**: 雿輻鍂 `userScrollPositionsRef` (Mutable Ref) 蝝�����讠鍂�嗥� `distanceFromBottom` �� `scrollTop`��
+    - **�箸�蝵桀�����嗆�敺�**: ����冽�����交�憭扳䲰 100px ���銝𦠜㬢�閧�������敺� `scrollTop`嚗𥕦炏��嘑銵� `scrollToBottom`��
+    - **�脰歲�訫�雿� (useLayoutEffect)**: �嗉��亙�擗䀹風�脰��荔��睲��鞾�嚗㗇�嚗�⏚�� `React.useLayoutEffect` �函�讛汗�券�蝜芸�閮�� `scrollHeight` 撌桀�潔蒂鋆𣈯� `scrollTop`嚗�祕�曇�閬箔����蝮怠�雿溻��
+    - **蝛拙� DOM Key**: 閮𦠜��𡑒”雿輻鍂蝯𣂼� `timestamp` �� `index` ��帘摰𡁜�銝脖��� `key`嚗屸俈甇� React �冽凒�唳��瑟��滚遣 DOM 蝭�暺𧼮��湔㬢頠賊�憭晞��
+  - **�𣇉�/慦㘾�頛匧��峕郊�� (LazyImage)**:
+    - **�詨�璈笔�**: �箔�閫�捱�𧼮�甇亙�擃磰��亙��渡���𢒰�冽�嚗𡿨ayout Shift嚗㚁�撠𤾸� `LazyImage` ��辣���擃𥪜�隞嗅銁�讛汗�刻孛�� `onLoad` 摰峕�皜脫��㵪�撠�誑�勗耦���讠����雿齿�憿舐內嚗𣬚Ⅱ靽嘥捆�券�摨血銁�航��滚歇蝣箏���
+    - **�單�蝵桀�**: 慦㘾�頛匧�摰𣬚佅敺䕘��� `isAtBottomRef` �箇�嚗��蝡见�隤輻鍂 `scrollToBottom`��
+  ### 閮𦠜�銝剖����摰嫣誨�� (Message Center & Content Proxy)
+�箔�蝣箔��賣迤撣賊＊蝷� LINE 隡箸�蝡舐�雿輻鍂���擃䈑�憒������蔣���嚗𣬚頂蝯勗祕雿靝�敺𣬚垢 Proxy 頝舐眏嚗�
+- `/api/line/content/<message_id>`: ���撣嗅��孵董�毺� `line_token` 隢𧢲� LINE API 銝血��喃��脖�鞈����
+- �滨垢雿輻鍂 `AuthenticatedImage` ��辣嚗屸�誯� `api.get` (撣嗆� JWT Token) �脣��批捆銝西��� Blob URL 憿舐內��
+  - **撠滩店�批捆�𨅯� (Message Content Search)**:
+    - �𠰴予摰支��寞��函��𨅯�獢���舀�撠讠訜�漤��函鍂�嗥�撠滩店�批捆��
+    - 蝚血�����萄�隞仿��脰��舫�鈭桅＊蝷綽��誯� `highlightText` �賢�嚗㚁�銝阡＊蝷箇泵����詻��
   - **Message Display**:
     - Messages from `yzuadmin`, or with category `Sensor`, `Response`, or `sys_reply` are displayed on the right (Admin/System side).
     - `sys_reply` messages are displayed with rich content (text/image/video/audio/flex).
 - **Backend**:
-  - `GET /api/users`: 新增 `q`（關鍵字）和 `tag`（標籤）查詢參數。
-    - **深度檢索邏輯**：`q` 參數會比對 `user_id`、姓名（Private_var），以及 `history` 表中的對話內容。
-    - **Unicode 轉義處理**：自動將搜尋關鍵字轉義為 `\uXXXX` 序列（並進行雙重轉義比對），確保能搜尋到 JSON 格式中儲存的 Unicode 編碼中文字內容。
-    - **QA_bank 整合**：若 `history` 內容為 QA 標籤（如 `cron|QA|...`），會自動聯結 `QA_bank` 表搜尋其對應的訊息內容（`ans` 和 `msg_rpy`），同時支援 Unicode 轉義比對。
-  - `GET /history/<user_id>`: 獲取指定用戶的完整聊天紀錄。
+  - `GET /api/users`: �啣� `q`嚗���萄�嚗匧� `tag`嚗��蝐歹��亥岷��彍��
+    - **瘛勗漲瑼Ｙ揣�讛摩**嚗䫤q` ��彍���撠� `user_id`����㵪�Private_var嚗㚁�隞亙� `history` 銵其葉���閰勗�摰嫘��
+    - **Unicode 頧厩儔�閧�**嚗朞䌊�訫��𨅯��𣈯枤摮𡑒�蝢拍� `\uXXXX` 摨誩�嚗�蒂�脰��䠷�頧厩儔瘥𥪜�嚗㚁�蝣箔��賣�撠见� JSON �澆�銝剖�摮条� Unicode 蝺函Ⅳ銝剜�摮堒�摰嫘��
+    - **QA_bank �游�**嚗朞𥅾 `history` �批捆�� QA 璅嗵惜嚗�� `cron|QA|...`嚗㚁���䌊�閗�蝯� `QA_bank` 銵冽�撠见�撠齿�����臬�摰對�`ans` �� `msg_rpy`嚗㚁��峕��舀螱 Unicode 頧厩儔瘥𥪜���
+  - `GET /history/<user_id>`: �脣�����冽�����渲�憭拍�����
 
-## Data Analysis & Statistics (數據分析與統計)
+## Data Analysis & Statistics (�豢������絞閮�)
 
 ### Core Components
 1. **Integrated Project Metrics**: Located within `Projects.jsx` -> `activeTab === 'schedules'`.
-    - 顯示專案特定指標：完成率 (completion_rate) 優先顯示於上方，其次為總完成次數 (tcc)、觸發客戶數 (tc)、成功/失敗數 (mss/msf)。
+    - 憿舐內撠���孵����嚗𡁜��鞟� (completion_rate) �芸�憿舐內�潔��對��嗆活�箇蜇摰峕�甈⊥彍 (tcc)��孛�澆恥�嗆彍 (tc)�����/憭望��� (mss/msf)��
    - Metrics are filtered by the selected project and the specified date range.
 2. **Global Account Analysis**: Located within `Statistics.jsx`.
-    - **Trend Analysis**: Fetches grouped data from `/api/statistics`. (Global metrics: 總訊息量, 新增好友數 [資料庫 Follow], 封鎖/解除數 [資料庫 Unfollow], 有效好友數 [該時段內每日活躍人次])。
+    - **Trend Analysis**: Fetches grouped data from `/api/statistics`. (Global metrics: 蝮質��舫�, �啣�憟賢��� [鞈��摨� Follow], 撠��/閫�膄�� [鞈��摨� Unfollow], �㗇�憟賢��� [閰脫�畾萄�瘥𤩺𠯫瘣餉�鈭箸活])��
     - **Total Calculation**: The backend now also returns `total_counts` for the selected period. The "Effective Friend Count" card displays a strictly distinct user count for the entire duration, avoiding double-counting of recurring active users.
     - **Unfollow Tracking**: The Line-Bot engine captures `UnfollowEvent` and records it in history as an `Unfollow` category, which is then aggregated by the dashboard.
     - **Keyword Ranking**: Fetches data from `/api/statistics/keywords` (Top keyword rankings).
-    - **Keyword Tag Filtering**: 關鍵字排行區塊內建標籤篩選 UI (pill-style 按鈕列，資料來源 `/api/tags`)。選擇特定標籤後，前端帶 `tag` query 參數呼叫後端 `get_keyword_ranking` SQL 函式，僅回傳該標籤用戶的關鍵字統計。關鍵字資料擷取獨立為 `fetchKeywords` 函式，切換標籤不會觸發趨勢圖表重新載入。
+    - **Keyword Tag Filtering**: �𣈯枤摮埈�銵��憛𠰴�撱箸�蝐斤祟�� UI (pill-style �厰��梹�鞈��靘�� `/api/tags`)�����鸌摰𡁏�蝐文�嚗��蝡臬葆 `tag` query ��彍�澆㙈敺𣬚垢 `get_keyword_ranking` SQL �賢�嚗���𧼮�閰脫�蝐斤鍂�嗥��𣈯枤摮㛖絞閮�����萄�鞈���瑕��函��� `fetchKeywords` �賢�嚗���𥟇�蝐支���孛�潸隅�Ｗ�銵券��啗��乓��
     - **WebSocket Dynamic Resolution**: `send_socket_event` resolves `bot_name` and `namespace` from `OAConfig`, defaulting to `websoc`. This ensures compatibility with both local and Heroku-hosted bot engines without hardcoding.
 - **WebSocket Stability (Heroku)**: Uses single-namespace connection handshakes to avoid Heroku's multi-namespace connection failures.
 - **Message Center UI Enhancements**:
   - Integrated `useToast` for reliable 5-second auto-hide notifications.
   - Implemented immediate state updates for tag addition/deletion to prevent UI lag.
-  - **標籤操作同步邏輯 (Tag Operation Synchronization Logic)**: 引入 `pendingTagDeletionsRef` 與 `pendingTagAdditionsRef` (Mutable Ref) 追蹤正在進行中的標籤操作。
-    - **非樂觀更新 (Non-Optimistic approach)**：根據使用者要求，移除了立即修改本地 State 的樂觀更新邏輯。現在系統會等待 API 回傳成功後，再觸發 `fetchUsers` 重新抓取。
-    - **雙向時間戳記護欄 (Bilateral Timestamp Guarding)**：採用 10 秒時間戳記保護機制。當 `fetchUsers` 輪詢回傳伺服器資料時，會自動處理：
-        1. **刪除護欄**：濾掉 10 秒內被刪除的標籤。
-        2. **新增護欄**：自動補回 10 秒內新增但伺服器尚未更新的標籤。
-    - **技術成效**：既滿足了使用者希望「確診後再更新」的需求，又徹底解決了因後端（Line-Bot-Main）非同步處理延遲導致的標籤「消失又出現/出現又消失」的視覺閃爍問題。
-    - **視覺狀態同步**：操作進行中的標籤與刪除按鈕會同步維持 10 秒的穩定狀態，並顯示「刪除中」提示，提供明確的 UX 反饋。
-  - **訊息中心穩定排序機制 (Stable Sorting Mechanism)** [2026-04-13]:
-    - **問題修復**：解決了因多個用戶具有相同的 `last_time` 導致 SQL 回傳順序不一致的跳動問題。
-    - **實作方式**：在 `get_users_list` 的 `ORDER BY` 語句中加入 `user_id` 作為確定性的第二排序基準，確保在背景刷新時 UI 位置絕對穩定。
-  - **自動旅程全境台灣時間修復 (Project & Timezone Sync Fix)** [2026-04-10]:
-    - **同步時區模式**：取消 UTC 轉換，實作網頁輸入、資料庫儲存與顯示「三位一體」的台灣時間模式。修復了 8 小時的顯示與執行偏差。
-    - **全境台灣時間模式 (Full Taiwan Time Mode)**：為了符合使用者直覺，系統捨棄了 UTC 轉換。
-    - **儲存基準**：資料庫統一儲存 Naive Taiwan Datetime (不含時區)。
-    - **序列化優化**：後端傳遞給前端的時間格式統一為 `YYYY-MM-DD HH:mm:ss` (透過 `json_response`)，確保瀏覽器在任何情況下都將其解析為「本地時間」。
-    - **背景排程基準**：所有自動旅程推播時間計算均以 `get_now_taiwan()` 為基準與資料庫時間對齊。
-    - **加入用戶時間同步**：加入用戶時的 `cron_table.push_time` 與 `user_project_status.updated_at` (Joined At) 均顯式由後端 Python 提供台灣時間戳記，而非透過 SQL `NOW()` 以避免因資料庫伺服器時區導致的誤差。
-  - **Flex 編輯器邏輯優化**:
-    - **狀態同步**：採用 functional updates 與 `key` 重掛載機制解決非同步圖片上傳定位 Bug。
-    - **視覺滿版**：優化 JSON 生成邏輯，移除圖片型卡片的空區塊，實現真正的滿版外觀。
+  - **璅嗵惜�滢��峕郊�讛摩 (Tag Operation Synchronization Logic)**: 撘訫� `pendingTagDeletionsRef` �� `pendingTagAdditionsRef` (Mutable Ref) 餈質馱甇�銁�脰�銝剔�璅嗵惜�滢���
+    - **�墧�閫��湔鰵 (Non-Optimistic approach)**嚗𡁏覔�帋蝙�刻���瘙��蝘駁膄鈭���喃耨�寞𧋦�� State ���閫��湔鰵�讛摩��𣶹�函頂蝯望�蝑匧� API �𧼮��𣂼�敺䕘��滩孛�� `fetchUsers` �齿鰵�枏���
+    - **�坔�����唾�霅瑟� (Bilateral Timestamp Guarding)**嚗𡁏繧�� 10 蝘埝��𤘪�閮䀝�霅瑟��嗚��訜 `fetchUsers` 頛芾岷�𧼮�隡箸��刻��蹱�嚗峕��芸��閧�嚗�
+        1. **�芷膄霅瑟�**嚗𡁏蕪�� 10 蝘鍦�鋡怠⏛�斤�璅嗵惜��
+        2. **�啣�霅瑟�**嚗朞䌊�閗��� 10 蝘鍦��啣�雿�撩�滚膥撠𡁏𧊋�湔鰵���蝐扎��
+    - **��銵𤘪���**嚗𡁏𠳿皛輯雲鈭�蝙�刻����䜘�𣬚Ⅱ閮箏��齿凒�啜�滨���瘙����器摨閗圾瘙箔��惩�蝡荔�Line-Bot-Main嚗厰��峕郊�閧�撱園�撠舘稲���蝐扎�峕�憭勗��箇𣶹/�箇𣶹���憭晞�滨�閬𤥁死����誯���
+    - **閬𤥁死���见�甇�**嚗𡁏�雿𣈯�脰�銝剔�璅嗵惜��⏛�斗��閙��峕郊蝬剜� 10 蝘垍�蝛拙����页�銝阡＊蝷箝��⏛�支葉�齿�蝷綽��𣂷��𡒊Ⅱ�� UX �漤���
+  - **閮𦠜�銝剖�蝛拙��鍦�璈笔� (Stable Sorting Mechanism)** [2026-04-13]:
+    - **�誯�靽桀儔**嚗朞圾瘙箔��惩��讠鍂�嗅��厩㮾�𣬚� `last_time` 撠舘稲 SQL �𧼮����銝滢��渡�頝喳��誯���
+    - **撖虫��孵�**嚗𡁜銁 `get_users_list` �� `ORDER BY` 隤𧼮蘂銝剖��� `user_id` 雿𦦵�蝣箏��抒�蝚砌��鍦��箸�嚗𣬚Ⅱ靽嘥銁�峕艶�瑟鰵�� UI 雿滨蔭蝯訫�蝛拙���
+  - **�芸�����典��啁����靽桀儔 (Project & Timezone Sync Fix)** [2026-04-10]:
+    - **�峕郊���璅∪�**嚗𡁜�瘨� UTC 頧㗇�嚗�祕雿𦦵雯��撓�乓����坔澈�脣���＊蝷箝�䔶�雿滢�擃𢛵�滨��啁����璅∪���耨敺拐� 8 撠𤩺���＊蝷箄��瑁��誩榆��
+    - **�典��啁����璅∪� (Full Taiwan Time Mode)**嚗𡁶�鈭�泵��蝙�刻��凒閬綽�蝟餌絞�冽�鈭� UTC 頧㗇���
+    - **�脣��箸�**嚗朞��坔澈蝯曹��脣� Naive Taiwan Datetime (銝滚鉄���)��
+    - **摨誩��硋���**嚗𡁜�蝡臬��䂿策�滨垢����𤘪聢撘讐絞銝��� `YYYY-MM-DD HH:mm:ss` (�誯� `json_response`)嚗𣬚Ⅱ靽萘�讛汗�典銁隞颱����銝钅�撠��閫���箝�峕𧋦�唳��瓐�溻��
+    - **�峕艶�垍��箸�**嚗𡁏��㕑䌊�閙�蝔𧢲綫�剜��栞�蝞堒�隞� `get_now_taiwan()` �箏抅皞𤥁�鞈��摨急��枏�朣𨳍��
+    - **�惩��冽�����峕郊**嚗𡁜��亦鍂�嗆��� `cron_table.push_time` �� `user_project_status.updated_at` (Joined At) ��＊撘讐眏敺𣬚垢 Python �𣂷��啁�����唾�嚗諹�屸��誯� SQL `NOW()` 隞仿��滚�鞈��摨思撩�滚膥���撠舘稲��炊撌柴��
+  - **Flex 蝺刻摩�券�頛臬���**:
+    - **���见�甇�**嚗𡁏繧�� functional updates �� `key` �齿�頛㗇��嗉圾瘙粹��峕郊�𣇉�銝𠰴�摰帋� Bug��
+    - **閬𤥁死皛輻�**嚗𡁜��� JSON ����讛摩嚗𣬚宏�文�����∠���征��憛𠺪�撖衣𣶹��迤��遛���閫���
   - Resolved `ReferenceError`s caused by deprecated `showToast` calls.
 
 ### Visualization
@@ -227,20 +229,20 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 - Supports filtering by category (Message, Follow, User), tag selection, and group unit (Day/Week/Month/Year).
 - Data export supported via CSV downloads in the global Statistics page.
 
-## Image Upload Integration (圖片上傳整合)
+## Image Upload Integration (�𣇉�銝𠰴��游�)
 
 ### Core Components
 1. **Backend Endpoint**: `/api/upload/github` in `backend/endpoints/upload.py`.
    - Uses GitHub API to upload images as base64-encoded content.
    - **CDN Integration**: Returns `jsDelivr` CDN URLs (`https://cdn.jsdelivr.net/gh/...`) instead of raw GitHub URLs to ensure compatibility with LINE Bot API (avoids 400 errors).
     - **Configuration Storage**: Settings are retrieved from `permission_settings` (OAConfig) in the `other_settings` field (JSON). This ensures configuration persistence across Docker container rebuilds.
-    - **全欄位強制校驗 (Strict All-Field Validation)**: 為了確保系統運行的完整性，所有配置欄位（包含資料庫、LINE API 與 GitHub 設定）現在均為必填，且在前端表單中實行。
-    - **延遲驗證提示 (Deferred Validation)**: 為優化編輯體驗，系統平時不會預先顯示紅框提示，僅在使用者點擊「儲存」按鈕且校驗失敗時，才會在 UI 上顯著標示出漏填項目，以確保資料隔離性 (`table:{appname}`) 與功能的完整可用性。
+    - **�冽�雿滚撥�嗆嵗撽� (Strict All-Field Validation)**: �箔�蝣箔�蝟餌絞�贝�����湔�改����厰�蝵格�雿㵪���鉄鞈��摨怒��INE API �� GitHub 閮剖�嚗厩𣶹�典��箏�憛恬�銝𥪜銁�滨垢銵典鱓銝剖祕銵䎚��
+    - **撱園�撽𡑒��鞟內 (Deferred Validation)**: �箏��𣇉楊頛舫�撽梹�蝟餌絞撟單�銝齿��𣂼�憿舐內蝝���鞟內嚗���其蝙�刻����𨳍���摮塩�齿��蓥��⊿�憭望�����齿��� UI 銝𢠃＊�埈�蝷箏枂瞍誩‵��𤌍嚗䔶誑蝣箔�鞈���娪𣪧�� (`table:{appname}`) ����賜�摰峕㟲�舐鍂�扼��
 2. **Frontend UI**:
    - **FlexMessageEditor.jsx**: Integrated upload button for carousel/single bubbles.
    - **Projects.jsx (RichMessageModal)**: Added upload button for native `ImageSendMessage` types.
    - **AdminPage.js**: Provides management UI for GitHub settings within each OA configuration.
-### Rich Menu Management (圖文選單管理)
+### Rich Menu Management (�𡝗��詨鱓蝞∠�)
 - **Frontend**: `RichMenu.jsx`.
     - Provide a list view to manage existing rich menus and aliases.
     - Features a visual editor for creating and modifying rich menu configurations.
@@ -250,12 +252,12 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - Directly proxies requests to the Line Messaging API to manage rich menus.
     - Handles metadata creation, image upload, alias management, and setting default menus.
     - Security: All requests are protected by `@token_required` and use the OA-specific `line_token` from `other_settings`.
-    - **標籤權限控管與自動化分配 (Tag-based Automation)** [2026-04-24]:
-        - **映射存儲**: 標籤與選單的對應關係儲存於 `OAConfig.other_settings['rich_menu_mappings']`。
-        - **後端觸發**: 實作 `check_and_update_rich_menu` 助手。當系統偵測到 `set_tag` 指令（透過 `/api/trigger` 或 `/api/redirect`）時，會比對映射表並透過 LINE API 為用戶切換選單。
-        - **管理介面**: 在 `RichMenu.jsx` 中新增「權限控管」分頁，提供可視化的規則編輯與儲存功能。
+    - **璅嗵惜甈𢠃��抒恣��䌊�訫���� (Tag-based Automation)** [2026-04-24]:
+        - **�惩�摮睃�**: 璅嗵惜����桃�撠齿��靝��脣��� `OAConfig.other_settings['rich_menu_mappings']`��
+        - **敺𣬚垢閫貊䔄**: 撖虫� `check_and_update_rich_menu` �拇���訜蝟餌絞�菜葫�� `set_tag` ��誘嚗��誯� `/api/trigger` �� `/api/redirect`嚗㗇�嚗峕�瘥𥪜��惩�銵其蒂�誯� LINE API �箇鍂�嗅��偦��柴��
+        - **蝞∠�隞钅𢒰**: �� `RichMenu.jsx` 銝剜鰵憓𠺶�峕��鞉綉蝞～�滚�����𣂷��航��𣇉�閬誩�蝺刻摩���摮睃��賬��
 
-### Broadcast Center (群發訊息中心)
+### Broadcast Center (蝢斤䔄閮𦠜�銝剖�)
 - **Frontend**: `Broadcast.jsx`.
     - 3-step wizard for creating broadcats.
     - `Step 1`: Audience selection (All, Tag, ID list) with real-time estimation.
@@ -265,35 +267,35 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - Manages `broadcasts` table.
     - Integrates with `QA_bank` for message storage and `cron_table` for scheduling.
     - Audience count logic uses `Private_var` for tag/all logic and calculates coverage ratio.
-    - **排除封鎖用戶 (Excluding Blocked Users)**: 系統在計算受眾人數及發送訊息前，會先過濾掉最新狀態為 `Unfollow` 的用戶（比對 `history` 中的 `Follow` 與 `Unfollow` 事件），確保推播僅送達目前仍追蹤官方帳號的活躍好友。
+    - **�㘾膄撠���冽� (Excluding Blocked Users)**: 蝟餌絞�刻�蝞堒��曆犖�詨��潮����臬�嚗峕����瞈暹����啁��讠� `Unfollow` ��鍂�塚�瘥𥪜� `history` 銝剔� `Follow` �� `Unfollow` 鈭衤辣嚗㚁�蝣箔��冽偘������桀�隞滩蕭頩文��孵董�毺�瘣餉�憟賢���
     - **Stability Pattern**: Uses a top-level `ErrorBoundary` to capture rendering exceptions and provide copyable stack traces. Employs defensive rendering guards (optional chaining, default values) for all derived data (stats, message summaries) and filters null messages from legacy data sequences.
 
-### Rule Designer (法則表設計) [2026-03-18 更新]
+### Rule Designer (瘜訫�銵刻身閮�) [2026-03-18 �湔鰵]
 - **Frontend**: `RuleDesigner.jsx`. (Route: `/ruledesigner`).
-    - **滿版表格編輯器 (Inline Table Editor)**: 將原本的三欄式介面重構為大表格形式。文字與基本設定欄位 (`state_in`, `content`, `note`, `state_out`, `tag`) 支援在表格列內直接點擊修改。
-    - **支援之規則庫**: 統一支援 `Q_bank` (核心規則)、`AD_bank` (管理員規則) 與 `QA_bank` (回覆庫) 之管理。
-    - **回應訊息彈窗 (Modal)**: 將複雜的 `msg_rpy` (回應訊息陣列) 編輯介面與即時預覽 (JourneyPreview) 抽離為獨立的彈出視窗，確保表格畫面整潔同時不失去預覽能力。
-    - **儲存與刪除**: 提供單列的 `PUT`/`POST` 儲存功能與 `DELETE` 按鈕。
-    - **搜尋與高亮**: 仍保留基於用戶名稱、標籤與內容的即時過濾功能。
+    - **皛輻�銵冽聢蝺刻摩�� (Inline Table Editor)**: 撠���祉�銝㗇�撘譍��ａ�瑽讠�憭扯”�澆耦撘譌���摮𡑒��箸𧋦閮剖�甈�� (`state_in`, `content`, `note`, `state_out`, `tag`) �舀螱�刻”�澆��抒凒�仿��𠹺耨�嫘��
+    - **�舀螱銋贝���澈**: 蝯曹��舀螱 `Q_bank` (�詨�閬誩�)��AD_bank` (蝞∠��∟���) �� `QA_bank` (�噼�摨�) 銋讠恣����
+    - **�墧�閮𦠜�敶�� (Modal)**: 撠���𦦵� `msg_rpy` (�墧�閮𦠜����) 蝺刻摩隞钅𢒰��朖���閬� (JourneyPreview) �賡𣪧�箇崕蝡讠�敶�枂閬𣇉�嚗𣬚Ⅱ靽肽”�潛𧞄�Ｘ㟲瞏𥪜����憭勗縧�鞱汗�賢���
+    - **�脣���⏛��**: �𣂷��桀��� `PUT`/`POST` �脣��蠘��� `DELETE` �厰���
+    - **�𨅯����鈭�**: 隞滢��坔抅�潛鍂�嗅�蝔晞���蝐方��批捆��朖���瞈曉��賬��
 - **Backend**: `endpoints/rule_designer.py`.
-    - 統一 API 處理 CRUD。新增 `AD_bank` 之支援。自動處理資料庫的 `msg_rpy` `json[]` 陣列反序列化。
-    - **自動偵錯 (Auto-Debugging)**: 在 `create_rule` 與 `update_rule` 流程中整合 `validate_rule_fields` 驗證函數。驗證項目包括：
-        - `state_in` 非空檢查（Q/AD_bank）。
-        - `msg_rpy` 與 `function` 不可同時為空。
-        - `check` 與 `function` 欄位的 Python 語法驗證（使用 `ast.parse`，支援逗號/分號分隔多段式語法，自動略過 `<%...%>` 模板表達式）。
-        - Message 類型的 `content` 非空檢查。
-        - QA_bank 的 `tag` 非空檢查。
-    - **獨立語法驗證端點**: `POST /validate-syntax` 接受 `code` 與 `field` 參數，供前端即時語法檢查使用。
+    - 蝯曹� API �閧� CRUD��鰵憓� `AD_bank` 銋𧢲𣈲�氬��䌊�閗�����坔澈�� `msg_rpy` `json[]` ����滚��堒���
+    - **�芸��菟𥲤 (Auto-Debugging)**: �� `create_rule` �� `update_rule` 瘚��銝剜㟲�� `validate_rule_fields` 撽𡑒��賣彍���霅厰��桀��穿�
+        - `state_in` �䂿征瑼Ｘ䰻嚗㇋/AD_bank嚗剹��
+        - `msg_rpy` �� `function` 銝滚虾�峕��箇征��
+        - `check` �� `function` 甈���� Python 隤墧�撽𡑒�嚗�蝙�� `ast.parse`嚗峕𣈲�湧�𡑒�/������憭𡁏挾撘讛�瘜𤏪��芸��仿� `<%...%>` 璅⊥踎銵券�撘𧶏���
+        - Message 憿𧼮��� `content` �䂿征瑼Ｘ䰻��
+        - QA_bank �� `tag` �䂿征瑼Ｘ䰻��
+    - **�函�隤墧�撽𡑒�蝡舫�**: `POST /validate-syntax` �亙� `code` �� `field` ��彍嚗䔶��滨垢�單�隤墧�瑼Ｘ䰻雿輻鍂��
 
-### 法則表雙模式設計 (Dual-Mode Rule Designer) [2026-04-20]
-- **簡易模式 (Simple Mode)**：專為非技術背景人員設計。
-    - **欄位隱藏**：隱藏 `state_in`, `state_out`, `check`, `function`, `type`, `history` 等工程參數。
-    - **專注內容**：僅顯示 `ID` (唯讀), `內容 (content)`, `回應訊息 (msg_rpy)` 與 `備註 (note)`。
-    - **預設賦值**：在簡易模式下新增規則時，系統會自動填入預設的工程欄位（如 `state_in: ["*"]`）。
-- **工程模式 (Engineering Mode)**：提供完整欄位控制，與原先設計一致，用於精細調整狀態機與邏輯判斷。
-- **UI 實作**：使用 `designMode` 狀態控制 Tab 切換，並動態過濾表格欄位及其對應的 `TableCellTextarea` 渲染。
+### 瘜訫�銵券�璅∪�閮剛� (Dual-Mode Rule Designer) [2026-04-20]
+- **蝪⊥�璅∪� (Simple Mode)**嚗𡁜��粹���銵栞��臭犖�∟身閮���
+    - **甈���梯�**嚗𡁻黸�� `state_in`, `state_out`, `check`, `function`, `type`, `history` 蝑匧極蝔见��詻��
+    - **撠�釣�批捆**嚗𡁜�憿舐內 `ID` (�航�), `�批捆 (content)`, `�墧�閮𦠜� (msg_rpy)` �� `�躰酉 (note)`��
+    - **�鞱身鞈血��**嚗𡁜銁蝪⊥�璅∪�銝𧢲鰵憓噼����嚗𣬚頂蝯望��芸�憛怠��鞱身��極蝔𧢲�雿㵪�憒� `state_in: ["*"]`嚗剹��
+- **撌亦�璅∪� (Engineering Mode)**嚗𡁏�靘𥕦��湔�雿齿綉�塚������身閮���湛��冽䲰蝎曄敦隤踵㟲���𧢲����頛臬ế�瑯��
+- **UI 撖虫�**嚗帋蝙�� `designMode` ���𧢲綉�� Tab ���嚗䔶蒂�閙��擧蕪銵冽聢甈���𠰴�撠齿��� `TableCellTextarea` 皜脫���
 
-### Database Viewer (資料庫檢視)
+### Database Viewer (鞈��摨急炎閬�)
 - **Frontend**: `DatabaseViewer.jsx`. (Route: `/dbviewer`).
     - Dynamic data browser for all public tables and views.
     - Features: Chunked loading (300 rows/step), Search, Client-side caching.
@@ -301,116 +303,116 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - Provides metadata (table list) and data fetching with limit/offset and search capabilities.
     - Search is implemented using `ILIKE` across text-based columns.
 
-## Environment Specific Configurations (環境特定配置)
+## Environment Specific Configurations (�啣��孵��滨蔭)
 
-### yzulabuse 環境
-- **資料庫修正**: 
-    - `projects` 資料表已修正為具備 `project_id` SERIAL 主鍵，並設定預設 `type`。
-    - `project_schedules` 與 `cron_table` 已補齊 SERIAL 主鍵 (`schedule_id` / `task_id`)，解決編輯排程時的 `null` 錯誤問題。
-- **Socket 連線執行緒安全與協議優化**：為了解決高併發下的連線中斷問題，`send_socket_event` 已重構為「請求作用域 (Request-Scoped)」模式。每次調用皆會建立獨立的 Socket.IO 客戶端實例。同時優化了傳輸協議，優先使用 WebSocket 並在失敗時自動回退至 Polling，移除針對 Heroku 的強制限制，顯著提升了 `yzulabuse` 環境的通訊穩定性。
-- **針對 yzulabuse 的特殊處理**：在 `yzulabuse` 環境下，系統會優先搜尋 `OAConfig.other_settings` 中的 `socket_url`。若未設定，則預設連接至 `https://yzulabuse.herokuapp.com`。此機制確保了訊息能正確路由至該環境的機器人伺服器，避免與 `5013` 環境混淆。後端 `send_socket_event` 已實作 OA Context 感知機制，確保訊息能根據 `X-OA-ID` 導往正確的機器人引擎，解決誤導向至 5013 的問題。
+### yzulabuse �啣�
+- **鞈��摨思耨甇�**: 
+    - `projects` 鞈��銵典歇靽格迤�箏��� `project_id` SERIAL 銝駁枤嚗䔶蒂閮剖��鞱身 `type`��
+    - `project_schedules` �� `cron_table` 撌脰�朣� SERIAL 銝駁枤 (`schedule_id` / `task_id`)嚗諹圾瘙箇楊頛舀�蝔𧢲��� `null` �航炊�誯���
+- **Socket ����瑁�蝺鍦��刻��磰降�芸�**嚗𡁶�鈭�圾瘙粹�雿萇䔄銝讠����銝剜𪃾�誯�嚗䈣send_socket_event` 撌脤�瑽讠��諹�瘙���典� (Request-Scoped)�齿芋撘譌���甈∟矽�函���遣蝡讠崕蝡讠� Socket.IO 摰Ｘ�蝡臬祕靘卝�������碶��唾撓�磰降嚗����蝙�� WebSocket 銝血銁憭望���䌊�訫����� Polling嚗𣬚宏�日�撠� Heroku ��撥�園��塚�憿航��𣂼�鈭� `yzulabuse` �啣����朞�蝛拙��扼��
+- **�嘥� yzulabuse ��鸌畾𡃏���**嚗𡁜銁 `yzulabuse` �啣�銝页�蝟餌絞������撠� `OAConfig.other_settings` 銝剔� `socket_url`��𥅾�芾身摰𡄯����閮剝��𦻖�� `https://yzulabuse.herokuapp.com`��迨璈笔�蝣箔�鈭���航�甇�Ⅱ頝舐眏�唾府�啣�����其犖隡箸��剁��踹��� `5013` �啣�瘛瑟����蝡� `send_socket_event` 撌脣祕雿� OA Context �毺䰻璈笔�嚗𣬚Ⅱ靽肽��航��寞� `X-OA-ID` 撠𤾸�甇�Ⅱ����其犖撘閙�嚗諹圾瘙箄炊撠𤾸��� 5013 ���憿䎚��
 
-### tά[cuƻPҳBz޿s [2026-04-24]
-- **ݨ޲z (Questionnaire)**:
-    - **Ү榡s**: ҳBz޿q¦ ; set_tag|tag1|tag2 榡EܲŦX Superpages ֤ߤзǪ ,pri_push('tag','tag1'),pri_push('tag','tag2') 榡C
-    - **ۮeʴ**: _extract_tags_from_fn ƤwsA䴩Pɱqs榡 pri_push P®榡 set_tag ҡATOJݨүॿTJ^ UIC
-- **۰ʮȵ{ (Projects)**:
-    - **eݪA޲zPµe״_**: ץF Projects.jsx  useTask AޥΤ覡CN]aAӾɭPwqܼƿ~]isProcessing, processingMessage ^אּTޥ 	askState HCoѨMFiJ۰ʮȵ{ɦ] ReferenceError ɭP React VY]µe^DC
+### t峎[cuⅶP珜Bz瓡s [2026-04-24]
+- **搢瑊z (Questionnaire)**:
+    - **珖璁︿**: 珜Bz瓡q礎 ; set_tag|tag1|tag2 璁‧亄臟X Superpages 痐艉郱ギ ,pri_push('tag','tag1'),pri_push('tag','tag2') 璁。
+    - **萛e妠**: _extract_tags_from_fn ④wsA銧周伀qs璁� pri_push P簧璁� set_tag 牷ATOJ搢玼鄍燜J^ UIC
+- **菾坋�{ (Projects)**:
+    - **e搌A瑊zP繕e袨_**: 蚰F Projects.jsx  useTask A犍峇閬。N]aA蚞伬Pwq僂丶~]isProcessing, processingMessage ^麍訊犍 	askState HCo悃MFiJ菾坋�{犰] ReferenceError 伬P React VY]繕e^DC
 
-### 標籤元件與問卷互動優化 [2026-04-24]
-- **TagInput 元件**:
-    - **互動體驗優化**: 實現點擊標籤輸入框容器任何位置自動聚焦 (Focus) 輸入欄位，解決判定區域過窄問題。
-    - **樣式微調**: 調整輸入框高度以確保在不同內容長度下點擊區域的一致性。
-- **問卷管理**:
-    - **功能修復**: 修正 TagInput 於 Questionnaire.jsx 中的 Prop 名稱不匹配問題 (selectedTags -> tags, setSelectedTags -> onChange)，恢復問卷建立時的新增標籤功能。
+### 璅嗵惜��辣����瑚��訫��� [2026-04-24]
+- **TagInput ��辣**:
+    - **鈭鍦�擃娪��芸�**: 撖衣𣶹暺墧�璅嗵惜頛詨�獢�捆�其遙雿蓥�蝵株䌊�閗��� (Focus) 頛詨�甈��嚗諹圾瘙箏ế摰𡁜��罸�蝒��憿䎚��
+    - **璅��敺株矽**: 隤踵㟲頛詨�獢��摨虫誑蝣箔��其����摰寥𩑈摨虫�暺墧����毺�銝��湔�扼��
+- **�誩㭘蝞∠�**:
+    - **�蠘�靽桀儔**: 靽格迤 TagInput �� Questionnaire.jsx 銝剔� Prop �滨迂銝滚龪�滚�憿� (selectedTags -> tags, setSelectedTags -> onChange)嚗峕�敺拙��瑕遣蝡𧢲���鰵憓墧�蝐文��賬��
 
-### Flex 訊息佈局優化 [2026-04-24]
-- **佈局對齊邏輯**: 
-    - 針對 Carousel 中的純圖片卡片，強制包含空的 body 與 footer 容器，並透過 styles 設定其背景色，以消除因高度自動對焦而產生的預設白色區域。
-- **預覽模擬升級**: 
-    - JourneyPreview 組件現在使用 Flex 佈局模擬 LINE 的高度對齊行為，確保編輯器中的預覽與手機端看到的畫面高度一致。
+### Flex 閮𦠜�雿���芸� [2026-04-24]
+- **雿��撠漤��讛摩**: 
+    - �嘥� Carousel 銝剔�蝝𥪜���㨃���撘瑕���鉄蝛箇� body �� footer 摰孵膥嚗䔶蒂�誯� styles 閮剖��嗉��航𠧧嚗䔶誑瘨�膄�𣳇�摨西䌊�訫��西�𣬚𤩎�毺��鞱身�質𠧧���麄��
+- **�鞱汗璅⊥挱���**: 
+    - JourneyPreview 蝯�辣�曉銁雿輻鍂 Flex 雿��璅⊥挱 LINE ���摨血�朣𡃏��綽�蝣箔�蝺刻摩�其葉���閬質��𧢲�蝡舐��啁��恍𢒰擃睃漲銝��氬��
 
-### 訊息中心與推播邏輯優化 [2026-04-24]
-- **訊息中心過濾**: 在前端 displayedMessages 與 ormatSidebarMessage 加入分類過濾，排除非人類對話的系統事件（如 postback）。
-- **Flex 圖片背景**: 為圖片範本新增 ackgroundColor 欄位，並將其應用於生成的 Flex Bubble 樣式中，以達到輪播視覺一致性。
+### 閮𦠜�銝剖���綫�剝�頛臬��� [2026-04-24]
+- **閮𦠜�銝剖��擧蕪**: �典�蝡� displayedMessages �� ormatSidebarMessage �惩�����擧蕪嚗峕��日�鈭粹�撠滩店��頂蝯曹�隞塚�憒� postback嚗剹��
+- **Flex �𣇉��峕艶**: �箏�����祆鰵憓� ackgroundColor 甈��嚗䔶蒂撠���厩鍂�潛��鞟� Flex Bubble 璅��銝哨�隞仿��啗憚�剛�閬箔��湔�扼��
 
-### 歷史紀錄去重與類別優化 [2026-04-24]
-- **去重邏輯**: 移除 cronjobs.py 中的手動 dd_history，改由 maingame.py 在 lush_msg 階段根據事件來源動態決定類別（sys_push 或 sys_reply）。
-- **對齊邏輯**: 將 sys_push 納入前端 isAdmin 判斷，確保系統推播訊息與機器人回覆一樣靠右顯示。
+### 甇瑕蟮蝝���縧�滩�憿𧼮ê̌�芸� [2026-04-24]
+- **�駁��讛摩**: 蝘駁膄 cronjobs.py 銝剔��见� dd_history嚗峕㺿�� maingame.py �� lush_msg �擧挾�寞�鈭衤辣靘���閙�瘙箏�憿𧼮ê̌嚗ìys_push �� sys_reply嚗剹��
+- **撠漤��讛摩**: 撠� sys_push 蝝滚��滨垢 isAdmin �斗𪃾嚗𣬚Ⅱ靽萘頂蝯望綫�剛��航�璈笔膥鈭箏�閬��璅���喲＊蝷箝��
 
-### 介面邏輯優化 [2026-04-24]
-- **側邊欄過濾**: 在後端 /api/users 的 SQL 查詢中加入了更嚴格的 category 過濾條件，確保左側清單只抓取有意義的對話內容作為 last_message。
-- **Flex 單一模板限制**: 修改 FlexMessageEditor.jsx 的 updateCurrentCard，當切換模板（	emplate）時，將會透過 map 強制覆寫所有卡片的模板設定，確保輪播一致性。
+### 隞钅𢒰�讛摩�芸� [2026-04-24]
+- **�湧�甈��瞈�**: �典�蝡� /api/users �� SQL �亥岷銝剖��乩��游𠂔�潛� category �擧蕪璇苷辣嚗𣬚Ⅱ靽嘥椰�湔��桀蘨�枏��㗇�蝢拍�撠滩店�批捆雿𦦵� last_message��
+- **Flex �桐�璅⊥踎�𣂼�**: 靽格㺿 FlexMessageEditor.jsx �� updateCurrentCard嚗𣬚訜���璅⊥踎嚗�	emplate嚗㗇�嚗�����誯� map 撘瑕�閬�神���匧㨃���璅⊥踎閮剖�嚗𣬚Ⅱ靽肽憚�凋��湔�扼��
 # #   [ 2 0 2 6 - 0 4 - 2 7 ]   U I / U X   9eU 
- -   * * R u l e D e s i g n e r * * :   !|f!j_NfǌehkMOT1z  ( Y:   c o n t e n t   - >   O(u8eQ,   n o t e   - >   P;f,   m s g _ r p y   - >   V
+ -   * * R u l e D e s i g n e r * * :   !|f!j_Nf�ehkMOT1z  ( Y:   c o n t e n t   - >   O(u8eQ,   n o t e   - >   P;f,   m s g _ r p y   - >   V
 o`) XRd\Ov'`0 
  -   * * F l e x M e s s a g e E d i t o r * * :   [\O*d!j_Nv!jg7_6Rq} N_j6R&N\!jgxdhVy*daSGrc6RR
 NeMQO(u(um-d!jg\Hrb/N0 
  
-### UI/UX 改善與旅程預覽增強 [2026-04-27]
-- **預覽基準時間**: 在自動旅程的預覽視窗 (Projects.jsx) 中引入基準時間設定機制 (previewBaseTime state)，可動態將 interval_hours (以小時計) 轉換為實際的預計發送時間。
-- **排版優化**: JourneyPreview 支援換行顯示附加的預計時間，讓排程可視性大幅提高。
-- **訊息摘要精簡**: 訊息中心清單 (MessageCenter.jsx) 針對 flex 訊息，直接顯示為「圖文訊息」去除多餘括號，讓畫面更加乾淨。
+### UI/UX �孵����蝔钅�閬賢�撘� [2026-04-27]
+- **�鞱汗�箸����**: �刻䌊�閙�蝔讠��鞱汗閬𣇉� (Projects.jsx) 銝剖��亙抅皞𡝗��栞身摰𡁏��� (previewBaseTime state)嚗�虾�閙�撠� interval_hours (隞亙����) 頧㗇��箏祕�𤤿��鞱��潮����瓐��
+- **�垍��芸�**: JourneyPreview �舀螱�𥡝�憿舐內������閮���橒�霈𤘪�蝔见虾閬𡝗�批之撟��擃塩��
+- **閮𦠜��䁅�蝎曄陛**: 閮𦠜�銝剖�皜�鱓 (MessageCenter.jsx) �嘥� flex 閮𦠜�嚗𣬚凒�仿＊蝷箇��������胯�滚縧�文�擗䀹𡠺���霈梶𧞄�Ｘ凒�牐嗾瘛具��
 
-### 新增模組：客戶中心 (Customer Center) [2026-04-28]
-- **前端實作**：rontend/src/pages/CustomerCenter.jsx，提供客戶列表、客群清單與標籤管理的統一介面。
-- **後端實作**：ackend/endpoints/customers.py 提供 /api/customers (聚合 private_var 與 history) 以及 /api/customers/groups (從 private_var 撈取 g_group 的統計資料)。
-- **路由**：整合至 App.jsx 並以 CustomerCenter 頁面名稱對應路徑 /oa/:oaId/customers。
+### �啣�璅∠�嚗𡁜恥�嗡葉敹� (Customer Center) [2026-04-28]
+- **�滨垢撖虫�**嚗�rontend/src/pages/CustomerCenter.jsx嚗峕�靘𥕦恥�嗅�銵具��恥蝢斗��株�璅嗵惜蝞∠���絞銝�隞钅𢒰��
+- **敺𣬚垢撖虫�**嚗�ackend/endpoints/customers.py �𣂷� /api/customers (�𡁜� private_var �� history) 隞亙� /api/customers/groups (敺� private_var ��� g_group ��絞閮����)��
+- **頝舐眏**嚗𡁏㟲��秐 App.jsx 銝虫誑 CustomerCenter ��𢒰�滨迂撠齿�頝臬� /oa/:oaId/customers��
 
 
-### 客戶中心進階功能與群發整合 (Customer Center Enhanced) [2026-04-28]
-- **前端架構**：CustomerCenter.jsx 加入大量選取狀態 (selectedUserIds)、客群與標籤的操作 Modal。實作與 Broadcast.jsx 的跨頁面狀態傳遞 (location.state)。
-- **後端擴充**：customers.py 中 /groups 端點擴充支援讀寫 Global_var 的 group_descriptions，並實作批次更新 Private_var g_group 的 POST 邏輯。
+### 摰Ｘ�銝剖��脤��蠘���黎�潭㟲�� (Customer Center Enhanced) [2026-04-28]
+- **�滨垢�嗆�**嚗鋴ustomerCenter.jsx �惩�憭折��詨����� (selectedUserIds)��恥蝢方�璅嗵惜���雿� Modal��祕雿𡏭� Broadcast.jsx ��楊��𢒰���见��� (location.state)��
+- **敺𣬚垢�游�**嚗䬙ustomers.py 銝� /groups 蝡舫��游��舀螱霈�撖� Global_var �� group_descriptions嚗䔶蒂撖虫��寞活�湔鰵 Private_var g_group �� POST �讛摩��
 
-- **標籤管理 (Tag Management)**: 支援批次標籤操作與全域刪除機制。
-### �Ϥ���W�j (Rich Menu Enhancements) [2026-04-30]
-- **�ʧ@����²��**: ���� postback �ʧ@�����A�N�u��������v��W���u�}�ҳs���v�C
-- **LIFF ���Ұl�ܨ�ĳ**: 
-    - �䴩�b�u�}�ҳs���v�ʧ@���]�w��@���ҡC
-    - ���]�w���ҮɡA���}�N�۰��ഫ�� LIFF �N�z�榡�Ghttps://liff.line.me/2009851813-AgTeSa4r?bot={appname}&tag={����}&redirect={�s��}�C
-    - {appname} �� OA �]�w���� other_settings.app_name ���ѡC
-    - �t�η|�۰ʸѪR�{���� LIFF �N�z���}���٭���һP��l�s���ѨϥΪ̽s��C
+- **璅嗵惜蝞∠� (Tag Management)**: �舀螱�寞活璅嗵惜�滢�����笔⏛�斗��嗚��
+### 圖文選單增強 (Rich Menu Enhancements) [2026-04-30]
+- **動作類型簡化**: 移除 postback 動作類型，將「跳轉網頁」更名為「開啟連結」。
+- **LIFF 標籤追蹤協議**: 
+    - 支援在「開啟連結」動作中設定單一標籤。
+    - 當設定標籤時，網址將自動轉換為 LIFF 代理格式：https://liff.line.me/2009851813-AgTeSa4r?bot={appname}&tag={標籤}&redirect={連結}。
+    - {appname} 由 OA 設定中的 other_settings.app_name 提供。
+    - 系統會自動解析現有的 LIFF 代理網址並還原標籤與原始連結供使用者編輯。
 
-### �k�h��²���Ҧ����c (Rule Designer Simple Mode Redesign) [2026-04-30]
-- **���Ȥƻ����O**: ²���Ҧ��ѭ쥻���������歫�c���u���ȥd���v�Φ��C
-- **���y�q��**: 
-    - ���D: ���� note ���C
-    - ����r: ���� content �}�C�]�䴩�r�����j��J�^�C
-    - �ͮĴ���: ���� check ��줤�� check_date_range('YYYY-MM-DD', 'YYYY-MM-DD')�C
-    - �C��ɬq: ���� check ��줤�� check_time_range('HH:mm', 'HH:mm')�C
-    - ��������: ���� function ��줤�� update(f'set_tag|{����}')�C
-- **�Y�ɦP�B**: �s����ȥd���|�Y�ɧ�s���h���u�{���A�T�O��Ƶ��c���@�P�ʡC
-- **���Ҧ�����**: �ϥΪ̥i�H�ɤ����ܡu�u�{�Ҧ��v�i��Ӹ`�Ѽƽվ�]�p���A�ಾ�B�����P�_�����^�C
+### 法則表簡易模式重構 (Rule Designer Simple Mode Redesign) [2026-04-30]
+- **任務化儀表板**: 簡易模式由原本的滿版表格重構為「任務卡片」形式。
+- **欄位語義化**: 
+    - 標題: 對應 note 欄位。
+    - 關鍵字: 對應 content 陣列（支援逗號分隔輸入）。
+    - 生效期間: 對應 check 欄位中的 check_date_range('YYYY-MM-DD', 'YYYY-MM-DD')。
+    - 每日時段: 對應 check 欄位中的 check_time_range('HH:mm', 'HH:mm')。
+    - 完成標籤: 對應 function 欄位中的 update(f'set_tag|{標籤}')。
+- **即時同步**: 編輯任務卡片會即時更新底層的工程欄位，確保資料結構的一致性。
+- **雙模式切換**: 使用者可隨時切換至「工程模式」進行細節參數調整（如狀態轉移、複雜判斷式等）。
 
-### �Ϥ���P�k�h���۰ʤƽd�� [2026-04-30]
-#### 1. �Ϥ��� LIFF ���ҽd��
-- **����**: �z�Ʊ檾�D���h�֤H�I���F��椤���u�x���v���s�C
-- **�]�w**: �N�s���]�� https://example.com�A���ҳ]���u�I���x���v�C
-- **���G**: �t�Υͦ������}�|�]�t���Ҹ�T�C���Τ��I���ɡA�t�η|���b��x���ӥΤ�е��u�I���x���v���ҡA�M��~����ܩx���C�o���z�i�H�b�u�Ȥᤤ�ߡv�����z��X�Ҧ��I�L�x�����Ȥ�C
+### 圖文選單與法則表自動化範例 [2026-04-30]
+#### 1. 圖文選單 LIFF 標籤範例
+- **情境**: 您希望知道有多少人點擊了選單中的「官網」按鈕。
+- **設定**: 將連結設為 https://example.com，標籤設為「點擊官網」。
+- **結果**: 系統生成的網址會包含標籤資訊。當用戶點擊時，系統會先在後台為該用戶標註「點擊官網」標籤，然後才跳轉至官網。這讓您可以在「客戶中心」直接篩選出所有點過官網的客戶。
 
-#### 2. �k�h�����Ȧ۰ʤƽd��
-- **����**: �إߤ@�Ӧ۰ʻ���u�f�骺����r�^�СC
-- **�]�w**: 
-  - ���D: ����}�B�u�f��
-  - ����r: ���, �u�f��
-  - ��������: �w����u�f��
-- **���G**: ���Τ��J�u����v�Ρu�u�f��v�ɡA�t�η|�^�бz�]�w�n���Ϥ�T���]�]�t�u�f��N�X�γs���^�A�æ۰����Τ�K�W�u�w����u�f��v���ҡC���ӱz�i�H�ϥΦ����Ҷi��G����P�]�Ҧp�w��u������v���H�A���o�e�^�C
+#### 2. 法則表任務自動化範例
+- **情境**: 建立一個自動領取優惠券的關鍵字回覆。
+- **設定**: 
+  - 標題: 領取開運優惠券
+  - 關鍵字: 領取, 優惠券
+  - 完成標籤: 已領取優惠券
+- **結果**: 當用戶輸入「領取」或「優惠券」時，系統會回覆您設定好的圖文訊息（包含優惠券代碼或連結），並自動幫用戶貼上「已領取優惠券」標籤。未來您可以使用此標籤進行二次行銷（例如針對「未領取」的人再次發送）。
 
-### 圖文選單多帳號管理與分類 [2026-05-04]
-- **後端實作**: `backend/endpoints/richmenu.py` 新增 `/all` 路由，可遍歷使用者權限內所有 OA 並獲取其圖文選單。
-- **前端實作**: `RichMenu.jsx` 新增帳號切換下拉選單。支援「全部帳號」視圖，並依據 OA 名稱進行分類顯示。
-- **資料結構**: 在 `/all` 回傳結果中，每個選單物件均標註 `oa_id` 與 `oa_name` 以利前端分組。
+### �𡝗��詨鱓憭𡁜董�毺恣������ [2026-05-04]
+- **敺𣬚垢撖虫�**: `backend/endpoints/richmenu.py` �啣� `/all` 頝舐眏嚗�虾�齿風雿輻鍂����𣂼����� OA 銝衣㬢�硋��𡝗��詨鱓��
+- **�滨垢撖虫�**: `RichMenu.jsx` �啣�撣唾����銝𧢲��詨鱓��𣈲�氬����典董�麄�滩��吔�銝虫��� OA �滨迂�脰����憿舐內��
+- **鞈��蝯鞉�**: �� `/all` �𧼮�蝯鞉�銝哨�瘥誩�钅��桃�隞嗅�璅躰酉 `oa_id` �� `oa_name` 隞亙⏚�滨垢�����
 
-### 自動旅程預覽邏輯修正 [2026-05-05]
-- **前端實作**: `frontend/src/pages/Projects.jsx` 中的 `JourneyPreview` 元件預覽邏輯修正。
-- **變更細節**: 修改 `computedPreviewSteps` 的計算方式，讓每一個步驟的預計發送時間，依照前一步驟的執行時間加上間隔時間進行累加，確保預覽時間與後端實際排程邏輯一致。
+### �芸�����鞱汗�讛摩靽格迤 [2026-05-05]
+- **�滨垢撖虫�**: `frontend/src/pages/Projects.jsx` 銝剔� `JourneyPreview` ��辣�鞱汗�讛摩靽格迤��
+- **霈𦠜凒蝝啁�**: 靽格㺿 `computedPreviewSteps` ���蝞埈䲮撘𧶏�霈𤘪�銝��𧢲郊撽毺��鞱��潮����橒�靘萘��滢�甇仿���嘑銵峕��枏�銝𢠃��娍��㯄�脰�蝝臬�嚗𣬚Ⅱ靽嗪�閬賣��栞�敺𣬚垢撖阡��垍��讛摩銝��氬��
 
 ### 2026-05-07 Frontend Background Preloading & Cache Layer
 - **Global API Cache (rontend/src/api.js)**: 
-  - 攔截所有 GET 請求，若快取存在則立即回傳資料，達成切換選單零延遲載入效果。
-  - 當快取資料超過 5 秒，會背景觸發 GET 請求更新快取。
-  - 攔截 POST, PUT, DELETE 等修改類請求，執行後自動清除全域快取，確保資料新鮮度。
-  - 在 App.jsx 初始化時呼叫 preloadPagesData(oaId)，提早為 自動旅程、群發訊息、圖文選單等頁面取得資料。
+  - �娍⏛���� GET 隢𧢲�嚗諹𥅾敹怠�摮睃銁����喳��唾��辷��娍�����詨鱓�嗅辣�脰��交��栶��
+  - �嗅翰�𤥁��躰��� 5 蝘𡜐�����航孛�� GET 隢𧢲��湔鰵敹怠���
+  - �娍⏛ POST, PUT, DELETE 蝑劐耨�寥�隢𧢲�嚗�嘑銵���芸�皜�膄�典�敹怠�嚗𣬚Ⅱ靽肽��蹱鰵擙桀漲��
+  - �� App.jsx �嘥��𡝗��澆㙈 preloadPagesData(oaId)嚗峕��拍� �芸������黎�潸��胯�������桃���𢒰�硋�鞈����
 
 ### Standardized Redirection & Tagging Flow [2026-05-08]
 - **LIFF Redirection**: All outbound links that require tag assignment now utilize the centralized LIFF jump-site (`https://liff.line.me/2009851813-AgTeSa4r`).
