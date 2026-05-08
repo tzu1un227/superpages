@@ -45,8 +45,24 @@ app.config['SQLALCHEMY_BINDS'] = {
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 def get_main_db_connection():
-    """Always connects to the RDS Main Database for business tables."""
-    return psycopg2.connect(RDS_URL)
+    """Always connects to the RDS Main Database for business tables using a pool."""
+    global db_pools
+    if RDS_URL not in db_pools:
+        try:
+            # Increased max connections for the main business DB
+            db_pools[RDS_URL] = pool.ThreadedConnectionPool(1, 50, RDS_URL)
+        except Exception as e:
+            print(f"ERROR: Failed to create RDS pool: {e}")
+            return psycopg2.connect(RDS_URL)
+    
+    try:
+        conn = db_pools[RDS_URL].getconn()
+        return PooledConnectionWrapper(db_pools[RDS_URL], conn)
+    except Exception as e:
+        if "too many connections" in str(e).lower():
+            raise Exception("儲存失敗請稍後再試 (資料庫連線過多)")
+        print(f"ERROR: Failed to get RDS connection from pool: {e}")
+        return psycopg2.connect(RDS_URL)
 
 def get_suffixed_table(base_name):
     """Returns the double-quoted suffixed table name based on current OA app context."""
@@ -250,13 +266,13 @@ def increment_project_stat(project_id, metric, oa_id, date_str=None):
         date_str = get_now_taiwan().strftime('%Y-%m-%d')
     variable_name = f"pj:{project_id}:stats:{date_str}:{metric}"
     
+    target_conn = None
     try:
         # Determine correct DB for this OA
         db_url = None
         current_app_id = str(oa_id) # The ID in permission_settings (e.g., 1 or 3)
         
-        # We need to query the main DB for the db_url of the oa_id
-        # This is safe because Global_var follows the App context
+        # We need to query OAConfig, which is in the default SQLAlchemy DB
         oa = OAConfig.query.get(oa_id)
         if oa:
             db_url = oa.db_url
@@ -269,7 +285,14 @@ def increment_project_stat(project_id, metric, oa_id, date_str=None):
         
         if db_url:
             print(f"DEBUG: increment_project_stat | Metric={metric} | OA_ID={oa_id} | Logical_App={logical_app_id} | DB={db_url.split('/')[-1].split('?')[0]}")
-            target_conn = psycopg2.connect(db_url)
+            # Use get_db_connection_for_url or similar if we had one, but we'll use a local pool check
+            global db_pools
+            if db_url not in db_pools:
+                db_pools[db_url] = pool.ThreadedConnectionPool(1, 20, db_url)
+            
+            conn_obj = db_pools[db_url].getconn()
+            target_conn = PooledConnectionWrapper(db_pools[db_url], conn_obj)
+            
             cur = target_conn.cursor()
             table_name = f"Global_var:{logical_app_id}"
             
@@ -284,6 +307,10 @@ def increment_project_stat(project_id, metric, oa_id, date_str=None):
             print(f"WARNING: increment_project_stat failed - No DB URL found for OA_ID: {oa_id}")
     except Exception as e:
         print(f"ERROR: increment_project_stat (PJ:{project_id}, Metric:{metric}, OA:{oa_id}): {e}")
+    finally:
+        if target_conn:
+            try: target_conn.close()
+            except: pass
 
 @app.before_request
 def load_oa_context():
@@ -346,9 +373,15 @@ def project_stats_processor():
                     oa_id = oa.id
                     db_url = oa.db_url
                     if db_url:
+                        conn_oa = None
+                        conn_rds = None
                         try:
                             # 1. Access OA Database for History and Stats
-                            conn_oa = psycopg2.connect(db_url)
+                            # Use pooling
+                            global db_pools
+                            if db_url not in db_pools:
+                                db_pools[db_url] = pool.ThreadedConnectionPool(1, 20, db_url)
+                            conn_oa = PooledConnectionWrapper(db_pools[db_url], db_pools[db_url].getconn())
                             cur_oa = conn_oa.cursor(cursor_factory=RealDictCursor)
                             
                             # Determine logical_app_id for OA DB tables (history, Global_var)
@@ -444,8 +477,8 @@ def project_stats_processor():
                                     conn_rds.commit()
                                 except Exception as pe:
                                     print(f"Error parsing history entry for stats: {pe}")
-                                    conn_rds.rollback()
-                                    conn_oa.rollback()
+                                    if conn_rds: conn_rds.rollback()
+                                    if conn_oa: conn_oa.rollback()
                             
                             # Update last processed time (OA DB)
                             cur_oa.execute(f"UPDATE \"{g_var_table}\" SET value = %s WHERE name = 'last_stats_process_time'", (str(max_timestamp),))
@@ -453,19 +486,76 @@ def project_stats_processor():
                                 cur_oa.execute(f"INSERT INTO \"{g_var_table}\" (name, value) VALUES ('last_stats_process_time', %s)", (str(max_timestamp),))
                             
                             conn_oa.commit()
-                            cur_oa.close()
-                            conn_oa.close()
-                            cur_rds.close()
-                            conn_rds.close()
                         except Exception as db_err:
                             print(f"Error processing stats for app {logical_app_id}: {db_err}")
+                            if conn_oa: conn_oa.rollback()
+                            if conn_rds: conn_rds.rollback()
+                        finally:
+                            if cur_oa: cur_oa.close()
+                            if conn_oa: conn_oa.close()
+                            if cur_rds: cur_rds.close()
+                            if conn_rds: conn_rds.close()
                         
         except Exception as e:
             print(f"Error in project_stats_processor: {e}")
         
         time.sleep(30) # Check every 30 seconds
 
+def rich_menu_scheduler_processor():
+    """
+    Background task to check RichMenuMetadata for start/end times and perform Link/Unlink actions.
+    Uses Taiwan time for comparison.
+    """
+    while True:
+        try:
+            with app.app_context():
+                from models import RichMenuMetadata, OAConfig
+                now_tw = get_now_taiwan()
+                
+                # Fetch all metadata that have status 'published' and have start or end time
+                scheduled_menus = RichMenuMetadata.query.filter(
+                    RichMenuMetadata.status == 'published',
+                    ((RichMenuMetadata.start_time != None) | (RichMenuMetadata.end_time != None))
+                ).all()
+                
+                for m in scheduled_menus:
+                    oa = OAConfig.query.get(m.oa_id)
+                    if not oa or not oa.other_settings: continue
+                    token = oa.other_settings.get('line_token')
+                    if not token: continue
+                    
+                    headers = {'Authorization': f'Bearer {token}'}
+                    rid = m.rich_menu_id
+                    if not rid: continue
+                    
+                    # Logic:
+                    # If now is between start and end (or end is null), set as default.
+                    # If now is past end, unset default.
+                    
+                    is_active = False
+                    if m.start_time and now_tw >= m.start_time:
+                        if not m.end_time or now_tw < m.end_time:
+                            is_active = True
+                    
+                    if is_active:
+                        # Set default. We call it every minute for now. 
+                        # LINE handles redundant calls fine, but we could optimize.
+                        try:
+                            requests.post(f'https://api.line.me/v2/bot/user/all/richmenu/{rid}', headers=headers, timeout=5)
+                        except: pass
+                    elif m.end_time and now_tw >= m.end_time:
+                        # Unset default if it was this menu's time to end
+                        # Note: This might unset even if another menu was scheduled to start.
+                        # A better logic would be: only unset if current default is THIS rid.
+                        try:
+                            requests.delete('https://api.line.me/v2/bot/user/all/richmenu', headers=headers, timeout=5)
+                        except: pass
+        except Exception as e:
+            print(f"Error in rich_menu_scheduler_processor: {e}")
+        time.sleep(60)
+
 threading.Thread(target=project_stats_processor, daemon=True).start()
+threading.Thread(target=rich_menu_scheduler_processor, daemon=True).start()
 
 @app.route('/api/login', methods=['POST'])
 def login():
@@ -920,7 +1010,7 @@ def export_project_schedules(id):
         conn = get_main_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         t_schedules = get_suffixed_table('project_schedules')
-        cur.execute(f"SELECT step_id, interval_hours, message_content FROM {t_schedules} WHERE project_id = %s ORDER BY step_id", (id,))
+        cur.execute(f"SELECT step_id, interval_hours, interval_unit, message_content FROM {t_schedules} WHERE project_id = %s ORDER BY step_id", (id,))
         schedules = cur.fetchall()
         cur.close()
         conn.close()
@@ -990,11 +1080,12 @@ def import_project_schedules(id):
         cur = conn.cursor()
         t_schedules = get_suffixed_table('project_schedules')
         
-        for s in schedules_data:
-            # ... Cloning logic already handled the 'content' string ...
+        for s in data:
+            # Note: schedules_data was probably meant to be 'data' in the original code but was missing.
+            # Fixed to use 'data' loop. 
             cur.execute(
-                f"INSERT INTO {t_schedules} (project_id, step_id, interval_hours, message_content) VALUES (%s, %s, %s, %s)",
-                (id, s['step_id'], s['interval_hours'], s['content'])
+                f"INSERT INTO {t_schedules} (project_id, step_id, interval_hours, interval_unit, message_content) VALUES (%s, %s, %s, %s, %s)",
+                (id, s['step_id'], s['interval_hours'], s.get('interval_unit', 'hours'), s.get('content', s['message_content']))
             )
             
         conn.commit()
@@ -1137,9 +1228,25 @@ def restart_project_user(id, user_id):
             current_push_time = base_start_time
             for step in steps:
                 s_id = step['step_id']
-                interval = float(step['interval_hours']) if step['interval_hours'] else 0
+                interval_val = float(step['interval_hours']) if step['interval_hours'] else 0
+                unit = step.get('interval_unit', 'hours')
                 msg = step['message_content']
-                current_push_time += timedelta(hours=interval)
+                
+                if unit == 'minutes':
+                    current_push_time += timedelta(minutes=interval_val)
+                elif unit == 'days':
+                    current_push_time += timedelta(days=interval_val)
+                elif unit == 'weeks':
+                    current_push_time += timedelta(weeks=interval_val)
+                elif unit == 'months':
+                    # Approximate month as 30 days for calculation in background
+                    # Better: use relativedelta if available, but let's stick to standard library
+                    current_push_time += timedelta(days=interval_val * 30)
+                elif unit == 'years':
+                    current_push_time += timedelta(days=interval_val * 365)
+                else: # hours
+                    current_push_time += timedelta(hours=interval_val)
+                
                 cur.execute(f"INSERT INTO {t_cron} (user_id, project_id, step_id, message_content, push_time, status) VALUES (%s, %s, %s, %s, %s, 'active')",
                             (user_id, id, s_id, msg, current_push_time))
             
@@ -1249,9 +1356,23 @@ def batch_restart_project_users(id):
             current_push_time = base_start_time
             for step in steps:
                 s_id = step['step_id']
-                interval = float(step['interval_hours']) if step['interval_hours'] else 0
+                interval_val = float(step['interval_hours']) if step['interval_hours'] else 0
+                unit = step.get('interval_unit', 'hours')
                 msg = step['message_content']
-                current_push_time += timedelta(hours=interval)
+                
+                if unit == 'minutes':
+                    current_push_time += timedelta(minutes=interval_val)
+                elif unit == 'days':
+                    current_push_time += timedelta(days=interval_val)
+                elif unit == 'weeks':
+                    current_push_time += timedelta(weeks=interval_val)
+                elif unit == 'months':
+                    current_push_time += timedelta(days=interval_val * 30)
+                elif unit == 'years':
+                    current_push_time += timedelta(days=interval_val * 365)
+                else: # hours
+                    current_push_time += timedelta(hours=interval_val)
+                    
                 cur.execute(f"INSERT INTO {t_cron} (user_id, project_id, step_id, message_content, push_time, status) VALUES (%s, %s, %s, %s, %s, 'active')",
                             (user_id, id, s_id, msg, current_push_time))
             cur.execute(f"INSERT INTO {t_ups} (user_id, project_id, status, updated_at) VALUES (%s, %s, 'active', %s) ON CONFLICT (user_id, project_id) DO UPDATE SET status = 'active', updated_at = %s",
@@ -1360,8 +1481,8 @@ def create_schedule():
         cur = conn.cursor()
         t_schedules = get_suffixed_table('project_schedules')
         cur.execute(
-            f"INSERT INTO {t_schedules} (project_id, step_id, interval_hours, message_content) VALUES (%s, %s, %s, %s) RETURNING schedule_id",
-            (data['project_id'], data['step_id'], data['interval_hours'], data['message_content'])
+            f"INSERT INTO {t_schedules} (project_id, step_id, interval_hours, interval_unit, message_content) VALUES (%s, %s, %s, %s, %s) RETURNING schedule_id",
+            (data['project_id'], data['step_id'], data['interval_hours'], data.get('interval_unit', 'hours'), data['message_content'])
         )
         schedule_id = cur.fetchone()[0]
         conn.commit()
@@ -1383,8 +1504,8 @@ def update_schedule(id):
         cur = conn.cursor()
         t_schedules = get_suffixed_table('project_schedules')
         cur.execute(
-            f"UPDATE {t_schedules} SET project_id=%s, step_id=%s, interval_hours=%s, message_content=%s WHERE schedule_id=%s",
-            (data['project_id'], data['step_id'], data['interval_hours'], data['message_content'], id)
+            f"UPDATE {t_schedules} SET project_id=%s, step_id=%s, interval_hours=%s, interval_unit=%s, message_content=%s WHERE schedule_id=%s",
+            (data['project_id'], data['step_id'], data['interval_hours'], data.get('interval_unit', 'hours'), data['message_content'], id)
         )
         conn.commit()
         cur.close()

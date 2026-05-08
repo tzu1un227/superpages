@@ -70,6 +70,30 @@ const PAGE_ICON_MAP = {
   'CustomerCenter': Users
 };
 
+import { Tooltip as MuiTooltip } from '@mui/material';
+import { HelpCircle } from 'lucide-react';
+
+const Tooltip = ({ title, children }) => {
+  if (!title) return children;
+  return <MuiTooltip title={<div style={{ whiteSpace: 'pre-line' }}>{title}</div>} arrow placement="left">{children}</MuiTooltip>;
+};
+
+const HELP_CONTENT_MAP = {
+  'messages': '訊息中心：與用戶進行 1對1 即時對話，查看歷史紀錄與標籤設定。',
+  'projects': '自動旅程：設定用戶進入後的自動化流程，包含定時推送訊息與標籤觸發。',
+  'broadcast': '群發訊息：針對全體或指定標籤受眾進行即時或預約群發。',
+  'scheduled-events': '定時排程：查看與管理所有已排定的訊息推送任務。',
+  'prizes': '抽獎管理：管理系統內的獎項、中獎機率與兌換狀態。',
+  'statistics': '綜合數據：查看追蹤人數、訊息量、點擊率等各項指標報表。',
+  'richmenu': '圖文選單：管理 LINE 底部選單。支援草稿、發佈、定時切換與連結功能。',
+  'questionnaire': '問卷管理：建立與管理互動式問卷，收集用戶回饋與偏好。',
+  'ruledesigner': '法則表設計：設計複雜的邏輯判斷與自動回覆規則。',
+  'dbviewer': '資料庫檢視：高級工具，用於直接檢視系統底層資料表狀態。',
+  'testrunner': '系統測試：用於開發者進行功能驗證與壓力測試的工具。',
+  'customers': '客戶中心：管理客戶基本資料與進階屬性。',
+  'admin': '管理員後台：管理系統用戶、帳號權限與全域設定。'
+};
+
 const MainLayout = () => {
   const { isAuthenticated, logout, user, myOAs, isLoading } = useAuth();
   const { taskState } = useTask();
@@ -86,6 +110,13 @@ const MainLayout = () => {
       }
     }
   }, [isAuthenticated, myOAs, location.pathname]);
+
+  const getHelpContent = () => {
+    if (location.pathname === '/admin') return HELP_CONTENT_MAP['admin'];
+    const parts = location.pathname.split('/');
+    const lastPart = parts[parts.length - 1];
+    return HELP_CONTENT_MAP[lastPart] || '說明：此頁面提供系統功能設定。如有疑問請聯繫管理員。';
+  };
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
@@ -175,7 +206,14 @@ const MainLayout = () => {
         </nav>
       )}
 
-      <main style={{ flex: 1, backgroundColor: '#1A1A1A', overflowY: 'auto', padding: '40px' }}>
+      <main style={{ flex: 1, backgroundColor: '#1A1A1A', overflowY: 'auto', padding: '40px', position: 'relative' }}>
+        {isAuthenticated && location.pathname !== '/login' && (
+          <div style={{ position: 'absolute', top: '35px', right: '40px', zIndex: 100 }}>
+            <Tooltip title={getHelpContent()}>
+              <HelpCircle size={22} style={{ color: '#666', cursor: 'help', opacity: 0.8 }} />
+            </Tooltip>
+          </div>
+        )}
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />

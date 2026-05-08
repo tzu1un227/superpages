@@ -14,13 +14,20 @@ logger = logging.getLogger(__name__)
 RDS_URL = "postgresql://u1kq1nhog5jq7b:pd1a6d947df93fb15d747bbadf399e84893f9fd5932782191f0b6ffa187c5ae18@c8lcd8bq1mia7p.cluster-czrs8kj4isg7.us-east-1.rds.amazonaws.com:5432/d1hr8bloo29pm6"
 
 def get_rds_connection():
-    return psycopg2.connect(RDS_URL)
+    # Attempt to use the pool from app.py if available
+    try:
+        from app import get_main_db_connection
+        return get_main_db_connection()
+    except ImportError:
+        return psycopg2.connect(RDS_URL)
 
 def ensure_rds_tables(app_name):
     """確保該平台在 RDS 中擁有必要的資料表"""
-    conn = get_rds_connection()
-    cur = conn.cursor()
+    conn = None
     try:
+        conn = get_rds_connection()
+        cur = conn.cursor()
+        
         # broadcasts 表格
         t_broadcasts = f"broadcasts:{app_name}"
         cur.execute(f"SELECT 1 FROM information_schema.tables WHERE table_name = %s", (t_broadcasts,))
@@ -60,13 +67,38 @@ def ensure_rds_tables(app_name):
                     repeat_interval VARCHAR(100)
                 )
             """)
+
+        # project_schedules 表格
+        t_schedules = f"project_schedules:{app_name}"
+        cur.execute(f"SELECT 1 FROM information_schema.tables WHERE table_name = %s", (t_schedules,))
+        if not cur.fetchone():
+            logger.info(f"Creating table {t_schedules}...")
+            cur.execute(f"""
+                CREATE TABLE "{t_schedules}" (
+                    schedule_id SERIAL PRIMARY KEY,
+                    project_id INTEGER,
+                    step_id INTEGER,
+                    interval_hours FLOAT,
+                    interval_unit VARCHAR(20) DEFAULT 'hours',
+                    message_content TEXT
+                )
+            """)
+        else:
+            # Ensure interval_unit column exists (Migration)
+            cur.execute(f"SELECT 1 FROM information_schema.columns WHERE table_name = %s AND column_name = 'interval_unit'", (t_schedules,))
+            if not cur.fetchone():
+                cur.execute(f"ALTER TABLE \"{t_schedules}\" ADD COLUMN interval_unit VARCHAR(20) DEFAULT 'hours'")
+
         conn.commit()
     except Exception as e:
         logger.error(f"Failed to ensure RDS tables for {app_name}: {e}")
-        conn.rollback()
+        if conn: conn.rollback()
     finally:
-        cur.close()
-        conn.close()
+        if conn:
+            try:
+                cur.close()
+                conn.close()
+            except: pass
 
 def get_t(base):
     """

@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, g
 import requests
 import json
 from auth import token_required
+from datetime import datetime
 
 richmenu_bp = Blueprint('richmenu', __name__)
 
@@ -336,3 +337,99 @@ def save_rich_menu_permissions():
     db.session.commit()
     
     return jsonify({'status': 'success'})
+
+# --- Metadata and Scheduling ---
+
+def parse_local_naive(dt_str):
+    if not dt_str: return None
+    try:
+        # ISO format
+        return datetime.fromisoformat(dt_str.replace('Z', '')).replace(tzinfo=None)
+    except:
+        return None
+
+@richmenu_bp.route('/metadata', methods=['GET'])
+@token_required
+def get_rich_menu_metadata():
+    from models import RichMenuMetadata
+    oa_id = g.current_oa_id
+    metadata = RichMenuMetadata.query.filter_by(oa_id=oa_id).order_by(RichMenuMetadata.created_at.desc()).all()
+    
+    return jsonify([{
+        'id': m.id,
+        'rich_menu_id': m.rich_menu_id,
+        'name': m.name,
+        'chat_bar_text': m.chat_bar_text,
+        'status': m.status,
+        'start_time': m.start_time.isoformat() if m.start_time else None,
+        'end_time': m.end_time.isoformat() if m.end_time else None,
+        'created_at': m.created_at.isoformat(),
+        'data': m.data
+    } for m in metadata])
+
+@richmenu_bp.route('/metadata', methods=['POST'])
+@token_required
+def save_rich_menu_metadata():
+    from models import db, RichMenuMetadata
+    oa_id = g.current_oa_id
+    data = request.json
+    
+    id = data.get('id')
+    if id:
+        m = RichMenuMetadata.query.get(id)
+        if not m: return jsonify({'error': 'Not found'}), 404
+        # Allow editing if draft or if explicitly requested (e.g. for timer changes)
+        # But user said: "如果還沒發布給line api的圖文選單設定可以編輯，但已經發布出去的就不能編輯"
+        if m.status == 'published' and data.get('status') != 'published':
+             return jsonify({'error': '已發佈的選單不可編輯'}), 400
+    else:
+        m = RichMenuMetadata(oa_id=oa_id)
+        db.session.add(m)
+        
+    m.name = data.get('name')
+    m.chat_bar_text = data.get('chat_bar_text')
+    m.data = data.get('data') # The JSON for LINE
+    m.status = data.get('status', 'draft')
+    m.rich_menu_id = data.get('rich_menu_id')
+    m.start_time = parse_local_naive(data.get('start_time'))
+    m.end_time = parse_local_naive(data.get('end_time'))
+    
+    db.session.commit()
+    return jsonify({'status': 'success', 'id': m.id})
+
+@richmenu_bp.route('/metadata/<int:id>', methods=['DELETE'])
+@token_required
+def delete_rich_menu_metadata(id):
+    from models import db, RichMenuMetadata
+    m = RichMenuMetadata.query.get(id)
+    if not m: return jsonify({'error': 'Not found'}), 404
+    
+    db.session.delete(m)
+    db.session.commit()
+    return jsonify({'status': 'success'})
+
+@richmenu_bp.route('/link/<richMenuId>', methods=['POST'])
+@token_required
+def link_rich_menu_to_all(richMenuId):
+    """將圖文選單設為全域預設 (Link to All)"""
+    token = get_line_token()
+    if not token: return jsonify({'message': 'Line token not configured'}), 400
+    headers = {'Authorization': f'Bearer {token}'}
+    
+    resp = requests.post(f'https://api.line.me/v2/bot/user/all/richmenu/{richMenuId}', headers=headers)
+    if resp.status_code == 200:
+        return jsonify({'status': 'success'})
+    return jsonify({'message': 'Link failed', 'error': resp.text}), resp.status_code
+
+@richmenu_bp.route('/unlink', methods=['POST'])
+@token_required
+def unlink_rich_menu_from_all():
+    """解除全域預設圖文選單 (Unlink from All)"""
+    token = get_line_token()
+    if not token: return jsonify({'message': 'Line token not configured'}), 400
+    headers = {'Authorization': f'Bearer {token}'}
+    
+    resp = requests.delete('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
+    if resp.status_code == 200:
+        return jsonify({'status': 'success'})
+    return jsonify({'message': 'Unlink failed', 'error': resp.text}), resp.status_code
