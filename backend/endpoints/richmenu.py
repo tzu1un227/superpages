@@ -357,6 +357,7 @@ def get_rich_menu_metadata():
     
     return jsonify([{
         'id': m.id,
+        'oa_id': m.oa_id,
         'rich_menu_id': m.rich_menu_id,
         'name': m.name,
         'chat_bar_text': m.chat_bar_text,

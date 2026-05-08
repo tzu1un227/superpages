@@ -70,6 +70,12 @@ def get_suffixed_table(base_name):
     # If app_name is None, use 'default'
     if not app_name:
         app_name = 'default'
+    
+    # Auto-migration for key tables
+    if base_name == 'project_schedules':
+        from endpoints.broadcast import ensure_rds_tables
+        ensure_rds_tables(app_name)
+        
     return f'"{base_name}:{app_name}"'
 
 db.init_app(app)
@@ -986,6 +992,8 @@ def reorder_project_schedules(id):
             
         conn = get_main_db_connection()
         cur = conn.cursor()
+        from endpoints.broadcast import ensure_rds_tables
+        ensure_rds_tables(get_current_app_id())
         t_schedules = get_suffixed_table('project_schedules')
         
         for index, schedule_id in enumerate(schedule_ids):
@@ -1009,6 +1017,8 @@ def export_project_schedules(id):
     try:
         conn = get_main_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        from endpoints.broadcast import ensure_rds_tables
+        ensure_rds_tables(get_current_app_id())
         t_schedules = get_suffixed_table('project_schedules')
         cur.execute(f"SELECT step_id, interval_hours, interval_unit, message_content FROM {t_schedules} WHERE project_id = %s ORDER BY step_id", (id,))
         schedules = cur.fetchall()
@@ -1025,6 +1035,8 @@ def import_project_schedules(id):
     try:
         conn = get_main_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        from endpoints.broadcast import ensure_rds_tables
+        ensure_rds_tables(get_current_app_id())
         t_schedules = get_suffixed_table('project_schedules')
         
         # Delete existing
@@ -1078,6 +1090,10 @@ def import_project_schedules(id):
         # 6. Insert schedules into RDS
         conn = get_main_db_connection()
         cur = conn.cursor()
+        
+        from endpoints.broadcast import ensure_rds_tables
+        ensure_rds_tables(get_current_app_id())
+        
         t_schedules = get_suffixed_table('project_schedules')
         
         for s in data:
@@ -1407,6 +1423,11 @@ def get_schedules():
         
         conn = get_main_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Ensure migration has run for this OA's suffixed tables
+        from endpoints.broadcast import ensure_rds_tables
+        ensure_rds_tables(get_current_app_id())
+        
         t_schedules = get_suffixed_table('project_schedules')
         
         if project_id and project_id != "":

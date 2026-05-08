@@ -8,6 +8,26 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
     // Modes
     const [mode, setMode] = useState('single'); // 'single' | 'carousel'
     const [currentCardIndex, setCurrentCardIndex] = useState(0);
+    const [appName, setAppName] = useState('');
+
+    const match = window.location.pathname.match(/\/oa\/(\d+)/);
+    const oaId = match ? match[1] : null;
+
+    useEffect(() => {
+        const fetchOAName = async () => {
+            try {
+                const res = await api.get('/my_oas');
+                const configs = res.data.configs || (Array.isArray(res.data) ? res.data : []);
+                const currentConfig = configs.find(c => c.id.toString() === oaId);
+                if (currentConfig?.other_settings?.app_name) {
+                    setAppName(currentConfig.other_settings.app_name);
+                }
+            } catch (err) {
+                console.error('Failed to fetch OA config:', err);
+            }
+        };
+        if (oaId) fetchOAName();
+    }, [oaId]);
 
     // Cards State
     // Card Schema:
@@ -274,17 +294,29 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
 
                 // Add tags using redirect if present
                 if (tags.length > 0) {
-                    // Get current OA ID from URL
-                    const match = window.location.pathname.match(/\/oa\/(\d+)/);
-                    const oaId = match ? match[1] : null;
-                    
-                    // Use dynamic API_BASE_URL instead of hardcoded dev URL
+                    // Base redirect URL through the central API
+                    // Always inject oaId for correct tenant context and event tracking
                     const redirectBase = API_BASE_URL ? `${API_BASE_URL}/redirect` : '/api/redirect';
-                    const redirectUrl = `${redirectBase}?url=${encodeURIComponent(finalVal)}&tags=${encodeURIComponent(tags.join(','))}&userId=<%m.user_id%>${oaId ? `&oaId=${oaId}` : ''}`;
                     
-                    return { type: 'uri', label: 'action', uri: redirectUrl };
+                    // Construct final target URL with oaId
+                    const finalTargetUrl = `${redirectBase}?url=${encodeURIComponent(finalVal)}&oaId=${oaId}&tags=${encodeURIComponent(tags.join(','))}`;
+
+                    // If we have an appName, wrap in LIFF jump-site
+                    if (appName) {
+                        const liffId = "2009851813-AgTeSa4r";
+                        const tagName = tags.join(',');
+                        const liffUrl = `https://liff.line.me/${liffId}?bot=${appName}&tag=${encodeURIComponent(tagName)}&redirect=${encodeURIComponent(finalTargetUrl)}`;
+                        return { type: 'uri', label: 'action', uri: liffUrl };
+                    }
+                    
+                    // Fallback to direct redirect if appName is missing
+                    return { type: 'uri', label: 'action', uri: finalTargetUrl };
                 }
-                return { type: 'uri', label: 'action', uri: finalVal };
+                
+                // Even without tags, route through central API for tracking and inject oaId
+                const redirectBase = API_BASE_URL ? `${API_BASE_URL}/redirect` : '/api/redirect';
+                const finalTargetUrl = `${redirectBase}?url=${encodeURIComponent(finalVal)}&oaId=${oaId}`;
+                return { type: 'uri', label: 'action', uri: finalTargetUrl };
             }
 
             if (!val || !val.trim()) {

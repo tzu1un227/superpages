@@ -411,3 +411,9 @@ NeMQO(u(um-d!jg\Hrb/N0 
   - 當快取資料超過 5 秒，會背景觸發 GET 請求更新快取。
   - 攔截 POST, PUT, DELETE 等修改類請求，執行後自動清除全域快取，確保資料新鮮度。
   - 在 App.jsx 初始化時呼叫 preloadPagesData(oaId)，提早為 自動旅程、群發訊息、圖文選單等頁面取得資料。
+
+### Standardized Redirection & Tagging Flow [2026-05-08]
+- **LIFF Redirection**: All outbound links that require tag assignment now utilize the centralized LIFF jump-site (`https://liff.line.me/2009851813-AgTeSa4r`).
+- **Dynamic Context**: The system automatically injects the tenant's `app_name` (from OA config) and `oaId` into generated URLs.
+- **Centralized Tracking**: Outbound links are routed through `/api/redirect` before reaching their final destination, ensuring consistent event logging and tenant isolation.
+- **Automatic User ID**: Removed legacy `<%m.user_id%>` placeholders in favor of LIFF's native user profile retrieval, improving security and reliability.

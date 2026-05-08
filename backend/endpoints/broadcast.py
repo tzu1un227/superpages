@@ -85,9 +85,16 @@ def ensure_rds_tables(app_name):
             """)
         else:
             # Ensure interval_unit column exists (Migration)
-            cur.execute(f"SELECT 1 FROM information_schema.columns WHERE table_name = %s AND column_name = 'interval_unit'", (t_schedules,))
-            if not cur.fetchone():
+            # Use a more direct check that handles quotes better
+            try:
+                cur.execute(f"SELECT interval_unit FROM \"{t_schedules}\" LIMIT 0")
+            except psycopg2.Error:
+                conn.rollback() # Rollback the failed SELECT
+                cur = conn.cursor() # Get a fresh cursor
+                logger.info(f"Adding interval_unit to {t_schedules}...")
                 cur.execute(f"ALTER TABLE \"{t_schedules}\" ADD COLUMN interval_unit VARCHAR(20) DEFAULT 'hours'")
+                conn.commit()
+                cur = conn.cursor() # Reset cursor for subsequent calls
 
         conn.commit()
     except Exception as e:
