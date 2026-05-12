@@ -7,10 +7,7 @@ import re
 
 rule_designer_bp = Blueprint('rule_designer', __name__)
 
-def get_db_connection():
-    if hasattr(g, 'current_db_url') and g.current_db_url:
-        return psycopg2.connect(g.current_db_url)
-    raise Exception("No OA DB context found. Please provide X-OA-ID header.")
+from db_utils import get_db_connection
 
 def get_app_id():
     if hasattr(g, 'current_app_name') and g.current_app_name:
@@ -142,6 +139,7 @@ def validate_syntax():
 def list_rules():
     """List rules from both Q_bank and QA_bank."""
     bank_type = request.args.get('type', 'q_bank') # 'q_bank' or 'qa_bank'
+    conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -157,16 +155,19 @@ def list_rules():
         # Check if table exists
         cur.execute("SELECT 1 FROM information_schema.tables WHERE table_name = %s", (table_name,))
         if not cur.fetchone():
+            cur.close()
             return jsonify({'rules': []})
             
         cur.execute(f'SELECT * FROM "{table_name}" ORDER BY id ASC')
         rules = cur.fetchall()
         
         cur.close()
-        conn.close()
         return jsonify({'rules': rules})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
 
 @rule_designer_bp.route('/rules', methods=['POST'])
 def create_rule():
@@ -182,6 +183,7 @@ def create_rule():
     if validation_errors:
         return jsonify({'status': 'validation_error', 'errors': validation_errors}), 400
         
+    conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -228,7 +230,6 @@ def create_rule():
         
         conn.commit()
         cur.close()
-        conn.close()
 
         # Notify via WebSocket
         trigger_sql_reload()
@@ -236,7 +237,10 @@ def create_rule():
         return jsonify({'status': 'success', 'id': new_id})
     except Exception as e:
         print(f"[RULE_DESIGNER] Create error: {str(e)}")
+        if conn: conn.rollback()
         return jsonify({'error': str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @rule_designer_bp.route('/rules/<int:rule_id>', methods=['PUT', 'POST']) # POST for compatibility with some clients
 def update_rule(rule_id):
@@ -254,6 +258,7 @@ def update_rule(rule_id):
     if validation_errors:
         return jsonify({'status': 'validation_error', 'errors': validation_errors}), 400
         
+    conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -295,7 +300,6 @@ def update_rule(rule_id):
         
         conn.commit()
         cur.close()
-        conn.close()
 
         # Notify via WebSocket
         trigger_sql_reload()
@@ -303,11 +307,15 @@ def update_rule(rule_id):
         return jsonify({'status': 'success'})
     except Exception as e:
         print(f"[RULE_DESIGNER] Update error: {str(e)}")
+        if conn: conn.rollback()
         return jsonify({'error': str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @rule_designer_bp.route('/rules/<int:rule_id>', methods=['DELETE'])
 def delete_rule(rule_id):
     bank_type = request.args.get('type', 'q_bank')
+    conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -323,11 +331,13 @@ def delete_rule(rule_id):
         
         conn.commit()
         cur.close()
-        conn.close()
 
         # Notify via WebSocket
         trigger_sql_reload()
 
         return jsonify({'status': 'success'})
     except Exception as e:
+        if conn: conn.rollback()
         return jsonify({'error': str(e)}), 500
+    finally:
+        if conn: conn.close()

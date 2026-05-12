@@ -43,26 +43,14 @@ app.config['SQLALCHEMY_BINDS'] = {
     'legacy': f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
 }
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_size': 2,
+    'max_overflow': 3,
+    'pool_timeout': 30,
+    'pool_recycle': 1800,
+}
 
-def get_main_db_connection():
-    """Always connects to the RDS Main Database for business tables using a pool."""
-    global db_pools
-    if RDS_URL not in db_pools:
-        try:
-            # Increased max connections for the main business DB
-            db_pools[RDS_URL] = pool.ThreadedConnectionPool(1, 50, RDS_URL)
-        except Exception as e:
-            print(f"ERROR: Failed to create RDS pool: {e}")
-            return psycopg2.connect(RDS_URL)
-    
-    try:
-        conn = db_pools[RDS_URL].getconn()
-        return PooledConnectionWrapper(db_pools[RDS_URL], conn)
-    except Exception as e:
-        if "too many connections" in str(e).lower():
-            raise Exception("儲存失敗請稍後再試 (資料庫連線過多)")
-        print(f"ERROR: Failed to get RDS connection from pool: {e}")
-        return psycopg2.connect(RDS_URL)
+from db_utils import get_db_connection, get_main_db_connection, PooledConnectionWrapper
 
 def get_suffixed_table(base_name):
     """Returns the double-quoted suffixed table name based on current OA app context."""
@@ -172,64 +160,10 @@ BOT_NAME = "websoc"
 
 from utils.socket_utils import send_socket_event
 
-db_pools = {}
 
-class PooledConnectionWrapper:
-    def __init__(self, pool_instance, connection):
-        self._pool = pool_instance
-        self._conn = connection
-    
-    def cursor(self, *args, **kwargs):
-        return self._conn.cursor(*args, **kwargs)
-    
-    def commit(self):
-        return self._conn.commit()
-    
-    def rollback(self):
-        return self._conn.rollback()
-    
-    def close(self):
-        """Instead of closing the physical connection, return it to the pool."""
-        if self._pool and self._conn:
-            self._pool.putconn(self._conn)
-            self._pool = None
-            self._conn = None
 
-    def __enter__(self):
-        return self
-        
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
 
-    def __getattr__(self, name):
-        return getattr(self._conn, name)
-
-def get_db_connection():
-    """
-    Get a database connection from a pool.
-    Supports dynamic DB URLs based on OA context.
-    """
-    db_url = getattr(g, 'current_db_url', None)
-    if not db_url:
-        # Fallback to DB_CONFIG
-        db_url = f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
-    
-    global db_pools
-    if db_url not in db_pools:
-        print(f"DEBUG: Creating new connection pool for {db_url.split('@')[-1]}")
-        try:
-            # Min 1, Max 20 connections per pool
-            db_pools[db_url] = pool.ThreadedConnectionPool(1, 20, db_url)
-        except Exception as e:
-            print(f"ERROR: Failed to create pool: {e}")
-            return psycopg2.connect(db_url)
-    
-    try:
-        conn = db_pools[db_url].getconn()
-        return PooledConnectionWrapper(db_pools[db_url], conn)
-    except Exception as e:
-        print(f"ERROR: Failed to get connection from pool: {e}")
-        return psycopg2.connect(db_url)
+# (get_db_connection removed, imported from db_utils)
 
 def get_current_app_id():
     """Returns the current logical app name/id (e.g. '5013')."""
@@ -291,14 +225,8 @@ def increment_project_stat(project_id, metric, oa_id, date_str=None):
         
         if db_url:
             print(f"DEBUG: increment_project_stat | Metric={metric} | OA_ID={oa_id} | Logical_App={logical_app_id} | DB={db_url.split('/')[-1].split('?')[0]}")
-            # Use get_db_connection_for_url or similar if we had one, but we'll use a local pool check
-            global db_pools
-            if db_url not in db_pools:
-                db_pools[db_url] = pool.ThreadedConnectionPool(1, 20, db_url)
             
-            conn_obj = db_pools[db_url].getconn()
-            target_conn = PooledConnectionWrapper(db_pools[db_url], conn_obj)
-            
+            target_conn = get_db_connection(db_url)
             cur = target_conn.cursor()
             table_name = f"Global_var:{logical_app_id}"
             
@@ -384,10 +312,7 @@ def project_stats_processor():
                         try:
                             # 1. Access OA Database for History and Stats
                             # Use pooling
-                            global db_pools
-                            if db_url not in db_pools:
-                                db_pools[db_url] = pool.ThreadedConnectionPool(1, 20, db_url)
-                            conn_oa = PooledConnectionWrapper(db_pools[db_url], db_pools[db_url].getconn())
+                            conn_oa = get_db_connection(db_url)
                             cur_oa = conn_oa.cursor(cursor_factory=RealDictCursor)
                             
                             # Determine logical_app_id for OA DB tables (history, Global_var)

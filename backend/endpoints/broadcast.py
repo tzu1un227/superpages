@@ -13,16 +13,18 @@ logger = logging.getLogger(__name__)
 # Database details matching app.py
 RDS_URL = "postgresql://u1kq1nhog5jq7b:pd1a6d947df93fb15d747bbadf399e84893f9fd5932782191f0b6ffa187c5ae18@c8lcd8bq1mia7p.cluster-czrs8kj4isg7.us-east-1.rds.amazonaws.com:5432/d1hr8bloo29pm6"
 
+# Cache to avoid redundant table checks
+_ENSURED_TABLES = set()
+
 def get_rds_connection():
-    # Attempt to use the pool from app.py if available
-    try:
-        from app import get_main_db_connection
-        return get_main_db_connection()
-    except ImportError:
-        return psycopg2.connect(RDS_URL)
+    from db_utils import get_main_db_connection
+    return get_main_db_connection()
 
 def ensure_rds_tables(app_name):
     """確保該平台在 RDS 中擁有必要的資料表"""
+    if app_name in _ENSURED_TABLES:
+        return
+        
     conn = None
     try:
         conn = get_rds_connection()
@@ -97,6 +99,7 @@ def ensure_rds_tables(app_name):
                 cur = conn.cursor() # Reset cursor for subsequent calls
 
         conn.commit()
+        _ENSURED_TABLES.add(app_name)
     except Exception as e:
         logger.error(f"Failed to ensure RDS tables for {app_name}: {e}")
         if conn: conn.rollback()
@@ -136,8 +139,8 @@ def get_t(base):
 broadcast_bp = Blueprint('broadcast', __name__)
 
 def get_db_connection(db_url):
-    # Add connect_timeout to prevent hanging on unreachable databases
-    return psycopg2.connect(db_url, connect_timeout=10)
+    from db_utils import get_db_connection as app_get_db_connection
+    return app_get_db_connection(db_url)
 
 def get_logical_app_id(oa):
     if oa.other_settings and 'app_name' in oa.other_settings:

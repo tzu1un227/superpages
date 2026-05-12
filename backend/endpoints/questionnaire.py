@@ -11,10 +11,7 @@ from models import OAConfig
 questionnaire_bp = Blueprint("questionnaire", __name__)
 
 
-def get_db_connection():
-    if hasattr(g, "current_db_url") and g.current_db_url:
-        return psycopg2.connect(g.current_db_url)
-    raise Exception("No OA DB context found. Please provide X-OA-ID header.")
+from db_utils import get_db_connection
 
 
 def get_app_id():
@@ -513,6 +510,7 @@ def build_questionnaire_direct(data, app_id, conn, quest_id):
 
 @questionnaire_bp.route("/groups", methods=["GET"])
 def list_questionnaire_groups():
+    conn = None
     try:
         conn = get_db_connection()
         app_id = get_app_id()
@@ -530,10 +528,11 @@ def list_questionnaire_groups():
         )
         groups = cur.fetchall()
         cur.close()
-        conn.close()
         return jsonify({"groups": groups})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 
 @questionnaire_bp.route("/groups", methods=["POST"])
@@ -554,22 +553,22 @@ def create_questionnaire_group():
         group = cur.fetchone()
         conn.commit()
         cur.close()
-        conn.close()
         return jsonify({"status": "success", "group": group})
     except psycopg2.errors.UniqueViolation:
         if conn:
             conn.rollback()
-            conn.close()
         return jsonify({"error": "群組名稱已存在"}), 400
     except Exception as e:
         if conn:
             conn.rollback()
-            conn.close()
         return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 
 @questionnaire_bp.route("/groups/<int:group_id>", methods=["DELETE"])
 def delete_questionnaire_group(group_id):
+    conn = None
     try:
         conn = get_db_connection()
         app_id = get_app_id()
@@ -580,21 +579,23 @@ def delete_questionnaire_group(group_id):
         questionnaire_count = cur.fetchone()[0]
         if questionnaire_count > 0:
             cur.close()
-            conn.close()
             return jsonify({"error": "此群組仍有問卷，請先移除或改到其他群組"}), 400
 
         cur.execute(f'DELETE FROM "{tables["groups"]}" WHERE id = %s', (group_id,))
         deleted = cur.rowcount
         conn.commit()
         cur.close()
-        conn.close()
         return jsonify({"status": "success", "deleted_rows": deleted})
     except Exception as e:
+        if conn: conn.rollback()
         return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 
 @questionnaire_bp.route("/list", methods=["GET"])
 def list_questionnaires():
+    conn = None
     try:
         conn = get_db_connection()
         app_id = get_app_id()
@@ -639,14 +640,16 @@ def list_questionnaires():
                 }
             )
         cur.close()
-        conn.close()
         return jsonify({"questionnaires": questionnaires})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 
 @questionnaire_bp.route("/detail/<note>", methods=["GET"])
 def get_questionnaire_detail(note):
+    conn = None
     try:
         conn = get_db_connection()
         app_id = get_app_id()
@@ -654,7 +657,6 @@ def get_questionnaire_detail(note):
         tables = _table_names(app_id)
         rows = _load_questionnaire_rows(conn, app_id, note)
         if not rows:
-            conn.close()
             return jsonify({"error": "找不到該問卷"}), 404
 
         entry_rule, questions = _extract_questionnaire_questions(rows)
@@ -679,7 +681,6 @@ def get_questionnaire_detail(note):
         )
         meta_row = cur.fetchone()
         cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -696,10 +697,13 @@ def get_questionnaire_detail(note):
         )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 
 @questionnaire_bp.route("/responses/<note>", methods=["GET"])
 def get_questionnaire_responses(note):
+    conn = None
     try:
         conn = get_db_connection()
         app_id = get_app_id()
@@ -708,7 +712,6 @@ def get_questionnaire_responses(note):
 
         rows = _load_questionnaire_rows(conn, app_id, note)
         if not rows:
-            conn.close()
             return jsonify({"error": "找不到該問卷"}), 404
 
         _, questions = _extract_questionnaire_questions(rows)
@@ -727,7 +730,6 @@ def get_questionnaire_responses(note):
         )
         answer_rows = cur.fetchall()
         cur.close()
-        conn.close()
 
         responses_by_user = {}
         pattern = re.compile(rf"^ans_{re.escape(note)}_Q(\d+)$")
@@ -774,6 +776,8 @@ def get_questionnaire_responses(note):
         )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 
 @questionnaire_bp.route("/build", methods=["POST"])
@@ -808,6 +812,7 @@ def build_questionnaire():
     except Exception:
         return jsonify({"error": "群組格式不正確"}), 400
 
+    conn = None
     try:
         conn = get_db_connection()
         app_id = get_app_id()
@@ -818,13 +823,11 @@ def build_questionnaire():
         cur.execute(f'SELECT 1 FROM "{tables["groups"]}" WHERE id = %s', (group_id,))
         if not cur.fetchone():
             cur.close()
-            conn.close()
             return jsonify({"error": "指定的問卷群組不存在"}), 400
 
         cur.execute(f'SELECT 1 FROM "{tables["q_bank"]}" WHERE note = %s LIMIT 1', (note,))
         if cur.fetchone():
             cur.close()
-            conn.close()
             return jsonify({"error": f"問卷名稱「{note}」已存在，請使用不同名稱"}), 400
 
         quest_id = _get_next_available_id(conn, app_id)
@@ -832,15 +835,18 @@ def build_questionnaire():
         _upsert_questionnaire_meta(conn, app_id, note, group_id)
         conn.commit()
         cur.close()
-        conn.close()
         _trigger_sql_reload()
         return jsonify({"status": "success", "message": f"問卷「{note}」已成功建立 (ID: {quest_id:02d})"})
     except Exception as e:
+        if conn: conn.rollback()
         return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 
 @questionnaire_bp.route("/<note>", methods=["DELETE"])
 def delete_questionnaire(note):
+    conn = None
     try:
         conn = get_db_connection()
         app_id = get_app_id()
@@ -852,8 +858,10 @@ def delete_questionnaire(note):
         cur.execute(f'DELETE FROM "{tables["meta"]}" WHERE note = %s', (note,))
         conn.commit()
         cur.close()
-        conn.close()
         _trigger_sql_reload()
         return jsonify({"status": "success", "deleted_rows": deleted})
     except Exception as e:
+        if conn: conn.rollback()
         return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()

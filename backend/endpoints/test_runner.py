@@ -9,10 +9,7 @@ from utils.socket_utils import send_socket_event
 
 test_runner_bp = Blueprint('test_runner', __name__)
 
-def get_db_connection():
-    if hasattr(g, 'current_db_url') and g.current_db_url:
-        return psycopg2.connect(g.current_db_url)
-    raise Exception("No OA DB context found. Please provide X-OA-ID header.")
+from db_utils import get_db_connection
 
 def get_logical_app_id():
     if hasattr(g, 'current_app_name') and g.current_app_name:
@@ -54,6 +51,7 @@ DEFAULT_TEST_CASES = [
 @test_runner_bp.route('/test_cases', methods=['GET'])
 def get_test_cases():
     """從 Global_var 讀取測試案例 JSON"""
+    conn = None
     try:
         app_id = get_logical_app_id()
         conn = get_db_connection()
@@ -71,7 +69,6 @@ def get_test_cases():
         cur.execute(f"SELECT value FROM \"{table_name}\" WHERE name = 'SYS_TEST_CASES'")
         row = cur.fetchone()
         cur.close()
-        conn.close()
         
         if row and row['value']:
             try:
@@ -85,12 +82,15 @@ def get_test_cases():
             return jsonify({'status': 'success', 'cases': DEFAULT_TEST_CASES})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @test_runner_bp.route('/test_cases', methods=['POST'])
 def save_test_cases():
     """將測試案例 JSON 存入 Global_var"""
     data = request.json
     cases = data.get('cases', [])
+    conn = None
     try:
         app_id = get_logical_app_id()
         conn = get_db_connection()
@@ -107,10 +107,12 @@ def save_test_cases():
         
         conn.commit()
         cur.close()
-        conn.close()
         return jsonify({'status': 'success'})
     except Exception as e:
+        if conn: conn.rollback()
         return jsonify({'error': str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @test_runner_bp.route('/execute', methods=['POST'])
 def execute_tests():
@@ -125,7 +127,9 @@ def execute_tests():
     test_user_id = "yzuadmin"
     app_id = get_logical_app_id()
 
+    conn = None
     try:
+        conn = get_db_connection()
         for idx, tc in enumerate(test_cases):
             trigger = tc.get('trigger_keyword') or ''
             trigger_type = tc.get('trigger_type') or 'Message'
@@ -136,12 +140,9 @@ def execute_tests():
                 continue
             
             # Step 1: 紀錄發送前的時間戳記 (直接向 DB 取時間避免時區落差造成完全撈不到資料)
-            conn_ts = get_db_connection()
-            cur_ts = conn_ts.cursor(cursor_factory=RealDictCursor)
-            cur_ts.execute("SELECT NOW() - INTERVAL '2 seconds' as now")
-            start_time = cur_ts.fetchone()['now']
-            cur_ts.close()
-            conn_ts.close()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("SELECT NOW() - INTERVAL '2 seconds' as now")
+            start_time = cur.fetchone()['now']
             
             # Step 2: 透過 Socket.IO 發送模擬訊息
             payload = {
@@ -154,15 +155,13 @@ def execute_tests():
                 send_socket_event(payload)
             except Exception as e:
                 results.append({'id': tc.get('id', idx), 'status': 'Fail', 'reason': f'Socket Error: {e}'})
+                cur.close()
                 continue
             
             # Step 3: 等待 Line-Bot-Main 伺服器處理並寫入 DB
             time.sleep(1.5)
             
             # Step 4: 查詢資料庫驗證結果
-            conn = get_db_connection()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            
             history_row = None
             state_row = None
             try:
@@ -189,7 +188,6 @@ def execute_tests():
                 conn.rollback()
                 
             cur.close()
-            conn.close()
 
             actual_content_raw = history_row['content'] if history_row else '無回應'
             parsed_preview = actual_content_raw
@@ -250,3 +248,5 @@ def execute_tests():
         err_msg = traceback.format_exc()
         print(f"Test Execution Error: {err_msg}")
         return jsonify({'error': str(e), 'traceback': err_msg}), 500
+    finally:
+        if conn: conn.close()

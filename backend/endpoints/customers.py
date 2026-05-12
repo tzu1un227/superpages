@@ -5,11 +5,7 @@ from psycopg2.extras import RealDictCursor
 
 customers_bp = Blueprint('customers', __name__)
 
-def get_db_connection():
-    # Helper to avoid circular import if needed, but we can import from app.
-    # Actually, it's better to import from app inside functions to avoid circular imports.
-    from app import get_db_connection as app_get_db_connection
-    return app_get_db_connection()
+from db_utils import get_db_connection
 
 def get_current_app_id():
     from app import get_current_app_id as app_get_app_id
@@ -19,6 +15,7 @@ def get_current_app_id():
 @token_required
 def get_customers():
     print("DEBUG: get_customers called")
+    conn = None
     try:
         app_id = get_current_app_id()
         conn = get_db_connection()
@@ -28,7 +25,6 @@ def get_customers():
         history_table = f'"history:{app_id}"'
         
         # Single optimized query to fetch user data and interaction stats
-        # Filtering empty names in SQL to drastically reduce processing rows
         query = f"""
             WITH user_data AS (
                 SELECT 
@@ -64,7 +60,6 @@ def get_customers():
         rows = cur.fetchall()
         
         import ast
-        
         results = []
         for r in rows:
             # Format times
@@ -105,20 +100,19 @@ def get_customers():
             results.append(r)
             
         cur.close()
-        conn.close()
         print(f"DEBUG: get_customers finished, returning {len(results)} users")
         return jsonify(results)
     except Exception as e:
         print(f"Error in get_customers: {e}")
         return jsonify({"error": str(e)}), 500
-    except Exception as e:
-        print(f"Error in get_customers: {e}")
-        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @customers_bp.route('/groups', methods=['GET'])
 @token_required
 def get_groups():
     print("DEBUG: get_groups called")
+    conn = None
     try:
         app_id = get_current_app_id()
         conn = get_db_connection()
@@ -161,12 +155,12 @@ def get_groups():
 
         groups = [{'group_name': k, 'member_count': v, 'description': descriptions.get(k, '')} for k, v in group_counts.items()]
         
-
         cur.close()
-        conn.close()
         return jsonify(groups)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @customers_bp.route('/groups', methods=['POST'])
 @token_required
@@ -304,6 +298,7 @@ def delete_group(group_name):
 @token_required
 def get_tags():
     print("DEBUG: get_tags called")
+    conn = None
     try:
         app_id = get_current_app_id()
         conn = get_db_connection()
@@ -340,10 +335,11 @@ def get_tags():
         tags.sort(key=lambda x: x['member_count'], reverse=True)
         
         cur.close()
-        conn.close()
         return jsonify(tags)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @customers_bp.route('/tags/<tag_name>', methods=['DELETE'])
 @token_required
