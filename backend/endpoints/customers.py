@@ -11,7 +11,7 @@ def get_current_app_id():
     from app import get_current_app_id as app_get_app_id
     return app_get_app_id()
 
-@customers_bp.route('', methods=['GET'])
+@customers_bp.route('/', methods=['GET'], strict_slashes=False)
 @token_required
 def get_customers():
     print("DEBUG: get_customers called")

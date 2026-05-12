@@ -685,7 +685,7 @@ def get_my_oas():
         return jsonify({'error': str(e)}), 500
 
 # Projects CRUD
-@app.route('/api/projects', methods=['GET'])
+@app.route('/api/projects', methods=['GET'], strict_slashes=False)
 @token_required
 def get_projects():
     try:
@@ -1992,7 +1992,7 @@ def create_scheduled_event():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # Scheduled Events CRUD
-@app.route('/api/scheduled-events', methods=['GET'])
+@app.route('/api/scheduled-events', methods=['GET'], strict_slashes=False)
 @token_required
 def get_scheduled_events():
     try:

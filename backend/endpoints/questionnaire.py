@@ -508,7 +508,7 @@ def build_questionnaire_direct(data, app_id, conn, quest_id):
     cur.close()
 
 
-@questionnaire_bp.route("/groups", methods=["GET"])
+@questionnaire_bp.route("/groups", methods=["GET"], strict_slashes=False)
 def list_questionnaire_groups():
     conn = None
     try:
@@ -535,7 +535,7 @@ def list_questionnaire_groups():
         if conn: conn.close()
 
 
-@questionnaire_bp.route("/groups", methods=["POST"])
+@questionnaire_bp.route("/groups", methods=["POST"], strict_slashes=False)
 def create_questionnaire_group():
     data = request.get_json() or {}
     name = (data.get("name") or "").strip()
@@ -566,7 +566,7 @@ def create_questionnaire_group():
         if conn: conn.close()
 
 
-@questionnaire_bp.route("/groups/<int:group_id>", methods=["DELETE"])
+@questionnaire_bp.route("/groups/<int:group_id>", methods=["DELETE"], strict_slashes=False)
 def delete_questionnaire_group(group_id):
     conn = None
     try:
@@ -593,7 +593,7 @@ def delete_questionnaire_group(group_id):
         if conn: conn.close()
 
 
-@questionnaire_bp.route("/list", methods=["GET"])
+@questionnaire_bp.route("/list", methods=["GET"], strict_slashes=False)
 def list_questionnaires():
     conn = None
     try:
@@ -647,7 +647,7 @@ def list_questionnaires():
         if conn: conn.close()
 
 
-@questionnaire_bp.route("/detail/<note>", methods=["GET"])
+@questionnaire_bp.route("/detail/<note>", methods=["GET"], strict_slashes=False)
 def get_questionnaire_detail(note):
     conn = None
     try:
@@ -701,7 +701,7 @@ def get_questionnaire_detail(note):
         if conn: conn.close()
 
 
-@questionnaire_bp.route("/responses/<note>", methods=["GET"])
+@questionnaire_bp.route("/responses/<note>", methods=["GET"], strict_slashes=False)
 def get_questionnaire_responses(note):
     conn = None
     try:
@@ -780,7 +780,7 @@ def get_questionnaire_responses(note):
         if conn: conn.close()
 
 
-@questionnaire_bp.route("/build", methods=["POST"])
+@questionnaire_bp.route("/build", methods=["POST"], strict_slashes=False)
 def build_questionnaire():
     data = request.get_json()
     if not data:
@@ -844,7 +844,7 @@ def build_questionnaire():
         if conn: conn.close()
 
 
-@questionnaire_bp.route("/<note>", methods=["DELETE"])
+@questionnaire_bp.route("/<note>", methods=["DELETE"], strict_slashes=False)
 def delete_questionnaire(note):
     conn = None
     try:

@@ -11,7 +11,7 @@ def get_line_token():
         return g.current_oa_config.other_settings.get('line_token')
     return None
 
-@richmenu_bp.route('/', methods=['GET'])
+@richmenu_bp.route('/', methods=['GET'], strict_slashes=False)
 @token_required
 def list_rich_menus():
     token = get_line_token()
@@ -114,7 +114,7 @@ def list_rich_menu_aliases():
     except Exception as e:
         return jsonify({'message': 'Error', 'error': str(e)}), 500
 
-@richmenu_bp.route('/', methods=['POST'])
+@richmenu_bp.route('/', methods=['POST'], strict_slashes=False)
 @token_required
 def create_rich_menu():
     token = get_line_token()
@@ -303,7 +303,7 @@ def unset_default_rich_menu():
     except Exception as e:
         return jsonify({'message': 'Error', 'error': str(e)}), 500
 
-@richmenu_bp.route('/permissions', methods=['GET'])
+@richmenu_bp.route('/permissions', methods=['GET'], strict_slashes=False)
 @token_required
 def get_rich_menu_permissions():
     oa_config = getattr(g, 'current_oa_config', None)
@@ -313,7 +313,7 @@ def get_rich_menu_permissions():
     mappings = oa_config.other_settings.get('rich_menu_mappings', []) if (oa_config.other_settings and isinstance(oa_config.other_settings, dict)) else []
     return jsonify({'mappings': mappings})
 
-@richmenu_bp.route('/permissions', methods=['POST'])
+@richmenu_bp.route('/permissions', methods=['POST'], strict_slashes=False)
 @token_required
 def save_rich_menu_permissions():
     from models import db, OAConfig
@@ -348,7 +348,7 @@ def parse_local_naive(dt_str):
     except:
         return None
 
-@richmenu_bp.route('/metadata', methods=['GET'])
+@richmenu_bp.route('/metadata', methods=['GET'], strict_slashes=False)
 @token_required
 def get_rich_menu_metadata():
     from models import RichMenuMetadata
@@ -368,7 +368,7 @@ def get_rich_menu_metadata():
         'data': m.data
     } for m in metadata])
 
-@richmenu_bp.route('/metadata', methods=['POST'])
+@richmenu_bp.route('/metadata', methods=['POST'], strict_slashes=False)
 @token_required
 def save_rich_menu_metadata():
     from models import db, RichMenuMetadata
