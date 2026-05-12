@@ -428,7 +428,6 @@ finally:
 用於 `OAConfig`、`User`、`Page` 等核心模型。
 - **配置參數 (極限節能模式)**:
     - `poolclass`: `NullPool` (執行完立即釋放連線)
-    - `pool_timeout`: 30
 
 ### 5. 中繼資料查詢優化 (Metadata Cache)
 - **`_ENSURED_TABLES`**: 在 `broadcast.py` 中實作，快取已確認存在的租戶表格名稱，避免頻繁查詢 `information_schema` 造成資料庫效能下降。

@@ -46,7 +46,6 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 from sqlalchemy.pool import NullPool
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'poolclass': NullPool,
-    'pool_timeout': 30,
 }
 
 from db_utils import get_db_connection, get_main_db_connection, PooledConnectionWrapper
