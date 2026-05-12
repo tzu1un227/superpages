@@ -677,7 +677,7 @@ def get_my_oas():
 @token_required
 def get_projects():
     try:
-        conn = get_main_db_connection()
+        conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         t_projects = get_suffixed_table('projects')
         cur.execute(f"SELECT * FROM {t_projects} ORDER BY project_id")
@@ -736,7 +736,7 @@ def create_project():
         anchor_config = json.dumps(data.get('anchor_config', {}))
         dormancy_config = json.dumps(data.get('dormancy_config', {}))
 
-        conn = get_main_db_connection()
+        conn = get_db_connection()
         cur = conn.cursor()
         t_projects = get_suffixed_table('projects')
         
@@ -777,7 +777,7 @@ def update_project(id):
         anchor_config = json.dumps(data.get('anchor_config', {}))
         dormancy_config = json.dumps(data.get('dormancy_config', {}))
 
-        conn = get_main_db_connection()
+        conn = get_db_connection()
         cur = conn.cursor()
         t_projects = get_suffixed_table('projects')
         
@@ -799,7 +799,7 @@ def update_project(id):
 @token_required
 def delete_project(id):
     try:
-        conn = get_main_db_connection()
+        conn = get_db_connection()
         cur = conn.cursor()
         t_projects = get_suffixed_table('projects')
         t_schedules = get_suffixed_table('project_schedules')
@@ -922,7 +922,7 @@ def reorder_project_schedules(id):
         if not schedule_ids:
             return jsonify({"status": "error", "message": "No schedules provided"}), 400
             
-        conn = get_main_db_connection()
+        conn = get_db_connection()
         cur = conn.cursor()
         from endpoints.broadcast import ensure_rds_tables
         ensure_rds_tables(get_current_app_id())
@@ -947,7 +947,7 @@ def reorder_project_schedules(id):
 @token_required
 def export_project_schedules(id):
     try:
-        conn = get_main_db_connection()
+        conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         from endpoints.broadcast import ensure_rds_tables
         ensure_rds_tables(get_current_app_id())
@@ -965,7 +965,7 @@ def export_project_schedules(id):
 def import_project_schedules(id):
     data = request.json # List of schedules
     try:
-        conn = get_main_db_connection()
+        conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         from endpoints.broadcast import ensure_rds_tables
         ensure_rds_tables(get_current_app_id())
@@ -1020,7 +1020,7 @@ def import_project_schedules(id):
                     print(f"Error syncing imported message for step {s['step_id']} (Project {id}): {sync_err}")
             
         # 6. Insert schedules into RDS
-        conn = get_main_db_connection()
+        conn = get_db_connection()
         cur = conn.cursor()
         
         from endpoints.broadcast import ensure_rds_tables
@@ -1048,7 +1048,7 @@ def import_project_schedules(id):
 def get_project_users(id):
     try:
         app_id = get_current_app_id()
-        conn = get_main_db_connection()
+        conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         t_ups = get_suffixed_table('user_project_status')
         t_cron = get_suffixed_table('cron_table')
@@ -1088,7 +1088,7 @@ def get_project_users(id):
 @token_required
 def delete_project_user(id, user_id):
     try:
-        conn = get_main_db_connection()
+        conn = get_db_connection()
         cur = conn.cursor()
         t_cron = get_suffixed_table('cron_table')
         t_ups = get_suffixed_table('user_project_status')
@@ -1105,7 +1105,7 @@ def delete_project_user(id, user_id):
 @token_required
 def restart_project_user(id, user_id):
     try:
-        conn = get_main_db_connection()
+        conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         t_projects = get_suffixed_table('projects')
         t_schedules = get_suffixed_table('project_schedules')
@@ -1228,7 +1228,7 @@ def batch_restart_project_users(id):
         if not user_ids:
             return jsonify({"status": "error", "message": "No users selected"}), 400
 
-        conn = get_main_db_connection()
+        conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         t_projects = get_suffixed_table('projects')
         t_schedules = get_suffixed_table('project_schedules')
@@ -1353,7 +1353,7 @@ def get_schedules():
         project_id = request.args.get('project_id')
         print(f"Fetching schedules. project_id filter: {project_id}")
         
-        conn = get_main_db_connection()
+        conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
         # Ensure migration has run for this OA's suffixed tables
@@ -1430,7 +1430,7 @@ def create_schedule():
         if float(data['interval_hours']) < 0:
             return jsonify({"status": "error", "message": "間隔時間必須大於或等於 0"}), 400
 
-        conn = get_main_db_connection()
+        conn = get_db_connection()
         cur = conn.cursor()
         t_schedules = get_suffixed_table('project_schedules')
         cur.execute(
@@ -1453,7 +1453,7 @@ def update_schedule(id):
         if float(data['interval_hours']) < 0:
             return jsonify({"status": "error", "message": "間隔時間必須大於或等於 0"}), 400
 
-        conn = get_main_db_connection()
+        conn = get_db_connection()
         cur = conn.cursor()
         t_schedules = get_suffixed_table('project_schedules')
         cur.execute(
@@ -1471,7 +1471,7 @@ def update_schedule(id):
 @token_required
 def delete_schedule(id):
     try:
-        conn = get_main_db_connection()
+        conn = get_db_connection()
         cur = conn.cursor()
         t_schedules = get_suffixed_table('project_schedules')
 
@@ -1511,7 +1511,7 @@ def get_statistics():
         if len(end_time) == 10:
             end_time += " 23:59:59"
 
-        conn = get_main_db_connection()
+        conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         t_static = get_suffixed_table('ht_view')
         
@@ -1959,7 +1959,7 @@ def create_scheduled_event():
         if not user_id or not message_content or interval_hours is None or interval_hours == '':
             return jsonify({"status": "error", "message": "Missing required fields"}), 400
 
-        conn = get_main_db_connection()
+        conn = get_db_connection()
         cur = conn.cursor()
         t_cron = get_suffixed_table('cron_table')
         
@@ -1985,7 +1985,7 @@ def create_scheduled_event():
 def get_scheduled_events():
     try:
         app_id = get_current_app_id()
-        conn = get_main_db_connection()
+        conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         t_cron = get_suffixed_table('cron_table')
         t_projects = get_suffixed_table('projects')
@@ -2027,7 +2027,7 @@ def get_scheduled_events():
 @token_required
 def delete_scheduled_event(id):
     try:
-        conn = get_main_db_connection()
+        conn = get_db_connection()
         cur = conn.cursor()
         t_cron = get_suffixed_table('cron_table')
         cur.execute(f"DELETE FROM {t_cron} WHERE task_id = %s", (id,))
