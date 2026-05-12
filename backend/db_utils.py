@@ -102,12 +102,20 @@ def get_db_connection(db_url=None):
     if not db_url:
         db_url = getattr(g, 'current_db_url', None)
     
+    # CRITICAL FIX: If we have an OA ID but no DB URL, do NOT fallback to RDS.
+    # This happens if the Main RDS was too busy to provide the config during load_oa_context.
+    oa_id = getattr(g, 'current_oa_id', None)
+    if not db_url and oa_id:
+        print(f"CRITICAL: Request for OA {oa_id} has no DB URL. Refusing to fallback to Main RDS.")
+        raise Exception("系統連線繁忙，請稍後再試。")
+    
     if not db_url:
         db_url = RDS_URL
     
     global db_pools
     if db_url not in db_pools:
         try:
+            # We strictly keep pool size 1 for extreme savings
             db_pools[db_url] = SimplePool(lambda: psycopg2.connect(db_url), max_size=1)
         except Exception as e:
             print(f"ERROR: Failed to create pool for {db_url}: {e}")
