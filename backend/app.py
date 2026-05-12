@@ -43,11 +43,10 @@ app.config['SQLALCHEMY_BINDS'] = {
     'legacy': f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
 }
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+from sqlalchemy.pool import NullPool
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_size': 2,
-    'max_overflow': 3,
+    'poolclass': NullPool,
     'pool_timeout': 30,
-    'pool_recycle': 1800,
 }
 
 from db_utils import get_db_connection, get_main_db_connection, PooledConnectionWrapper
@@ -290,7 +289,7 @@ def init_db():
     except Exception as e:
         print(f"Error initializing database: {e}")
 
-init_db()
+# init_db() # Disabled to save startup connection quota
 
 # scheduled_event_processor REMOVED
 

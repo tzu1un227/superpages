@@ -405,9 +405,9 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
 ### 1. 集中化管理模組 (`db_utils.py`)
 所有手動 SQL 操作（非 SQLAlchemy 管理的部分）必須透過 `backend/db_utils.py` 提供的方法獲取連線。這解決了模組間的循環引用問題並統一了連線參數。
 
-- **`get_main_db_connection()`**: 用於 RDS 主資料庫，上限已優化為 **2**（針對 Heroku 20-conn 限制）。
-- **`get_db_connection(db_url)`**: 用於租戶專屬資料庫，每個租戶上限優化為 **2**。
-- **`PooledConnectionWrapper`**: 確保在呼叫 `.close()` 時連線會正確歸還至池中，支持 `with` 語法。
+- **`get_main_db_connection()`**: 上限已優化為 **1**（針對 14 個專案共享 20 個連線的極端環境）。
+- **`get_db_connection(db_url)`**: 上限優化為 **1**。
+- **排隊機制**: 實作了 10 次重試（每次 0.5s）的等待邏輯。
 
 ### 2. 強制釋放規則 (Try-Finally Pattern)
 所有 API Endpoint 必須遵循以下結構，以杜絕連線外洩 (Connection Leak)：
@@ -426,11 +426,9 @@ finally:
 
 ### 4. ORM 層配置 (SQLAlchemy)
 用於 `OAConfig`、`User`、`Page` 等核心模型。
-- **配置參數 (已針對共享環境優化)**:
-    - `pool_size`: 2
-    - `max_overflow`: 3
+- **配置參數 (極限節能模式)**:
+    - `poolclass`: `NullPool` (執行完立即釋放連線)
     - `pool_timeout`: 30
-    - `pool_recycle`: 1800s
 
 ### 5. 中繼資料查詢優化 (Metadata Cache)
 - **`_ENSURED_TABLES`**: 在 `broadcast.py` 中實作，快取已確認存在的租戶表格名稱，避免頻繁查詢 `information_schema` 造成資料庫效能下降。
