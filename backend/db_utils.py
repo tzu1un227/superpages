@@ -1,19 +1,33 @@
 import psycopg2
-from psycopg2 import pool
 from flask import g
 import os
+import queue
+import threading
+import time
 
-# Configuration (Keep in sync with app.py or use env)
+# Configuration
 RDS_URL = "postgresql://u1kq1nhog5jq7b:pd1a6d947df93fb15d747bbadf399e84893f9fd5932782191f0b6ffa187c5ae18@c8lcd8bq1mia7p.cluster-czrs8kj4isg7.us-east-1.rds.amazonaws.com:5432/d1hr8bloo29pm6"
 
-# Default local DB config - REMOVED to prevent accidental localhost connections
-DB_CONFIG = None 
+class SimplePool:
+    def __init__(self, creator, max_size):
+        self.creator = creator
+        self.pool = queue.Queue(maxsize=max_size)
+    
+    def getconn(self):
+        try:
+            return self.pool.get(block=False)
+        except queue.Empty:
+            return self.creator()
+    
+    def putconn(self, conn):
+        try:
+            self.pool.put(conn, block=False)
+        except queue.Full:
+            conn.close()
 
-# Global pools
 db_pools = {}
 
 class PooledConnectionWrapper:
-    """Wrapper that ensures connection is returned to pool when closed."""
     def __init__(self, pool_obj, conn):
         self._pool = pool_obj
         self._conn = conn

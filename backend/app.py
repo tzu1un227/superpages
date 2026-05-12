@@ -44,8 +44,8 @@ app.config['SQLALCHEMY_BINDS'] = {
 }
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_size': 2,
-    'max_overflow': 1,
+    'pool_size': 1,
+    'max_overflow': 0,
     'pool_timeout': 30,
     'pool_recycle': 1800,
 }
