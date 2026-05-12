@@ -113,27 +113,10 @@ All scheduling is now managed via **Projects** using the `cron_table`. The legac
     - **Redirect Proxy Protocol**: When a URI action has tags, it is automatically converted to a proxy URL: `https://[BASE_URL]/api/redirect?url=[URL]&tags=[TAGS]`. The proxy logs the tags via WebSocket before redirecting the user.
     - **Prefix Protocol**: Message and Postback content for tagged buttons are stored with the `tag_true|tag1,tag2|content` prefix, allowing the rule engine to process tags via the `tag_true|*` rule matching.
  
-### Lottery Management (賜蝞∠)
+### Lottery Management (抽獎管理 - Removed)
+> [!IMPORTANT]
+> 此功能已於 2026-05-12 移除，因為不再需要使用。相關頁面 `PrizeStatus.jsx` 與後端初始化邏輯已清理。
 
-#### Components
-1.  **Frontend**: `PrizeStatus.jsx`.
-    -   Displays `gameStatus` (Fetched from `/api/game-status`, source: `Global_var:5013` -> `SYS_STAT`).
-    -   Lists prizes (`tickets`) from `ticket_table`.
-    -   Provides controls to Start/Stop game (via direct socket triggers) and manage prizes (Delete/Create).
-    -   Displays "Registered Users" list (Name + Partial UserID).
-
-2.  **Database**:
-    -   `ticket_table`: Stores the list of prizes (`id`, `name`, `order`, `user_id`).
-    -   `person_table`: Stores user information (`name`, `user_id`, etc.) for the registered users list.
-    -   `Global_var:5013`: Stores the system status key `SYS_STAT` ("WAIT" = Not Started, "RUN" = In Progress).
-
-3.  **Endpoints**:
-    -   `GET /api/game-status`: Returns the current game status.
-    -   `DELETE /api/tickets/<id>`: Deletes a specific prize.
-    -   `GET /api/registered-users`: Fetches list of registered users. Supports `source` parameter:
-        -   `source=private_var` (default): Fetches from `Private_var` (requires `name` and `pic`), used for Projects.
-        -   `source=person_table`: Fetches from `person_table` (returns `user_id`, `name`), used for Lottery.
-    -   `get_tickets` and `trigger_socket_event` (existing).
 
 ### Message Center (閮𦠜銝剖)
 - **Frontend**: `MessageCenter.jsx`.

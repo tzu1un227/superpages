@@ -117,7 +117,6 @@ with app.app_context():
             {'name': 'Projects', 'description': '自動旅程'},
             {'name': 'Broadcast', 'description': '群發訊息'},
             {'name': 'ScheduledEvents', 'description': '定時排程'},
-            {'name': 'PrizeStatus', 'description': '抽獎管理'},
             {'name': 'RichMenu', 'description': '圖文選單'},
             {'name': 'Questionnaire', 'description': '問卷管理'},
             {'name': 'RuleDesigner', 'description': '法則表設計'},

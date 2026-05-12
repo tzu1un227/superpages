@@ -7,7 +7,6 @@ import Projects from './pages/Projects';
 import MessageCenter from './pages/MessageCenter';
 import Broadcast from './pages/Broadcast';
 import ScheduledEvents from './pages/ScheduledEvents';
-import PrizeStatus from './pages/PrizeStatus';
 import Statistics from './pages/Statistics';
 import RichMenu from './pages/RichMenu';
 import AdminPage from './pages/AdminPage';
@@ -45,7 +44,6 @@ const PAGE_ROUTE_MAP = {
   'Projects': 'projects',
   'Broadcast': 'broadcast',
   'ScheduledEvents': 'scheduled-events',
-  'PrizeStatus': 'prizes',
   'Statistics': 'statistics',
   'RichMenu': 'richmenu',
   'Questionnaire': 'questionnaire',
@@ -60,7 +58,6 @@ const PAGE_ICON_MAP = {
   'Projects': LayoutDashboard,
   'Broadcast': Send,
   'ScheduledEvents': Clock,
-  'PrizeStatus': Gift,
   'Statistics': BarChart3,
   'RichMenu': LayoutGrid,
   'Questionnaire': ClipboardList,
@@ -83,7 +80,6 @@ const HELP_CONTENT_MAP = {
   'projects': '自動旅程：設定用戶進入後的自動化流程，包含定時推送訊息與標籤觸發。',
   'broadcast': '群發訊息：針對全體或指定標籤受眾進行即時或預約群發。',
   'scheduled-events': '定時排程：查看與管理所有已排定的訊息推送任務。',
-  'prizes': '抽獎管理：管理系統內的獎項、中獎機率與兌換狀態。',
   'statistics': '綜合數據：查看追蹤人數、訊息量、點擊率等各項指標報表。',
   'richmenu': '圖文選單：管理 LINE 底部選單。支援草稿、發佈、定時切換與連結功能。',
   'questionnaire': '問卷管理：建立與管理互動式問卷，收集用戶回饋與偏好。',
@@ -158,8 +154,7 @@ const MainLayout = () => {
                     const fullPath = `/oa/${oa.id}/${routePath}`;
                     const isActive = location.pathname.startsWith(fullPath);
 
-                    const displayName = page.name === 'PrizeStatus' ? '抽獎管理' :
-                      page.name === 'Projects' ? '自動旅程' :
+                    const displayName = page.name === 'Projects' ? '自動旅程' :
                         page.name === 'Questionnaire' ? '問卷管理' :
                           page.name === 'RuleDesigner' ? '法則表設計' :
                             page.name === 'DatabaseViewer' ? '資料庫檢視' :
@@ -223,7 +218,6 @@ const MainLayout = () => {
           <Route path="/oa/:oaId/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
           <Route path="/oa/:oaId/broadcast" element={<ProtectedRoute><Broadcast /></ProtectedRoute>} />
           <Route path="/oa/:oaId/scheduled-events" element={<ProtectedRoute><ScheduledEvents /></ProtectedRoute>} />
-          <Route path="/oa/:oaId/prizes" element={<ProtectedRoute><PrizeStatus /></ProtectedRoute>} />
           <Route path="/oa/:oaId/statistics" element={<ProtectedRoute><Statistics /></ProtectedRoute>} />
           <Route path="/oa/:oaId/richmenu" element={<ProtectedRoute><RichMenu /></ProtectedRoute>} />
           <Route path="/oa/:oaId/questionnaire" element={<ProtectedRoute><Questionnaire /></ProtectedRoute>} />

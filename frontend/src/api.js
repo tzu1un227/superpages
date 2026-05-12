@@ -192,8 +192,6 @@ export const preloadPagesData = (oaId, force = false) => {
         '/richmenu', 
         '/statistics', 
         '/questionnaire/list', 
-        '/tickets', 
-        '/game-status', 
         '/db/tables'
     ];
     
