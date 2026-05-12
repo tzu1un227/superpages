@@ -89,7 +89,7 @@ def get_main_db_connection():
     global db_pools
     if RDS_URL not in db_pools:
         try:
-            db_pools[RDS_URL] = SimplePool(lambda: psycopg2.connect(RDS_URL), max_size=1)
+            db_pools[RDS_URL] = SimplePool(lambda: psycopg2.connect(RDS_URL), max_size=3)
         except Exception as e:
             print(f"ERROR: Failed to create RDS pool: {e}")
             raise e
@@ -116,7 +116,7 @@ def get_db_connection(db_url=None):
     if db_url not in db_pools:
         try:
             # We strictly keep pool size 1 for extreme savings
-            db_pools[db_url] = SimplePool(lambda: psycopg2.connect(db_url), max_size=1)
+            db_pools[db_url] = SimplePool(lambda: psycopg2.connect(db_url), max_size=3)
         except Exception as e:
             print(f"ERROR: Failed to create pool for {db_url}: {e}")
             raise e
