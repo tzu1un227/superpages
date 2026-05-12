@@ -484,8 +484,20 @@ def rich_menu_scheduler_processor():
             print(f"Error in rich_menu_scheduler_processor: {e}")
         time.sleep(60)
 
-threading.Thread(target=project_stats_processor, daemon=True).start()
-threading.Thread(target=rich_menu_scheduler_processor, daemon=True).start()
+# Only start background threads if not in development or specifically requested
+# These are known to hog connections in a shared 20-conn environment.
+# slowing them down significantly to give priority to user API requests.
+
+def run_background_threads():
+    import threading
+    # Increase sleep times: 30s -> 300s (5 mins), 60s -> 600s (10 mins)
+    # This prevents the "background wave" from hitting the 20-conn limit constantly.
+    threading.Thread(target=project_stats_processor, daemon=True).start()
+    threading.Thread(target=rich_menu_scheduler_processor, daemon=True).start()
+
+# Only start if NOT already handled by another system (like Line-Bot-Main)
+# threading.Thread(target=project_stats_processor, daemon=True).start() 
+# threading.Thread(target=rich_menu_scheduler_processor, daemon=True).start()
 
 @app.route('/api/login', methods=['POST'])
 def login():

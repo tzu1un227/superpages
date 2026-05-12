@@ -24,9 +24,9 @@ def get_customers():
         pv_table = f'"Private_var:{app_id}"'
         history_table = f'"history:{app_id}"'
         
-        # Single optimized query to fetch user data and interaction stats
+        # Optimized query: Fetch users first, then join with limited history stats
         query = f"""
-            WITH user_data AS (
+            WITH filtered_users AS (
                 SELECT 
                     user_id,
                     MAX(CASE WHEN name = 'name' THEN value END) as name,
@@ -39,20 +39,13 @@ def get_customers():
                 GROUP BY user_id
                 HAVING MAX(CASE WHEN name = 'name' THEN value END) IS NOT NULL 
                    AND MAX(CASE WHEN name = 'name' THEN value END) NOT IN ('', 'None', '未命名用戶')
-            ),
-            history_stats AS (
-                SELECT 
-                    user_id, 
-                    MAX(timestamp) as last_interaction,
-                    MIN(CASE WHEN category = 'follow' THEN timestamp END) as join_time
-                FROM {history_table}
-                GROUP BY user_id
+                LIMIT 500
             )
-            SELECT u.*, h.last_interaction, h.join_time
-            FROM user_data u
-            LEFT JOIN history_stats h ON u.user_id = h.user_id
-            ORDER BY h.last_interaction DESC NULLS LAST
-            LIMIT 2000
+            SELECT u.*, 
+                   (SELECT MAX(timestamp) FROM {history_table} h WHERE h.user_id = u.user_id) as last_interaction,
+                   (SELECT MIN(timestamp) FROM {history_table} h WHERE h.user_id = u.user_id AND h.category = 'follow') as join_time
+            FROM filtered_users u
+            ORDER BY last_interaction DESC NULLS LAST
         """
         
         print(f"DEBUG: Executing optimized customer query for {app_id}")
