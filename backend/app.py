@@ -254,28 +254,24 @@ def load_oa_context():
     oa_id = request.headers.get('X-OA-ID')
     if oa_id:
         try:
-            # We need to query OAConfig, which is in the default SQLAlchemy DB
-            # Ensure we are inside app context (we are via before_request)
-            oa_config = OAConfig.query.get(oa_id)
+            # Ensure the session is clean before querying for config
+            db.session.rollback()
+            oa_config = OAConfig.query.get(int(oa_id))
             if oa_config and oa_config.db_url:
-                # Security/Permission Check
-                # If user is logged in, verify they have access to this OA
-                # Note: token_required decorator usually runs *after* before_request if applied to route.
-                # However, g.current_user is set by token_required or similar.
-                # Since we haven't decoded the token yet globally, we might defer permission check 
-                # or we decode token here if we want strict enforcement.
-                # For now, we trust the ID exists and rely on route-level @token_required to check permissions
-                # But we MUST set the DB URL for the potential subsequent DB calls.
                 g.current_oa_config = oa_config
                 g.current_db_url = oa_config.db_url
                 g.current_oa_id = oa_id
                 
-                # Check for explicit App Name override
                 if oa_config.other_settings and 'app_name' in oa_config.other_settings:
                     if oa_config.other_settings['app_name']:
                         g.current_app_name = str(oa_config.other_settings['app_name'])
+                
+                # print(f"DEBUG: Switched to DB context for OA {oa_id} ({g.current_app_name})")
+            else:
+                print(f"WARNING: OA {oa_id} found but has no DB URL configured.")
         except Exception as e:
-            print(f"Error loading OA context: {e}")
+            db.session.rollback()
+            print(f"Error loading OA context for ID {oa_id}: {e}")
 
 def init_db():
     try:
