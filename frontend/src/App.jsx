@@ -16,7 +16,7 @@ import { ToastProvider, useToast } from './contexts/ToastContext';
 import { TaskProvider, useTask } from './contexts/TaskContext';
 import Toast from './components/Toast';
 import StatusIndicator from './components/StatusIndicator';
-import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send, Gift, Shield, LayoutGrid, ClipboardList, Workflow, Database, Play } from 'lucide-react';
+import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send, Shield, LayoutGrid, ClipboardList, Workflow, Database, Play } from 'lucide-react';
 import RuleDesigner from './pages/RuleDesigner';
 import DatabaseViewer from './pages/DatabaseViewer';
 import TestRunner from './pages/TestRunner';
