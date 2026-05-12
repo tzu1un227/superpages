@@ -273,6 +273,18 @@ def load_oa_context():
             db.session.rollback()
             print(f"Error loading OA context for ID {oa_id}: {e}")
 
+@app.after_request
+def add_debug_headers(response):
+    oa_id = getattr(g, 'current_oa_id', 'None')
+    db_url = getattr(g, 'current_db_url', 'Default/None')
+    # Truncate sensitive URL info
+    if db_url and '@' in db_url:
+        db_url = db_url.split('@')[-1]
+    
+    response.headers['X-Debug-OA-ID'] = str(oa_id)
+    response.headers['X-Debug-DB'] = str(db_url)
+    return response
+
 def init_db():
     try:
         conn = get_db_connection()

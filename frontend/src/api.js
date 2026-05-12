@@ -83,6 +83,12 @@ api.get = async function(url, config) {
 
     const cacheKey = oaId + '|' + url + '|' + JSON.stringify(cleanParams);
 
+    // Safety: If we are in an OA-related route but couldn't detect the OA ID, 
+    // disable caching to prevent leakage between tenants.
+    if (!oaId && window.location.pathname.includes('/oa/')) {
+        shouldCache = false;
+    }
+
     if (shouldCache) {
         if (apiCache.has(cacheKey)) {
             const cached = apiCache.get(cacheKey);
@@ -136,9 +142,20 @@ api.get = async function(url, config) {
     }
 };
 
+// Track the last seen OA ID to detect context switches
+let lastOaId = '';
+
 // Response interceptor to invalidate cache on mutations
 api.interceptors.response.use(
     (response) => {
+        // Detect OA Switch via Header (returned from server) or Request
+        const currentOaId = response.config.headers['X-OA-ID'];
+        if (currentOaId && lastOaId && currentOaId !== lastOaId) {
+            console.log(`OA Switch detected (${lastOaId} -> ${currentOaId}). Clearing cache.`);
+            apiCache.clear();
+        }
+        if (currentOaId) lastOaId = currentOaId;
+
         const method = response.config.method?.toLowerCase() || '';
         if (['post', 'put', 'patch', 'delete'].includes(method)) {
             // Exclude read receipts or non-mutating POSTs from clearing cache
