@@ -44,14 +44,14 @@ def get_main_db_connection():
     global db_pools
     if RDS_URL not in db_pools:
         try:
-            # Set to ABSOLUTE minimal (1) to share 20-conn limit across 14 projects
-            db_pools[RDS_URL] = pool.ThreadedConnectionPool(1, 1, RDS_URL, connect_timeout=10)
+            # Increased to 2 for smoother performance as some other projects are deprecated
+            db_pools[RDS_URL] = pool.ThreadedConnectionPool(1, 2, RDS_URL, connect_timeout=10)
         except Exception as e:
             print(f"ERROR: Failed to create RDS pool: {e}")
             raise e
     
     # Retry mechanism for exhausted pool
-    retries = 10 # Increase retries since we only have 1 slot
+    retries = 10
     while retries > 0:
         try:
             conn = db_pools[RDS_URL].getconn()
@@ -79,8 +79,8 @@ def get_db_connection(db_url=None):
     global db_pools
     if db_url not in db_pools:
         try:
-            # Set to ABSOLUTE minimal (1) to share 20-conn limit across 14 projects
-            db_pools[db_url] = pool.ThreadedConnectionPool(1, 1, db_url, connect_timeout=10)
+            # Increased to 2 for smoother performance as some other projects are deprecated
+            db_pools[db_url] = pool.ThreadedConnectionPool(1, 2, db_url, connect_timeout=10)
         except Exception as e:
             print(f"ERROR: Failed to create pool for {db_url}: {e}")
             raise e

@@ -43,9 +43,11 @@ app.config['SQLALCHEMY_BINDS'] = {
     'legacy': f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
 }
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-from sqlalchemy.pool import NullPool
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'poolclass': NullPool,
+    'pool_size': 2,
+    'max_overflow': 1,
+    'pool_timeout': 30,
+    'pool_recycle': 1800,
 }
 
 from db_utils import get_db_connection, get_main_db_connection, PooledConnectionWrapper
