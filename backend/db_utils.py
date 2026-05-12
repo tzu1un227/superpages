@@ -1,3 +1,4 @@
+
 import psycopg2
 from flask import g
 import os
@@ -9,25 +10,32 @@ import time
 RDS_URL = "postgresql://u1kq1nhog5jq7b:pd1a6d947df93fb15d747bbadf399e84893f9fd5932782191f0b6ffa187c5ae18@c8lcd8bq1mia7p.cluster-czrs8kj4isg7.us-east-1.rds.amazonaws.com:5432/d1hr8bloo29pm6"
 
 class SimplePool:
-    def __init__(self, creator, max_size):
+    """A custom minimal pool to strictly limit connections to 1 per DB."""
+    def __init__(self, creator, max_size=1):
         self.creator = creator
         self.pool = queue.Queue(maxsize=max_size)
     
     def getconn(self):
         try:
+            # Try to get existing connection from queue
             return self.pool.get(block=False)
         except queue.Empty:
+            # Create new connection if pool is empty
             return self.creator()
     
     def putconn(self, conn):
         try:
+            # Return connection to pool
             self.pool.put(conn, block=False)
         except queue.Full:
+            # Close connection if pool already has its quota
             conn.close()
 
+# Registry for pools
 db_pools = {}
 
 class PooledConnectionWrapper:
+    """Context manager to ensure connection return."""
     def __init__(self, pool_obj, conn):
         self._pool = pool_obj
         self._conn = conn
@@ -54,32 +62,17 @@ class PooledConnectionWrapper:
         self.close()
 
 def get_main_db_connection():
-    """Always connects to the RDS Main Database using a pool."""
+    """Always connects to the RDS Main Database."""
     global db_pools
     if RDS_URL not in db_pools:
         try:
-            # Increased to 2 for smoother performance as some other projects are deprecated
-            db_pools[RDS_URL] = pool.ThreadedConnectionPool(1, 2, RDS_URL, connect_timeout=10)
+            db_pools[RDS_URL] = SimplePool(lambda: psycopg2.connect(RDS_URL), max_size=1)
         except Exception as e:
             print(f"ERROR: Failed to create RDS pool: {e}")
             raise e
     
-    # Retry mechanism for exhausted pool
-    retries = 10
-    while retries > 0:
-        try:
-            conn = db_pools[RDS_URL].getconn()
-            return PooledConnectionWrapper(db_pools[RDS_URL], conn)
-        except pool.PoolError:
-            retries -= 1
-            if retries == 0:
-                raise Exception("系統繁忙，請稍後再試。")
-            import time
-            time.sleep(0.5)
-        except Exception as e:
-            if "too many connections" in str(e).lower() or "pool is full" in str(e).lower():
-                raise Exception("系統繁忙，請稍後再試。")
-            raise e
+    conn = db_pools[RDS_URL].getconn()
+    return PooledConnectionWrapper(db_pools[RDS_URL], conn)
 
 def get_db_connection(db_url=None):
     """Get a database connection from a pool. Supports dynamic DB URLs."""
@@ -87,31 +80,15 @@ def get_db_connection(db_url=None):
         db_url = getattr(g, 'current_db_url', None)
     
     if not db_url:
-        # If no DB URL is provided, default to RDS_URL instead of localhost
         db_url = RDS_URL
     
     global db_pools
     if db_url not in db_pools:
         try:
-            # Increased to 2 for smoother performance as some other projects are deprecated
-            db_pools[db_url] = pool.ThreadedConnectionPool(1, 2, db_url, connect_timeout=10)
+            db_pools[db_url] = SimplePool(lambda: psycopg2.connect(db_url), max_size=1)
         except Exception as e:
             print(f"ERROR: Failed to create pool for {db_url}: {e}")
             raise e
     
-    # Retry mechanism for exhausted pool
-    retries = 10
-    while retries > 0:
-        try:
-            conn = db_pools[db_url].getconn()
-            return PooledConnectionWrapper(db_pools[db_url], conn)
-        except pool.PoolError:
-            retries -= 1
-            if retries == 0:
-                raise Exception("系統繁忙，請稍後再試。")
-            import time
-            time.sleep(0.5)
-        except Exception as e:
-            if "too many connections" in str(e).lower() or "pool is full" in str(e).lower():
-                raise Exception("系統繁忙，請稍後再試。")
-            raise e
+    conn = db_pools[db_url].getconn()
+    return PooledConnectionWrapper(db_pools[db_url], conn)
