@@ -60,6 +60,8 @@ function RichMenu() {
     const { myOAs, currentAccount } = useAuth();
     const navigate = useNavigate();
     const [selectedOAId, setSelectedOAId] = useState(oaId || 'all');
+    const [dragState, setDragState] = useState(null);
+    const imageContainerRef = useRef(null);
 
     // Initial menu state
     const emptyMenu = {
@@ -137,6 +139,52 @@ function RichMenu() {
         setSelectedAreaIndex(null);
         setView('edit');
     };
+
+    const handleMouseDown = (e, index, type) => {
+        if (viewOnly) return;
+        e.stopPropagation();
+        setSelectedAreaIndex(index);
+        setDragState({ type, index, startX: e.clientX, startY: e.clientY, startBounds: { ...currentMenu.areas[index].bounds } });
+    };
+
+    useEffect(() => {
+        const handleMouseMove = (e) => {
+            if (!dragState) return;
+            const dx = Math.round((e.clientX - dragState.startX) / scale);
+            const dy = Math.round((e.clientY - dragState.startY) / scale);
+            
+            const newBounds = { ...dragState.startBounds };
+            
+            if (dragState.type === 'move') {
+                newBounds.x = Math.max(0, Math.min(currentMenu.size.width - newBounds.width, newBounds.x + dx));
+                newBounds.y = Math.max(0, Math.min(currentMenu.size.height - newBounds.height, newBounds.y + dy));
+            } else if (dragState.type === 'resize') {
+                newBounds.width = Math.max(50, Math.min(currentMenu.size.width - newBounds.x, newBounds.width + dx));
+                newBounds.height = Math.max(50, Math.min(currentMenu.size.height - newBounds.y, newBounds.height + dy));
+            }
+            
+            setCurrentMenu(prev => {
+                const newAreas = [...prev.areas];
+                if (newAreas[dragState.index]) {
+                    newAreas[dragState.index].bounds = { ...newBounds };
+                }
+                return { ...prev, areas: newAreas };
+            });
+        };
+        
+        const handleMouseUp = () => {
+            setDragState(null);
+        };
+        
+        if (dragState) {
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+        }
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [dragState, currentMenu, scale]);
 
     const fetchImageWithAuth = async (richMenuId) => {
         try {
@@ -489,7 +537,7 @@ function RichMenu() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '30px', flex: 1, minHeight: 0 }}>
                     <div className="card" style={{ overflow: 'auto', padding: '40px', backgroundColor: '#000', borderRadius: '12px', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
-                        <div style={{
+                        <div ref={imageContainerRef} style={{
                             position: 'relative', width: `${currentMenu.size.width * scale}px`, height: `${currentMenu.size.height * scale}px`,
                             backgroundColor: '#222', border: '1px solid #444', backgroundSize: 'cover',
                             backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'none', flexShrink: 0
@@ -503,13 +551,19 @@ function RichMenu() {
                             {currentMenu.areas.map((area, idx) => {
                                 const { bounds } = area;
                                 return (
-                                    <div key={idx} style={{
+                                    <div key={idx} onMouseDown={(e) => handleMouseDown(e, idx, 'move')} style={{
                                         position: 'absolute', left: `${bounds.x * scale}px`, top: `${bounds.y * scale}px`, width: `${bounds.width * scale}px`, height: `${bounds.height * scale}px`,
                                         border: selectedAreaIndex === idx ? '3px solid #FFD700' : '2px solid rgba(255, 215, 0, 0.5)',
                                         backgroundColor: selectedAreaIndex === idx ? 'rgba(255, 215, 0, 0.4)' : 'rgba(255, 215, 0, 0.1)',
                                         cursor: viewOnly ? 'pointer' : 'move', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '12px', zIndex: selectedAreaIndex === idx ? 10 : 1
                                     }} onClick={(e) => { e.stopPropagation(); setSelectedAreaIndex(idx); }}>
                                         {idx + 1}
+                                        {!viewOnly && selectedAreaIndex === idx && (
+                                            <div onMouseDown={(e) => handleMouseDown(e, idx, 'resize')} style={{
+                                                position: 'absolute', right: '-6px', bottom: '-6px', width: '12px', height: '12px',
+                                                backgroundColor: '#FFD700', borderRadius: '50%', cursor: 'nwse-resize', zIndex: 11
+                                            }} />
+                                        )}
                                     </div>
                                 );
                             })}
@@ -610,7 +664,6 @@ function RichMenu() {
 
     return (
         <div style={{ position: 'relative', height: '100%' }}>
-            {loading && <LoadingSpinner fullScreen />}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                     <div>
@@ -654,8 +707,14 @@ function RichMenu() {
                 </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
-                {Object.entries(groupedMenus).map(([oaName, oaMenus]) => (
+            <div style={{ position: 'relative', minHeight: '300px' }}>
+                {loading && (
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '12px' }}>
+                        <LoadingSpinner />
+                    </div>
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
+                    {Object.entries(groupedMenus).map(([oaName, oaMenus]) => (
                     <div key={oaName}>
                         <h2 style={{ fontSize: '20px', color: 'var(--primary-yellow)', marginBottom: '20px', borderLeft: '4px solid var(--primary-yellow)', paddingLeft: '15px' }}>
                             {oaName} ({oaMenus.length})
