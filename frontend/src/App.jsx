@@ -83,7 +83,7 @@ const HELP_CONTENT_MAP = {
   'statistics': '綜合數據：查看追蹤人數、訊息量、點擊率等各項指標報表。',
   'richmenu': '圖文選單：管理 LINE 底部選單。支援草稿、發佈、定時切換與連結功能。',
   'questionnaire': '問卷管理：建立與管理互動式問卷，收集用戶回饋與偏好。',
-  'ruledesigner': '法則表設計：設計複雜的邏輯判斷與自動回覆規則。',
+  'ruledesigner': '關鍵字回覆：設定當用戶輸入特定關鍵字時系統自動回覆的內容。',
   'dbviewer': '資料庫檢視：高級工具，用於直接檢視系統底層資料表狀態。',
   'testrunner': '系統測試：用於開發者進行功能驗證與壓力測試的工具。',
   'customers': '客戶中心：管理客戶基本資料與進階屬性。',
@@ -156,7 +156,7 @@ const MainLayout = () => {
 
                     const displayName = page.name === 'Projects' ? '自動旅程' :
                         page.name === 'Questionnaire' ? '問卷管理' :
-                          page.name === 'RuleDesigner' ? '法則表設計' :
+                          page.name === 'RuleDesigner' ? '關鍵字回覆' :
                             page.name === 'DatabaseViewer' ? '資料庫檢視' :
                               page.name === 'TestRunner' ? '系統測試' :
                                 page.name === 'CustomerCenter' ? '客戶中心' :
