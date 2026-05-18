@@ -1,4 +1,38 @@
-# Superpages 系統架構文件
+import os
+import re
+
+changelog_path = r'c:\Users\70640\Documents\GitHub\superpages\docs\CHANGELOG.md'
+arch_path = r'c:\Users\70640\Documents\GitHub\superpages\docs\ARCHITECTURE.md'
+
+# Process CHANGELOG.md: Remove garbled lines
+# A simple heuristic: if a line contains garbled Big5/UTF8 artifacts, we skip it.
+# Common garbled patterns in the file: "嚙", "", "?", "?", "?選蕭", "?殷蕭"
+garbled_chars = ["嚙", "", "?", "?", "?選蕭", "?殷蕭", "嚗", "€", "甈", "詨", "撖", "蝺", "靽", "銝", "鞈", "璅"]
+
+def is_garbled(line):
+    # If the line has too many question marks combined with weird characters, or specific garbled chars
+    for gc in garbled_chars:
+        if gc in line:
+            return True
+    
+    # Also if line has many unspaced Chinese characters that look like random gibberish, but checking specific chars is safer.
+    return False
+
+with open(changelog_path, 'r', encoding='utf-8') as f:
+    lines = f.readlines()
+
+clean_lines = []
+for line in lines:
+    if not is_garbled(line):
+        clean_lines.append(line)
+
+# Write back clean CHANGELOG
+with open(changelog_path, 'w', encoding='utf-8') as f:
+    f.writelines(clean_lines)
+
+
+# Rewrite ARCHITECTURE.md completely in Traditional Chinese
+arch_content = """# Superpages 系統架構文件
 
 ## 1. 系統總覽 (System Overview)
 Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理自動化排程、推播訊息以及監控系統狀態。
@@ -59,3 +93,9 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
   - 嚴格限制每個 OA 的最大連線數，並因應 Heroku Postgres 的 20 個連線硬體限制進行縮減與優化。
 - **動態環境解析**：透過 WebSocket 觸發時，會動態從 `OAConfig` 取得對應的機器人名稱與 Namespace，確保與本地及雲端引擎皆能順利溝通。
 - **CDN 整合**：圖片上傳整合 GitHub API，並自動轉為 `jsDelivr` CDN 連結，以符合 LINE Bot API 對圖片 URL 的嚴格要求。
+"""
+
+with open(arch_path, 'w', encoding='utf-8') as f:
+    f.write(arch_content)
+
+print("CHANGELOG cleaned and ARCHITECTURE rewritten successfully.")

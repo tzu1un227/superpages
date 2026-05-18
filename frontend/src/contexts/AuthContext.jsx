@@ -65,41 +65,45 @@ export const AuthProvider = ({ children }) => {
 
   // Check for existing token on app load
   useEffect(() => {
-    const token = localStorage.getItem('jwt');
-    if (token) {
-      try {
-        // Decode token to get user info - more robust decoding for Unicode
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function (c) {
-          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
+    const initAuth = async () => {
+      const token = localStorage.getItem('jwt');
+      if (token) {
+        try {
+          // Decode token to get user info - more robust decoding for Unicode
+          const base64Url = token.split('.')[1];
+          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          const jsonPayload = decodeURIComponent(atob(base64).split('').map(function (c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+          }).join(''));
 
-        const payload = JSON.parse(jsonPayload);
-        // Check if token is expired
-        if (payload.exp * 1000 > Date.now()) {
-          setIsAuthenticated(true);
-          setUser({
-            name: payload.name,
-            email: payload.email,
-            id: payload.sub, // 'sub' is user_id
-            role: payload.role
-          });
-          // Restore OAs
-          fetchMyOAs(token);
-        } else {
-          // Token is expired
+          const payload = JSON.parse(jsonPayload);
+          // Check if token is expired
+          if (payload.exp * 1000 > Date.now()) {
+            setIsAuthenticated(true);
+            setUser({
+              name: payload.name,
+              email: payload.email,
+              id: payload.sub, // 'sub' is user_id
+              role: payload.role
+            });
+            // Restore OAs
+            await fetchMyOAs(token);
+          } else {
+            // Token is expired
+            localStorage.removeItem('jwt');
+            setToken(null);
+          }
+        } catch (error) {
+          // Invalid token
+          console.error("Failed to decode JWT:", error);
           localStorage.removeItem('jwt');
           setToken(null);
         }
-      } catch (error) {
-        // Invalid token
-        console.error("Failed to decode JWT:", error);
-        localStorage.removeItem('jwt');
-        setToken(null);
       }
-    }
-    setIsLoading(false);
+      setIsLoading(false);
+    };
+
+    initAuth();
   }, []);
 
   // Login function
@@ -119,7 +123,7 @@ export const AuthProvider = ({ children }) => {
         setToken(data.token);
         setIsAuthenticated(true);
         setUser(data.user);
-        fetchMyOAs(data.token);
+        await fetchMyOAs(data.token);
         return { success: true };
       } else {
         const errorData = await response.json();

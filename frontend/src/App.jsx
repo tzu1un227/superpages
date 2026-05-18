@@ -227,8 +227,12 @@ const MainLayout = () => {
           <Route path="/oa/:oaId/customers" element={<ProtectedRoute><CustomerCenter /></ProtectedRoute>} />
 
           <Route path="/" element={
-            isAuthenticated && myOAs.length > 0 ? (
-              <Navigate to={`/oa/${myOAs[0].id}/${PAGE_ROUTE_MAP[myOAs[0].pages[0]?.name] || 'projects'}`} />
+            isAuthenticated ? (
+              myOAs.length > 0 ? (
+                <Navigate to={`/oa/${myOAs[0].id}/${PAGE_ROUTE_MAP[myOAs[0].pages[0]?.name] || 'projects'}`} />
+              ) : (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#fff', width: '100%' }}>沒有可用的專案或權限，請聯繫管理員。</div>
+              )
             ) : (
               <Navigate to="/login" />
             )

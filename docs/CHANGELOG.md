@@ -1,5 +1,53 @@
 # CHANGELOG
 
+## [2026-05-18] 修正登入需要兩次的非同步路由轉向問題
+- **移除清理**:
+  - 移除不再使用的 `web-dashboard` 資料夾 (原先用作登入系統的參考)。
+- **前端狀態與路由邏輯修正 (Authentication Flow Fix)**:
+  - 修正 `AuthContext.jsx` 中 `fetchMyOAs` 未被 `await` 的非同步問題。這解決了使用者成功透過 Google 登入後，因應用程式尚未取得專案 (OA) 列表，而在跳轉到 Dashboard 時又被 `App.jsx` 錯誤導向回 `/login` 的問題。
+  - 修正 `App.jsx` 的路由邏輯：當已登入 (`isAuthenticated=true`) 但專案列表為空時，不再將使用者重新導向回登入頁面造成無限迴圈，而是顯示「沒有可用的專案或權限，請聯繫管理員。」的提示畫面。
+
+## [2026-05-12] 資料庫連線穩定性與效能優化
+- **資料庫連線池 (Connection Pooling) 優化**:
+  - 實作集中式 ThreadedConnectionPool 管理，大幅降低資料庫開啟與關閉連線的開銷。
+  - 限制單一平台 (OA) 最大連線數為 10，總 RDS 連線數由 50 調降至 20，避免超過 AWS RDS 實體限制。
+  - 移除「連線失敗後改用直接連線」的危險機制，改為拋出友善錯誤，防止資料庫雪崩。
+- **RDS 表格檢查快取機制**:
+  - 實作 `_ENSURED_TABLES` 全域快取，避免每個 API 請求重複查詢 `information_schema.tables`。
+- **資料庫穩定性與連線管理**:
+  - 建立 `backend/db_utils.py` 集中管理資料庫連線池，解決模組間的循環引用 (Circular Import) 問題。
+  - 全面移除各 Blueprint 中的私有 `get_db_connection` 實作，統一使用連線池管理。
+  - 強制所有資料庫操作進入 `try...finally` 區塊，確保連線在任何情況下（包括例外發生時）都能正確歸還至池中，杜絕連線外洩 (Connection Leak)。
+  - 設定 RDS 連線池上限為 2，各租戶 (OA) 連線池上限為 2，並縮減 SQLAlchemy 池大小。此調整係針對 Heroku Postgres 20 個連線的硬體限制進行優化，以確保與其他 14 個共享專案和平共存，防止 Superpages 佔用過多資源導致系統崩潰。
+- **使用者體驗優化**:
+  - 將技術性的「資料庫連線過多」或「Pool is full」報錯訊息更改為更通俗的「系統繁忙，請稍後再試」，提升非技術人員的閱讀體驗。
+- **功能移除**:
+  - 移除「抽獎管理」頁面與相關功能，包含前端 `PrizeStatus.jsx` 頁面、路由設定及後端自動初始化資料。
+
+## [2026-05-08] 自動旅程排程優化與 UX 提升
+- **排程間隔支援年與月**:
+  - 在新增或編輯自動旅程排程時，間隔時間設定新增「年」與「月」輸入項（以 1 年 = 365 天, 1 月 = 30 天計算），提供更長期的推播規劃能力。
+- **編輯排程 UX 優化**:
+  - 在編輯自動旅程排程時，按下確認後會顯示「儲存中...」載入狀態，並鎖定操作按鈕以防止重複提交。
+- **預覽日期顯示優化**:
+  - 自動旅程預覽中的預計發送時間現在包含「年份」顯示，方便查看長期排程。
+
+## [2026-05-08] Standardizing Flex Redirect Architecture
+- **Flex Message Editor Refactor**:
+  - Implemented dynamic `app_name` and `oaId` injection for all generated outbound links.
+  - Standardized LIFF-based redirection for links with tag assignment.
+  - Unified all redirection logic to route through the centralized `/api/redirect` endpoint.
+  - Removed legacy `<%m.user_id%>` placeholders to leverage LIFF-native userId retrieval.
+
+## [2026-04-30]
+### Added
+- **法則表任務化儀表板**: 為「法則表設計」的簡易模式實作全新的任務卡片 UI，支援日期區間、每日時段與標籤自動化設定。
+- **圖文選單 LIFF 標籤追蹤**: 支援在圖文選單的連結動作中直接設定標籤，系統自動生成 LIFF 代理連結。
+
+### Changed
+- **圖文選單介面優化**: 移除 Postback 動作類型，並將「跳轉網頁」更名為「開啟連結」以符合使用者習慣。
+- **法則表簡易模式重構**: 將原本的表格視圖改為卡片式任務管理，提升非技術人員的編輯效率。
+
 ## [2026-01-29]
 
 ### Changed - UI/UX Improvements
@@ -27,6 +75,28 @@
     - **顯示優化**: 排程列表中的間隔時間顯示格式改為 "X天 Y小時 Z分"。
     - 此變更保持後端資料格式 (Total Hours) 不變，僅在前端進行轉換，確保與舊有資料的相容性。
 
+## [2026-01-23]
+
+### Changed
+- **專案與排程管理 (Projects)**:
+    - **狀態邏輯更新**: 專案狀態細分為 編輯中、已排程、進行中、已暫停、已完成、已終止，並由後端依據時間與啟用狀態自動計算。
+    - **新增錨點設定 (Anchor Setting)**: 支援「立即觸發」與「每週特定時間 (如週六 18:00)」觸發。
+    - **新增休眠時間 (Dormancy Time)**: 可設定每日不發送訊息的時段 (如 23:00~08:00)。
+    - **資料庫變更**: `projects` 資料表新增 `anchor_config` 與 `dormancy_config` 欄位 (JSONB)。
+
+## [2026-01-21]
+
+### Added
+- **Google 登入與權限管理**:
+    - 後端整合 `Google Sign-In` 與 `JWT` 驗證。
+    - 後端導入 `SQLAlchemy` 並建立 `User`, `Page`, `OAConfig` 模型 (使用 SQLite `meta_data.db` 儲存)。
+    - 新增 `/api/admin` 相關接口，用於管理用戶權限與 OA 設定。
+- **前端新功能**:
+    - 新增 `Login.jsx`: 支援 Google 登入。
+    - 新增 `AdminPage.jsx`: 提供管理員專用的後台介面，可設定用戶權限與連結 OA。
+    - 新增 `AuthContext`: 全局登入狀態與權限控管。
+    - 路由保護: 導入 `ProtectedRoute` 與 `AdminRoute` 確保頁面存取安全。
+
 ## [2026-01-07]
 
 ### Added
@@ -47,26 +117,3 @@
 
 ### Documentation
 - 重整文件架構。
-
-## [2026-01-23]
-
-### Changed
-- **專案與排程管理 (Projects)**:
-    - **狀態邏輯更新**: 專案狀態細分為 編輯中、已排程、進行中、已暫停、已完成、已終止，並由後端依據時間與啟用狀態自動計算。
-    - **新增錨點設定 (Anchor Setting)**: 支援「立即觸發」與「每週特定時間 (如週六 18:00)」觸發。
-    - **新增休眠時間 (Dormancy Time)**: 可設定每日不發送訊息的時段 (如 23:00~08:00)。
-    - **資料庫變更**: `projects` 資料表新增 `anchor_config` 與 `dormancy_config` 欄位 (JSONB)。
-
-
-## [2026-01-21]
-
-### Added
-- **Google 登入與權限管理**:
-    - 後端整合 `Google Sign-In` 與 `JWT` 驗證。
-    - 後端導入 `SQLAlchemy` 並建立 `User`, `Page`, `OAConfig` 模型 (使用 SQLite `meta_data.db` 儲存)。
-    - 新增 `/api/admin` 相關接口，用於管理用戶權限與 OA 設定。
-- **前端新功能**:
-    - 新增 `Login.jsx`: 支援 Google 登入。
-    - 新增 `AdminPage.jsx`: 提供管理員專用的後台介面，可設定用戶權限與連結 OA。
-    - 新增 `AuthContext`: 全局登入狀態與權限控管。
-    - 路由保護: 導入 `ProtectedRoute` 與 `AdminRoute` 確保頁面存取安全。
