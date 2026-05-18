@@ -43,6 +43,10 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 - **訊息廣播**：支援針對所有用戶、特定標籤或特定 ID 名單發送訊息，支援最多 5 個 Bubble (支援文字、圖片、影片、Flex)。
 - **訊息預覽**：後端會自動從 `QA_bank` 中提取並解析訊息摘要，前端亦內建 `JourneyPreview` 提供 Flex Message 即時預覽。
 - **防禦性渲染 (Defensive Rendering)**：使用 Error Boundary 及可選串連 (Optional Chaining) 確保含有不完整舊資料時，UI 依然能穩定運行。
+- **編輯器雙向綁定競態阻斷 (Bidirectional State Guard)**：
+  - 在 `FlexMessageEditor` 的 auto-save 機制中引入 `lastSavedJsonRef` 快取技術。
+  - 當編輯器將狀態自動儲存至父元件後，父元件所產生的非同步狀態回流（Prop updates）在抵達子元件時，子元件會比對 `lastSavedJsonRef` 以確認是否為編輯器自身觸發的回流。
+  - 若是自身觸發則直接忽略，不重新載入或重設 `cards` 本機狀態，藉此完美解決非同步圖片上傳完成與打字等多執行緒操作下的競態回溯問題。
 
 ### 4.4 法則表設計器 (Rule Designer)
 - **雙模式編輯**：提供「簡易模式」(卡片式任務管理，適合非技術人員) 與「工程模式」(直接編輯 JSON 與條件式，適合進階使用者)。

@@ -1,8 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Plus, X, Image as ImageIcon, Link as LinkIcon, MessageSquare, Upload } from 'lucide-react';
 import api, { API_BASE_URL } from '../api';
 import JourneyPreview from './JourneyPreview';
 import TagInput from './TagInput';
+
+// 統一的 JSON 標準化輔助函式，排除內部暫存變數（如 _template），並以穩定的字串形式比較
+const normalize = (obj) => {
+    if (!obj) return null;
+    try {
+        const clone = typeof obj === 'string' ? JSON.parse(obj) : JSON.parse(JSON.stringify(obj));
+        const sweep = (o) => {
+            if (Array.isArray(o)) o.forEach(sweep);
+            else if (o && typeof o === 'object') {
+                delete o._template;
+                Object.values(o).forEach(sweep);
+            }
+        };
+        sweep(clone);
+        return JSON.stringify(clone);
+    } catch (e) {
+        return null;
+    }
+};
 
 const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
     // Modes
@@ -50,10 +69,14 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
     };
 
     const [cards, setCards] = useState([{ ...defaultCard }]);
-
     const [hasInitialized, setHasInitialized] = useState(false);
+    
+    // 用於追蹤本編輯器最後一次主動儲存的 JSON 狀態，避免父元件狀態回流導致的競態回溯問題
+    const lastSavedJsonRef = useRef(null);
+    // 用於管理圖片上傳狀態，提供豐富的視覺載入特效與阻擋重複操作
+    const [isUploading, setIsUploading] = useState(false);
 
-    // Initial load from props
+    // 初始與外部變更載入邏輯
     useEffect(() => {
         if (!initialContent) {
             setHasInitialized(true);
@@ -62,35 +85,22 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
 
         try {
             const incoming = typeof initialContent === 'string' ? JSON.parse(initialContent) : initialContent;
+            const normalizedIncoming = normalize(incoming);
 
-            // Normalize both for a stable semantic comparison
-            const normalize = (obj) => {
-                if (!obj) return null;
-                // Deep clone and sort keys/omit internal markers
-                const clone = JSON.parse(JSON.stringify(obj));
-                const sweep = (o) => {
-                    if (Array.isArray(o)) o.forEach(sweep);
-                    else if (o && typeof o === 'object') {
-                        delete o._template;
-                        // Sort keys for stringify stability if needed, 
-                        // but usually JSON.stringify is consistent enough for cloned objects here.
-                        Object.values(o).forEach(sweep);
-                    }
-                };
-                sweep(clone);
-                return JSON.stringify(clone);
-            };
+            // 若傳入內容與最後一次本機儲存的內容完全相同，則視為「自身儲存回流」，忽略以防競態回溯
+            if (hasInitialized && lastSavedJsonRef.current === normalizedIncoming) {
+                return;
+            }
 
             const current = generateJson();
             if (normalize(incoming) === normalize(current)) {
-                // If semantically identical, just mark as initialized and stop
+                // 若內容語意上相同，僅標記已初始化即可
                 if (!hasInitialized) setHasInitialized(true);
                 return;
             }
 
-            // Initialization logic: Always load on first mount (!hasInitialized)
-            // OR if the incoming content is fundamentally different from current local state
-            // (e.g. parent changed the content drastically, like switching between messages)
+            // 初始化邏輯：首次掛載時載入
+            // 或當外部傳入內容與當前本機狀態有根本性的顯著差異（例如在父元件切換了編輯的訊息）
             const isExternalChange = !hasInitialized;
             const isSignificantDiff = normalize(incoming) !== normalize(current);
 
@@ -115,34 +125,23 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
         }
     }, [initialContent]);
 
-    // Auto-save logic
+    // 自動儲存邏輯
     useEffect(() => {
         if (!hasInitialized) return;
-
-        const normalize = (obj) => {
-            if (!obj) return null;
-            try {
-                const clone = JSON.parse(JSON.stringify(obj));
-                const sweep = (o) => {
-                    if (Array.isArray(o)) o.forEach(sweep);
-                    else if (o && typeof o === 'object') {
-                        delete o._template;
-                        Object.values(o).forEach(sweep);
-                    }
-                };
-                sweep(clone);
-                return JSON.stringify(clone);
-            } catch (e) { return null; }
-        };
 
         const currentJson = generateJson();
         const incomingJson = typeof initialContent === 'string' ? JSON.parse(initialContent || '{}') : initialContent;
 
-        if (normalize(currentJson) !== normalize(incomingJson)) {
+        const normalizedCurrent = normalize(currentJson);
+        const normalizedIncoming = normalize(incomingJson);
+
+        if (normalizedCurrent !== normalizedIncoming) {
             const size = JSON.stringify(currentJson).length;
             if (size > 9000) {
                 console.warn(`Flex payload size warning: ${size} characters. LINE limit is ~10KB.`);
             }
+            // 儲存時同步更新 lastSavedJsonRef
+            lastSavedJsonRef.current = normalizedCurrent;
             onSave(JSON.stringify(currentJson));
         }
     }, [cards, mode, hasInitialized]);
@@ -526,6 +525,12 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
 
     return (
         <div style={{ display: 'flex', height: '100%', flexDirection: 'column', backgroundColor: '#222', borderRadius: '12px', overflow: 'hidden' }}>
+            <style>{`
+                @keyframes flex-editor-spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+            `}</style>
             {/* Header / Mode Switcher */}
             <div style={{ padding: '15px', borderBottom: '1px solid #444', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
@@ -645,25 +650,47 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                                 <input
                                     type="text" value={currentCard.imageUrl}
                                     onChange={e => updateCurrentCard('imageUrl', e.target.value)}
-                                    style={{ flex: 1, padding: '8px', background: '#333', border: '1px solid #444', borderRadius: '4px', color: '#fff' }}
+                                    disabled={isUploading}
+                                    placeholder={isUploading ? '圖片上傳中...' : ''}
+                                    style={{ flex: 1, padding: '8px', background: isUploading ? '#222' : '#333', border: '1px solid #444', borderRadius: '4px', color: isUploading ? '#888' : '#fff' }}
                                 />
                                 <label style={{
                                     padding: '8px 12px',
-                                    background: 'var(--primary-yellow)',
-                                    color: '#000',
+                                    background: isUploading ? '#555' : 'var(--primary-yellow)',
+                                    color: isUploading ? '#888' : '#000',
                                     borderRadius: '4px',
-                                    cursor: 'pointer',
+                                    cursor: isUploading ? 'not-allowed' : 'pointer',
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: '5px',
                                     fontSize: '13px',
-                                    fontWeight: 'bold'
+                                    fontWeight: 'bold',
+                                    opacity: isUploading ? 0.7 : 1,
+                                    pointerEvents: isUploading ? 'none' : 'auto'
                                 }}>
-                                    <Upload size={16} />
-                                    上傳 (Max 1MB)
+                                    {isUploading ? (
+                                        <>
+                                            <span style={{
+                                                width: '14px',
+                                                height: '14px',
+                                                border: '2px solid #888',
+                                                borderTop: '2px solid #fff',
+                                                borderRadius: '50%',
+                                                animation: 'flex-editor-spin 1s linear infinite',
+                                                display: 'inline-block'
+                                            }} />
+                                            上傳中...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Upload size={16} />
+                                            上傳 (Max 1MB)
+                                        </>
+                                    )}
                                     <input
                                         type="file"
                                         accept="image/*"
+                                        disabled={isUploading}
                                         style={{ display: 'none' }}
                                         onChange={async (e) => {
                                             const file = e.target.files[0];
@@ -678,7 +705,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                                             formData.append('file', file);
 
                                             try {
-                                                // Show some loading status if possible, or just wait
+                                                setIsUploading(true);
                                                 const res = await api.post('/upload/github', formData, {
                                                     headers: { 'Content-Type': 'multipart/form-data' }
                                                 });
@@ -686,6 +713,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                                             } catch (err) {
                                                 alert('上傳失敗: ' + (err.response?.data?.message || err.message));
                                             } finally {
+                                                setIsUploading(false);
                                                 e.target.value = ''; // Reset to allow same file upload
                                             }
                                         }}
