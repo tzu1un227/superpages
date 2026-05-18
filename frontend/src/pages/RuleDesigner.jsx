@@ -196,6 +196,7 @@ function RuleDesigner() {
     const [searchTerm, setSearchTerm] = useState('');
     const [rowErrors, setRowErrors] = useState({}); // { rowIndex: ['error1', 'error2'] }
     const [designMode, setDesignMode] = useState('simple'); // 'simple' | 'engineering'
+    const [selectedRuleIndex, setSelectedRuleIndex] = useState(null);
     
     // Modal State for msg_rpy
     const [isMsgModalOpen, setIsMsgModalOpen] = useState(false);
@@ -210,6 +211,13 @@ function RuleDesigner() {
     useEffect(() => {
         fetchRules();
     }, [bankType, oaId]);
+
+    useEffect(() => {
+        if (designMode === 'simple') {
+            setBankType('q_bank');
+            setSelectedRuleIndex(null);
+        }
+    }, [designMode]);
 
     const fetchRules = async () => {
         setLoading(true);
@@ -252,7 +260,9 @@ function RuleDesigner() {
             _isNew: true
         };
         setDraftRules([newRule, ...draftRules]);
-        // 為了將畫面拉到最上方，可以延遲觸發捲動，或由使用者自行往上捲
+        if (isSimple) {
+            setSelectedRuleIndex(0);
+        }
     };
 
     const handleFieldChange = (index, field, value) => {
@@ -447,14 +457,16 @@ function RuleDesigner() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                     <h1 style={{ fontSize: '32px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <Workflow size={32} className="text-yellow" />
-                        法則表設計
+                        <MessageSquare size={32} className="text-yellow" />
+                        {designMode === 'simple' ? '關鍵字回覆' : '法則表設計'}
                     </h1>
-                    <p style={{ color: '#B0B0B0' }}>在表格中直接瀏覽、編輯法則與 QA 規則</p>
+                    <p style={{ color: '#B0B0B0' }}>
+                        {designMode === 'simple' ? '設定當用戶輸入特定關鍵字時，系統自動回覆的內容。' : '在表格中直接瀏覽、編輯法則與 QA 規則'}
+                    </p>
                 </div>
                 
                 <div style={{ display: 'flex', gap: '10px' }}>
-                    {BANK_TYPES.map(bank => (
+                    {designMode === 'engineering' && BANK_TYPES.map(bank => (
                         <button
                             key={bank.id}
                             onClick={() => { setBankType(bank.id); }}
@@ -478,7 +490,7 @@ function RuleDesigner() {
             {/* Mode Switcher Tabs */}
             <div style={{ display: 'flex', borderBottom: '1px solid #333', marginBottom: '5px' }}>
                 <button
-                    onClick={() => setDesignMode('simple')}
+                    onClick={() => { setDesignMode('simple'); setSelectedRuleIndex(null); }}
                     style={{
                         padding: '10px 24px',
                         backgroundColor: 'transparent',
@@ -494,7 +506,7 @@ function RuleDesigner() {
                     簡易模式
                 </button>
                 <button
-                    onClick={() => setDesignMode('engineering')}
+                    onClick={() => { setDesignMode('engineering'); setSelectedRuleIndex(null); }}
                     style={{
                         padding: '10px 24px',
                         backgroundColor: 'transparent',
@@ -512,196 +524,219 @@ function RuleDesigner() {
             </div>
 
             {/* Toolbar */}
-            <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                <div className="search-box" style={{ flex: 1, position: 'relative', maxWidth: '400px' }}>
-                    <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
-                    <input 
-                        type="text" 
-                        placeholder="搜尋規則 (姓名, Tag, 內容, 狀態)..." 
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                        style={{ paddingLeft: '35px', width: '100%', fontSize: '13px', borderRadius: '8px', backgroundColor: '#222', border: '1px solid #333', color: '#fff' }}
-                    />
+            {!(designMode === 'simple' && selectedRuleIndex !== null) && (
+                <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                    <div className="search-box" style={{ flex: 1, position: 'relative', maxWidth: '400px' }}>
+                        <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
+                        <input 
+                            type="text" 
+                            placeholder={designMode === 'simple' ? '搜尋關鍵字回覆...' : '搜尋規則 (姓名, Tag, 內容, 狀態)...'}
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            style={{ paddingLeft: '35px', width: '100%', fontSize: '13px', borderRadius: '8px', backgroundColor: '#222', border: '1px solid #333', color: '#fff' }}
+                        />
+                    </div>
+                    <button 
+                        onClick={handleNewRule}
+                        className="primary" 
+                        style={{ fontSize: '13px', padding: '8px 16px', display: 'flex', gap: '6px', alignItems: 'center' }}
+                    >
+                        <Plus size={16} /> {designMode === 'simple' ? '建立關鍵字回覆' : '新增空白列'}
+                    </button>
                 </div>
-                <button 
-                    onClick={handleNewRule}
-                    className="primary" 
-                    style={{ fontSize: '13px', padding: '8px 16px', display: 'flex', gap: '6px', alignItems: 'center' }}
-                >
-                    <Plus size={16} />新增空白列
-                </button>
-            </div>
+            )}
 
             {/* Task View for Simple Mode */}
-            {designMode === 'simple' && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '20px', paddingBottom: '40px' }}>
+            {designMode === 'simple' && selectedRuleIndex === null && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', paddingBottom: '40px' }}>
                     {draftRules.map((rule, idx) => {
                         if (searchTerm && !matchesSearch(rule, searchTerm)) return null;
                         
                         const checkData = parseCheck(rule.check);
                         const funcData = parseFunction(rule.function);
                         const msgCount = Array.isArray(rule.msg_rpy) ? rule.msg_rpy.length : 0;
+                        const isEnabled = !!rule.history; // Using history as enabled status
                         
                         return (
-                            <div key={rule.id || `task-${idx}`} className="card" style={{ 
-                                padding: '20px', 
-                                border: rule._isDirty ? '1px solid var(--primary-yellow)' : '1px solid #333',
-                                position: 'relative',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '15px'
-                            }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                    <div style={{ flex: 1 }}>
-                                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>
-                                            {rule._isNew ? <span style={{ color: '#FFD700' }}>[新任務]</span> : `任務 ID: ${rule.id}`}
-                                        </div>
-                                        <input 
-                                            type="text"
-                                            placeholder="請輸入任務標題 (備註)"
-                                            value={rule.note || ''}
-                                            onChange={e => handleFieldChange(idx, 'note', e.target.value)}
-                                            style={{ 
-                                                fontSize: '18px', 
-                                                fontWeight: 'bold', 
-                                                width: '100%', 
-                                                background: 'transparent', 
-                                                border: 'none', 
-                                                color: '#fff',
-                                                padding: '4px 0',
-                                                borderBottom: '1px solid #222'
-                                            }}
-                                        />
+                            <div 
+                                key={rule.id || `task-${idx}`} 
+                                className="card" 
+                                style={{ 
+                                    display: 'flex', 
+                                    justifyContent: 'space-between', 
+                                    alignItems: 'center', 
+                                    padding: '20px', 
+                                    cursor: 'pointer', 
+                                    border: rule._isDirty ? '1px solid var(--primary-yellow)' : '1px solid #333',
+                                    transition: 'border 0.2s, background-color 0.2s',
+                                    opacity: isEnabled ? 1 : 0.6
+                                }} 
+                                onClick={() => setSelectedRuleIndex(idx)}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1a1a1a'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#111'}
+                            >
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <h3 style={{ margin: 0, fontSize: '18px', color: '#fff' }}>{rule.note || '(未命名關鍵字)'}</h3>
+                                        {!isEnabled && <span style={{ backgroundColor: '#333', color: '#aaa', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>未啟用</span>}
+                                        {rule._isNew && <span style={{ backgroundColor: 'rgba(255, 215, 0, 0.2)', color: '#FFD700', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>新建立</span>}
+                                        {rule._isDirty && <span style={{ backgroundColor: 'rgba(76, 175, 80, 0.2)', color: '#4CAF50', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>未儲存</span>}
                                     </div>
-                                    <div style={{ display: 'flex', gap: '8px' }}>
-                                        {rule._isDirty && (
-                                            <button onClick={() => handleSaveRow(idx)} className="primary" style={{ padding: '6px', borderRadius: '50%' }}>
-                                                <Save size={16} />
-                                            </button>
-                                        )}
-                                        <button onClick={() => handleDeleteRow(idx)} style={{ padding: '6px', background: 'transparent', border: 'none', color: '#ff4d4d', cursor: 'pointer' }}>
-                                            <Trash2 size={16} />
-                                        </button>
+                                    <div style={{ display: 'flex', gap: '20px', color: '#888', fontSize: '13px', flexWrap: 'wrap' }}>
+                                        <span><span style={{ color: '#aaa' }}>觸發關鍵字:</span> {Array.isArray(rule.content) ? rule.content.join(', ') : (rule.content || '無')}</span>
+                                        {(checkData.startDate || checkData.endDate) && <span><span style={{ color: '#aaa' }}>生效期間:</span> {checkData.startDate || '不限'} ~ {checkData.endDate || '不限'}</span>}
+                                        {(checkData.startTime || checkData.endTime) && <span><span style={{ color: '#aaa' }}>每日時段:</span> {checkData.startTime || '不限'} ~ {checkData.endTime || '不限'}</span>}
+                                        {funcData.tag && <span><span style={{ color: '#aaa' }}>自動上標:</span> {funcData.tag}</span>}
+                                        <span><span style={{ color: '#aaa' }}>回覆內容:</span> {msgCount} 則訊息</span>
                                     </div>
                                 </div>
-
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                    {/* Keyword Setting */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                        <MessageSquare size={16} style={{ color: '#888', flexShrink: 0 }} />
+                                <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                                    <label onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
                                         <input 
-                                            type="text"
-                                            placeholder="設定觸發關鍵字 (用逗號分隔)"
-                                            value={Array.isArray(rule.content) ? rule.content.join(', ') : (rule.content || '')}
-                                            onChange={e => handleFieldChange(idx, 'content', e.target.value)}
-                                            style={{ flex: 1, fontSize: '13px', padding: '6px 10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '4px', color: '#eee' }}
-                                        />
-                                    </div>
-
-                                    {/* Effective Period */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                        <Calendar size={16} style={{ color: '#888', flexShrink: 0 }} />
-                                        <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flex: 1 }}>
-                                            <input 
-                                                type="date"
-                                                value={checkData.startDate}
-                                                onChange={e => {
-                                                    const newCheck = stringifyCheck({ ...checkData, startDate: e.target.value });
-                                                    handleFieldChange(idx, 'check', newCheck);
-                                                }}
-                                                style={{ flex: 1, fontSize: '12px', padding: '4px 8px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '4px', color: '#eee' }}
-                                            />
-                                            <span style={{ color: '#666' }}>~</span>
-                                            <input 
-                                                type="date"
-                                                value={checkData.endDate}
-                                                onChange={e => {
-                                                    const newCheck = stringifyCheck({ ...checkData, endDate: e.target.value });
-                                                    handleFieldChange(idx, 'check', newCheck);
-                                                }}
-                                                style={{ flex: 1, fontSize: '12px', padding: '4px 8px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '4px', color: '#eee' }}
-                                            />
-                                            {(checkData.startDate || checkData.endDate) && (
-                                                <X 
-                                                    size={14} 
-                                                    style={{ color: '#888', cursor: 'pointer', marginLeft: '2px' }} 
-                                                    onClick={() => {
-                                                        const newCheck = stringifyCheck({ ...checkData, startDate: '', endDate: '' });
-                                                        handleFieldChange(idx, 'check', newCheck);
-                                                    }}
-                                                />
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Daily Time */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                        <Clock size={16} style={{ color: '#888', flexShrink: 0 }} />
-                                        <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flex: 1 }}>
-                                            <input 
-                                                type="time"
-                                                value={checkData.startTime}
-                                                onChange={e => {
-                                                    const newCheck = stringifyCheck({ ...checkData, startTime: e.target.value });
-                                                    handleFieldChange(idx, 'check', newCheck);
-                                                }}
-                                                style={{ flex: 1, fontSize: '12px', padding: '4px 8px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '4px', color: '#eee' }}
-                                            />
-                                            <span style={{ color: '#666' }}>~</span>
-                                            <input 
-                                                type="time"
-                                                value={checkData.endTime}
-                                                onChange={e => {
-                                                    const newCheck = stringifyCheck({ ...checkData, endTime: e.target.value });
-                                                    handleFieldChange(idx, 'check', newCheck);
-                                                }}
-                                                style={{ flex: 1, fontSize: '12px', padding: '4px 8px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '4px', color: '#eee' }}
-                                            />
-                                            {(checkData.startTime || checkData.endTime) && (
-                                                <X 
-                                                    size={14} 
-                                                    style={{ color: '#888', cursor: 'pointer', marginLeft: '2px' }} 
-                                                    onClick={() => {
-                                                        const newCheck = stringifyCheck({ ...checkData, startTime: '', endTime: '' });
-                                                        handleFieldChange(idx, 'check', newCheck);
-                                                    }}
-                                                />
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Tag Setting */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                        <Tag size={16} style={{ color: '#888', flexShrink: 0 }} />
-                                        <input 
-                                            type="text"
-                                            placeholder="設定完成標籤 (限填一個)"
-                                            value={funcData.tag}
+                                            type="checkbox" 
+                                            checked={isEnabled} 
                                             onChange={e => {
-                                                const newFunc = stringifyFunction(e.target.value);
-                                                handleFieldChange(idx, 'function', newFunc);
-                                            }}
-                                            style={{ flex: 1, fontSize: '13px', padding: '6px 10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '4px', color: '#eee' }}
+                                                handleFieldChange(idx, 'history', e.target.checked);
+                                                // Trigger auto-save immediately on toggle
+                                                setTimeout(() => handleSaveRow(idx), 0);
+                                            }} 
                                         />
-                                    </div>
-                                </div>
-
-                                {/* Message Editor & Button */}
-                                <div style={{ marginTop: '5px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <div style={{ fontSize: '12px', color: msgCount > 0 ? '#4CAF50' : '#888' }}>
-                                        已設定 {msgCount} 則回覆訊息
-                                    </div>
-                                    <button 
-                                        onClick={() => handleOpenMsgModal(idx)}
-                                        className="secondary"
-                                        style={{ padding: '8px 16px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                                    >
-                                        <Edit2 size={14} /> 編輯訊息內容
-                                    </button>
+                                        <span style={{ fontSize: '13px', color: '#ccc' }}>啟用狀態</span>
+                                    </label>
+                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteRow(idx); }} className="secondary" style={{ color: '#ff4d4d', padding: '6px 12px', background: 'transparent', border: '1px solid #ff4d4d' }}>刪除</button>
                                 </div>
                             </div>
                         );
                     })}
+                    {draftRules.length === 0 && !loading && (
+                        <div style={{ textAlign: 'center', padding: '60px', color: '#888', backgroundColor: '#111', borderRadius: '8px', border: '1px dashed #333' }}>
+                            <MessageSquare size={48} style={{ color: '#444', marginBottom: '15px' }} />
+                            <p style={{ fontSize: '16px' }}>尚未建立任何關鍵字回覆</p>
+                            <p style={{ fontSize: '14px', marginTop: '5px' }}>點擊右上角「建立關鍵字回覆」開始設定。</p>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Edit View for Simple Mode */}
+            {designMode === 'simple' && selectedRuleIndex !== null && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '40px' }}>
+                    {(() => {
+                        const idx = selectedRuleIndex;
+                        const rule = draftRules[idx];
+                        if (!rule) return null;
+                        const checkData = parseCheck(rule.check);
+                        const funcData = parseFunction(rule.function);
+                        const msgCount = Array.isArray(rule.msg_rpy) ? rule.msg_rpy.length : 0;
+                        const isEnabled = !!rule.history;
+                        
+                        return (
+                            <>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <button onClick={() => setSelectedRuleIndex(null)} className="secondary" style={{ display: 'flex', gap: '6px', alignItems: 'center', background: 'transparent', border: 'none', color: '#888' }}>
+                                        <ArrowRight size={18} style={{ transform: 'rotate(180deg)' }} /> 返回列表
+                                    </button>
+                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                        <button onClick={() => handleDeleteRow(idx)} className="secondary" style={{ color: '#ff4d4d', background: 'transparent', border: '1px solid #ff4d4d' }}><Trash2 size={16} /> 刪除此關鍵字</button>
+                                        {rule._isDirty && <button onClick={() => handleSaveRow(idx)} className="primary"><Save size={16} /> 儲存設定</button>}
+                                    </div>
+                                </div>
+                                
+                                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }}>
+                                    {/* Left Column */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                        {/* 基本與觸發條件 */}
+                                        <div className="card">
+                                            <h3 style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}><Info size={18} className="text-yellow" /> 基本資訊</h3>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                                <div>
+                                                    <label className="label">關鍵字名稱 (內部備註用途)</label>
+                                                    <input type="text" value={rule.note || ''} onChange={e => handleFieldChange(idx, 'note', e.target.value)} style={{ width: '100%', padding: '12px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '14px' }} placeholder="請輸入名稱" />
+                                                </div>
+                                                <div>
+                                                    <label className="label">觸發關鍵字 (多個關鍵字請用逗號分隔)</label>
+                                                    <input type="text" value={Array.isArray(rule.content) ? rule.content.join(', ') : (rule.content || '')} onChange={e => handleFieldChange(idx, 'content', e.target.value)} style={{ width: '100%', padding: '12px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '14px' }} placeholder="例如: 優惠, 折扣, 促銷" />
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px', padding: '10px', backgroundColor: '#1a1a1a', borderRadius: '6px' }}>
+                                                    <input type="checkbox" id="rule-enabled" checked={isEnabled} onChange={e => handleFieldChange(idx, 'history', e.target.checked)} style={{ width: '16px', height: '16px' }} />
+                                                    <label htmlFor="rule-enabled" style={{ cursor: 'pointer', color: '#ccc', flex: 1 }}>啟用此關鍵字回覆</label>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* 回覆內容 */}
+                                        <div className="card">
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><MessageSquare size={18} className="text-yellow" /> 回覆內容</h3>
+                                                <span style={{ fontSize: '13px', color: msgCount > 0 ? '#4CAF50' : '#888', backgroundColor: msgCount > 0 ? 'rgba(76, 175, 80, 0.1)' : 'transparent', padding: '4px 8px', borderRadius: '4px' }}>
+                                                    已設定 {msgCount} 則訊息
+                                                </span>
+                                            </div>
+                                            
+                                            {msgCount > 0 ? (
+                                                <div style={{ marginBottom: '15px', padding: '15px', backgroundColor: '#1a1a1a', borderRadius: '8px', border: '1px solid #333' }}>
+                                                    <ul style={{ margin: 0, paddingLeft: '20px', color: '#ccc', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                        {rule.msg_rpy.map((m, i) => {
+                                                            let typeLabel = '未知';
+                                                            const otype = (typeof m === 'string' ? JSON.parse(m) : m).OTYPE || (typeof m === 'string' ? JSON.parse(m) : m).Line?.OTYPE;
+                                                            if (otype === 'TextSendMessage') typeLabel = '文字訊息';
+                                                            else if (otype === 'ImageSendMessage') typeLabel = '圖片訊息';
+                                                            else if (otype === 'FlexSendMessage') typeLabel = '圖文訊息';
+                                                            return <li key={i}>{typeLabel}</li>;
+                                                        })}
+                                                    </ul>
+                                                </div>
+                                            ) : (
+                                                <div style={{ marginBottom: '15px', padding: '15px', backgroundColor: '#1a1a1a', borderRadius: '8px', border: '1px dashed #333', textAlign: 'center', color: '#888', fontSize: '13px' }}>
+                                                    尚未設定任何回覆訊息
+                                                </div>
+                                            )}
+                                            
+                                            <button onClick={() => handleOpenMsgModal(idx)} className="secondary" style={{ width: '100%', padding: '12px', borderStyle: 'dashed', backgroundColor: 'transparent' }}>
+                                                <Edit2 size={16} /> {msgCount > 0 ? '編輯回覆訊息內容' : '新增回覆訊息'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Right Column */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                        {/* 生效條件 */}
+                                        <div className="card">
+                                            <h3 style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}><Calendar size={18} className="text-yellow" /> 生效條件</h3>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                                <div>
+                                                    <label className="label">生效日期區間 (留空白為不限制)</label>
+                                                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                                        <input type="date" value={checkData.startDate} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, startDate: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px' }} />
+                                                        <span style={{ color: '#666' }}>~</span>
+                                                        <input type="date" value={checkData.endDate} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, endDate: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px' }} />
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label className="label">每日生效時段 (留空白為全天)</label>
+                                                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                                        <input type="time" value={checkData.startTime} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, startTime: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px' }} />
+                                                        <span style={{ color: '#666' }}>~</span>
+                                                        <input type="time" value={checkData.endTime} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, endTime: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px' }} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* 觸發後動作 */}
+                                        <div className="card">
+                                            <h3 style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}><Tag size={18} className="text-yellow" /> 觸發後動作</h3>
+                                            <div>
+                                                <label className="label">自動上標 (限填一個標籤)</label>
+                                                <input type="text" value={funcData.tag} onChange={e => handleFieldChange(idx, 'function', stringifyFunction(e.target.value))} style={{ width: '100%', padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px' }} placeholder="例如: 已互動" />
+                                                <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#888' }}>當用戶觸發此關鍵字時，將自動為該用戶貼上此標籤。</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        );
+                    })()}
                 </div>
             )}
 
