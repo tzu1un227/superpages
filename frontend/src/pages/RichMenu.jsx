@@ -317,18 +317,36 @@ function RichMenu() {
         
         setLoading(true);
         try {
-            const metaData = {
+            const currentOA = myOAs.find(oa => oa.id.toString() === selectedOAId.toString()) || myOAs[0];
+            const appName = currentOA?.other_settings?.app_name || '';
+            const liffId = "2009851813-AgTeSa4r";
+
+            const metaDataForLine = {
                 size: { width: Math.round(currentMenu.size.width), height: Math.round(currentMenu.size.height) },
                 selected: false,
                 name: currentMenu.name.substring(0, 300),
                 chatBarText: currentMenu.chatBarText.substring(0, 14),
-                areas: currentMenu.areas.map(a => ({
-                    bounds: { x: Math.round(a.bounds.x), y: Math.round(a.bounds.y), width: Math.round(a.bounds.width), height: Math.round(a.bounds.height) },
-                    action: a.action
-                }))
+                areas: currentMenu.areas.map(a => {
+                    const action = { ...a.action };
+                    if (action.type === 'uri' && action.tags && action.tags.length > 0) {
+                        const targetUrl = action.uri;
+                        const tagName = action.tags.join(',');
+                        
+                        if (appName) {
+                            action.uri = `https://liff.line.me/${liffId}?bot=${appName}&tag=${encodeURIComponent(tagName)}&redirect=${encodeURIComponent(targetUrl)}`;
+                        } else {
+                            action.uri = `${API_BASE_URL}/redirect?tags=${encodeURIComponent(tagName)}&redirect=${encodeURIComponent(targetUrl)}`;
+                        }
+                        delete action.tags; // Remove tags before sending to LINE API
+                    }
+                    return {
+                        bounds: { x: Math.round(a.bounds.x), y: Math.round(a.bounds.y), width: Math.round(a.bounds.width), height: Math.round(a.bounds.height) },
+                        action: action
+                    };
+                })
             };
 
-            const createRes = await api.post('/richmenu/', metaData);
+            const createRes = await api.post('/richmenu/', metaDataForLine);
             const richMenuId = createRes.data.richMenuId;
 
             if (currentMenu.imageFile) {
@@ -347,7 +365,12 @@ function RichMenu() {
                 rich_menu_id: richMenuId,
                 start_time: currentMenu.start_time || null,
                 end_time: currentMenu.end_time || null,
-                data: JSON.stringify(metaData)
+                data: JSON.stringify({
+                    size: currentMenu.size,
+                    areas: currentMenu.areas,
+                    name: currentMenu.name,
+                    chatBarText: currentMenu.chatBarText
+                })
             };
             await api.post('/richmenu/metadata', payload);
 
@@ -616,7 +639,18 @@ function RichMenu() {
                                         <input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.text || ''} onChange={e => updateAreaAction(selectedAreaIndex, { text: e.target.value })} placeholder="訊息內容" />
                                     )}
                                     {currentMenu.areas[selectedAreaIndex].action.type === 'uri' && (
-                                        <input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.uri || ''} onChange={e => updateAreaAction(selectedAreaIndex, { uri: e.target.value })} placeholder="https://..." />
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                            <input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.uri || ''} onChange={e => updateAreaAction(selectedAreaIndex, { uri: e.target.value })} placeholder="https://..." />
+                                            <div>
+                                                <label className="label">附加標籤 (將轉換為追蹤連結)</label>
+                                                <TagInput
+                                                    tags={currentMenu.areas[selectedAreaIndex].action.tags || []}
+                                                    onChange={tags => updateAreaAction(selectedAreaIndex, { tags })}
+                                                    disabled={viewOnly}
+                                                    placeholder="輸入標籤後按 Enter"
+                                                />
+                                            </div>
+                                        </div>
                                     )}
                                     {currentMenu.areas[selectedAreaIndex].action.type === 'richmenuswitch' && (
                                         <input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.data || ''} onChange={e => updateAreaAction(selectedAreaIndex, { data: e.target.value })} placeholder="Rich Menu Alias ID" />
