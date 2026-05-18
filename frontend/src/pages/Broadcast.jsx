@@ -1286,9 +1286,9 @@ function BroadcastContent() {
                                                         {type === 'TextSendMessage' ? <Type size={14} /> :
                                                             type === 'ImageSendMessage' ? <ImageIcon size={14} /> :
                                                                 type === 'VideoSendMessage' ? <Video size={14} /> : <Layout size={14} />}
-                                                        {type === 'TextSendMessage' ? (m.text?.substring(0, 20) + (m.text?.length > 20 ? '...' : '')) :
-                                                            type === 'FlexSendMessage' ? 'Flex 訊息' :
-                                                                type === 'ImageSendMessage' ? '圖片' : '影片'}
+                                                        {type === 'TextSendMessage' ? '文字訊息' :
+                                                            type === 'FlexSendMessage' ? '圖文訊息' :
+                                                                type === 'ImageSendMessage' ? '圖片訊息' : '影片訊息'}
                                                     </div>
                                                 );
                                             });
