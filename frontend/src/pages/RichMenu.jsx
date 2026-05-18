@@ -709,11 +709,11 @@ function RichMenu() {
 
             <div style={{ position: 'relative', minHeight: '300px' }}>
                 {loading && (
-                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '12px' }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', paddingTop: '100px' }}>
                         <LoadingSpinner />
                     </div>
                 )}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '40px', opacity: loading ? 0.5 : 1, pointerEvents: loading ? 'none' : 'auto', transition: 'opacity 0.2s' }}>
                     {Object.entries(groupedMenus).map(([oaName, oaMenus]) => (
                     <div key={oaName}>
                         <h2 style={{ fontSize: '20px', color: 'var(--primary-yellow)', marginBottom: '20px', borderLeft: '4px solid var(--primary-yellow)', paddingLeft: '15px' }}>
@@ -767,6 +767,7 @@ function RichMenu() {
                         </div>
                     </div>
                 ))}
+            </div>
             </div>
         </div>
     );
