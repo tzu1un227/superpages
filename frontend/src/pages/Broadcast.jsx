@@ -472,9 +472,11 @@ function BroadcastContent() {
                 await api.put(`/broadcast/${formData.id}`, payload);
             } else {
                 const res = await api.post('/broadcast/', payload);
-                setFormData({ ...formData, id: res.data.id, message_tag: msgTag });
             }
             showToast('草稿已儲存', 'success');
+            setListTab('all'); // Land on All tab
+            setView('list'); // Jump back to All Broadcasts page
+            fetchBroadcasts(); // Update list immediately
         } catch (err) {
             showToast('儲存失敗: ' + err.message, 'error');
         } finally {
@@ -1180,20 +1182,6 @@ function BroadcastContent() {
                         />
                     </Box>
                 </Modal>
-                {/* Executing Overlay */}
-                {executing && (
-                    <div style={{
-                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                        backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999,
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '20px'
-                    }}>
-                        <CircularProgress size={48} sx={{ color: 'var(--primary-yellow)' }} />
-                        <p style={{ color: '#fff', fontSize: '18px', fontWeight: 'bold' }}>
-                            {formData.send_type === 'immediate' ? '正在發送群發訊息...' : '正在建立預約排程...'}
-                        </p>
-                        <p style={{ color: '#999', fontSize: '14px' }}>請勿關閉此頁面</p>
-                    </div>
-                )}
             </div>
         );
     }
@@ -1342,20 +1330,7 @@ function BroadcastContent() {
                 </div>
             )}
 
-            {/* Executing Overlay */}
-            {executing && (
-                <div style={{
-                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                    backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999,
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '20px'
-                }}>
-                    <CircularProgress size={48} sx={{ color: 'var(--primary-yellow)' }} />
-                    <p style={{ color: '#fff', fontSize: '18px', fontWeight: 'bold' }}>
-                        {formData.send_type === 'immediate' ? '正在發送群發訊息...' : '正在建立預約排程...'}
-                    </p>
-                    <p style={{ color: '#999', fontSize: '14px' }}>請勿關閉視窗</p>
-                </div>
-            )}
+
 
             {/* List-view preview modal */}
             {previewBcMessages && (
