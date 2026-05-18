@@ -134,6 +134,7 @@ function RichMenu() {
         setCurrentMenu({ ...emptyMenu });
         setBackgroundImage(null);
         setViewOnly(false);
+        setSelectedAreaIndex(null);
         setView('edit');
     };
 
@@ -146,7 +147,7 @@ function RichMenu() {
         }
     };
 
-    const handleEditMenu = async (item, isMetadata = false) => {
+    const handleEditMenu = (item, isMetadata = false) => {
         setLoading(true);
         try {
             if (isMetadata) {
@@ -165,8 +166,9 @@ function RichMenu() {
                 setViewOnly(item.status === 'published');
                 setBackgroundImage(null);
                 if (item.rich_menu_id) {
-                    const imageUrl = await fetchImageWithAuth(item.rich_menu_id);
-                    setBackgroundImage(imageUrl);
+                    fetchImageWithAuth(item.rich_menu_id).then(imageUrl => {
+                        setBackgroundImage(imageUrl);
+                    });
                 }
             } else {
                 setCurrentMenu({
@@ -179,8 +181,9 @@ function RichMenu() {
                     status: 'published'
                 });
                 setViewOnly(true);
-                const imageUrl = await fetchImageWithAuth(item.richMenuId);
-                setBackgroundImage(imageUrl);
+                fetchImageWithAuth(item.richMenuId).then(imageUrl => {
+                    setBackgroundImage(imageUrl);
+                });
             }
             setView('edit');
             setSelectedAreaIndex(null);
@@ -373,6 +376,13 @@ function RichMenu() {
         setSelectedAreaIndex(currentMenu.areas.length);
     };
 
+    const deleteArea = (index) => {
+        if (viewOnly) return;
+        const newAreas = currentMenu.areas.filter((_, i) => i !== index);
+        setCurrentMenu({ ...currentMenu, areas: newAreas });
+        setSelectedAreaIndex(null);
+    };
+
     const updateAreaBounds = (index, bounds) => {
         if (viewOnly) return;
         const newAreas = [...currentMenu.areas];
@@ -530,6 +540,21 @@ function RichMenu() {
                             </div>
                             {selectedAreaIndex !== null ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <h4 style={{ margin: 0, color: 'var(--primary-yellow)' }}>區塊 {selectedAreaIndex + 1}</h4>
+                                        {!viewOnly && (
+                                            <button onClick={() => deleteArea(selectedAreaIndex)} className="secondary" style={{ color: '#ff4d4d', padding: '4px 8px', fontSize: '12px' }}>
+                                                <Trash2 size={14} style={{ marginRight: '4px' }} /> 刪除
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                        <div><label className="label">X 座標</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].bounds.x} onChange={e => updateAreaBounds(selectedAreaIndex, { x: Number(e.target.value) })} style={{ width: '100%' }} /></div>
+                                        <div><label className="label">Y 座標</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].bounds.y} onChange={e => updateAreaBounds(selectedAreaIndex, { y: Number(e.target.value) })} style={{ width: '100%' }} /></div>
+                                        <div><label className="label">寬度</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].bounds.width} onChange={e => updateAreaBounds(selectedAreaIndex, { width: Number(e.target.value) })} style={{ width: '100%' }} /></div>
+                                        <div><label className="label">高度</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].bounds.height} onChange={e => updateAreaBounds(selectedAreaIndex, { height: Number(e.target.value) })} style={{ width: '100%' }} /></div>
+                                    </div>
+                                    <label className="label" style={{ marginTop: '5px' }}>點擊動作</label>
                                     <select value={currentMenu.areas[selectedAreaIndex].action.type} disabled={viewOnly} onChange={e => updateAreaAction(selectedAreaIndex, { type: e.target.value })}>
                                         {ACTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                                     </select>
@@ -538,6 +563,9 @@ function RichMenu() {
                                     )}
                                     {currentMenu.areas[selectedAreaIndex].action.type === 'uri' && (
                                         <input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.uri || ''} onChange={e => updateAreaAction(selectedAreaIndex, { uri: e.target.value })} placeholder="https://..." />
+                                    )}
+                                    {currentMenu.areas[selectedAreaIndex].action.type === 'richmenuswitch' && (
+                                        <input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.data || ''} onChange={e => updateAreaAction(selectedAreaIndex, { data: e.target.value })} placeholder="Rich Menu Alias ID" />
                                     )}
                                 </div>
                             ) : (
@@ -581,7 +609,8 @@ function RichMenu() {
     }
 
     return (
-        <div>
+        <div style={{ position: 'relative', height: '100%' }}>
+            {loading && <LoadingSpinner fullScreen />}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                     <div>

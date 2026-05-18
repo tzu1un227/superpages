@@ -393,6 +393,7 @@ const ProjectsManagement = () => {
 
     const handleExportProject = async (project) => {
         setIsExporting(true);
+        showToast('已幫您匯出，你可先去執行其他作業', 'info');
         try {
             const schedRes = await api.get(`/schedules?project_id=${project.project_id}`);
             const schedulesData = Array.isArray(schedRes.data) ? schedRes.data : [];
@@ -1410,84 +1411,96 @@ const ProjectsManagement = () => {
                     {showAddScheduleForm && (
                         <div style={{ backgroundColor: '#222', padding: '20px', borderRadius: '12px', marginBottom: '25px', border: '1px solid #333' }}>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', alignItems: 'flex-start' }}>
-                                <div style={{ flex: '0 0 100px' }}>
-                                    <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>目前排序</label>
-                                    <div style={{ padding: '10px', backgroundColor: '#333', borderRadius: '4px', textAlign: 'center', color: '#888', border: '1px solid #444' }}>
-                                        最後一步
-                                    </div>
+                                <div style={{ flex: 1, minWidth: '300px' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#B0B0B0', marginBottom: '10px' }}>
+                                        <input 
+                                            type="checkbox" 
+                                            checked={parseFloat(newSchedule.interval_hours || '0') === 0}
+                                            onChange={e => {
+                                                if (e.target.checked) {
+                                                    setNewSchedule({ ...newSchedule, interval_hours: '0' });
+                                                } else {
+                                                    setNewSchedule({ ...newSchedule, interval_hours: (1/60).toString() }); // default to 1 min when unchecked
+                                                }
+                                            }}
+                                        />
+                                        不設定時間 (0年0月0天0時0分)
+                                    </label>
+                                    
+                                    {parseFloat(newSchedule.interval_hours || '0') !== 0 && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <div style={{ flex: 1 }}>
+                                                    <label style={{ fontSize: '11px', color: '#888', display: 'block' }}>年</label>
+                                                    <input
+                                                        type="number" min="0"
+                                                        value={formatInterval(newSchedule.interval_hours).years}
+                                                        onChange={e => {
+                                                            const y = parseInt(e.target.value) || 0;
+                                                            const { months, days, hours, minutes } = formatInterval(newSchedule.interval_hours);
+                                                            setNewSchedule({ ...newSchedule, interval_hours: (y * 365 * 24 + months * 30 * 24 + days * 24 + hours + minutes / 60).toString() });
+                                                        }}
+                                                        style={{ width: '100%', padding: '4px' }}
+                                                    />
+                                                </div>
+                                                <div style={{ flex: 1 }}>
+                                                    <label style={{ fontSize: '11px', color: '#888', display: 'block' }}>月</label>
+                                                    <input
+                                                        type="number" min="0"
+                                                        value={formatInterval(newSchedule.interval_hours).months}
+                                                        onChange={e => {
+                                                            const m = parseInt(e.target.value) || 0;
+                                                            const { years, days, hours, minutes } = formatInterval(newSchedule.interval_hours);
+                                                            setNewSchedule({ ...newSchedule, interval_hours: (years * 365 * 24 + m * 30 * 24 + days * 24 + hours + minutes / 60).toString() });
+                                                        }}
+                                                        style={{ width: '100%', padding: '4px' }}
+                                                    />
+                                                </div>
+                                                <div style={{ flex: 1 }}>
+                                                    <label style={{ fontSize: '11px', color: '#888', display: 'block' }}>天</label>
+                                                    <input
+                                                        type="number" min="0"
+                                                        value={formatInterval(newSchedule.interval_hours).days}
+                                                        onChange={e => {
+                                                            const d = parseInt(e.target.value) || 0;
+                                                            const { years, months, hours, minutes } = formatInterval(newSchedule.interval_hours);
+                                                            setNewSchedule({ ...newSchedule, interval_hours: (years * 365 * 24 + months * 30 * 24 + d * 24 + hours + minutes / 60).toString() });
+                                                        }}
+                                                        style={{ width: '100%', padding: '4px' }}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <div style={{ flex: 1 }}>
+                                                    <label style={{ fontSize: '11px', color: '#888', display: 'block' }}>時</label>
+                                                    <input
+                                                        type="number" min="0"
+                                                        value={formatInterval(newSchedule.interval_hours).hours}
+                                                        onChange={e => {
+                                                            const h = parseInt(e.target.value) || 0;
+                                                            const { years, months, days, minutes } = formatInterval(newSchedule.interval_hours);
+                                                            setNewSchedule({ ...newSchedule, interval_hours: (years * 365 * 24 + months * 30 * 24 + days * 24 + h + minutes / 60).toString() });
+                                                        }}
+                                                        style={{ width: '100%', padding: '4px' }}
+                                                    />
+                                                </div>
+                                                <div style={{ flex: 1 }}>
+                                                    <label style={{ fontSize: '11px', color: '#888', display: 'block' }}>分</label>
+                                                    <input
+                                                        type="number" min="0"
+                                                        value={formatInterval(newSchedule.interval_hours).minutes}
+                                                        onChange={e => {
+                                                            const m = parseInt(e.target.value) || 0;
+                                                            const { years, months, days, hours } = formatInterval(newSchedule.interval_hours);
+                                                            setNewSchedule({ ...newSchedule, interval_hours: (years * 365 * 24 + months * 30 * 24 + days * 24 + hours + m / 60).toString() });
+                                                        }}
+                                                        style={{ width: '100%', padding: '4px' }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                                <div style={{ display: 'flex', gap: '8px', flex: 1 }}>
-                                        <div style={{ flex: 1 }}>
-                                            <label style={{ fontSize: '11px', color: '#888', display: 'block' }}>年</label>
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                value={formatInterval(newSchedule.interval_hours).years}
-                                                onChange={e => {
-                                                    const y = parseInt(e.target.value) || 0;
-                                                    const { months, days, hours, minutes } = formatInterval(newSchedule.interval_hours);
-                                                    setNewSchedule({ ...newSchedule, interval_hours: (y * 365 * 24 + months * 30 * 24 + days * 24 + hours + minutes / 60).toString() });
-                                                }}
-                                                style={{ width: '100%', padding: '4px' }}
-                                            />
-                                        </div>
-                                        <div style={{ flex: 1 }}>
-                                            <label style={{ fontSize: '11px', color: '#888', display: 'block' }}>月</label>
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                value={formatInterval(newSchedule.interval_hours).months}
-                                                onChange={e => {
-                                                    const m = parseInt(e.target.value) || 0;
-                                                    const { years, days, hours, minutes } = formatInterval(newSchedule.interval_hours);
-                                                    setNewSchedule({ ...newSchedule, interval_hours: (years * 365 * 24 + m * 30 * 24 + days * 24 + hours + minutes / 60).toString() });
-                                                }}
-                                                style={{ width: '100%', padding: '4px' }}
-                                            />
-                                        </div>
-                                        <div style={{ flex: 1 }}>
-                                            <label style={{ fontSize: '11px', color: '#888', display: 'block' }}>天</label>
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                value={formatInterval(newSchedule.interval_hours).days}
-                                                onChange={e => {
-                                                    const d = parseInt(e.target.value) || 0;
-                                                    const { years, months, hours, minutes } = formatInterval(newSchedule.interval_hours);
-                                                    setNewSchedule({ ...newSchedule, interval_hours: (years * 365 * 24 + months * 30 * 24 + d * 24 + hours + minutes / 60).toString() });
-                                                }}
-                                                style={{ width: '100%', padding: '4px' }}
-                                            />
-                                        </div>
-                                        <div style={{ flex: 1 }}>
-                                            <label style={{ fontSize: '11px', color: '#888', display: 'block' }}>時</label>
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                value={formatInterval(newSchedule.interval_hours).hours}
-                                                onChange={e => {
-                                                    const h = parseInt(e.target.value) || 0;
-                                                    const { years, months, days, minutes } = formatInterval(newSchedule.interval_hours);
-                                                    setNewSchedule({ ...newSchedule, interval_hours: (years * 365 * 24 + months * 30 * 24 + days * 24 + h + minutes / 60).toString() });
-                                                }}
-                                                style={{ width: '100%', padding: '4px' }}
-                                            />
-                                        </div>
-                                        <div style={{ flex: 1 }}>
-                                            <label style={{ fontSize: '11px', color: '#888', display: 'block' }}>分</label>
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                value={formatInterval(newSchedule.interval_hours).minutes}
-                                                onChange={e => {
-                                                    const m = parseInt(e.target.value) || 0;
-                                                    const { years, months, days, hours } = formatInterval(newSchedule.interval_hours);
-                                                    setNewSchedule({ ...newSchedule, interval_hours: (years * 365 * 24 + months * 30 * 24 + days * 24 + hours + m / 60).toString() });
-                                                }}
-                                                style={{ width: '100%', padding: '4px' }}
-                                            />
-                                        </div>
-                                    </div>
                                 <div style={{ flex: '1 1 300px' }}>
                                     <label style={{ display: 'block', fontSize: '13px', color: '#B0B0B0', marginBottom: '5px' }}>訊息內容</label>
                                     <div style={{ display: 'flex', gap: '5px' }}>
@@ -1578,78 +1591,95 @@ const ProjectsManagement = () => {
                                                 </td>
                                                 <td>
                                                     {editingScheduleId === s.schedule_id ? (
-                                                            <div style={{ display: 'flex', gap: '5px' }}>
-                                                            <div style={{ width: '45px' }}>
-                                                                <label style={{ fontSize: '10px', color: '#888', display: 'block' }}>年</label>
-                                                                <input
-                                                                    type="number"
-                                                                    min="0"
-                                                                    value={formatInterval(editScheduleFormData.interval_hours).years}
-                                                                    onChange={e => {
-                                                                        const y = parseInt(e.target.value) || 0;
-                                                                        const { months, days, hours, minutes } = formatInterval(editScheduleFormData.interval_hours);
-                                                                        setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (y * 365 * 24 + months * 30 * 24 + days * 24 + hours + minutes / 60).toString() });
-                                                                    }}
-                                                                    style={{ width: '100%', padding: '2px', fontSize: '12px' }}
-                                                                />
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#B0B0B0' }}>
+                                                                    <input 
+                                                                        type="checkbox" 
+                                                                        checked={parseFloat(editScheduleFormData.interval_hours || '0') === 0}
+                                                                        onChange={e => {
+                                                                            if (e.target.checked) {
+                                                                                setEditScheduleFormData({ ...editScheduleFormData, interval_hours: '0' });
+                                                                            } else {
+                                                                                setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (1/60).toString() });
+                                                                            }
+                                                                        }}
+                                                                    />
+                                                                    不設定時間
+                                                                </label>
+                                                                {parseFloat(editScheduleFormData.interval_hours || '0') !== 0 && (
+                                                                    <>
+                                                                        <div style={{ display: 'flex', gap: '5px' }}>
+                                                                            <div style={{ width: '45px' }}>
+                                                                                <label style={{ fontSize: '10px', color: '#888', display: 'block' }}>年</label>
+                                                                                <input
+                                                                                    type="number" min="0"
+                                                                                    value={formatInterval(editScheduleFormData.interval_hours).years}
+                                                                                    onChange={e => {
+                                                                                        const y = parseInt(e.target.value) || 0;
+                                                                                        const { months, days, hours, minutes } = formatInterval(editScheduleFormData.interval_hours);
+                                                                                        setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (y * 365 * 24 + months * 30 * 24 + days * 24 + hours + minutes / 60).toString() });
+                                                                                    }}
+                                                                                    style={{ width: '100%', padding: '2px', fontSize: '12px' }}
+                                                                                />
+                                                                            </div>
+                                                                            <div style={{ width: '45px' }}>
+                                                                                <label style={{ fontSize: '10px', color: '#888', display: 'block' }}>月</label>
+                                                                                <input
+                                                                                    type="number" min="0"
+                                                                                    value={formatInterval(editScheduleFormData.interval_hours).months}
+                                                                                    onChange={e => {
+                                                                                        const m = parseInt(e.target.value) || 0;
+                                                                                        const { years, days, hours, minutes } = formatInterval(editScheduleFormData.interval_hours);
+                                                                                        setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (years * 365 * 24 + m * 30 * 24 + days * 24 + hours + minutes / 60).toString() });
+                                                                                    }}
+                                                                                    style={{ width: '100%', padding: '2px', fontSize: '12px' }}
+                                                                                />
+                                                                            </div>
+                                                                            <div style={{ width: '45px' }}>
+                                                                                <label style={{ fontSize: '10px', color: '#888', display: 'block' }}>天</label>
+                                                                                <input
+                                                                                    type="number" min="0"
+                                                                                    value={formatInterval(editScheduleFormData.interval_hours).days}
+                                                                                    onChange={e => {
+                                                                                        const d = parseInt(e.target.value) || 0;
+                                                                                        const { years, months, hours, minutes } = formatInterval(editScheduleFormData.interval_hours);
+                                                                                        setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (years * 365 * 24 + months * 30 * 24 + d * 24 + hours + minutes / 60).toString() });
+                                                                                    }}
+                                                                                    style={{ width: '100%', padding: '2px', fontSize: '12px' }}
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+                                                                        <div style={{ display: 'flex', gap: '5px' }}>
+                                                                            <div style={{ width: '45px' }}>
+                                                                                <label style={{ fontSize: '10px', color: '#888', display: 'block' }}>時</label>
+                                                                                <input
+                                                                                    type="number" min="0"
+                                                                                    value={formatInterval(editScheduleFormData.interval_hours).hours}
+                                                                                    onChange={e => {
+                                                                                        const h = parseInt(e.target.value) || 0;
+                                                                                        const { years, months, days, minutes } = formatInterval(editScheduleFormData.interval_hours);
+                                                                                        setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (years * 365 * 24 + months * 30 * 24 + days * 24 + h + minutes / 60).toString() });
+                                                                                    }}
+                                                                                    style={{ width: '100%', padding: '2px', fontSize: '12px' }}
+                                                                                />
+                                                                            </div>
+                                                                            <div style={{ width: '45px' }}>
+                                                                                <label style={{ fontSize: '10px', color: '#888', display: 'block' }}>分</label>
+                                                                                <input
+                                                                                    type="number" min="0"
+                                                                                    value={formatInterval(editScheduleFormData.interval_hours).minutes}
+                                                                                    onChange={e => {
+                                                                                        const m = parseInt(e.target.value) || 0;
+                                                                                        const { years, months, days, hours } = formatInterval(editScheduleFormData.interval_hours);
+                                                                                        setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (years * 365 * 24 + months * 30 * 24 + days * 24 + hours + m / 60).toString() });
+                                                                                    }}
+                                                                                    style={{ width: '100%', padding: '2px', fontSize: '12px' }}
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+                                                                    </>
+                                                                )}
                                                             </div>
-                                                            <div style={{ width: '45px' }}>
-                                                                <label style={{ fontSize: '10px', color: '#888', display: 'block' }}>月</label>
-                                                                <input
-                                                                    type="number"
-                                                                    min="0"
-                                                                    value={formatInterval(editScheduleFormData.interval_hours).months}
-                                                                    onChange={e => {
-                                                                        const m = parseInt(e.target.value) || 0;
-                                                                        const { years, days, hours, minutes } = formatInterval(editScheduleFormData.interval_hours);
-                                                                        setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (years * 365 * 24 + m * 30 * 24 + days * 24 + hours + minutes / 60).toString() });
-                                                                    }}
-                                                                    style={{ width: '100%', padding: '2px', fontSize: '12px' }}
-                                                                />
-                                                            </div>
-                                                            <div style={{ width: '45px' }}>
-                                                                <label style={{ fontSize: '10px', color: '#888', display: 'block' }}>天</label>
-                                                                <input
-                                                                    type="number"
-                                                                    min="0"
-                                                                    value={formatInterval(editScheduleFormData.interval_hours).days}
-                                                                    onChange={e => {
-                                                                        const d = parseInt(e.target.value) || 0;
-                                                                        const { years, months, hours, minutes } = formatInterval(editScheduleFormData.interval_hours);
-                                                                        setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (years * 365 * 24 + months * 30 * 24 + d * 24 + hours + minutes / 60).toString() });
-                                                                    }}
-                                                                    style={{ width: '100%', padding: '2px', fontSize: '12px' }}
-                                                                />
-                                                            </div>
-                                                            <div style={{ width: '45px' }}>
-                                                                <label style={{ fontSize: '10px', color: '#888', display: 'block' }}>時</label>
-                                                                <input
-                                                                    type="number"
-                                                                    min="0"
-                                                                    value={formatInterval(editScheduleFormData.interval_hours).hours}
-                                                                    onChange={e => {
-                                                                        const h = parseInt(e.target.value) || 0;
-                                                                        const { years, months, days, minutes } = formatInterval(editScheduleFormData.interval_hours);
-                                                                        setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (years * 365 * 24 + months * 30 * 24 + days * 24 + h + minutes / 60).toString() });
-                                                                    }}
-                                                                    style={{ width: '100%', padding: '2px', fontSize: '12px' }}
-                                                                />
-                                                            </div>
-                                                            <div style={{ width: '45px' }}>
-                                                                <label style={{ fontSize: '10px', color: '#888', display: 'block' }}>分</label>
-                                                                <input
-                                                                    type="number"
-                                                                    min="0"
-                                                                    value={formatInterval(editScheduleFormData.interval_hours).minutes}
-                                                                    onChange={e => {
-                                                                        const m = parseInt(e.target.value) || 0;
-                                                                        const { years, months, days, hours } = formatInterval(editScheduleFormData.interval_hours);
-                                                                        setEditScheduleFormData({ ...editScheduleFormData, interval_hours: (years * 365 * 24 + months * 30 * 24 + days * 24 + hours + m / 60).toString() });
-                                                                    }}
-                                                                    style={{ width: '100%', padding: '2px', fontSize: '12px' }}
-                                                                />
-                                                            </div>
-                                                        </div>
                                                     ) : (
                                                         (() => {
                                                             const { days, hours, minutes } = formatInterval(s.interval_hours);
@@ -2324,22 +2354,26 @@ const UserSelectModal = ({ isOpen, onClose, onSelectBatch, existingUsers = [] })
                 手動將用戶加入專案 (批次選擇)
                 {!processing && <X style={{ cursor: 'pointer' }} onClick={onClose} />}
             </DialogTitle>
-            <DialogContent style={{ paddingTop: '20px' }}>
-                {processing ? (
-                    <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+            <DialogContent style={{ paddingTop: '20px', position: 'relative' }}>
+                {processing && (
+                    <div style={{
+                        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                        backgroundColor: 'rgba(26, 26, 26, 0.8)', zIndex: 10,
+                        display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center'
+                    }}>
                         <LoadingSpinner message="正在批次加入用戶中，請耐心等待..." />
                         <div style={{ marginTop: '10px', color: '#aaa' }}>這可能需要一段時間，請勿關閉視窗</div>
                     </div>
-                ) : (
-                    <>
-                        <div style={{ marginBottom: '20px' }}>
-                            <input
-                                type="text"
-                                placeholder="搜尋用戶名稱..."
-                                value={nameSearch}
-                                onChange={(e) => setNameSearch(e.target.value)}
-                                style={{ width: '100%', padding: '10px', background: '#333', border: '1px solid #555', borderRadius: '4px', color: '#fff' }}
-                            />
+                )}
+                <div style={{ opacity: processing ? 0.3 : 1, pointerEvents: processing ? 'none' : 'auto' }}>
+                    <div style={{ marginBottom: '20px' }}>
+                        <input
+                            type="text"
+                            placeholder="搜尋用戶名稱..."
+                            value={nameSearch}
+                            onChange={(e) => setNameSearch(e.target.value)}
+                            style={{ width: '100%', padding: '10px', background: '#333', border: '1px solid #555', borderRadius: '4px', color: '#fff' }}
+                        />
                         </div>
                         <div style={{ marginBottom: '20px' }}>
                             <div style={{ color: '#aaa', marginBottom: '10px', display: 'flex', justifyContent: 'space-between' }}>
@@ -2433,8 +2467,7 @@ const UserSelectModal = ({ isOpen, onClose, onSelectBatch, existingUsers = [] })
                         <div style={{ marginTop: '10px', textAlign: 'right', fontSize: '12px', color: '#888' }}>
                             已選取 {selectedUserIds.length} 位用戶
                         </div>
-                    </>
-                )}
+                    </div>
             </DialogContent>
             <DialogActions style={{ borderTop: '1px solid #333', padding: '15px' }}>
                 <button onClick={onClose} disabled={processing} style={{ background: '#444', color: '#fff', padding: '8px 20px', borderRadius: '4px', border: 'none', cursor: 'pointer' }}>取消</button>

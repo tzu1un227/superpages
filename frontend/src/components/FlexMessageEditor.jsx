@@ -200,9 +200,17 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                 const tagIdx = parts.indexOf('set_tag');
                 if (tagIdx !== -1) return parts.slice(tagIdx + 1).filter(t => t);
             }
-            // Handle redirect format: /api/redirect?tags=tag1,tag2
-            if (payload.includes('/redirect?')) {
-                const tagsMatch = payload.match(/[?&]tags=([^&#]*)/);
+            // Handle LIFF format (liff.line.me)
+            if (payload.includes('liff.line.me')) {
+                const tagMatch = payload.match(/[?&]tag=([^&]*)/);
+                if (tagMatch && tagMatch[1]) {
+                    const decoded = decodeURIComponent(tagMatch[1]);
+                    return decoded.split(/[,|]/).map(t => t.trim()).filter(t => t);
+                }
+            }
+            // Handle redirect format: /api/redirect?tags=tag1,tag2 (encoded or unencoded)
+            if (payload.includes('/redirect?') || payload.includes('%2Fredirect%3F')) {
+                const tagsMatch = payload.match(/[?&]tags=([^&#]*)/) || decodeURIComponent(payload).match(/[?&]tags=([^&#]*)/);
                 if (tagsMatch && tagsMatch[1]) {
                     const decoded = decodeURIComponent(tagsMatch[1]);
                     return decoded.split(/[,|]/).map(t => t.trim()).filter(t => t);
@@ -222,9 +230,20 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
             if (payload.includes('set_tag|')) {
                 return payload.split('set_tag|')[0].replace(/\|$/, '');
             }
+            // Clean LIFF format
+            if (payload.includes('liff.line.me')) {
+                const redirectMatch = payload.match(/[?&]redirect=([^&]*)/);
+                if (redirectMatch && redirectMatch[1]) {
+                    const redirectUrl = decodeURIComponent(redirectMatch[1]);
+                    const urlMatch = redirectUrl.match(/[?&]url=([^&]*)/);
+                    if (urlMatch && urlMatch[1]) {
+                        return decodeURIComponent(urlMatch[1]);
+                    }
+                }
+            }
             // Clean redirect format
-            if (payload.includes('/redirect?')) {
-                const urlMatch = payload.match(/[?&]url=([^&]*)/);
+            if (payload.includes('/redirect?') || payload.includes('%2Fredirect%3F')) {
+                const urlMatch = payload.match(/[?&]url=([^&]*)/) || decodeURIComponent(payload).match(/[?&]url=([^&]*)/);
                 if (urlMatch && urlMatch[1]) {
                     return decodeURIComponent(urlMatch[1]);
                 }
@@ -339,7 +358,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                 size: mode === 'carousel' ? 'kilo' : 'micro',
                 hero: {
                     type: 'image',
-                    url: card.imageUrl || 'https://via.placeholder.com/800x400',
+                    url: card.imageUrl || 'https://dummyimage.com/800x400/cccccc/666666.png&text=Image',
                     size: 'full',
                     aspectRatio: '20:13',
                     aspectMode: 'cover'
