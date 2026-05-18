@@ -553,9 +553,8 @@ function BroadcastContent() {
                 ...formData,
                 message_tag: msgTag,
                 target_value: formData.target_type === 'ids' ? formData.selectedUsers.map(u => u.user_id).join(',') : formData.target_value,
-                // Do NOT set status: 'sent' here. Let /execute handle it.
-                // If it's sent, the backend execute endpoint will return 400 'already sent'.
-                status: formData.send_type === 'scheduled' ? 'scheduled' : (formData.status || 'draft')
+                // Set status to 'sending' if immediate, so that it displays with sending status immediately
+                status: formData.send_type === 'scheduled' ? 'scheduled' : 'sending'
             };
 
             let bcId = formData.id;
@@ -584,6 +583,7 @@ function BroadcastContent() {
                 });
 
             showToast(formData.send_type === 'scheduled' ? '已成功預約排程！' : '已開始發送群發訊息！', 'success');
+            setListTab('all'); // Ensure we always land on "All" tab to see the newly created task instantly!
             setView('list');
             fetchBroadcasts();
         } catch (err) {
@@ -1236,11 +1236,11 @@ function BroadcastContent() {
                                     <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                                         <div style={{
                                             padding: '4px 10px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', letterSpacing: '0.5px',
-                                            backgroundColor: bc.status === 'sent' ? 'rgba(76, 175, 80, 0.1)' : bc.status === 'scheduled' ? 'rgba(255, 193, 7, 0.1)' : 'rgba(176, 176, 176, 0.1)',
-                                            color: bc.status === 'sent' ? '#4CAF50' : bc.status === 'scheduled' ? '#FFC107' : '#B0B0B0',
-                                            border: `1px solid ${bc.status === 'sent' ? '#4CAF50' : bc.status === 'scheduled' ? '#FFC107' : '#B0B0B0'}40`
+                                            backgroundColor: bc.status === 'sent' ? 'rgba(76, 175, 80, 0.1)' : bc.status === 'sending' ? 'rgba(33, 150, 243, 0.1)' : bc.status === 'scheduled' ? 'rgba(255, 193, 7, 0.1)' : 'rgba(176, 176, 176, 0.1)',
+                                            color: bc.status === 'sent' ? '#4CAF50' : bc.status === 'sending' ? '#2196F3' : bc.status === 'scheduled' ? '#FFC107' : '#B0B0B0',
+                                            border: `1px solid ${bc.status === 'sent' ? '#4CAF50' : bc.status === 'sending' ? '#2196F3' : bc.status === 'scheduled' ? '#FFC107' : '#B0B0B0'}40`
                                         }}>
-                                            {bc.status === 'sent' ? 'SENT' : bc.status === 'scheduled' ? 'SCHEDULED' : 'DRAFT'}
+                                            {bc.status === 'sent' ? '已發送' : bc.status === 'sending' ? '發送中...' : bc.status === 'scheduled' ? '已排程' : '草稿'}
                                         </div>
                                         <span style={{ color: '#555', fontSize: '13px' }}>{new Date(bc.created_at).toLocaleDateString()} 建立</span>
                                     </div>
