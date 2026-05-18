@@ -125,18 +125,32 @@ function BroadcastContent() {
     const [availableUsers, setAvailableUsers] = useState([]);
 
     const fetchIdRef = useRef(0);
+    const [lastActionTime, setLastActionTime] = useState(0);
 
-    // Automatically poll list every 3 seconds ONLY if there is any 'sending' status broadcast
+    // Automatically poll list every 2 seconds if there is a 'sending' broadcast,
+    // OR if there was any save/send/schedule action within the last 10 seconds.
     useEffect(() => {
         const hasSending = allBroadcasts.some(bc => bc.status === 'sending');
-        if (!hasSending) return;
+        const isRecentlyActive = lastActionTime > 0 && (Date.now() - lastActionTime < 10000);
+        
+        if (!hasSending && !isRecentlyActive) return;
 
         const interval = setInterval(() => {
             fetchBroadcasts();
-        }, 3000);
+        }, 2000);
 
-        return () => clearInterval(interval);
-    }, [allBroadcasts]);
+        let timeout;
+        if (!hasSending && isRecentlyActive) {
+            timeout = setTimeout(() => {
+                setLastActionTime(0); // Trigger re-evaluation to turn off polling
+            }, 10000 - (Date.now() - lastActionTime));
+        }
+
+        return () => {
+            clearInterval(interval);
+            if (timeout) clearTimeout(timeout);
+        };
+    }, [allBroadcasts, lastActionTime]);
 
     useEffect(() => {
         fetchBroadcasts();
@@ -407,6 +421,7 @@ function BroadcastContent() {
         setDeletingId(id);
         try {
             await api.delete(`/broadcast/${id}`);
+            setLastActionTime(Date.now()); // Trigger active polling
             fetchBroadcasts();
         } catch (err) {
             showToast('刪除失敗: ' + err.message, 'error');
@@ -493,6 +508,7 @@ function BroadcastContent() {
                 const res = await api.post('/broadcast/', payload);
             }
             showToast('草稿已儲存', 'success');
+            setLastActionTime(Date.now()); // Trigger active polling
             setListTab('all'); // Land on All tab
             setView('list'); // Jump back to All Broadcasts page
             fetchBroadcasts(); // Update list immediately
@@ -604,6 +620,7 @@ function BroadcastContent() {
                 });
 
             showToast(formData.send_type === 'scheduled' ? '已成功預約排程！' : '已開始發送群發訊息！', 'success');
+            setLastActionTime(Date.now()); // Trigger active polling
             setListTab('all'); // Ensure we always land on "All" tab to see the newly created task instantly!
             setView('list');
             fetchBroadcasts();
