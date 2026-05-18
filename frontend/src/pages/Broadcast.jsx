@@ -1017,7 +1017,10 @@ function BroadcastContent() {
 
                 <div style={{ marginTop: '25px', display: 'flex', gap: '15px' }}>
                     <button className="secondary" style={{ flex: 1 }} onClick={() => setIsPreviewOpen(true)}><Eye size={18} /> 視覺預覽</button>
-                    <button className="secondary" style={{ flex: 1 }} onClick={saveDraft}><Save size={18} /> 存為草稿</button>
+                    <button className="secondary" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} onClick={saveDraft} disabled={loading}>
+                        {loading ? <CircularProgress size={16} color="inherit" /> : <Save size={18} />}
+                        {loading ? '儲存中...' : '存為草稿'}
+                    </button>
                 </div>
             </div>
         </div>
@@ -1036,7 +1039,10 @@ function BroadcastContent() {
                     </div>
                     {!(formData.status === 'sent' || formData.status === 'scheduled') && (
                         <div style={{ display: 'flex', gap: '12px' }}>
-                            <button className="secondary" onClick={saveDraft} disabled={loading}><Save size={18} /> 儲存草稿</button>
+                            <button className="secondary" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} onClick={saveDraft} disabled={loading}>
+                                {loading ? <CircularProgress size={16} color="inherit" /> : <Save size={18} />}
+                                {loading ? '儲存中...' : '儲存草稿'}
+                            </button>
                         </div>
                     )}
                 </div>
@@ -1098,7 +1104,8 @@ function BroadcastContent() {
                                 setStep(step + 1);
                             }} style={{ padding: '10px 40px' }}>下一步 <ChevronRight size={18} /></button>
                         ) : !(formData.status === 'sent' || formData.status === 'scheduled') && (
-                            <button className="primary" onClick={finishBroadcast} disabled={executing} style={{ padding: '10px 50px', backgroundColor: formData.send_type === 'immediate' ? '#4CAF50' : 'var(--primary-yellow)', color: '#000', opacity: executing ? 0.6 : 1 }}>
+                            <button className="primary" onClick={finishBroadcast} disabled={executing} style={{ padding: '10px 50px', backgroundColor: formData.send_type === 'immediate' ? '#4CAF50' : 'var(--primary-yellow)', color: '#000', opacity: executing ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                {executing && <CircularProgress size={16} color="inherit" />}
                                 {executing ? '處理中...' : (formData.send_type === 'immediate' ? '立即發送群發' : '確認預約排程')}
                             </button>
                         )}
