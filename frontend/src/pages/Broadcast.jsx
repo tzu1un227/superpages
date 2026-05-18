@@ -572,10 +572,18 @@ function BroadcastContent() {
                 throw new Error(`後端未回傳廣播任務 ID，無法執行。除錯資訊：${debugInfo}`);
             }
 
-            // 3. Initiate sending/scheduling
-            await api.post(`/broadcast/${bcId}/execute`);
+            // 3. Initiate sending/scheduling (Background Execution)
+            api.post(`/broadcast/${bcId}/execute`)
+                .then(() => {
+                    // Update status in list view once completed in background
+                    fetchBroadcasts();
+                })
+                .catch(err => {
+                    console.error("Execute failed:", err);
+                    showToast("群發發送或排程失敗，請確認後重試", "error");
+                });
 
-            showToast(formData.send_type === 'scheduled' ? '已成功預約發送！' : '群發訊息已成功送出！', 'success');
+            showToast(formData.send_type === 'scheduled' ? '已成功預約排程！' : '已開始發送群發訊息！', 'success');
             setView('list');
             fetchBroadcasts();
         } catch (err) {
