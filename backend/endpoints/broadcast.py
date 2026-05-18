@@ -251,22 +251,16 @@ def list_broadcasts():
                             to_check.append(b)
 
                 if to_check:
-                    conn_oa = get_db_connection(oa.db_url)
-                    try:
-                        cur_oa = conn_oa.cursor()
-                        t_cron = get_t('cron_table')
-                        
-                        # Check if still in RDS cron_table
-                        for bc in to_check:
-                            cur_rds.execute(f"SELECT 1 FROM {t_cron} WHERE message_content = %s LIMIT 1", (f"QA|{bc['message_tag']}",))
-                            if not cur_rds.fetchone():
-                                cur_rds.execute(f"UPDATE {t_broadcasts} SET status = 'sent' WHERE id = %s", (bc['id'],))
-                                bc['status'] = 'sent'
-                        
-                        conn_rds.commit()
-                        cur_oa.close()
-                    finally:
-                        conn_oa.close()
+                    t_cron = get_t('cron_table')
+                    
+                    # Check if still in RDS cron_table
+                    for bc in to_check:
+                        cur_rds.execute(f"SELECT 1 FROM {t_cron} WHERE message_content = %s LIMIT 1", (f"QA|{bc['message_tag']}",))
+                        if not cur_rds.fetchone():
+                            cur_rds.execute(f"UPDATE {t_broadcasts} SET status = 'sent' WHERE id = %s", (bc['id'],))
+                            bc['status'] = 'sent'
+                    
+                    conn_rds.commit()
             except Exception as e:
                 print(f"Reconciliation error: {e}")
         # --- End Status Reconciliation ---
