@@ -6,6 +6,9 @@ from datetime import datetime
 
 richmenu_bp = Blueprint('richmenu', __name__)
 
+# 全域記憶體圖片快取，避免重複向 LINE API 發起慢速的外部請求
+_IMAGE_CACHE = {}  # { richMenuId: (content, mimetype) }
+
 def get_line_token():
     if hasattr(g, 'current_oa_config') and g.current_oa_config.other_settings:
         return g.current_oa_config.other_settings.get('line_token')
@@ -136,6 +139,12 @@ def create_rich_menu():
 @richmenu_bp.route('/<richMenuId>/image', methods=['GET'])
 @token_required
 def get_rich_menu_image(richMenuId):
+    # 先從快取獲取，若存在則瞬間回傳
+    if richMenuId in _IMAGE_CACHE:
+        from flask import Response
+        content, mimetype = _IMAGE_CACHE[richMenuId]
+        return Response(content, mimetype=mimetype)
+
     token = get_line_token()
     if not token:
         return jsonify({'message': 'Line token not configured'}), 400
@@ -150,7 +159,10 @@ def get_rich_menu_image(richMenuId):
         )
         if resp.status_code == 200:
             from flask import Response
-            return Response(resp.content, mimetype=resp.headers.get('Content-Type', 'image/png'))
+            mimetype = resp.headers.get('Content-Type', 'image/png')
+            # 寫入全域快取
+            _IMAGE_CACHE[richMenuId] = (resp.content, mimetype)
+            return Response(resp.content, mimetype=mimetype)
         
         return jsonify({'message': 'Failed to fetch image', 'error': resp.text}), resp.status_code
     except Exception as e:
@@ -224,6 +236,9 @@ def delete_rich_menu(richMenuId):
         # Then delete the rich menu
         resp = requests.delete(f'https://api.line.me/v2/bot/richmenu/{richMenuId}', headers=headers)
         if resp.status_code == 200:
+            # 同步清除全域圖片快取
+            if richMenuId in _IMAGE_CACHE:
+                del _IMAGE_CACHE[richMenuId]
             return jsonify({'status': 'success'})
         return jsonify({'message': 'Delete failed', 'line_error': resp.text}), resp.status_code
     except Exception as e:

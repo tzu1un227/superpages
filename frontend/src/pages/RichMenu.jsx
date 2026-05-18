@@ -42,6 +42,9 @@ const HELP_CONTENT = {
     }
 };
 
+// 全域記憶體圖片快取，避免重複對相同的圖文選單 ID 請求慢速的二進位資料
+const frontendImageCache = {};
+
 function RichMenu() {
     const { oaId } = useParams();
     const { showToast } = useToast();
@@ -187,9 +190,15 @@ function RichMenu() {
     }, [dragState, currentMenu, scale]);
 
     const fetchImageWithAuth = async (richMenuId) => {
+        if (!richMenuId) return null;
+        if (frontendImageCache[richMenuId]) {
+            return frontendImageCache[richMenuId];
+        }
         try {
             const response = await api.get(`/richmenu/${richMenuId}/image`, { responseType: 'blob' });
-            return URL.createObjectURL(response.data);
+            const blobUrl = URL.createObjectURL(response.data);
+            frontendImageCache[richMenuId] = blobUrl;
+            return blobUrl;
         } catch (err) {
             return null;
         }
@@ -482,7 +491,7 @@ function RichMenu() {
                     if (active) setUrl(blobUrl);
                 });
             }
-            return () => { active = false; if (url) URL.revokeObjectURL(url); };
+            return () => { active = false; };
         }, [menuId]);
 
         return url ? <img src={url} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <ImageIcon size={24} style={{ opacity: 0.3 }} />;

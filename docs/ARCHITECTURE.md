@@ -38,6 +38,9 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 - 透過視覺化編輯器進行圖文選單的創建與修改。
 - 支援多種動作：`message`, `uri`, `postback`, `richmenuswitch`。
 - **LIFF 標籤追蹤**：支援在「開啟連結」動作中設定標籤，系統會自動生成 LIFF 代理連結 (Proxy URL)，在跳轉前先透過 WebSocket 標記用戶，以利後續客群分析。
+- **雙記憶體快取加速 (Double Memory Caching)**：
+  - **前端快取**：於 `RichMenu.jsx` 使用模組全域級別的 `frontendImageCache` 對下載的 Blob Object URL 進行永續儲存。大幅減少不必要的重複 API 查詢與瀏覽器記憶體解碼，切換視圖及渲染速度達到 0ms 的響應效率。
+  - **後端快取**：於 `endpoints/richmenu.py` 引入全域 `_IMAGE_CACHE` 記憶體字典。當用戶端向 Flask 請求 LINE 圖片資源時，後端不再每次請求都經由慢速的國際網路向日本 LINE API 發起下載，而是直接由記憶體快取以微秒級速度回傳，並在進行選單刪除時精確同步清除快取，保證資料的一致性。
 
 ### 4.3 訊息與廣播中心 (Broadcast & Message Center)
 - **訊息廣播**：支援針對所有用戶、特定標籤或特定 ID 名單發送訊息，支援最多 5 個 Bubble (支援文字、圖片、影片、Flex)。
