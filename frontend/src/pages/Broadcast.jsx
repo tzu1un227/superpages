@@ -124,6 +124,20 @@ function BroadcastContent() {
     const [availableTags, setAvailableTags] = useState([]);
     const [availableUsers, setAvailableUsers] = useState([]);
 
+    const fetchIdRef = useRef(0);
+
+    // Automatically poll list every 3 seconds ONLY if there is any 'sending' status broadcast
+    useEffect(() => {
+        const hasSending = allBroadcasts.some(bc => bc.status === 'sending');
+        if (!hasSending) return;
+
+        const interval = setInterval(() => {
+            fetchBroadcasts();
+        }, 3000);
+
+        return () => clearInterval(interval);
+    }, [allBroadcasts]);
+
     useEffect(() => {
         fetchBroadcasts();
         fetchTags();
@@ -131,15 +145,20 @@ function BroadcastContent() {
     }, [oaId]); // removed listTab from dependencies
 
     const fetchBroadcasts = async () => {
+        const currentFetchId = ++fetchIdRef.current;
         if (allBroadcasts.length === 0) setLoading(true);
         try {
             // Fetch without status to get all and hit the preloaded cache perfectly
             const res = await api.get('/broadcast/');
-            setAllBroadcasts(res.data.broadcasts || []);
+            if (currentFetchId === fetchIdRef.current) {
+                setAllBroadcasts(res.data.broadcasts || []);
+            }
         } catch (err) {
             console.error('Error fetching broadcasts:', err);
         } finally {
-            setLoading(false);
+            if (currentFetchId === fetchIdRef.current) {
+                setLoading(false);
+            }
         }
     };
 
