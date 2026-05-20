@@ -59,6 +59,10 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 - 提供 `/dbviewer` 介面，讓管理者能動態瀏覽公開的資料表。
 - 支援分批載入 (Chunked loading)、文字搜尋 (`ILIKE`) 及前端快取機制。
 
+### 4.6 客戶中心與資料編輯 (Customer Center & Data Management)
+- **客戶資料庫結構**：每個用戶的「名稱」、「手機」、「電子信箱」、「標籤」以及「客群」均以鍵值對 (Key-Value) 形式存放在 PostgreSQL 中的 `Private_var:{app_id}` 資料表中。
+- **編輯客戶資訊**：提供 `PUT /api/customers/<user_id>` 端點，允許對 `Private_var` 中特定 user_id 的 `'name'`、`'phone'` 與 `'email'` 等變數值進行安全 upsert（即先以 `UPDATE` 更新，若異動行數為 0 則以 `INSERT` 新增）。這確保了動態欄位更新的安全性與資料完整性。
+
 ## 5. 基礎架構與連線穩定性
 - **連線池管理 (Connection Pooling)**：
   - 後端集中由 `backend/db_utils.py` 管理資料庫連線，全面移除私有實作。

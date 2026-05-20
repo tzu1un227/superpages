@@ -25,6 +25,8 @@ const CustomerCenter = () => {
   const [isTagModalOpen, setIsTagModalOpen] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState(null);
 
   const navigate = useNavigate();
   const { oaId } = useParams();
@@ -265,6 +267,37 @@ const CustomerCenter = () => {
       return;
     }
     showToast(`${action}功能開發中: ${item}`, 'info');
+  };
+
+  const handleEditClick = (customer) => {
+    setEditingCustomer({
+      user_id: customer.user_id,
+      name: customer.name || '',
+      phone: customer.phone === '未設定' ? '' : (customer.phone || ''),
+      email: customer.email === '未設定' ? '' : (customer.email || '')
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveCustomer = async () => {
+    if (!editingCustomer) return;
+    setIsProcessing(true);
+    try {
+      await api.put(`/customers/${editingCustomer.user_id}`, {
+        name: editingCustomer.name,
+        phone: editingCustomer.phone,
+        email: editingCustomer.email
+      });
+      setIsEditModalOpen(false);
+      showToast('客戶資料更新成功', 'success');
+      setEditingCustomer(null);
+      await refreshAllData();
+    } catch (err) {
+      showToast('更新客戶資料失敗', 'error');
+      console.error(err);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleOpenFilter = () => {
@@ -515,8 +548,8 @@ const CustomerCenter = () => {
                     )}
                   </td>
                   <td style={{ padding: '16px', textAlign: 'center' }}>
-                    <button onClick={() => handleActionClick('編輯客戶', c.name)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: '4px' }} title="更多選項">
-                      <MoreHorizontal size={18} />
+                    <button onClick={() => handleEditClick(c)} style={{ padding: '6px 12px', backgroundColor: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }} title="編輯客戶">
+                      編輯
                     </button>
                   </td>
                 </tr>
@@ -935,6 +968,58 @@ const CustomerCenter = () => {
               <button onClick={() => setIsTagModalOpen(false)} style={{ padding: '8px 16px', backgroundColor: 'transparent', color: '#ccc', border: '1px solid #555', borderRadius: '6px', cursor: 'pointer' }}>取消</button>
               <button onClick={handleAddTagToGroup} disabled={isProcessing || !tagInput.trim()} style={{ padding: '8px 16px', backgroundColor: '#FFD700', color: '#000', border: 'none', borderRadius: '6px', cursor: (isProcessing || !tagInput.trim()) ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
                 {isProcessing ? '處理中...' : '確定新增'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Customer Modal */}
+      {isEditModalOpen && editingCustomer && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <div style={{ backgroundColor: '#222', color: '#fff', width: '400px', borderRadius: '12px', padding: '24px', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', border: '1px solid #333' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>編輯客戶資訊</h2>
+              <X size={20} color="#888" style={{ cursor: 'pointer' }} onClick={() => { setIsEditModalOpen(false); setEditingCustomer(null); }} />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', color: '#ccc', fontSize: '14px' }}>名稱</label>
+              <input 
+                type="text" 
+                value={editingCustomer.name} 
+                onChange={(e) => setEditingCustomer({...editingCustomer, name: e.target.value})}
+                placeholder="輸入名稱..."
+                style={{ width: '100%', padding: '10px', backgroundColor: '#111', color: '#fff', border: '1px solid #444', borderRadius: '6px', outline: 'none', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', color: '#ccc', fontSize: '14px' }}>手機</label>
+              <input 
+                type="text" 
+                value={editingCustomer.phone} 
+                onChange={(e) => setEditingCustomer({...editingCustomer, phone: e.target.value})}
+                placeholder="輸入手機號碼..."
+                style={{ width: '100%', padding: '10px', backgroundColor: '#111', color: '#fff', border: '1px solid #444', borderRadius: '6px', outline: 'none', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', color: '#ccc', fontSize: '14px' }}>電子信箱</label>
+              <input 
+                type="email" 
+                value={editingCustomer.email} 
+                onChange={(e) => setEditingCustomer({...editingCustomer, email: e.target.value})}
+                placeholder="輸入電子信箱..."
+                style={{ width: '100%', padding: '10px', backgroundColor: '#111', color: '#fff', border: '1px solid #444', borderRadius: '6px', outline: 'none', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button onClick={() => { setIsEditModalOpen(false); setEditingCustomer(null); }} style={{ padding: '8px 16px', backgroundColor: 'transparent', color: '#ccc', border: '1px solid #555', borderRadius: '6px', cursor: 'pointer' }}>取消</button>
+              <button onClick={handleSaveCustomer} disabled={isProcessing} style={{ padding: '8px 16px', backgroundColor: '#FFD700', color: '#000', border: 'none', borderRadius: '6px', cursor: isProcessing ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+                {isProcessing ? '儲存中...' : '儲存'}
               </button>
             </div>
           </div>

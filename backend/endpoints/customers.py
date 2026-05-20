@@ -478,3 +478,41 @@ def add_tag_batch():
         cur.close()
         conn.close()
 
+
+@customers_bp.route('/<user_id>', methods=['PUT'])
+@token_required
+def update_customer(user_id):
+    data = request.json
+    name = data.get('name')
+    phone = data.get('phone')
+    email = data.get('email')
+    
+    app_id = get_current_app_id()
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        pv_table = f'"Private_var:{app_id}"'
+        
+        fields = {
+            'name': name,
+            'phone': phone,
+            'email': email
+        }
+        
+        for k, v in fields.items():
+            if v is not None:
+                cur.execute(f"UPDATE {pv_table} SET value = %s WHERE user_id = %s AND name = %s", (str(v), user_id, k))
+                if cur.rowcount == 0:
+                    cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, %s, %s)", (user_id, k, str(v)))
+        
+        conn.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        conn.rollback()
+        print(f"Error in update_customer: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
