@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## [2026-05-20] 圖文選單 metadata 多租戶遷移與定時排程 Bug 修復
+- **多租戶資料表遷移 (`rich_menu_metadata:{appname}`)**：
+  - 將原有 SQLAlchemy 靜態資料表 `rich_menu_metadata` 拆分為多租戶動態命名的原生 SQL 表格 `rich_menu_metadata:{appname}`，與系統中其他業務表（如 `projects:{appname}`）命名規範一致。
+  - 在 `endpoints/broadcast.py` 的 `ensure_rds_tables(app_name)` 中加入自動建立 `rich_menu_metadata:{appname}` 的 SQL 定義，系統首次存取時即自動完成建表。
+  - 於 `models.py` 中將 `RichMenuMetadata` SQLAlchemy Model 整體註解，停止使用單一靜態資料表。
+- **`richmenu.py` API 全面重構**：
+  - 新增 `get_t(base)` 函數，負責解析 `g.current_app_name` 並返回帶有 `appname` 後綴的雙引號包裹資料表名稱，同時觸發 `ensure_rds_tables` 自動建表。
+  - 將 `GET/POST /metadata` 與 `DELETE /metadata/<id>` 三個端點，從 SQLAlchemy ORM 全面改寫為基於 `psycopg2` 的原生 SQL 查詢，讀寫目標改為各 App 專屬的後綴資料表。
+  - 修正 `parse_local_naive` 時區解析 Bug：舊版本使用 `.replace('Z', '')` 粗暴裁切時區，導致 UTC 時間被當成台灣時間存入，造成 8 小時時差。新版本正確將 UTC 時間轉換為台灣時間（UTC+8）後再以 naive datetime 存入，根本解決排程時間偏差問題。
+- **`app.py` 背景排程任務 `rich_menu_scheduler_processor` 重構**：
+  - 舊版：遍歷所有 `RichMenuMetadata` 紀錄，對過期選單發送全域 `DELETE` 指令，導致「選單 A 過期解除」的同時錯誤清除「選單 B 正在活動中」的預設選單（競態衝突 Bug）。
+  - 新版：以 **OAConfig 為單位**逐一處理，對每個 App 執行以下邏輯：
+    1. 查詢 `rich_menu_metadata:{appname}` 取得所有 published 且有時間設定的選單。
+    2. 找出「應生效」的唯一選單（`start_time <= now_tw < end_time`），若有多個符合則取最近啟動的（`start_time` 最大者）。
+    3. 從 LINE API 取得目前實際的預設選單 ID。
+    4. **防禦性比對**：有應生效選單但 LINE 預設 ID 不符 → 呼叫 POST 設定；無應生效選單且 LINE 預設 ID 屬於本系統管理的已知選單 → 才呼叫 DELETE 卸載，防止誤刪外部選單。
+
 ## [2026-05-20] 客戶中心編輯客戶基本資料功能
 - **後端新增客戶編輯 API**：在 `backend/endpoints/customers.py` 中新增 `PUT /api/customers/<user_id>` 路由，可接收 `name`、`phone`、`email`，並利用安全 upsert 機制更新到 `Private_var:{app_id}` 中。
 - **前端實作編輯按鈕與小視窗**：

@@ -28,18 +28,19 @@ class OAConfig(db.Model):
     other_settings = db.Column(db.JSON, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-class RichMenuMetadata(db.Model):
-    __tablename__ = 'rich_menu_metadata'
-    id = db.Column(db.Integer, primary_key=True)
-    oa_id = db.Column(db.Integer, nullable=False)
-    rich_menu_id = db.Column(db.String(100), nullable=True) # LINE's ID
-    name = db.Column(db.String(255), nullable=False)
-    chat_bar_text = db.Column(db.String(100))
-    data = db.Column(db.JSON, nullable=False) # LINE rich menu object
-    status = db.Column(db.String(20), default='draft') # 'draft' or 'published'
-    start_time = db.Column(db.DateTime, nullable=True)
-    end_time = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+# class RichMenuMetadata(db.Model):
+#     __tablename__ = 'rich_menu_metadata'
+#     id = db.Column(db.Integer, primary_key=True)
+#     oa_id = db.Column(db.Integer, nullable=False)
+#     rich_menu_id = db.Column(db.String(100), nullable=True) # LINE's ID
+#     name = db.Column(db.String(255), nullable=False)
+#     chat_bar_text = db.Column(db.String(100))
+#     data = db.Column(db.JSON, nullable=False) # LINE rich menu object
+#     status = db.Column(db.String(20), default='draft') # 'draft' or 'published'
+#     start_time = db.Column(db.DateTime, nullable=True)
+#     end_time = db.Column(db.DateTime, nullable=True)
+#     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+#     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 
 

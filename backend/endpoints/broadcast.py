@@ -98,6 +98,27 @@ def ensure_rds_tables(app_name):
                 conn.commit()
                 cur = conn.cursor() # Reset cursor for subsequent calls
 
+        # rich_menu_metadata 表格
+        t_rich_menu = f"rich_menu_metadata:{app_name}"
+        cur.execute(f"SELECT 1 FROM information_schema.tables WHERE table_name = %s", (t_rich_menu,))
+        if not cur.fetchone():
+            logger.info(f"Creating table {t_rich_menu}...")
+            cur.execute(f"""
+                CREATE TABLE "{t_rich_menu}" (
+                    id SERIAL PRIMARY KEY,
+                    oa_id INTEGER,
+                    rich_menu_id VARCHAR(100),
+                    name VARCHAR(255) NOT NULL,
+                    chat_bar_text VARCHAR(100),
+                    data JSONB NOT NULL,
+                    status VARCHAR(20) DEFAULT 'draft',
+                    start_time TIMESTAMP,
+                    end_time TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
         conn.commit()
         _ENSURED_TABLES.add(app_name)
     except Exception as e:

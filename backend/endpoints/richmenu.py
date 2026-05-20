@@ -355,74 +355,152 @@ def save_rich_menu_permissions():
 
 # --- Metadata and Scheduling ---
 
+def get_t(base):
+    """
+    Returns the table name with the appropriate suffix for multi-tenancy.
+    Uses g.current_app_name set in before_request or resolves it from the database.
+    """
+    app_name = getattr(g, 'current_app_name', None)
+    
+    # Fallback: if g.current_app_name is missing, try to get it from OA ID
+    if not app_name:
+        oa_id = getattr(g, 'current_oa_id', None)
+        if oa_id:
+            from models import OAConfig
+            oa = OAConfig.query.get(oa_id)
+            if oa and oa.other_settings and oa.other_settings.get('app_name'):
+                app_name = str(oa.other_settings['app_name'])
+                g.current_app_name = app_name
+    
+    if not app_name:
+        raise Exception("無法讀取平台名稱 (App Name)，請在帳號管理中確認設定。")
+    
+    # 自動檢查並建立表格
+    from endpoints.broadcast import ensure_rds_tables
+    ensure_rds_tables(app_name)
+        
+    return f'"{base}:{app_name}"'
+
 def parse_local_naive(dt_str):
     if not dt_str: return None
     try:
-        # ISO format
-        return datetime.fromisoformat(dt_str.replace('Z', '')).replace(tzinfo=None)
-    except:
+        from datetime import timezone, timedelta
+        # 若為 Z 結尾，替換成 +00:00 以利 Python 進行 timezone-aware 解析
+        clean_str = dt_str
+        if clean_str.endswith('Z'):
+            clean_str = clean_str[:-1] + '+00:00'
+        dt = datetime.fromisoformat(clean_str)
+        
+        # 若含有時區資訊，則轉換為台灣時間 (UTC+8) 後移除時區資訊
+        if dt.tzinfo is not None:
+            tw_tz = timezone(timedelta(hours=8))
+            dt_tw = dt.astimezone(tw_tz)
+            return dt_tw.replace(tzinfo=None)
+        return dt
+    except Exception as e:
+        print(f"Error parsing date {dt_str}: {e}")
         return None
 
 @richmenu_bp.route('/metadata', methods=['GET'], strict_slashes=False)
 @token_required
 def get_rich_menu_metadata():
-    from models import RichMenuMetadata
+    from db_utils import get_main_db_connection
+    from psycopg2.extras import RealDictCursor
     oa_id = g.current_oa_id
-    metadata = RichMenuMetadata.query.filter_by(oa_id=oa_id).order_by(RichMenuMetadata.created_at.desc()).all()
     
-    return jsonify([{
-        'id': m.id,
-        'oa_id': m.oa_id,
-        'rich_menu_id': m.rich_menu_id,
-        'name': m.name,
-        'chat_bar_text': m.chat_bar_text,
-        'status': m.status,
-        'start_time': m.start_time.isoformat() if m.start_time else None,
-        'end_time': m.end_time.isoformat() if m.end_time else None,
-        'created_at': m.created_at.isoformat(),
-        'data': m.data
-    } for m in metadata])
+    try:
+        t_metadata = get_t('rich_menu_metadata')
+        conn = get_main_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute(f"SELECT * FROM {t_metadata} WHERE oa_id = %s ORDER BY created_at DESC", (oa_id,))
+            metadata = cur.fetchall()
+            return jsonify([{
+                'id': m['id'],
+                'oa_id': m['oa_id'],
+                'rich_menu_id': m['rich_menu_id'],
+                'name': m['name'],
+                'chat_bar_text': m['chat_bar_text'],
+                'status': m['status'],
+                'start_time': m['start_time'].isoformat() if m['start_time'] else None,
+                'end_time': m['end_time'].isoformat() if m['end_time'] else None,
+                'created_at': m['created_at'].isoformat(),
+                'data': m['data']
+            } for m in metadata])
+        finally:
+            cur.close()
+            conn.close()
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @richmenu_bp.route('/metadata', methods=['POST'], strict_slashes=False)
 @token_required
 def save_rich_menu_metadata():
-    from models import db, RichMenuMetadata
+    from db_utils import get_main_db_connection
+    from psycopg2.extras import RealDictCursor
     oa_id = g.current_oa_id
     data = request.json
     
     id = data.get('id')
-    if id:
-        m = RichMenuMetadata.query.get(id)
-        if not m: return jsonify({'error': 'Not found'}), 404
-        # Allow editing if draft or if explicitly requested (e.g. for timer changes)
-        # But user said: "如果還沒發布給line api的圖文選單設定可以編輯，但已經發布出去的就不能編輯"
-        if m.status == 'published' and data.get('status') != 'published':
-             return jsonify({'error': '已發佈的選單不可編輯'}), 400
-    else:
-        m = RichMenuMetadata(oa_id=oa_id)
-        db.session.add(m)
-        
-    m.name = data.get('name')
-    m.chat_bar_text = data.get('chat_bar_text')
-    m.data = data.get('data') # The JSON for LINE
-    m.status = data.get('status', 'draft')
-    m.rich_menu_id = data.get('rich_menu_id')
-    m.start_time = parse_local_naive(data.get('start_time'))
-    m.end_time = parse_local_naive(data.get('end_time'))
+    name = data.get('name')
+    chat_bar_text = data.get('chat_bar_text')
+    data_json = json.dumps(data.get('data'))
+    status = data.get('status', 'draft')
+    rich_menu_id = data.get('rich_menu_id')
+    start_time = parse_local_naive(data.get('start_time'))
+    end_time = parse_local_naive(data.get('end_time'))
     
-    db.session.commit()
-    return jsonify({'status': 'success', 'id': m.id})
+    try:
+        t_metadata = get_t('rich_menu_metadata')
+        conn = get_main_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            if id:
+                cur.execute(f"SELECT * FROM {t_metadata} WHERE id = %s", (id,))
+                m = cur.fetchone()
+                if not m: return jsonify({'error': 'Not found'}), 404
+                if m['status'] == 'published' and status != 'published':
+                    return jsonify({'error': '已發佈的選單不可編輯'}), 400
+                
+                cur.execute(f"""
+                    UPDATE {t_metadata}
+                    SET name=%s, chat_bar_text=%s, data=%s, status=%s, rich_menu_id=%s, start_time=%s, end_time=%s, updated_at=NOW()
+                    WHERE id=%s
+                """, (name, chat_bar_text, data_json, status, rich_menu_id, start_time, end_time, id))
+                conn.commit()
+                return jsonify({'status': 'success', 'id': id})
+            else:
+                cur.execute(f"""
+                    INSERT INTO {t_metadata} (oa_id, name, chat_bar_text, data, status, rich_menu_id, start_time, end_time, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()) RETURNING id
+                """, (oa_id, name, chat_bar_text, data_json, status, rich_menu_id, start_time, end_time))
+                new_id = cur.fetchone()['id']
+                conn.commit()
+                return jsonify({'status': 'success', 'id': new_id})
+        finally:
+            cur.close()
+            conn.close()
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @richmenu_bp.route('/metadata/<int:id>', methods=['DELETE'])
 @token_required
 def delete_rich_menu_metadata(id):
-    from models import db, RichMenuMetadata
-    m = RichMenuMetadata.query.get(id)
-    if not m: return jsonify({'error': 'Not found'}), 404
-    
-    db.session.delete(m)
-    db.session.commit()
-    return jsonify({'status': 'success'})
+    from db_utils import get_main_db_connection
+    try:
+        t_metadata = get_t('rich_menu_metadata')
+        conn = get_main_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(f"DELETE FROM {t_metadata} WHERE id = %s", (id,))
+            conn.commit()
+            return jsonify({'status': 'success'})
+        finally:
+            cur.close()
+            conn.close()
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 @richmenu_bp.route('/link/<richMenuId>', methods=['POST'])
 @token_required
