@@ -71,6 +71,6 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
   - 後端集中由 `backend/db_utils.py` 管理資料庫連線，全面移除私有實作。
   - 強制使用 `try...finally` 模式確保執行後連線確實歸還，杜絕連線外洩 (Connection Leak)。
   - 嚴格限制每個 OA 的最大連線數，並因應 Heroku Postgres 的 20 個連線硬體限制進行縮減與優化。
-  - **主資料庫連線設定**：系統的主資料庫 URL (`RDS_URL`) 定義於後端 `app.py`、`db_utils.py`、`endpoints/broadcast.py` 與測試用資料寫入腳本 `insert_test_data.py` 中，用於連接系統主資料庫，管理使用者與權限設定。
+  - **主資料庫連線設定**：系統的主資料庫 URL (`RDS_URL`) 定義於後端 `app.py`、`db_utils.py`、`endpoints/broadcast.py` 與測試用資料寫入腳本 `insert_test_data.py` 中，用於連接系統主資料庫，管理使用者與權限設定。由於 SQLAlchemy 1.4+ 不再支援舊的 `postgres://` 協定頭，此連線字串必須以 `postgresql://` 開頭以防止啟動錯誤。
 - **動態環境解析**：透過 WebSocket 觸發時，會動態從 `OAConfig` 取得對應的機器人名稱與 Namespace，確保與本地及雲端引擎皆能順利溝通。
 - **CDN 整合**：圖片上傳整合 GitHub API，並自動轉為 `jsDelivr` CDN 連結，以符合 LINE Bot API 對圖片 URL 的嚴格要求。

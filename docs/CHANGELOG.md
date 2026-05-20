@@ -3,6 +3,7 @@
 ## [2026-05-20] 變更主資料庫連線 URL
 - **更新 RDS_URL 連線設定**：
   - 更新後端 `app.py`、`db_utils.py`、`endpoints/broadcast.py` 與 `insert_test_data.py` 中的主資料庫連線字串 (`RDS_URL`)，改為新提供的 Heroku PostgreSQL 資料庫。
+  - **修復 SQLAlchemy 連線協定相容性**：將 `RDS_URL` 的連線協定頭由 `postgres://` 修正為 `postgresql://`。解決 SQLAlchemy 1.4+ 拋出 `NoSuchModuleError: Can't load plugin: sqlalchemy.dialects:postgres` 的啟動崩潰錯誤。
 
 ## [2026-05-20] 圖文選單 metadata 多租戶遷移與定時排程 Bug 修復
 - **多租戶資料表遷移 (`rich_menu_metadata:{appname}`)**：
