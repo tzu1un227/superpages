@@ -32,7 +32,7 @@ DB_CONFIG = {
 }
 
 # New RDS Database URL
-RDS_URL = "postgresql://u1kq1nhog5jq7b:pd1a6d947df93fb15d747bbadf399e84893f9fd5932782191f0b6ffa187c5ae18@c8lcd8bq1mia7p.cluster-czrs8kj4isg7.us-east-1.rds.amazonaws.com:5432/d1hr8bloo29pm6"
+RDS_URL = "postgres://u96dp6sm9o9f9:p7ac2133ca353c2b313a9f40e8624cd3674aa088bc788dd3f6b45afd3a2439527@ec2-100-55-231-150.compute-1.amazonaws.com:5432/d5l2u0pogs9o2"
 
 # Configuration for SQLAlchemy
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'dev_secret_key'

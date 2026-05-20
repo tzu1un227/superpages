@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [2026-05-20] 變更主資料庫連線 URL
+- **更新 RDS_URL 連線設定**：
+  - 更新後端 `app.py`、`db_utils.py`、`endpoints/broadcast.py` 與 `insert_test_data.py` 中的主資料庫連線字串 (`RDS_URL`)，改為新提供的 Heroku PostgreSQL 資料庫。
+
 ## [2026-05-20] 圖文選單 metadata 多租戶遷移與定時排程 Bug 修復
 - **多租戶資料表遷移 (`rich_menu_metadata:{appname}`)**：
   - 將原有 SQLAlchemy 靜態資料表 `rich_menu_metadata` 拆分為多租戶動態命名的原生 SQL 表格 `rich_menu_metadata:{appname}`，與系統中其他業務表（如 `projects:{appname}`）命名規範一致。
