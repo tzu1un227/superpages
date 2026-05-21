@@ -77,7 +77,7 @@ const emptyQuestion = () => ({
   tags: [],
 });
 
-const LIFF_ENTRY_URL = 'https://liff.line.me/2009851813-AgTeSa4r';
+const LIFF_ENTRY_URL = 'https://liff.line.me/2009851813-eNpc9OUb';
 
 export default function Questionnaire() {
   const { oaId } = useParams();

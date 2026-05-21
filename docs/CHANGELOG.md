@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### [2026-05-21] 修正 LIFF ID 錯誤導致的初始化失敗與手機秒退問題
+- **修正 LIFF 問卷 ID**：將 `superpages` 前端的 `LiffQuestionnaire.jsx` 以及獨立部署的 `liff_questionnaire/index.html` 中誤植的舊 LIFF ID `2009851813-AgTeSa4r` 更換為正確的專屬 LIFF ID `2009851813-eNpc9OUb`。這解決了因 LIFF ID 不符合導致 Endpoint URL 驗證失敗，進而造成手機版 LINE 秒退與電腦版卡在載入畫面的問題。（圖文選單與 Flex 編輯器用於跳轉追蹤的功能則保留使用原 LIFF ID）。
+
 ### [2026-05-21] LIFF 問卷UI通知提醒、移地開發與手機即時關閉問題排修
 - **前端問卷管理（LiffQuestionnaire.jsx）**：加入載入問卷詳情與儲存修改時的 Toast 狀態通知提醒，優化使用者操作體驗；同時在儲存修改或建立問卷期間，限制「取消編輯」按鈕為 disabled，防範競態衝突與非預期重設。
 - **自動帶入 API Origin 參數**：於前端生成複製連結時，自動解析當前 Axios `api.defaults.baseURL` 或瀏覽器 location 連線 Origin，自動附加 `backend` 參數至 LIFF URL，讓 LINE 客戶端能動態知道要連線的後端 API 位置。
