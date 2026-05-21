@@ -29,6 +29,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
 import InsightsIcon from '@mui/icons-material/Insights';
 import LaunchIcon from '@mui/icons-material/Launch';
 import api from '../api';
@@ -95,6 +96,7 @@ export default function Questionnaire() {
   const [responses, setResponses] = useState([]);
   const [responsesOpen, setResponsesOpen] = useState(false);
   const [loadingResponses, setLoadingResponses] = useState(false);
+  const [editingSurveyKey, setEditingSurveyKey] = useState(null);
 
   const [form, setForm] = useState({
     title: '',
@@ -120,6 +122,8 @@ export default function Questionnaire() {
 
   useEffect(() => {
     fetchSurveys();
+    setEditingSurveyKey(null);
+    resetForm();
   }, [oaId]);
 
   const updateQuestion = (index, patch) => {
@@ -139,8 +143,72 @@ export default function Questionnaire() {
   };
 
   const copyText = async (text, message = '已複製') => {
-    await navigator.clipboard.writeText(text);
-    showToast(message, 'success');
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        showToast(message, 'success');
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.top = "0";
+        textArea.style.left = "0";
+        textArea.style.position = "fixed";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          const successful = document.execCommand('copy');
+          if (successful) {
+            showToast(message, 'success');
+          } else {
+            showToast('複製連結失敗，請手動複製', 'warning');
+          }
+        } catch (err) {
+          showToast('複製連結失敗，請手動複製', 'warning');
+        }
+        document.body.removeChild(textArea);
+      }
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+      showToast('複製連結失敗，請手動複製', 'warning');
+    }
+  };
+
+  const handleStartEdit = async (survey) => {
+    setSaving(true);
+    try {
+      const res = await api.get(`/liff-questionnaires/${survey.survey_key}`, authHeaders);
+      const detail = res.data.survey;
+      setEditingSurveyKey(detail.survey_key);
+      setForm({
+        title: detail.title || '',
+        description: detail.description || '',
+        status: detail.status || 'published',
+        startTime: detail.start_time ? detail.start_time.replace(' ', 'T') : '',
+        endTime: detail.end_time ? detail.end_time.replace(' ', 'T') : '',
+        finishMessage: detail.finish_message || '感謝你的填寫',
+        questions: detail.questions.map(q => ({
+          id: q.id,
+          content: q.content || '',
+          answer_type: q.answer_type || 'text',
+          required: q.required !== undefined ? q.required : true,
+          condition_type: q.condition_type || '1',
+          condition_detail: q.condition_detail || '',
+          optionsText: Array.isArray(q.options) ? q.options.join(',') : (q.options || ''),
+          tags: q.tags || [],
+        })),
+      });
+      showToast(`已載入問卷「${detail.title}」`, 'info');
+    } catch (e) {
+      showToast(e.response?.data?.error || '讀取問卷詳情失敗', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingSurveyKey(null);
+    resetForm();
   };
 
   const resetForm = () => {
@@ -176,6 +244,7 @@ export default function Questionnaire() {
         end_time: form.endTime,
         finish_message: form.finishMessage,
         questions: form.questions.map((q, index) => ({
+          id: q.id,
           content: q.content,
           answer_type: q.answer_type,
           required: q.required,
@@ -186,15 +255,27 @@ export default function Questionnaire() {
           question_no: index + 1,
         })),
       };
-      const res = await api.post('/liff-questionnaires', payload, authHeaders);
+      
+      let res;
+      if (editingSurveyKey) {
+        res = await api.put(`/liff-questionnaires/${editingSurveyKey}`, payload, authHeaders);
+        showToast('LIFF 問卷已更新', 'success');
+      } else {
+        res = await api.post('/liff-questionnaires', payload, authHeaders);
+        showToast('LIFF 問卷已建立', 'success');
+      }
+      
       const survey = res.data.survey;
-      showToast('LIFF 問卷已建立', 'success');
       await fetchSurveys();
       resetForm();
-      setSelectedSurvey(survey);
-      await copyText(makeLiffUrl(survey), '問卷已建立，LIFF 連結也已複製');
+      setEditingSurveyKey(null);
+      
+      if (!editingSurveyKey) {
+        setSelectedSurvey(survey);
+        await copyText(makeLiffUrl(survey), '問卷已建立，LIFF 連結也已複製');
+      }
     } catch (e) {
-      showToast(e.response?.data?.error || '建立問卷失敗', 'error');
+      showToast(e.response?.data?.error || (editingSurveyKey ? '更新問卷失敗' : '建立問卷失敗'), 'error');
     } finally {
       setSaving(false);
     }
@@ -233,12 +314,12 @@ export default function Questionnaire() {
         </Typography>
 
         <Paper sx={{ p: 2, background: '#222', border: '1px solid #444' }}>
-          <Typography sx={{ color: '#fff', fontWeight: 'bold', mb: 2 }}>建立問卷</Typography>
+          <Typography sx={{ color: '#fff', fontWeight: 'bold', mb: 2 }}>
+            {editingSurveyKey ? '編輯問卷' : '建立問卷'}
+          </Typography>
           <TextField fullWidth size="small" label="問卷名稱" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} sx={{ ...fieldSx, mb: 2 }} />
           <TextField fullWidth multiline minRows={2} size="small" label="問卷說明" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} sx={{ ...fieldSx, mb: 2 }} />
-          {botAppName && (
-            <Typography sx={{ color: '#888', fontSize: '0.75rem', mb: 2 }}>appName：{botAppName}</Typography>
-          )}
+
 
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mb: 2 }}>
             <TextField size="small" type="datetime-local" label="開始時間" InputLabelProps={{ shrink: true }} value={form.startTime} onChange={e => setForm({ ...form, startTime: e.target.value })} sx={fieldSx} />
@@ -293,9 +374,14 @@ export default function Questionnaire() {
             新增題目
           </Button>
 
-          <Button fullWidth variant="contained" disabled={saving} onClick={handleSubmit} sx={{ background: 'var(--primary-yellow)', color: '#111', fontWeight: 'bold' }}>
-            {saving ? '建立中...' : '建立 LIFF 問卷並複製連結'}
+          <Button fullWidth variant="contained" disabled={saving} onClick={handleSubmit} sx={{ background: 'var(--primary-yellow)', color: '#111', fontWeight: 'bold', mb: editingSurveyKey ? 1 : 0 }}>
+            {saving ? (editingSurveyKey ? '儲存中...' : '建立中...') : (editingSurveyKey ? '儲存修改' : '建立 LIFF 問卷並複製連結')}
           </Button>
+          {editingSurveyKey && (
+            <Button fullWidth variant="outlined" onClick={handleCancelEdit} sx={{ mt: 1, color: '#aaa', borderColor: '#555', '&:hover': { borderColor: '#888' }, fontWeight: 'bold' }}>
+              取消編輯
+            </Button>
+          )}
         </Paper>
       </Box>
 
@@ -322,6 +408,9 @@ export default function Questionnaire() {
                   </Box>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 0.5 }}>
+                  <Tooltip title="編輯問卷">
+                    <IconButton onClick={() => handleStartEdit(survey)} sx={{ color: '#4fc3f7' }}><EditIcon /></IconButton>
+                  </Tooltip>
                   <Tooltip title="查看作答">
                     <IconButton onClick={() => openResponses(survey)} sx={{ color: '#ffb300' }}><InsightsIcon /></IconButton>
                   </Tooltip>

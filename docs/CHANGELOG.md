@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## [2026-05-21] LIFF 問卷管理功能優化與編輯功能實作
+- **LIFF問卷編輯功能 (Edit Questionnaire)**：
+  - **後端**：實作 `PUT /api/liff-questionnaires/<survey_key>` API。防禦性比對前端傳入的問題結構，使用 `UPDATE` / `INSERT` / `DELETE` 混合同步機制，確保既有问题的資料庫遞增 `id` 不變，保護歷史作答紀錄的完整性與可讀性。
+  - **前端**：在問卷列表卡片上新增「編輯問卷」按鈕；點擊時透過 API 載入問卷題目詳情並填入左側表單，點擊「儲存修改」呼叫後端 API 儲存，並支援「取消編輯」重設表單。此外，在切換 OA 時，自動清空並重設編輯狀態。
+- **TagInput 選項易讀性優化 (Tag Select UI)**：
+  - 修復 `TagInput.jsx` 中可用標籤下拉選單文字顏色未明確指定，在某些環境下呈黑色而與灰色背景（`#333`）衝突、導致看不清的問題，明確指定為白色 (`#fff`)。
+- **隱藏 appName (Remove appName display)**：
+  - 移除建立 LIFF 問卷表單時顯示的 `appName: XXX` 輔助說明文字，簡化介面。
+- **修復複製連結失敗導致建立失敗 (Clipboard Copy Fix)**：
+  - 將複製連結機制以 try-catch 包裹，並加入傳統 input textarea fallback `document.execCommand` 雙防衛機制，防止 clipboard writeText 因無焦點或非 HTTPS 權限拒絕而導致整個問卷建立 Promise 中斷與顯示錯誤。
+
 ## [2026-05-21] 多專案與 OA 切換狀態殘留 Bug 修復
 - **(重要) 修復跨專案預載快取污染 Bug**：修復 `api.js` 中 Axios request 攔截器會無條件以當前網址路徑覆蓋手動帶入之 `X-OA-ID` 標頭的問題。這導致背景預載其他專案的資料時發送了錯誤的 `X-OA-ID` 標頭，進而污染了快取資料造成專案間資料搞混。現已改為僅在未手動設定時才從網域匹配注入。
 - **客戶中心狀態重設**：修復 `CustomerCenter.jsx` 在切換 OA (`oaId` 變更) 時，未能即時更新或清空舊客戶資料與分頁狀態，現已加入依賴項監聽並清空 state 的安全重載邏輯。

@@ -487,6 +487,140 @@ def delete_survey(survey_key):
             conn.close()
 
 
+@liff_questionnaire_bp.route("/<survey_key>", methods=["PUT"], strict_slashes=False)
+def update_survey(survey_key):
+    data = request.get_json() or {}
+    title = (data.get("title") or "").strip()
+    questions = data.get("questions") or []
+    if not title:
+        return jsonify({"error": "問卷名稱必填"}), 400
+    if not questions:
+        return jsonify({"error": "至少需要一題"}), 400
+
+    conn = None
+    try:
+        _set_oa_context_from_request()
+        conn = get_db_connection()
+        app_id = _get_app_id()
+        _ensure_tables(conn, app_id)
+        t = _tables(app_id)
+        
+        survey, existing_questions = _load_survey(conn, app_id, survey_key)
+        if not survey:
+            return jsonify({"error": "問卷不存在"}), 404
+            
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cur.execute(
+            f'''
+            UPDATE "{t["questionnaires"]}"
+            SET title = %s,
+                description = %s,
+                status = %s,
+                default_tags = %s,
+                start_time = %s,
+                end_time = %s,
+                allow_multiple = %s,
+                finish_message = %s,
+                updated_at = NOW()
+            WHERE id = %s
+            RETURNING *
+            ''',
+            (
+                title,
+                data.get("description") or "",
+                data.get("status") or "published",
+                Json(_json_list(data.get("default_tags"))),
+                _parse_time(data.get("start_time")),
+                _parse_time(data.get("end_time")),
+                bool(data.get("allow_multiple", True)),
+                data.get("finish_message") or "感謝你的填寫",
+                survey["id"]
+            )
+        )
+        updated_survey = cur.fetchone()
+        
+        existing_q_map = {q["id"]: q for q in existing_questions}
+        keep_ids = []
+        
+        for index, question in enumerate(questions, start=1):
+            q_id = question.get("id")
+            if q_id and int(q_id) in existing_q_map:
+                q_id = int(q_id)
+                keep_ids.append(q_id)
+                cur.execute(
+                    f'''
+                    UPDATE "{t["questions"]}"
+                    SET question_no = %s,
+                        content = %s,
+                        answer_type = %s,
+                        required = %s,
+                        condition_type = %s,
+                        condition_detail = %s,
+                        options = %s,
+                        tags = %s,
+                        updated_at = NOW()
+                    WHERE id = %s
+                    ''',
+                    (
+                        index,
+                        question.get("content") or "",
+                        question.get("answer_type") or "text",
+                        bool(question.get("required", True)),
+                        str(question.get("condition_type") or "1"),
+                        question.get("condition_detail") or "",
+                        Json(_json_list(question.get("options"))),
+                        Json(_json_list(question.get("tags"))),
+                        q_id
+                    )
+                )
+            else:
+                cur.execute(
+                    f'''
+                    INSERT INTO "{t["questions"]}"
+                        (questionnaire_id, question_no, content, answer_type, required,
+                         condition_type, condition_detail, options, tags)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                    ''',
+                    (
+                        survey["id"],
+                        index,
+                        question.get("content") or "",
+                        question.get("answer_type") or "text",
+                        bool(question.get("required", True)),
+                        str(question.get("condition_type") or "1"),
+                        question.get("condition_detail") or "",
+                        Json(_json_list(question.get("options"))),
+                        Json(_json_list(question.get("tags"))),
+                    )
+                )
+                new_q = cur.fetchone()
+                keep_ids.append(new_q["id"])
+                
+        to_delete = [qid for qid in existing_q_map.keys() if qid not in keep_ids]
+        if to_delete:
+            cur.execute(
+                f'DELETE FROM "{t["questions"]}" WHERE questionnaire_id = %s AND id = ANY(%s)',
+                (survey["id"], to_delete)
+            )
+            
+        conn.commit()
+        _, saved_questions = _load_survey(conn, app_id, survey_key)
+        cur.close()
+        
+        survey_payload = _survey_payload(updated_survey, saved_questions)
+        survey_payload["question_tags"] = _question_tags_from_rows(saved_questions)
+        return jsonify({"status": "success", "survey": survey_payload})
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
 @liff_questionnaire_bp.route("/<survey_key>/responses", methods=["GET"], strict_slashes=False)
 def get_responses(survey_key):
     conn = None

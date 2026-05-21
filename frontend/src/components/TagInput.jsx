@@ -160,7 +160,8 @@ const TagInput = ({ tags = [], onChange, placeholder = "選擇或輸入標籤...
                                 padding: '8px 12px',
                                 cursor: 'pointer',
                                 fontSize: '13px',
-                                borderBottom: '1px solid #444'
+                                borderBottom: '1px solid #444',
+                                color: '#fff'
                             }}
                             onMouseEnter={e => e.target.style.background = '#444'}
                             onMouseLeave={e => e.target.style.background = 'transparent'}

@@ -142,3 +142,12 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
   - **主資料庫連線設定**：系統的主資料庫 URL (`RDS_URL`) 定義於後端 `app.py`、`db_utils.py`、`endpoints/broadcast.py` 與測試用資料寫入腳本 `insert_test_data.py` 中，用於連接系統主資料庫，管理使用者與權限設定。由於 SQLAlchemy 1.4+ 不再支援舊的 `postgres://` 協定頭，此連線字串必須以 `postgresql://` 開頭以防止啟動錯誤。
 - **動態環境解析**：透過 WebSocket 觸發時，會動態從 `OAConfig` 取得對應的機器人名稱與 Namespace，確保與本地及雲端引擎皆能順利溝通。
 - **CDN 整合**：圖片上傳整合 GitHub API，並自動轉為 `jsDelivr` CDN 連結，以符合 LINE Bot API 對圖片 URL 的嚴格要求。
+
+## 6. LIFF 問卷管理與防禦性更新機制
+- **LIFF問卷防禦性編輯 (Defensive Survey Editing)**：
+  - 為了解決編輯問卷時題目增刪改對歷史作答紀錄關聯的破壞性，系統實作了防禦性的 `PUT /api/liff-questionnaires/<survey_key>` API。
+  - 對於前端提交具有 `id` 屬性的題目，系統會直接進行 `UPDATE` 以保留其在 `liff_questionnaire_questions` 資料表中的原生資料庫識別碼，保護歷史答案（Answers）的完整性。
+  - 對於新增加的題目，系統進行 `INSERT`。
+  - 對於從題目清單中移除的舊題目，則進行 `DELETE`。
+- **Clipboard 複製防禦與 Fallback**：
+  - 由於各瀏覽器及非安全環境（如非 HTTPS 網域）中對新版 `navigator.clipboard.writeText` 有嚴格的權限與焦點限制，前端 `copyText` 設計了 try-catch 架構與以 textarea 為主體的舊版 `document.execCommand('copy')` 雙層相容性機制，確保複製失敗時不影響建立流程的主狀態變更。
