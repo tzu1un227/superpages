@@ -301,10 +301,18 @@ def _survey_payload(survey, questions):
     }
 
 
+def _question_tags_from_rows(questions):
+    tags = []
+    for question in questions or []:
+        tags.extend(question.get("tags") or [])
+    return list(dict.fromkeys(str(tag).strip() for tag in tags if str(tag).strip()))
+
+
 def _survey_list_payload(row):
     payload = _survey_payload(row, [])
     payload["response_count"] = row.get("response_count", 0)
     payload["question_count"] = row.get("question_count", 0)
+    payload["question_tags"] = row.get("question_tags") or []
     payload["created_at"] = row["created_at"].isoformat(timespec="seconds") if row.get("created_at") else ""
     payload["updated_at"] = row["updated_at"].isoformat(timespec="seconds") if row.get("updated_at") else ""
     return payload
@@ -324,7 +332,19 @@ def list_surveys():
             f'''
             SELECT q.*,
                    COUNT(DISTINCT r.id) AS response_count,
-                   COUNT(DISTINCT qu.id) AS question_count
+                   COUNT(DISTINCT qu.id) AS question_count,
+                   COALESCE(
+                       (
+                           SELECT jsonb_agg(DISTINCT tag)
+                           FROM (
+                               SELECT jsonb_array_elements_text(qu2.tags) AS tag
+                               FROM "{t["questions"]}" qu2
+                               WHERE qu2.questionnaire_id = q.id
+                           ) tag_rows
+                           WHERE tag IS NOT NULL AND tag <> ''
+                       ),
+                       '[]'::jsonb
+                   ) AS question_tags
             FROM "{t["questionnaires"]}" q
             LEFT JOIN "{t["responses"]}" r ON r.questionnaire_id = q.id
             LEFT JOIN "{t["questions"]}" qu ON qu.questionnaire_id = q.id
@@ -407,7 +427,9 @@ def create_survey():
         conn.commit()
         _, saved_questions = _load_survey(conn, app_id, survey_key)
         cur.close()
-        return jsonify({"status": "success", "survey": _survey_payload(survey, saved_questions)})
+        survey_payload = _survey_payload(survey, saved_questions)
+        survey_payload["question_tags"] = _question_tags_from_rows(saved_questions)
+        return jsonify({"status": "success", "survey": survey_payload})
     except Exception as e:
         if conn:
             conn.rollback()

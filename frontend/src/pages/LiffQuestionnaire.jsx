@@ -32,6 +32,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import InsightsIcon from '@mui/icons-material/Insights';
 import LaunchIcon from '@mui/icons-material/Launch';
 import api from '../api';
+import TagInput from '../components/TagInput';
+import { useAuth } from '../contexts/AuthContext';
 import { useParams } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 
@@ -71,15 +73,20 @@ const emptyQuestion = () => ({
   condition_type: '1',
   condition_detail: '',
   optionsText: '',
-  tagsText: '',
+  tags: [],
 });
 
 const LIFF_ENTRY_URL = 'https://liff.line.me/2009851813-AgTeSa4r';
 
 export default function Questionnaire() {
   const { oaId } = useParams();
+  const { myOAs } = useAuth();
   const { showToast } = useToast();
   const authHeaders = useMemo(() => ({ headers: { 'X-OA-ID': oaId } }), [oaId]);
+  const botAppName = useMemo(() => {
+    const currentOA = myOAs.find(oa => oa.id.toString() === oaId?.toString());
+    return currentOA?.other_settings?.app_name || '';
+  }, [myOAs, oaId]);
 
   const [surveys, setSurveys] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -93,12 +100,8 @@ export default function Questionnaire() {
     title: '',
     description: '',
     status: 'published',
-    defaultTagsText: '',
-    botAppName: '',
-    liffId: '',
     startTime: '',
     endTime: '',
-    allowMultiple: true,
     finishMessage: '感謝你的填寫',
     questions: [emptyQuestion()],
   });
@@ -130,9 +133,8 @@ export default function Questionnaire() {
     const url = new URL(LIFF_ENTRY_URL);
     url.searchParams.set('oaId', oaId);
     url.searchParams.set('surveyId', survey.survey_key);
-    if (survey.default_tags?.length) url.searchParams.set('defaultTags', survey.default_tags.join(','));
-    if (survey.bot_app_name) url.searchParams.set('botAppName', survey.bot_app_name);
-    if (survey.liff_id) url.searchParams.set('liffId', survey.liff_id);
+    const appName = survey.bot_app_name || botAppName;
+    if (appName) url.searchParams.set('botAppName', appName);
     return url.toString();
   };
 
@@ -146,12 +148,8 @@ export default function Questionnaire() {
       title: '',
       description: '',
       status: 'published',
-      defaultTagsText: '',
-      botAppName: '',
-      liffId: '',
       startTime: '',
       endTime: '',
-      allowMultiple: true,
       finishMessage: '感謝你的填寫',
       questions: [emptyQuestion()],
     });
@@ -173,12 +171,9 @@ export default function Questionnaire() {
         title: form.title,
         description: form.description,
         status: form.status,
-        default_tags: form.defaultTagsText,
-        bot_app_name: form.botAppName,
-        liff_id: form.liffId,
+        bot_app_name: botAppName,
         start_time: form.startTime,
         end_time: form.endTime,
-        allow_multiple: form.allowMultiple,
         finish_message: form.finishMessage,
         questions: form.questions.map((q, index) => ({
           content: q.content,
@@ -187,7 +182,7 @@ export default function Questionnaire() {
           condition_type: q.answer_type === 'number' ? '2' : q.answer_type === 'phone' ? '5' : q.answer_type === 'email' ? '6' : q.answer_type === 'date' ? '7' : q.answer_type.includes('choice') ? '3' : q.condition_type,
           condition_detail: q.condition_detail,
           options: q.optionsText,
-          tags: q.tagsText,
+          tags: q.tags,
           question_no: index + 1,
         })),
       };
@@ -241,20 +236,15 @@ export default function Questionnaire() {
           <Typography sx={{ color: '#fff', fontWeight: 'bold', mb: 2 }}>建立問卷</Typography>
           <TextField fullWidth size="small" label="問卷名稱" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} sx={{ ...fieldSx, mb: 2 }} />
           <TextField fullWidth multiline minRows={2} size="small" label="問卷說明" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} sx={{ ...fieldSx, mb: 2 }} />
-          <TextField fullWidth size="small" label="預設標籤" helperText="用逗號分隔，會透過網址參數帶到 LIFF，也會存進作答紀錄" value={form.defaultTagsText} onChange={e => setForm({ ...form, defaultTagsText: e.target.value })} sx={{ ...fieldSx, mb: 2 }} />
-          <TextField fullWidth size="small" label="機器人 appName" helperText="例如 yzulabuse；會放入 LIFF URL 的 botAppName" value={form.botAppName} onChange={e => setForm({ ...form, botAppName: e.target.value })} sx={{ ...fieldSx, mb: 2 }} />
-          <TextField fullWidth size="small" label="LIFF ID" helperText="可留空，連結會優先用這裡的 LIFF ID 初始化" value={form.liffId} onChange={e => setForm({ ...form, liffId: e.target.value })} sx={{ ...fieldSx, mb: 2 }} />
+          {botAppName && (
+            <Typography sx={{ color: '#888', fontSize: '0.75rem', mb: 2 }}>appName：{botAppName}</Typography>
+          )}
 
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mb: 2 }}>
             <TextField size="small" type="datetime-local" label="開始時間" InputLabelProps={{ shrink: true }} value={form.startTime} onChange={e => setForm({ ...form, startTime: e.target.value })} sx={fieldSx} />
             <TextField size="small" type="datetime-local" label="結束時間" InputLabelProps={{ shrink: true }} value={form.endTime} onChange={e => setForm({ ...form, endTime: e.target.value })} sx={fieldSx} />
           </Box>
 
-          <FormControlLabel
-            control={<Switch checked={form.allowMultiple} onChange={e => setForm({ ...form, allowMultiple: e.target.checked })} />}
-            label={<Typography sx={{ color: '#ddd' }}>允許重複填答</Typography>}
-            sx={{ mb: 1 }}
-          />
           <TextField fullWidth size="small" label="完成訊息" value={form.finishMessage} onChange={e => setForm({ ...form, finishMessage: e.target.value })} sx={{ ...fieldSx, mb: 2 }} />
 
           <Divider sx={{ borderColor: '#444', my: 2 }} />
@@ -286,7 +276,16 @@ export default function Questionnaire() {
               {(q.answer_type === 'single_choice' || q.answer_type === 'multiple_choice') && (
                 <TextField fullWidth size="small" label="選項" helperText="用逗號分隔" value={q.optionsText} onChange={e => updateQuestion(index, { optionsText: e.target.value })} sx={{ ...fieldSx, mb: 1.5 }} />
               )}
-              <TextField fullWidth size="small" label="答此題後加入標籤" helperText="用逗號分隔，使用者有填這題就會加入" value={q.tagsText} onChange={e => updateQuestion(index, { tagsText: e.target.value })} sx={fieldSx} />
+              <Box sx={{ mt: 1.5 }}>
+                <Typography sx={{ color: '#B0B0B0', fontSize: '0.85rem', mb: 0.5 }}>答此題後加入標籤</Typography>
+                <TagInput
+                  tags={q.tags || []}
+                  onChange={tags => updateQuestion(index, { tags })}
+                  placeholder="選擇或輸入標籤..."
+                  singleSelect
+                />
+                <Typography sx={{ color: '#888', fontSize: '0.75rem', mt: 0.5 }}>使用者有填寫此題時會加入標籤</Typography>
+              </Box>
             </Paper>
           ))}
 
@@ -302,7 +301,7 @@ export default function Questionnaire() {
 
       <Box>
         <Alert severity="info" sx={{ mb: 2, background: '#1e2a38', color: '#d7e3f4' }}>
-          新版問卷不再寫入 Q_bank；題目、限制和回答都存在 LIFF 問卷專用表。LIFF URL 只帶 surveyId、oaId、預設標籤與 botAppName。
+          新版問卷不再寫入 Q_bank；題目、限制和回答都存在 LIFF 問卷專用表。標籤依各題設定，使用者作答後自動上標。
         </Alert>
         {loading ? (
           <CircularProgress sx={{ color: 'var(--primary-yellow)' }} />
@@ -319,7 +318,7 @@ export default function Questionnaire() {
                     <Chip size="small" label={`${survey.question_count} 題`} sx={{ background: '#333', color: '#ddd' }} />
                     <Chip size="small" label={`${survey.response_count} 份作答`} sx={{ background: '#333', color: '#ddd' }} />
                     <Chip size="small" label={survey.status === 'published' ? '開放中' : '草稿'} sx={{ background: survey.status === 'published' ? '#2e7d32' : '#555', color: '#fff' }} />
-                    {(survey.default_tags || []).map(tag => <Chip key={tag} size="small" label={tag} sx={{ background: '#4b3f12', color: '#ffe082' }} />)}
+                    {(survey.question_tags || []).map(tag => <Chip key={tag} size="small" label={tag} sx={{ background: '#4b3f12', color: '#ffe082' }} />)}
                   </Box>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 0.5 }}>
