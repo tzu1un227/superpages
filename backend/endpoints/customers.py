@@ -167,10 +167,11 @@ def create_group():
         return jsonify({"error": "Missing group_name"}), 400
 
     app_id = get_current_app_id()
-    conn = get_db_connection()
-    cur = conn.cursor()
-
+    conn = None
+    cur = None
     try:
+        conn = get_db_connection()
+        cur = conn.cursor()
         # Update Global_var group_descriptions
         gv_table = f'"Global_var:{app_id}"'
         cur.execute(f"SELECT value FROM {gv_table} WHERE name = 'group_descriptions'")
@@ -219,20 +220,21 @@ def create_group():
         conn.commit()
         return jsonify({"success": True})
     except Exception as e:
-        conn.rollback()
+        if conn: conn.rollback()
         return jsonify({"error": str(e)}), 500
     finally:
-        cur.close()
-        conn.close()
+        if cur: cur.close()
+        if conn: conn.close()
 
 @customers_bp.route('/groups/<group_name>', methods=['DELETE'])
 @token_required
 def delete_group(group_name):
     app_id = get_current_app_id()
-    conn = get_db_connection()
-    cur = conn.cursor()
-
+    conn = None
+    cur = None
     try:
+        conn = get_db_connection()
+        cur = conn.cursor()
         # Update Global_var group_descriptions
         gv_table = f'"Global_var:{app_id}"'
         cur.execute(f"SELECT value FROM {gv_table} WHERE name = 'group_descriptions'")
@@ -280,11 +282,11 @@ def delete_group(group_name):
         conn.commit()
         return jsonify({"success": True})
     except Exception as e:
-        conn.rollback()
+        if conn: conn.rollback()
         return jsonify({"error": str(e)}), 500
     finally:
-        cur.close()
-        conn.close()
+        if cur: cur.close()
+        if conn: conn.close()
 
 
 @customers_bp.route('/tags', methods=['GET'])
@@ -338,10 +340,11 @@ def get_tags():
 @token_required
 def delete_tag(tag_name):
     app_id = get_current_app_id()
-    conn = get_db_connection()
-    cur = conn.cursor()
-
+    conn = None
+    cur = None
     try:
+        conn = get_db_connection()
+        cur = conn.cursor()
         from psycopg2.extras import execute_values
         pv_table = f'"Private_var:{app_id}"'
         cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = 'tag'")
@@ -397,19 +400,19 @@ def delete_tag(tag_name):
         conn.commit()
         return jsonify({"success": True})
     except Exception as e:
-        conn.rollback()
+        if conn: conn.rollback()
         print(f"Error in delete_tag: {e}")
         return jsonify({"error": str(e)}), 500
     finally:
-        cur.close()
-        conn.close()
+        if cur: cur.close()
+        if conn: conn.close()
 
 @customers_bp.route('/tags/batch', methods=['POST'])
 @token_required
 def add_tag_batch():
     app_id = get_current_app_id()
-    conn = get_db_connection()
-    cur = conn.cursor()
+    conn = None
+    cur = None
     data = request.json
     tag_name = data.get('tag_name')
     user_ids = data.get('user_ids', [])
@@ -418,6 +421,8 @@ def add_tag_batch():
         return jsonify({"error": "Missing tag_name or user_ids"}), 400
         
     try:
+        conn = get_db_connection()
+        cur = conn.cursor()
         from psycopg2.extras import execute_values
         pv_table = f'"Private_var:{app_id}"'
         
@@ -472,11 +477,11 @@ def add_tag_batch():
         conn.commit()
         return jsonify({"success": True, "count": len(updates)})
     except Exception as e:
-        conn.rollback()
+        if conn: conn.rollback()
         return jsonify({"error": str(e)}), 500
     finally:
-        cur.close()
-        conn.close()
+        if cur: cur.close()
+        if conn: conn.close()
 
 
 @customers_bp.route('/<user_id>', methods=['PUT'])
@@ -488,9 +493,11 @@ def update_customer(user_id):
     email = data.get('email')
     
     app_id = get_current_app_id()
-    conn = get_db_connection()
-    cur = conn.cursor()
+    conn = None
+    cur = None
     try:
+        conn = get_db_connection()
+        cur = conn.cursor()
         pv_table = f'"Private_var:{app_id}"'
         
         fields = {
@@ -508,11 +515,11 @@ def update_customer(user_id):
         conn.commit()
         return jsonify({"success": True})
     except Exception as e:
-        conn.rollback()
+        if conn: conn.rollback()
         print(f"Error in update_customer: {e}")
         return jsonify({"error": str(e)}), 500
     finally:
-        cur.close()
-        conn.close()
+        if cur: cur.close()
+        if conn: conn.close()
 
 

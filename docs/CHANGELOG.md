@@ -1,17 +1,16 @@
 # CHANGELOG
 
+## [2026-05-21] 資料庫連線外洩安全修復
+- **後端連線外洩全面修復**：系統性修復 `app.py` 中約 20 個 Route Handler 的危險連線模式，統一改為 `conn = None` 初始化 + `try/except/finally`，確保 Exception 發生時連線 100% 歸還至 `ThreadedConnectionPool`。
+- **修復雙重連線 Bug**：修復 `delete_project`、`delete_schedule` 重複呼叫 `get_db_connection()` 導致第一條連線永久洩漏，改為複用同一條連線。
+- **修復 `import_project_schedules` 連線覆蓋 Bug**：函數中段再次賦值 `conn = get_db_connection()` 會洩漏前一條連線，改為整個函數共用同一條連線並統一在 `finally` 歸還。
+- **修復 `customers.py` 初始化順序**：多個函數在 `try` 外部取連線，`cur` 未定義時 `finally` 失敗跳過 `conn.close()`，全部改用 `if cur:` / `if conn:` 防衛式 close。
+- **測試驗證**：新增 `backend/test_conn_leak.py` 測試腳本，覆蓋正常使用、Exception 發生、Pool 耗盡保護等 5 項場景，全數通過。
+
 ## [2026-05-21] 全域載入動畫與資料庫連線池優化
-- **前端全域載入動畫與預載優化**：
-  - 新增 `GlobalLoading` 元件與 CSS 樣式，在頁面初始載入時顯示全螢幕半透明黑底與 Spinner 動畫。
-  - 修改 `App.jsx` 中的 `preloadPagesData` 邏輯，現在會自動遍歷並在背景預載使用者所有權限 (`myOAs`) 的頁面資料，而非僅預載當前選擇的權限。
-- **後端資料庫連線池優化**：
-  - 由於 RDS 連線數上限提升至 120，將 `db_utils.py` 中的 `SimplePool` 全面替換為標準的 `psycopg2.pool.ThreadedConnectionPool`。
-  - 將各資料庫連線池大小設定為 `minconn=1`, `maxconn=10`，以支援更高的併發存取並確保閒置連線的彈性管理。
-- **問卷系統 LIFF 轉型架構設計**：
-  - 提出問卷系統轉移至 LIFF 架構的技術評估，確認部署至 GitHub Pages 的靜態網站架構可行性。
-- **(Hotfix) 修復預載快取與標籤切換問題**：
-  - 修復 `api.js` 中因背景多權限預載導致的 `apiCache` 頻繁被清空的問題。移除多餘的 OA 切換偵測邏輯，確保背景預載能順利存活於快取中，真正達到切換頁面秒開。
-  - 修復 `MessageCenter.jsx` 中，切換不同權限時「可用標籤清單」不會跟著更新的問題（將 `fetchAvailableTags` 的依賴陣列加上 `location.pathname`）。
+- **前端全域載入動畫與預載優化**：新增 `GlobalLoading` 元件，登入後自動背景預載所有 OA 頁面資料。
+- **後端資料庫連線池優化**：升級至 `psycopg2.pool.ThreadedConnectionPool`，`maxconn=10`。
+- **(Hotfix) 修復預載快取與標籤切換問題**：修復 `api.js` 快取清空問題與 `MessageCenter.jsx` 標籤篩選未隨 OA 切換的問題。
 
 ## [2026-05-20] 變更主資料庫連線 URL
 - **更新 RDS_URL 連線設定**：

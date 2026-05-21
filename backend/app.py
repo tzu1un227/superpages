@@ -759,6 +759,7 @@ def get_my_oas():
 @app.route('/api/projects', methods=['GET'], strict_slashes=False)
 @token_required
 def get_projects():
+    conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -792,16 +793,18 @@ def get_projects():
                     p['status'] = "進行中"
 
         cur.close()
-        conn.close()
         return json_response(projects)
     except Exception as e:
         print(f"Error in get_projects: {e}")
         return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @app.route('/api/projects', methods=['POST'])
 @token_required
 def create_project():
     data = request.json
+    conn = None
     try:
         if not data.get('project_name') or not data['project_name'].strip():
             return jsonify({"status": "error", "message": "專案名稱不能為空"}), 400
@@ -833,16 +836,19 @@ def create_project():
         project_id = cur.fetchone()[0]
         conn.commit()
         cur.close()
-        conn.close()
         return jsonify({"status": "success", "project_id": project_id})
     except Exception as e:
         print(f"Error in create_project: {e}")
+        if conn: conn.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @app.route('/api/projects/<int:id>', methods=['PUT'])
 @token_required
 def update_project(id):
     data = request.json
+    conn = None
     try:
         if not data.get('project_name') or not data['project_name'].strip():
             return jsonify({"status": "error", "message": "專案名稱不能為空"}), 400
@@ -872,15 +878,18 @@ def update_project(id):
         )
         conn.commit()
         cur.close()
-        conn.close()
         return jsonify({"status": "success"})
     except Exception as e:
         print(f"Error in update_project: {e}")
+        if conn: conn.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @app.route('/api/projects/<int:id>', methods=['DELETE'])
 @token_required
 def delete_project(id):
+    conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -889,12 +898,10 @@ def delete_project(id):
         t_cron = get_suffixed_table('cron_table')
         
         # 1. Clean up QA_bank entries associated with this project's schedules
+        #    Note: Since OA DB and RDS share the same connection pool by db_url,
+        #    we reuse the same conn here (both point to same DB URL in most deployments).
         app_id = get_current_app_id()
-        cur_oa = get_db_connection().cursor()
-        cur_oa.execute(f'DELETE FROM "QA_bank:{app_id}" WHERE tag LIKE %s', (f"cron_{id}_%",))
-        cur_oa.connection.commit()
-        cur_oa.close()
-        cur_oa.connection.close()
+        cur.execute(f'DELETE FROM "QA_bank:{app_id}" WHERE tag LIKE %s', (f"cron_{id}_%",))
         
         # 2. Delete project schedules
         cur.execute(f"DELETE FROM {t_schedules} WHERE project_id=%s", (id,))
@@ -907,13 +914,16 @@ def delete_project(id):
         
         conn.commit()
         cur.close()
-        conn.close()
         return jsonify({"status": "success"})
     except Exception as e:
+        if conn: conn.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @app.route('/api/projects/<int:id>/stats', methods=['GET'])
 def get_project_stats(id):
+    conn = None
     try:
         start_date = request.args.get('start_date') # YYYY-MM-DD
         end_date = request.args.get('end_date')     # YYYY-MM-DD
@@ -990,15 +1000,17 @@ def get_project_stats(id):
             stats['completion_rate'] = round((numerator / stats['tc']) * 100, 2)
             
         cur.close()
-        conn.close()
         return jsonify(stats)
     except Exception as e:
         print(f"Error in get_project_stats: {e}")
         return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
             
 @app.route('/api/projects/<int:id>/schedules/reorder', methods=['POST'])
 @token_required
 def reorder_project_schedules(id):
+    conn = None
     try:
         data = request.json
         schedule_ids = data.get('schedule_ids', [])
@@ -1020,15 +1032,18 @@ def reorder_project_schedules(id):
             
         conn.commit()
         cur.close()
-        conn.close()
         return jsonify({"status": "success"})
     except Exception as e:
         print(f"Error in reorder_project_schedules: {e}")
+        if conn: conn.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @app.route('/api/projects/<int:id>/schedules/export', methods=['GET'])
 @token_required
 def export_project_schedules(id):
+    conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1038,15 +1053,17 @@ def export_project_schedules(id):
         cur.execute(f"SELECT step_id, interval_hours, interval_unit, message_content FROM {t_schedules} WHERE project_id = %s ORDER BY step_id", (id,))
         schedules = cur.fetchall()
         cur.close()
-        conn.close()
         return json_response(schedules)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @app.route('/api/projects/<int:id>/schedules/import', methods=['POST'])
 @token_required
 def import_project_schedules(id):
     data = request.json # List of schedules
+    conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1102,13 +1119,7 @@ def import_project_schedules(id):
                 except Exception as sync_err:
                     print(f"Error syncing imported message for step {s['step_id']} (Project {id}): {sync_err}")
             
-        # 6. Insert schedules into RDS
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
-        from endpoints.broadcast import ensure_rds_tables
-        ensure_rds_tables(get_current_app_id())
-        
+        # 6. Insert schedules - reuse same connection (no need for a second one)
         t_schedules = get_suffixed_table('project_schedules')
         
         for s in data:
@@ -1121,14 +1132,18 @@ def import_project_schedules(id):
             
         conn.commit()
         cur.close()
-        conn.close()
         return jsonify({"status": "success"})
     except Exception as e:
+        if conn: conn.rollback()
         return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @app.route('/api/projects/<int:id>/users', methods=['GET'])
 @token_required
 def get_project_users(id):
+    conn = None
+    conn_oa = None
     try:
         app_id = get_current_app_id()
         conn = get_db_connection()
@@ -1158,18 +1173,20 @@ def get_project_users(id):
                 res = cur_oa.fetchone()
                 if res: u['user_name'] = res[0]
             cur_oa.close()
-            conn_oa.close()
         except: pass
         
         cur.close()
-        conn.close()
         return json_response(users)
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        if conn_oa: conn_oa.close()
+        if conn: conn.close()
 
 @app.route('/api/projects/<int:id>/users/<string:user_id>', methods=['DELETE'])
 @token_required
 def delete_project_user(id, user_id):
+    conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -1179,14 +1196,17 @@ def delete_project_user(id, user_id):
         cur.execute(f"DELETE FROM {t_ups} WHERE project_id = %s AND user_id = %s", (id, user_id))
         conn.commit()
         cur.close()
-        conn.close()
         return jsonify({"status": "success"})
     except Exception as e:
+        if conn: conn.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @app.route('/api/projects/<int:id>/users/<string:user_id>/restart', methods=['POST'])
 @token_required
 def restart_project_user(id, user_id):
+    conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1293,18 +1313,20 @@ def restart_project_user(id, user_id):
 
             conn.commit()
             cur.close()
-            conn.close()
             return jsonify({"status": "success", "message": f"Project restarted for user {user_id}."})
         else:
             cur.close()
-            conn.close()
             return jsonify({"status": "error", "message": "No schedules found for this project"}), 404
     except Exception as e:
+        if conn: conn.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @app.route('/api/projects/<int:id>/users/batch-restart', methods=['POST'])
 @token_required
 def batch_restart_project_users(id):
+    conn = None
     try:
         data = request.json
         user_ids = data.get('user_ids', [])
@@ -1414,11 +1436,13 @@ def batch_restart_project_users(id):
 
         conn.commit()
         cur.close()
-        conn.close()
         return jsonify({"status": "success", "message": f"Successfully added {len(user_ids)} users to project."})
     except Exception as e:
         print(f"Batch restart error: {e}")
+        if conn: conn.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 def cron_scheduler_processor():
     """
@@ -1432,6 +1456,7 @@ def cron_scheduler_processor():
 @app.route('/api/schedules', methods=['GET'])
 @token_required
 def get_schedules():
+    conn = None
     try:
         project_id = request.args.get('project_id')
         print(f"Fetching schedules. project_id filter: {project_id}")
@@ -1499,16 +1524,18 @@ def get_schedules():
                     s['message_preview'] = "[無法讀取內容]"
         
         cur.close()
-        conn.close()
         return json_response(schedules)
     except Exception as e:
         print(f"CRITICAL Error in get_schedules: {e}")
         return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @app.route('/api/schedules', methods=['POST'])
 @token_required
 def create_schedule():
     data = request.json
+    conn = None
     try:
         if float(data['interval_hours']) < 0:
             return jsonify({"status": "error", "message": "間隔時間必須大於或等於 0"}), 400
@@ -1523,15 +1550,18 @@ def create_schedule():
         schedule_id = cur.fetchone()[0]
         conn.commit()
         cur.close()
-        conn.close()
         return jsonify({"status": "success", "schedule_id": schedule_id})
     except Exception as e:
+        if conn: conn.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @app.route('/api/schedules/<int:id>', methods=['PUT'])
 @token_required
 def update_schedule(id):
     data = request.json
+    conn = None
     try:
         if float(data['interval_hours']) < 0:
             return jsonify({"status": "error", "message": "間隔時間必須大於或等於 0"}), 400
@@ -1545,14 +1575,17 @@ def update_schedule(id):
         )
         conn.commit()
         cur.close()
-        conn.close()
         return jsonify({"status": "success"})
     except Exception as e:
+        if conn: conn.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @app.route('/api/schedules/<int:id>', methods=['DELETE'])
 @token_required
 def delete_schedule(id):
+    conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -1566,23 +1599,23 @@ def delete_schedule(id):
             # Only delete if it's a cloned tag for a project
             if tag.startswith('cron_'):
                 app_id = get_current_app_id()
-                cur_oa = get_db_connection().cursor()
-                cur_oa.execute(f'DELETE FROM "QA_bank:{app_id}" WHERE tag = %s', (tag,))
-                cur_oa.connection.commit()
-                cur_oa.close()
-                cur_oa.connection.close()
+                # Reuse same connection - no need for a second conn since same DB
+                cur.execute(f'DELETE FROM "QA_bank:{app_id}" WHERE tag = %s', (tag,))
 
         cur.execute(f"DELETE FROM {t_schedules} WHERE schedule_id=%s", (id,))
         conn.commit()
         cur.close()
-        conn.close()
         return jsonify({"status": "success"})
     except Exception as e:
+        if conn: conn.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 # Statistics and Super8 Features
 @app.route('/api/statistics', methods=['GET'])
 def get_statistics():
+    conn = None
     try:
         start_time = request.args.get('start_time', (datetime.now().replace(hour=0, minute=0, second=0)).isoformat())
         end_time = request.args.get('end_time', datetime.now().isoformat())
@@ -1687,15 +1720,17 @@ def get_statistics():
                     print(f"Error fetching LINE quota consumption for OA {g.current_oa_id}: {ex}")
 
         cur.close()
-        conn.close()
         return json_response(results)
     except Exception as e:
         print(f"Error in get_statistics: {e}")
         return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 
 @app.route('/api/statistics/keywords', methods=['GET'])
 def get_statistics_keywords():
+    conn = None
     try:
         start_time = request.args.get('start_time', (datetime.now().replace(hour=0, minute=0, second=0)).isoformat())
         end_time = request.args.get('end_time', datetime.now().isoformat())
@@ -1715,14 +1750,16 @@ def get_statistics_keywords():
         results = cur.fetchall()
             
         cur.close()
-        conn.close()
         return json_response(results)
     except Exception as e:
         print(f"Error in get_statistics_keywords: {e}")
         return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @app.route('/api/history/<user_id>', methods=['GET'])
 def get_user_history(user_id):
+    conn = None
     try:
         app_id = get_current_app_id()
         limit = request.args.get('limit', type=int)
@@ -1764,13 +1801,15 @@ def get_user_history(user_id):
             history = cur.fetchall()
             
         cur.close()
-        conn.close()
         return json_response(history)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @app.route('/api/tags', methods=['GET'])
 def get_tags():
+    conn = None
     try:
         app_id = get_current_app_id()
         conn = get_db_connection()
@@ -1816,13 +1855,15 @@ def get_tags():
         
         tags = sorted(list(tags_set))
         cur.close()
-        conn.close()
         return json_response(tags)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @app.route('/api/registered-users', methods=['GET'])
 def get_registered_users():
+    conn = None
     try:
         app_id = get_current_app_id()
         conn = get_db_connection()
@@ -1850,13 +1891,15 @@ def get_registered_users():
             
         users = cur.fetchall()
         cur.close()
-        conn.close()
         return json_response(users)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @app.route('/api/users', methods=['GET'])
 def get_users_list():
+    conn = None
     try:
         app_id = get_current_app_id()
         q = request.args.get('q', '').strip()
@@ -1955,10 +1998,11 @@ def get_users_list():
         print(f"DEBUG: get_users_list found {len(users)} users for app_id {app_id}")
 
         cur.close()
-        conn.close()
         return json_response(users)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 # Note: send_socket_event is imported from utils.socket_utils
 
