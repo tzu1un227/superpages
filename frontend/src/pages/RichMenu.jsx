@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import api from '../api';
+import api, { hasCachedApiResponse } from '../api';
 import {
     Plus, Trash2, Save, Image as ImageIcon, Settings,
     MousePointer2, Move, Maximize, Check, X, AlertCircle,
@@ -80,6 +80,12 @@ function RichMenu() {
 
     const scale = 0.2;
 
+    const getMenusEndpoint = () => selectedOAId === 'all' ? '/richmenu/all' : '/richmenu/';
+
+    useEffect(() => {
+        setSelectedOAId(oaId || 'all');
+    }, [oaId]);
+
     useEffect(() => {
         if (view === 'list') {
             fetchData();
@@ -90,15 +96,23 @@ function RichMenu() {
     }, [view, oaId, selectedOAId]);
 
     const fetchData = async () => {
-        setLoading(true);
-        await Promise.all([fetchMenus(), fetchMetadata()]);
-        setLoading(false);
+        const menusEndpoint = getMenusEndpoint();
+        const hasWarmCache = hasCachedApiResponse(menusEndpoint) && hasCachedApiResponse('/richmenu/metadata');
+
+        if (!hasWarmCache) {
+            setLoading(true);
+        }
+
+        try {
+            await Promise.all([fetchMenus(), fetchMetadata()]);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const fetchMenus = async () => {
         try {
-            const endpoint = selectedOAId === 'all' ? '/richmenu/all' : '/richmenu/';
-            const res = await api.get(endpoint);
+            const res = await api.get(getMenusEndpoint());
             setMenus(res.data.richmenus || []);
         } catch (err) {
             console.error('Failed to fetch menus:', err);

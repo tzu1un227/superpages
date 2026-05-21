@@ -1950,13 +1950,18 @@ def get_users_list():
 
         where_sql = ('WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
 
+        visible_message_filter = """
+                         AND (LOWER(category) NOT IN ('sensor', 'postback', 'follow', 'unfollow', 'beacon') OR category IS NULL)
+                         AND (content IS NULL OR content NOT LIKE 'bmcast|%')
+        """
+
         query = f"""
             SELECT sub.user_id,
                    (
                        SELECT content 
                        FROM "history:{app_id}" 
                        WHERE user_id = sub.user_id 
-                         AND (LOWER(category) NOT IN ('sensor', 'postback', 'follow', 'unfollow', 'beacon') OR category IS NULL)
+                         {visible_message_filter}
                        ORDER BY timestamp DESC 
                        LIMIT 1
                    ) as last_message,
@@ -1964,7 +1969,7 @@ def get_users_list():
                        SELECT category 
                        FROM "history:{app_id}" 
                        WHERE user_id = sub.user_id 
-                         AND (LOWER(category) NOT IN ('sensor', 'postback', 'follow', 'unfollow', 'beacon') OR category IS NULL)
+                         {visible_message_filter}
                        ORDER BY timestamp DESC 
                        LIMIT 1
                    ) as last_message_category,
@@ -1974,6 +1979,7 @@ def get_users_list():
                            SELECT * 
                            FROM "history:{app_id}" 
                            WHERE user_id = sub.user_id 
+                             {visible_message_filter}
                            ORDER BY timestamp DESC 
                            LIMIT 10
                        ) msg_data
@@ -1986,6 +1992,8 @@ def get_users_list():
                 SELECT user_id,
                        MAX(timestamp) as last_time
                 FROM "history:{app_id}"
+                WHERE TRUE
+                  {visible_message_filter}
                 GROUP BY user_id
             ) sub
             {where_sql}

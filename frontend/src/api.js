@@ -52,6 +52,35 @@ const apiCache = new Map();
 const pendingRequests = new Map();
 const originalGet = api.get;
 
+const normalizeCacheUrl = (url) => {
+    if (typeof url !== 'string') return url;
+    if (url === '/') return url;
+    return url.replace(/\/+$/, '');
+};
+
+const getCacheKey = (url, config = {}) => {
+    let oaId = '';
+    if (typeof window !== 'undefined') {
+        const match = window.location.pathname.match(/\/oa\/(\d+)/);
+        if (match) oaId = match[1];
+    }
+
+    if (config?.headers && config.headers['X-OA-ID']) {
+        oaId = config.headers['X-OA-ID'];
+    }
+
+    const cleanParams = { ...(config?.params || {}) };
+    delete cleanParams._t;
+    delete cleanParams.timestamp;
+    delete cleanParams.t;
+
+    return oaId + '|' + normalizeCacheUrl(url) + '|' + JSON.stringify(cleanParams);
+};
+
+export const hasCachedApiResponse = (url, config = {}) => {
+    return apiCache.has(getCacheKey(url, config));
+};
+
 api.get = async function(url, config) {
     // Exclude certain auth/user specific URLs from caching or things that need extreme real-time
     const noCacheUrls = ['/auth/me', '/auth/my-oas'];
@@ -74,17 +103,11 @@ api.get = async function(url, config) {
         oaId = config.headers['X-OA-ID'];
     }
 
-    // Strip cache-busting parameters (_t, timestamp) to ensure cache hits
-    const cleanParams = { ...(config?.params || {}) };
-    delete cleanParams._t;
-    delete cleanParams.timestamp;
-    delete cleanParams.t;
-
-    const cacheKey = oaId + '|' + url + '|' + JSON.stringify(cleanParams);
+    const cacheKey = getCacheKey(url, config);
 
     // Safety: If we are in an OA-related route but couldn't detect the OA ID, 
     // disable caching to prevent leakage between tenants.
-    if (!oaId && window.location.pathname.includes('/oa/')) {
+    if (!oaId && typeof window !== 'undefined' && window.location.pathname.includes('/oa/')) {
         shouldCache = false;
     }
 
@@ -196,7 +219,8 @@ export const preloadPagesData = (oaId, force = false) => {
     
     // Chunk 3: Less frequently accessed tabs
     const chunk3 = [
-        '/richmenu', 
+        '/richmenu/', 
+        '/richmenu/metadata', 
         '/statistics', 
         '/questionnaire/list', 
         '/db/tables'
@@ -204,11 +228,14 @@ export const preloadPagesData = (oaId, force = false) => {
     
     const prefetchChunk = async (urls) => {
         await Promise.allSettled(urls.map(url => {
-            const cacheKey = oaId + '|' + url + '|{}';
+            const cacheKey = getCacheKey(url, { headers: { 'X-OA-ID': oaId } });
             if (force || !apiCache.has(cacheKey)) {
+                if (force) {
+                    apiCache.delete(cacheKey);
+                }
                 // By using api.get instead of originalGet, it automatically leverages deduplication
                 // and sets the cache properly when done.
-                return api.get(url, { headers: { 'X-OA-ID': oaId }, silent: true, _bypassCache: force })
+                return api.get(url, { headers: { 'X-OA-ID': oaId }, silent: true })
                     .then(res => {
                         // Special nested prefetching for projects
                         if (url === '/projects' && Array.isArray(res?.data) && res.data.length > 0) {
