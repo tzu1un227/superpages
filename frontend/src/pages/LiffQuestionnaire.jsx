@@ -378,7 +378,7 @@ export default function Questionnaire() {
             {saving ? (editingSurveyKey ? '儲存中...' : '建立中...') : (editingSurveyKey ? '儲存修改' : '建立 LIFF 問卷並複製連結')}
           </Button>
           {editingSurveyKey && (
-            <Button fullWidth variant="outlined" onClick={handleCancelEdit} sx={{ mt: 1, color: '#aaa', borderColor: '#555', '&:hover': { borderColor: '#888' }, fontWeight: 'bold' }}>
+            <Button fullWidth variant="outlined" disabled={saving} onClick={handleCancelEdit} sx={{ mt: 1, color: '#aaa', borderColor: '#555', '&:hover': { borderColor: '#888' }, fontWeight: 'bold' }}>
               取消編輯
             </Button>
           )}
@@ -399,7 +399,6 @@ export default function Questionnaire() {
               <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
                 <Box sx={{ flex: 1 }}>
                   <Typography sx={{ color: '#fff', fontWeight: 'bold', fontSize: '1.1rem' }}>{survey.title}</Typography>
-                  <Typography sx={{ color: '#999', fontSize: '0.85rem', mt: 0.5 }}>surveyId: {survey.survey_key}</Typography>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mt: 1 }}>
                     <Chip size="small" label={`${survey.question_count} 題`} sx={{ background: '#333', color: '#ddd' }} />
                     <Chip size="small" label={`${survey.response_count} 份作答`} sx={{ background: '#333', color: '#ddd' }} />

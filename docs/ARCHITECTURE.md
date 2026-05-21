@@ -31,7 +31,7 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 排程機制完全由 `projects` 與 `cron_table` 驅動，取代了舊有的 `scheduled_events` 表格：
 1. **背景輪詢 (Polling)**：背景 Daemon 執行緒每 10 秒喚醒一次。
 2. **篩選任務 (Selection)**：查詢 `cron_table` 中狀態為 `active` 且 `scheduled_at` 早於或等於當前時間的紀錄。
-3. **觸發發送 (Trigger)**：從 `project_schedules` 提取訊息內容，並透過 Socket.IO 發送事件給目標用戶。
+3. **觸發發送 (Trigger)**：從 `project_schedules` 提取訊息內容，並透過 Socket.IO 發送事件給目標用戶.
 4. **推進階段 (Advancement)**：計算下一次執行的時間 (`interval_hours`)，並更新 `cron_table`。若無下一階段，則依據 `is_recurring` 設定將狀態改為完成 (`completed`) 或重新循環。
 
 ### 4.2 圖文選單管理 (Rich Menu Management)
@@ -43,70 +43,6 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 - **雙記憶體快取加速 (Double Memory Caching)**：
   - **前端快取**：於 `RichMenu.jsx` 使用模組全域級別的 `frontendImageCache` 對下載的 Blob Object URL 進行永續儲存。大幅減少不必要的重複 API 查詢與瀏覽器記憶體解碼，切換視圖及渲染速度達到 0ms 的響應效率。
   - **後端快取**：於 `endpoints/richmenu.py` 引入全域 `_IMAGE_CACHE` 記憶體字典。當用戶端向 Flask 請求 LINE 圖片資源時，後端不再每次請求都經由慢速的國際網路向日本 LINE API 發起下載，而是直接由記憶體快取以微秒級速度回傳，並在進行選單刪除時精確同步清除快取，保證資料的一致性。
-
-
-### 4.3 訊息與廣播中心 (Broadcast & Message Center)
-- **訊息廣播**：支援針對所有用戶、特定標籤或特定 ID 名單發送訊息，支援最多 5 個 Bubble (支援文字、圖片、影片、Flex)。
-- **訊息預覽**：後端會自動從 `QA_bank` 中提取並解析訊息摘要，前端亦內建 `JourneyPreview` 提供 Flex Message 即時預覽。
-- **防禦性渲染 (Defensive Rendering)**：使用 Error Boundary 及可選串連 (Optional Chaining) 確保含有不完整舊資料時，UI 依然能穩定運行。
-- **編輯器雙向綁定競態阻斷 (Bidirectional State Guard)**：
-  - 在 `FlexMessageEditor` 的 auto-save 機制中引入 `lastSavedJsonRef` 快取技術。
-  - 當編輯器將狀態自動儲存至父元件後，父元件所產生的非同步狀態回流（Prop updates）在抵達子元件時，子元件會比對 `lastSavedJsonRef` 以確認是否為編輯器自身觸發的回流。
-  - 若是自身觸發則直接忽略，不重新載入或重設 `cards` 本機狀態，藉此完美解決非同步圖片上傳完成與打字等多執行緒操作下的競態回溯問題。
-
-### 4.4 法則表設計器 (Rule Designer)
-- **雙模式編輯**：提供「簡易模式」(卡片式任務管理，適合非技術人員) 與「工程模式」(直接編輯 JSON 與條件式，適合進階使用者)。
-- **自動化除錯**：在建立或更新法則時，後端會自動透過 Python `ast.parse` 等機制驗證語法、參數與 `QA_bank` 標籤的正確性。
-
-### 4.5 資料庫檢視器 (Database Viewer)
-- 提供 `/dbviewer` 介面，讓管理者能動態瀏覽公開的資料表。
-- 支援分批載入 (Chunked loading)、文字搜尋 (`ILIKE`) 及前端快取機制。
-# Superpages 系統架構文件
-
-## 1. 系統總覽 (System Overview)
-Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理自動化排程、推播訊息以及監控系統狀態。
-前端採用 React，後端使用 Flask (Python)，並整合 PostgreSQL 資料庫與 Socket.IO 以實現即時通訊功能。
-
-## 2. 核心技術與框架
-- **前端 (Frontend)**
-  - **核心框架**: React
-  - **路由管理**: React Router
-  - **狀態管理**: React Context (`AuthContext`) 與元件內部狀態 (Local State)
-  - **UI 元件**: 客製化 CSS 樣式元件，並使用 `lucide-react` 提供圖示支援。
-- **後端 (Backend)**
-  - **核心框架**: Flask (Python)
-  - **資料庫 ORM**: SQLAlchemy (主要處理 User, Page 等中繼資料)，業務邏輯資料則直接使用 `psycopg2` 操作。
-  - **身分驗證**: Google OAuth 結合 JWT (JSON Web Token)。
-  - **即時通訊**: Flask-SocketIO (以 Client 模式觸發外部機器人)。
-  - **背景任務**: 使用 Python 的 `threading` 執行定時排程檢查 (`cron_scheduler_processor`)。
-
-## 3. 資料庫設計 (Key Database Schema)
-主要使用 PostgreSQL 儲存業務與設定資料：
-- **`projects`**: 儲存自動化專案定義 (如：開始/結束時間、啟用狀態、配置等)。
-- **`project_schedules`**: 定義專案內的不同階段 (Steps) 與對應發送的訊息設定。
-- **`cron_table`**: 紀錄每個參與專案的使用者當前狀態 (如：進行到的 `step_id`、下次執行的 `scheduled_at` 及狀態)。
-- **`qa_bank`**: 儲存複雜結構的訊息 (例如：Flex Message, 圖片等)，並透過 `QA|` 前綴標籤供系統引用。
-- **`users`**: 系統管理員及已授權的使用者清單。
-- **`OAConfig`**: 系統管理的多個不同官方帳號 (Official Accounts) 配置參數。
-
-## 4. 核心系統模組
-### 4.1 自動化排程引擎 (Scheduled Event Management)
-排程機制完全由 `projects` 與 `cron_table` 驅動，取代了舊有的 `scheduled_events` 表格：
-1. **背景輪詢 (Polling)**：背景 Daemon 執行緒每 10 秒喚醒一次。
-2. **篩選任務 (Selection)**：查詢 `cron_table` 中狀態為 `active` 且 `scheduled_at` 早於或等於當前時間的紀錄。
-3. **觸發發送 (Trigger)**：從 `project_schedules` 提取訊息內容，並透過 Socket.IO 發送事件給目標用戶。
-4. **推進階段 (Advancement)**：計算下一次執行的時間 (`interval_hours`)，並更新 `cron_table`。若無下一階段，則依據 `is_recurring` 設定將狀態改為完成 (`completed`) 或重新循環。
-
-### 4.2 圖文選單管理 (Rich Menu Management)
-- 透過視覺化編輯器進行圖文選單的創建與修改。
-- 支援多種動作：`message`, `uri`, `postback`, `richmenuswitch`。
-- **LIFF 標籤追蹤**：支援在「開啟連結」動作中設定標籤，系統會自動生成 LIFF 代理連結 (Proxy URL)，在跳轉前先透過 WebSocket 標記用戶，以利後續客群分析。
-- **多租戶 metadata 資料表**：圖文選單的排程中繼資料 (Metadata) 以 `rich_menu_metadata:{appname}` 命名，與系統其他業務表格命名規範一致。存取由 `endpoints/richmenu.py` 的 `get_t()` 函數動態解析，並於首次呼叫時自動建立資料表（透過 `ensure_rds_tables`）。
-- **定時排程同步引擎（`rich_menu_scheduler_processor`）**：背景任務每 60 秒執行一次，以 OAConfig 為單位，對每個 App 執行「最佳有效選單計算」—在同一時間點找出唯一應生效的選單，與 LINE 伺服器的實際預設選單 ID 進行比對後，才做出最小化的 Link/Unlink 動作，避免競態衝突。
-- **雙記憶體快取加速 (Double Memory Caching)**：
-  - **前端快取**：於 `RichMenu.jsx` 使用模組全域級別的 `frontendImageCache` 對下載的 Blob Object URL 進行永續儲存。大幅減少不必要的重複 API 查詢與瀏覽器記憶體解碼，切換視圖及渲染速度達到 0ms 的響應效率。
-  - **後端快取**：於 `endpoints/richmenu.py` 引入全域 `_IMAGE_CACHE` 記憶體字典。當用戶端向 Flask 請求 LINE 圖片資源時，後端不再每次請求都經由慢速的國際網路向日本 LINE API 發起下載，而是直接由記憶體快取以微秒級速度回傳，並在進行選單刪除時精確同步清除快取，保證資料的一致性。
-
 
 ### 4.3 訊息與廣播中心 (Broadcast & Message Center)
 - **訊息廣播**：支援針對所有用戶、特定標籤或特定 ID 名單發送訊息，支援最多 5 個 Bubble (支援文字、圖片、影片、Flex)。
@@ -130,7 +66,7 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 - **編輯客戶資訊**：提供 `PUT /api/customers/<user_id>` 端點，允許對 `Private_var` 中特定 user_id 的 `'name'`、`'phone'` 與 `'email'` 等變數值進行安全 upsert（即先以 `UPDATE` 更新，若異動行數為 0 則以 `INSERT` 新增）。這確保了動態欄位更新的安全性與資料完整性。
 
 ### 4.7 多租戶專案與 OA 切換狀態防護 (Multi-Tenant Session & State Guard)
-- **多專案隔離與即時更新**：由於本系統採單頁面應用程式 (SPA) 架構，使用者在頂部切換官方帳號 (OA) 時，URL path 的變更 (`oaId` 或 `location.pathname`) 會觸發對應頁面組件的非同步資料載入。
+- **多專案隔離與即時更新**：由於本系統採單頁面應用程式 (SPA) 架訊，使用者在頂部切換官方帳號 (OA) 時，URL path 的變更 (`oaId` 或 `location.pathname`) 會觸發對應頁面組件的非同步資料載入。
 - **狀態清空防範資料殘留**：在 `CustomerCenter.jsx`、`Questionnaire.jsx` 與 `MessageCenter.jsx` 中實作了強化的狀態防護機制。當偵測到專案切換（即監聽的依賴項變更）時，第一時間清空該頁面所有與前一專案相關的 React 狀態（如客戶名單、問卷列表、表單輸入、可用標籤等），確保載入期間不會暫時呈現舊專案的資料，徹底防範跨專案的資料污染與顯示混淆。
 - **Request 攔截器防衛機制**：在前端 Axios 攔截器中，強制唯有在 `config.headers['X-OA-ID']` 尚未被手動設定（如背景預載所有 OA 的 API 請求）時，才從當前網址路徑匹配注入 OA ID。這確保了背景非同步發起跨 OA 查詢時，Header 不會被當前網址強行覆蓋，徹底阻斷了快取資料串線與混淆的成因。
 
@@ -151,3 +87,18 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
   - 對於從題目清單中移除的舊題目，則進行 `DELETE`。
 - **Clipboard 複製防禦與 Fallback**：
   - 由於各瀏覽器及非安全環境（如非 HTTPS 網域）中對新版 `navigator.clipboard.writeText` 有嚴格的權限與焦點限制，前端 `copyText` 設計了 try-catch 架構與以 textarea 為主體的舊版 `document.execCommand('copy')` 雙層相容性機制，確保複製失敗時不影響建立流程的主狀態變更。
+- **資料庫表格設計 (Survey Database Schema)**：
+  LIFF 問卷模組採用多租戶結構（以 `app_id` 作為資料表字尾進行隔離），主要使用以下 5 個表格：
+  1. `liff_questionnaires:{app_id}`：存放問卷主檔（如 `survey_key`, `title`, `status`, `start_time`, `end_time`, `finish_message` 等）。
+  2. `liff_questionnaire_questions:{app_id}`：存放問卷的問題細節（如問題內容 `content`、題型 `answer_type`、選項 `options`、對應標籤 `tags`、是否必填 `required` 等）。
+  3. `liff_questionnaire_responses:{app_id}`：存放使用者的填寫紀錄主檔（記錄哪位 LINE 用戶 `line_user_id` 在何時 `submitted_at` 提交了哪份問卷，並包含 `display_name` 與 `picture_url`）。
+  4. `liff_questionnaire_answers:{app_id}`：存放使用者的具體作答答案明細（每題的回答 `answer_value`，並與 questions 和 responses 關聯）。
+  5. `Private_var:{app_id}`：用戶私有變數與標籤資料表。當使用者提交問卷且回答觸發標籤附加時，系統會在此表的 `tags` 欄位中合併寫入對應標籤，完成用戶畫像標籤化。
+- **GitHub Pages 前端部署架構 (GitHub Pages Deployment)**：
+  - 系統於 `liff-questionnaire/index.html` 提供了一套獨立運行的靜態填寫網頁。
+  - 該網頁可直接部署於 GitHub Pages 上作為 LIFF App 的 Endpoint URL。
+  - 網頁初始化時，會調用 LINE LIFF SDK 初始化並獲取用戶 profile 或模擬測試身分。
+  - 解析網址 query string 中的 `surveyId` (問卷的 `survey_key`) 與 `oaId`。
+  - 呼叫後端公開 API `GET /api/liff-questionnaires/public/<survey_key>?oaId=<oaId>` 取得問卷資訊。
+  - 使用者填寫完畢並通過輸入驗證（如手機 09 開頭 10 碼、Email 格式等）後，呼叫 `POST /api/liff-questionnaires/public/<survey_key>/responses?oaId=<oaId>` 提交作答，並在成功後自動顯示 `finish_message` 並關閉 LIFF 視窗。
+

@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LIFF 問卷調查</title>
+  <!-- Google Fonts Outfit & Noto Sans TC -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <!-- Axios for API requests -->
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <!-- LINE LIFF SDK -->
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  
+  <style>
+    :root {
+      --bg-gradient: linear-gradient(135deg, #0f0c20 0%, #15102a 50%, #06040a 100%);
+      --card-bg: rgba(25, 20, 45, 0.45);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --primary-yellow: #ffd54f;
+      --primary-hover: #ffca28;
+      --text-main: #f3f0ff;
+      --text-muted: #aaa5c0;
+      --error-color: #ff5252;
+      --success-color: #69f0ae;
+      --input-bg: rgba(0, 0, 0, 0.3);
+      --input-border: rgba(255, 255, 255, 0.12);
+      --input-focus: rgba(255, 213, 79, 0.5);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Outfit', 'Noto Sans TC', sans-serif;
+      background: var(--bg-gradient);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 20px 15px;
+      overflow-y: auto;
+    }
+
+    /* Container */
+    .container {
+      width: 100%;
+      max-width: 600px;
+      margin-top: 10px;
+      position: relative;
+    }
+
+    /* Glassmorphism Card */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      padding: 30px 25px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+      margin-bottom: 25px;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    /* Header */
+    .survey-header h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #fff;
+      line-height: 1.3;
+      letter-spacing: 0.5px;
+    }
+
+    .survey-header p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+
+    /* Question Container */
+    .question-card {
+      margin-bottom: 24px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .question-label {
+      font-size: 1.05rem;
+      font-weight: 500;
+      margin-bottom: 10px;
+      line-height: 1.4;
+      color: var(--text-main);
+    }
+
+    .required-star {
+      color: var(--error-color);
+      margin-left: 4px;
+      font-weight: bold;
+    }
+
+    /* Input elements */
+    .input-text, .input-select, .input-date {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      outline: none;
+      padding: 12px 16px;
+      border-radius: 12px;
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 0.95rem;
+      transition: all 0.25s ease;
+    }
+
+    .input-text:focus, .input-select:focus, .input-date:focus {
+      border-color: var(--primary-yellow);
+      box-shadow: 0 0 0 3px var(--input-focus);
+    }
+
+    .input-text::placeholder {
+      color: #66617a;
+    }
+
+    /* Checkbox & Radio */
+    .option-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 5px;
+    }
+
+    .option-item {
+      display: flex;
+      align-items: center;
+      position: relative;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 12px 16px;
+      border-radius: 12px;
+      transition: all 0.2s ease;
+    }
+
+    .option-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .option-item input {
+      margin-right: 12px;
+      accent-color: var(--primary-yellow);
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .option-text {
+      font-size: 0.95rem;
+      color: var(--text-main);
+      user-select: none;
+    }
+
+    /* Error Text */
+    .error-msg {
+      color: var(--error-color);
+      font-size: 0.85rem;
+      margin-top: 6px;
+      display: none;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .error-msg::before {
+      content: "⚠️";
+    }
+
+    .question-card.has-error .error-msg {
+      display: flex;
+    }
+
+    .question-card.has-error .input-text {
+      border-color: var(--error-color);
+    }
+
+    /* Submit Button */
+    .btn-submit {
+      width: 100%;
+      background: var(--primary-yellow);
+      color: #0f0c20;
+      border: none;
+      outline: none;
+      padding: 15px;
+      border-radius: 14px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(255, 213, 79, 0.25);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-submit:hover:not(:disabled) {
+      background: var(--primary-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255, 213, 79, 0.35);
+    }
+
+    .btn-submit:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .btn-submit:disabled {
+      background: #444054;
+      color: #77728c;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    /* Spinner */
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(15, 12, 32, 0.1);
+      border-radius: 50%;
+      border-top-color: #0f0c20;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Loading / Success Screen */
+    .state-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 40px 10px;
+    }
+
+    .state-icon {
+      font-size: 4rem;
+      margin-bottom: 20px;
+      animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    @keyframes pop {
+      0% { transform: scale(0.5); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .state-title {
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #fff;
+    }
+
+    .state-desc {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    /* Config Panel Trigger (Hidden / Cog Icon) */
+    .config-trigger {
+      position: absolute;
+      top: -10px;
+      right: 10px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      opacity: 0.3;
+      transition: opacity 0.2s ease, background 0.2s ease;
+      color: #fff;
+    }
+
+    .config-trigger:hover {
+      opacity: 1;
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    /* Config Modal */
+    .config-modal {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #181528;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      padding: 20px;
+      width: 90%;
+      max-width: 400px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+      z-index: 1000;
+    }
+
+    .config-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(5px);
+      z-index: 999;
+    }
+
+    .config-modal h3 {
+      margin-bottom: 15px;
+      color: #fff;
+    }
+
+    .config-modal label {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .config-modal input {
+      width: 100%;
+      padding: 10px;
+      background: rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      color: #fff;
+      margin-bottom: 15px;
+      outline: none;
+    }
+
+    .config-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .config-btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .config-btn-save {
+      background: var(--primary-yellow);
+      color: #0f0c20;
+    }
+
+    .config-btn-close {
+      background: #333;
+      color: #ccc;
+    }
+
+    /* Skeleton Loading */
+    .skeleton {
+      animation: skeleton-loading 1.5s linear infinite alternate;
+    }
+
+    @keyframes skeleton-loading {
+      0% { background-color: rgba(255, 255, 255, 0.02); }
+      100% { background-color: rgba(255, 255, 255, 0.08); }
+    }
+
+    .skeleton-line {
+      height: 16px;
+      margin-bottom: 12px;
+      border-radius: 4px;
+    }
+
+    .skeleton-title {
+      height: 28px;
+      width: 60%;
+      margin-bottom: 20px;
+      border-radius: 6px;
+    }
+
+    .skeleton-box {
+      height: 48px;
+      border-radius: 12px;
+      margin-top: 10px;
+    }
+
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    
+    <!-- Config Trigger -->
+    <div class="config-trigger" onclick="toggleConfig(true)">⚙️</div>
+
+    <!-- Main Content Area -->
+    <div id="app-content">
+      
+      <!-- Skeleton Screen while loading -->
+      <div class="card skeleton">
+        <div class="skeleton-title skeleton"></div>
+        <div class="skeleton-line skeleton" style="width: 100%"></div>
+        <div class="skeleton-line skeleton" style="width: 90%"></div>
+        <div class="skeleton-line skeleton" style="width: 40%"></div>
+      </div>
+      
+      <div class="card skeleton">
+        <div class="skeleton-line skeleton" style="width: 30%"></div>
+        <div class="skeleton-box skeleton"></div>
+      </div>
+
+      <div class="card skeleton">
+        <div class="skeleton-line skeleton" style="width: 40%"></div>
+        <div class="skeleton-box skeleton"></div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Config Panel -->
+  <div class="config-overlay" id="config-overlay" onclick="toggleConfig(false)"></div>
+  <div class="config-modal" id="config-modal">
+    <h3>⚙️ API 與環境設定</h3>
+    <label for="config-backend">後端 API 伺服器網域</label>
+    <input type="text" id="config-backend" placeholder="例如: https://your-backend.herokuapp.com">
+    <div class="config-actions">
+      <button class="config-btn config-btn-close" onclick="toggleConfig(false)">關閉</button>
+      <button class="config-btn config-btn-save" onclick="saveConfig()">儲存設定</button>
+    </div>
+  </div>
+
+  <script>
+    // 預設後端位址 (如果您已知道 API 位址，可以直接寫在這裡，例如 'https://api.yourdomain.com')
+    let DEFAULT_BACKEND_ORIGIN = ''; 
+    
+    // 解析網址參數
+    const urlParams = new URLSearchParams(window.location.search);
+    const oaId = urlParams.get('oaId') || urlParams.get('oa_id');
+    const surveyId = urlParams.get('surveyId') || urlParams.get('survey_key');
+    const botAppName = urlParams.get('botAppName') || urlParams.get('appName');
+    const defaultTagsParam = urlParams.get('defaultTags') || '';
+
+    // 取得 API Origin 優先順序: URL 參數 > localStorage > 當前網頁網域
+    const getBackendOrigin = () => {
+      const urlBackend = urlParams.get('backend') || urlParams.get('api');
+      if (urlBackend) return urlBackend.replace(/\/+$/, '');
+      
+      const storedBackend = localStorage.getItem('superpages_backend_url');
+      if (storedBackend) return storedBackend;
+      
+      if (DEFAULT_BACKEND_ORIGIN) return DEFAULT_BACKEND_ORIGIN.replace(/\/+$/, '');
+      
+      return window.location.origin;
+    };
+
+    let backendOrigin = getBackendOrigin();
+    document.getElementById('config-backend').value = backendOrigin;
+
+    // 狀態設定
+    let liffProfile = null;
+    let liffIdToken = null;
+    let surveyData = null;
+
+    // 開關設定視窗
+    function toggleConfig(show) {
+      document.getElementById('config-overlay').style.display = show ? 'block' : 'none';
+      document.getElementById('config-modal').style.display = show ? 'block' : 'none';
+    }
+
+    // 儲存設定
+    function saveConfig() {
+      const val = document.getElementById('config-backend').value.trim().replace(/\/+$/, '');
+      if (val) {
+        localStorage.setItem('superpages_backend_url', val);
+        backendOrigin = val;
+        toggleConfig(false);
+        alert('設定已儲存，網頁將自動重新載入。');
+        window.location.reload();
+      }
+    }
+
+    // 初始化 App
+    window.onload = async () => {
+      if (!surveyId || !oaId) {
+        showErrorScreen('網址缺少必要參數', '請確認您的 LINE 連結中包含 oaId 與 surveyId。');
+        return;
+      }
+
+      try {
+        // 1. 初始化 LIFF SDK
+        await initializeLiff();
+        
+        // 2. 獲取問卷詳情
+        await fetchSurveyDetail();
+        
+        // 3. 渲染問卷
+        renderSurvey();
+      } catch (err) {
+        console.error(err);
+        showErrorScreen('載入問卷失敗', err.message || '無法自後端伺服器取得問卷，請確認網路連線或 API 設定。');
+      }
+    };
+
+    // 初始化 LIFF
+    async function initializeLiff() {
+      try {
+        // 先嘗試發起輕量請求取得 liffId，若後端問卷資料裡已儲存 liffId 可直接初始化，或者使用一般預設的 liffId
+        const res = await axios.get(`${backendOrigin}/api/liff-questionnaires/public/${surveyId}?oaId=${oaId}`);
+        surveyData = res.data.survey;
+        
+        const liffId = surveyData.liff_id || '2009851813-AgTeSa4r'; // 優先使用問卷儲存的 liffId，無則使用預設
+        
+        await liff.init({ liffId: liffId });
+        
+        if (liff.isLoggedIn()) {
+          liffProfile = await liff.getProfile();
+          liffIdToken = liff.getIDToken();
+        } else {
+          // 若在 LINE App 以外開啟，引導進行登入
+          if (!liff.isInClient()) {
+            liff.login();
+          }
+        }
+      } catch (e) {
+        console.warn('LIFF init failed or fallback to browser mode:', e);
+        // 如果 init 失敗，我們可以使用模擬資料繼續（方便測試環境）
+        liffProfile = {
+          userId: 'U' + Math.random().toString(36).substring(2, 15),
+          displayName: '模擬測試用戶',
+          pictureUrl: ''
+        };
+      }
+    }
+
+    // 重新拉取詳情 (防禦以防 initializeLiff 快取不一致)
+    async function fetchSurveyDetail() {
+      if (surveyData) return;
+      const res = await axios.get(`${backendOrigin}/api/liff-questionnaires/public/${surveyId}?oaId=${oaId}`);
+      surveyData = res.data.survey;
+    }
+
+    // 顯示錯誤畫面
+    function showErrorScreen(title, desc) {
+      document.getElementById('app-content').innerHTML = `
+        <div class="card state-screen">
+          <div class="state-icon" style="color: var(--error-color)">❌</div>
+          <div class="state-title">${title}</div>
+          <div class="state-desc">${desc}</div>
+        </div>
+      `;
+    }
+
+    // 顯示成功畫面
+    function showSuccessScreen(msg) {
+      document.getElementById('app-content').innerHTML = `
+        <div class="card state-screen">
+          <div class="state-icon" style="color: var(--success-color)">✨</div>
+          <div class="state-title">提交成功</div>
+          <div class="state-desc" style="white-space: pre-wrap;">${msg}</div>
+        </div>
+      `;
+    }
+
+    // 渲染問卷畫面
+    function renderSurvey() {
+      if (!surveyData) return;
+
+      let html = `
+        <div class="card survey-header">
+          <h1>${escapeHtml(surveyData.title)}</h1>
+          ${surveyData.description ? `<p>${escapeHtml(surveyData.description)}</p>` : ''}
+        </div>
+        
+        <form id="survey-form" onsubmit="submitForm(event)">
+      `;
+
+      surveyData.questions.forEach((q, index) => {
+        const isRequired = q.required;
+        const qId = q.id;
+        
+        html += `
+          <div class="card question-card" id="q-card-${qId}">
+            <div class="question-label">
+              ${index + 1}. ${escapeHtml(q.content)}
+              ${isRequired ? '<span class="required-star">*</span>' : ''}
+            </div>
+            <div class="input-area">
+        `;
+
+        // 依據 answer_type 渲染不同控制項
+        if (q.answer_type === 'text') {
+          html += `<input type="text" class="input-text" data-qid="${qId}" data-required="${isRequired}" placeholder="請輸入您的回答...">`;
+        } 
+        else if (q.answer_type === 'phone') {
+          html += `<input type="tel" class="input-text" data-qid="${qId}" data-required="${isRequired}" data-validation="phone" placeholder="例如: 0912345678">`;
+        } 
+        else if (q.answer_type === 'email') {
+          html += `<input type="email" class="input-text" data-qid="${qId}" data-required="${isRequired}" data-validation="email" placeholder="例如: name@example.com">`;
+        } 
+        else if (q.answer_type === 'date') {
+          html += `<input type="date" class="input-date" data-qid="${qId}" data-required="${isRequired}">`;
+        } 
+        else if (q.answer_type === 'select') {
+          // 單選題
+          const options = parseOptions(q.options);
+          html += `<div class="option-group">`;
+          options.forEach((opt, optIdx) => {
+            html += `
+              <label class="option-item">
+                <input type="radio" name="q-${qId}" value="${escapeHtml(opt)}" data-qid="${qId}" data-required="${isRequired}">
+                <span class="option-text">${escapeHtml(opt)}</span>
+              </label>
+            `;
+          });
+          html += `</div>`;
+        } 
+        else if (q.answer_type === 'multi') {
+          // 複選題
+          const options = parseOptions(q.options);
+          html += `<div class="option-group">`;
+          options.forEach((opt, optIdx) => {
+            html += `
+              <label class="option-item">
+                <input type="checkbox" name="q-${qId}" value="${escapeHtml(opt)}" data-qid="${qId}" data-required="${isRequired}">
+                <span class="option-text">${escapeHtml(opt)}</span>
+              </label>
+            `;
+          });
+          html += `</div>`;
+        }
+
+        html += `
+            </div>
+            <div class="error-msg" id="error-${qId}">此題目為必填</div>
+          </div>
+        `;
+      });
+
+      html += `
+          <button type="submit" class="btn-submit" id="btn-submit">提交問卷</button>
+        </form>
+      `;
+
+      document.getElementById('app-content').innerHTML = html;
+    }
+
+    // 解析選項
+    function parseOptions(opts) {
+      if (Array.isArray(opts)) return opts;
+      if (typeof opts === 'string') return opts.split(',').map(s => s.trim()).filter(Boolean);
+      return [];
+    }
+
+    // 簡單轉義 HTML 防止 XSS
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+    }
+
+    // 提交問卷表單
+    async function submitForm(e) {
+      e.preventDefault();
+      
+      const submitBtn = document.getElementById('btn-submit');
+      const questions = surveyData.questions;
+      let hasError = false;
+      const answersList = [];
+
+      // 重置所有錯誤狀態
+      document.querySelectorAll('.question-card').forEach(el => el.classList.remove('has-error'));
+
+      // 驗證每一題
+      questions.forEach(q => {
+        const qId = q.id;
+        const qCard = document.getElementById(`q-card-${qId}`);
+        const errorEl = document.getElementById(`error-${qId}`);
+        let value = '';
+        
+        // 抓取值
+        if (q.answer_type === 'select') {
+          const selected = document.querySelector(`input[name="q-${qId}"]:checked`);
+          value = selected ? selected.value : '';
+        } 
+        else if (q.answer_type === 'multi') {
+          const selected = Array.from(document.querySelectorAll(`input[name="q-${qId}"]:checked`)).map(el => el.value);
+          value = selected.join(',');
+        } 
+        else {
+          const inputEl = document.querySelector(`[data-qid="${qId}"]`);
+          value = inputEl ? inputEl.value.trim() : '';
+        }
+
+        // 驗證必填
+        if (q.required && !value) {
+          hasError = true;
+          qCard.classList.add('has-error');
+          errorEl.innerText = '此欄位為必填項目';
+          return;
+        }
+
+        // 格式驗證
+        if (value) {
+          if (q.answer_type === 'phone') {
+            if (!/^09\d{8}$/.test(value)) {
+              hasError = true;
+              qCard.classList.add('has-error');
+              errorEl.innerText = '請輸入 09 開頭的 10 碼手機號碼';
+              return;
+            }
+          }
+          if (q.answer_type === 'email') {
+            if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value)) {
+              hasError = true;
+              qCard.classList.add('has-error');
+              errorEl.innerText = 'Email 格式不正確';
+              return;
+            }
+          }
+          if (q.answer_type === 'date') {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+              hasError = true;
+              qCard.classList.add('has-error');
+              errorEl.innerText = '日期格式不正確 (YYYY-MM-DD)';
+              return;
+            }
+          }
+        }
+
+        answersList.push({
+          question_id: qId,
+          question_no: q.question_no,
+          value: value
+        });
+      });
+
+      if (hasError) {
+        // 滾動到第一個錯誤的題目
+        const firstError = document.querySelector('.question-card.has-error');
+        if (firstError) {
+          firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        return;
+      }
+
+      // 準備提交 payload
+      const payload = {
+        id_token: liffIdToken,
+        profile: liffProfile,
+        answers: answersList,
+        default_tags: defaultTagsParam ? defaultTagsParam.split(',') : [],
+        bot_app_name: botAppName
+      };
+
+      try {
+        // 鎖定按鈕並顯示載入中
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<div class="spinner"></div> 提交中...`;
+
+        const res = await axios.post(`${backendOrigin}/api/liff-questionnaires/public/${surveyId}/responses?oaId=${oaId}`, payload);
+        
+        // 顯示成功頁面
+        showSuccessScreen(res.data.finish_message || '感謝您的填寫！');
+        
+        // 延遲關閉視窗 (LIFF 特有)
+        setTimeout(() => {
+          if (liff && liff.closeWindow) {
+            liff.closeWindow();
+          }
+        }, 3000);
+      } catch (err) {
+        console.error(err);
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = `提交問卷`;
+        alert(err.response?.data?.error || '問卷提交失敗，請稍後再試。');
+      }
+    }
+  </script>
+</body>
+</html>
