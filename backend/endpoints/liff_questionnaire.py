@@ -64,7 +64,6 @@ def _ensure_tables(conn, app_id):
             status TEXT NOT NULL DEFAULT 'draft',
             default_tags JSONB NOT NULL DEFAULT '[]'::jsonb,
             bot_app_name TEXT,
-            liff_id TEXT,
             start_time TIMESTAMP NULL,
             end_time TIMESTAMP NULL,
             allow_multiple BOOLEAN NOT NULL DEFAULT TRUE,
@@ -117,6 +116,33 @@ def _ensure_tables(conn, app_id):
         )
         '''
     )
+    
+    # 遷移舊資料表：如果存在 liff_id 欄位則將其移除
+    cur.execute(f'ALTER TABLE "{t["questionnaires"]}" DROP COLUMN IF EXISTS liff_id')
+
+    # 建立平面化 VIEW 供方便的一鍵查詢作答結果
+    view_name = f"v_liff_questionnaire_results:{app_id}"
+    cur.execute(
+        f'''
+        CREATE OR REPLACE VIEW "{view_name}" AS
+        SELECT 
+            r.id AS response_id,
+            r.line_user_id,
+            r.display_name,
+            r.submitted_at,
+            q.survey_key,
+            q.title AS survey_title,
+            a.question_id,
+            a.question_no,
+            qu.content AS question_content,
+            a.answer_value
+        FROM "{t["responses"]}" r
+        JOIN "{t["questionnaires"]}" q ON r.questionnaire_id = q.id
+        LEFT JOIN "{t["answers"]}" a ON a.response_id = r.id
+        LEFT JOIN "{t["questions"]}" qu ON a.question_id = qu.id
+        '''
+    )
+    
     conn.commit()
     cur.close()
 
@@ -124,10 +150,13 @@ def _ensure_tables(conn, app_id):
 def _parse_time(value):
     if not value:
         return None
-    clean = str(value).replace("Z", "").replace("T", " ")
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+    clean = str(value).replace("Z", "").replace("T", " ").strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
         try:
-            return datetime.strptime(clean[: len(fmt)], fmt)
+            # 動態算出該 format 的實際字元長度（如 19, 16, 10）
+            expected_len = len(datetime.now().strftime(fmt))
+            if len(clean) >= expected_len:
+                return datetime.strptime(clean[:expected_len], fmt)
         except ValueError:
             continue
     return None
@@ -292,7 +321,7 @@ def _survey_payload(survey, questions):
         "status": survey["status"],
         "default_tags": survey["default_tags"] or [],
         "bot_app_name": survey["bot_app_name"] or "",
-        "liff_id": survey["liff_id"] or "",
+        "liff_id": "",
         "start_time": survey["start_time"].isoformat(timespec="minutes") if survey["start_time"] else "",
         "end_time": survey["end_time"].isoformat(timespec="minutes") if survey["end_time"] else "",
         "allow_multiple": survey["allow_multiple"],
@@ -384,9 +413,9 @@ def create_survey():
         cur.execute(
             f'''
             INSERT INTO "{t["questionnaires"]}"
-                (survey_key, title, description, status, default_tags, bot_app_name, liff_id,
+                (survey_key, title, description, status, default_tags, bot_app_name,
                  start_time, end_time, allow_multiple, finish_message, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
             RETURNING *
             ''',
             (
@@ -396,7 +425,6 @@ def create_survey():
                 data.get("status") or "published",
                 Json(_json_list(data.get("default_tags"))),
                 data.get("bot_app_name") or app_id,
-                data.get("liff_id") or "",
                 _parse_time(data.get("start_time")),
                 _parse_time(data.get("end_time")),
                 bool(data.get("allow_multiple", True)),

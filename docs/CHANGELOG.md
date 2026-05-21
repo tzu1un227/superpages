@@ -1,5 +1,10 @@
 # CHANGELOG
 
+### [2026-05-21] LIFF 問卷功能欄位調整與時間 Bug 修復
+- **修正開始與結束時間 Bug**：修復 `_parse_time` 解析 datetime-local 時長度計算錯誤（因 `len(fmt)` 回傳格式代碼字元數而非格式化字串的字元數）導致時間解析為 None 的 Bug。改用動態長度擷取解析。
+- **移除 `liff_id` 欄位**：廢除並移除 `liff_questionnaires` 中無實質作用的 `liff_id` 欄位。更新後端 DDL、建立自動執行 `DROP COLUMN` 遷移、移除 `create_survey` 與 `_survey_payload` 中該欄位存取，並更新填答頁面 [index.html](file:///c:/Users/70640/Documents/GitHub/superpages/liff-questionnaire/index.html) 直接使用預設 ID。
+- **建立平面化作答 VIEW**：在資料庫建立檢視表 `v_liff_questionnaire_results:{app_id}`，整合問卷、問題、作答主檔與明細，方便管理員以單一平面表查閱「誰在何時填了什麼答案」，不破壞既有的一對多正規化結構。
+
 ### [2026-05-21] LIFF 問卷管理功能優化與編輯功能實作
 - **LIFF問卷編輯功能 (Edit Questionnaire)**：
   - **後端**：實作 `PUT /api/liff-questionnaires/<survey_key>` API。防禦性比對前端傳入的問題結構，使用 `UPDATE` / `INSERT` / `DELETE` 混合同步機制，確保既有问题的資料庫遞增 `id` 不變，保護歷史作答紀錄的完整性與可讀性。

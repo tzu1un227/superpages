@@ -529,7 +529,7 @@
         const res = await axios.get(`${backendOrigin}/api/liff-questionnaires/public/${surveyId}?oaId=${oaId}`);
         surveyData = res.data.survey;
         
-        const liffId = surveyData.liff_id || '2009851813-AgTeSa4r'; // 優先使用問卷儲存的 liffId，無則使用預設
+        const liffId = '2009851813-AgTeSa4r'; // 統一使用預設的 LIFF ID
         
         await liff.init({ liffId: liffId });
         

@@ -89,11 +89,17 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
   - 由於各瀏覽器及非安全環境（如非 HTTPS 網域）中對新版 `navigator.clipboard.writeText` 有嚴格的權限與焦點限制，前端 `copyText` 設計了 try-catch 架構與以 textarea 為主體的舊版 `document.execCommand('copy')` 雙層相容性機制，確保複製失敗時不影響建立流程的主狀態變更。
 - **資料庫表格設計 (Survey Database Schema)**：
   LIFF 問卷模組採用多租戶結構（以 `app_id` 作為資料表字尾進行隔離），主要使用以下 5 個表格：
-  1. `liff_questionnaires:{app_id}`：存放問卷主檔（如 `survey_key`, `title`, `status`, `start_time`, `end_time`, `finish_message` 等）。
-  2. `liff_questionnaire_questions:{app_id}`：存放問卷的問題細節（如問題內容 `content`、題型 `answer_type`、選項 `options`、對應標籤 `tags`、是否必填 `required` 等）。
+  1. `liff_questionnaires:{app_id}`：存放問卷主檔（包含 `survey_key`, `title`, `status`, `start_time`, `end_time`, `finish_message` 等，已廢除並移除無作用之 `liff_id` 欄位）。
+  2. `liff_questionnaire_questions:{app_id}`：存放問卷的問題細節。
+     - `options` (JSONB)：存放該題目單選/多選之所有可用選項。
+     - `condition_detail` (TEXT)：限制詳情，依據 `condition_type` 紀錄特定的限制參數（例如字數限制的範圍 `"5,20"`）。
+     - 其它欄位如：`content`、`answer_type`、`required`、`tags` 等。
   3. `liff_questionnaire_responses:{app_id}`：存放使用者的填寫紀錄主檔（記錄哪位 LINE 用戶 `line_user_id` 在何時 `submitted_at` 提交了哪份問卷，並包含 `display_name` 與 `picture_url`）。
   4. `liff_questionnaire_answers:{app_id}`：存放使用者的具體作答答案明細（每題的回答 `answer_value`，並與 questions 和 responses 關聯）。
   5. `Private_var:{app_id}`：用戶私有變數與標籤資料表。當使用者提交問卷且回答觸發標籤附加時，系統會在此表的 `tags` 欄位中合併寫入對應標籤，完成用戶畫像標籤化。
+  6. `v_liff_questionnaire_results:{app_id}` (平面化 VIEW)：
+     - 整合了 `responses`、`questionnaires`、`answers` 與 `questions` 四張表格。
+     - 目的為讓開發者/管理員能在一張平面表中一目了然看見「哪位使用者、在什麼時間、填寫了哪一份問卷、回答了哪個問題、答案是什麼」，避免物理性合併表格導致一對多關係被破壞或難以做資料統計。
 - **GitHub Pages 前端部署架構 (GitHub Pages Deployment)**：
   - 系統於 `liff-questionnaire/index.html` 提供了一套獨立運行的靜態填寫網頁。
   - 該網頁可直接部署於 GitHub Pages 上作為 LIFF App 的 Endpoint URL。
