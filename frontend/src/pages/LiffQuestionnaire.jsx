@@ -74,9 +74,7 @@ const emptyQuestion = () => ({
   tagsText: '',
 });
 
-const getBaseLiffUrl = () => {
-  return localStorage.getItem('liffQuestionnaireUrl') || 'https://your-github-name.github.io/liff-questionnaire/';
-};
+const LIFF_ENTRY_URL = 'https://liff.line.me/2009851813-AgTeSa4r';
 
 export default function Questionnaire() {
   const { oaId } = useParams();
@@ -90,7 +88,6 @@ export default function Questionnaire() {
   const [responses, setResponses] = useState([]);
   const [responsesOpen, setResponsesOpen] = useState(false);
   const [loadingResponses, setLoadingResponses] = useState(false);
-  const [baseLiffUrl, setBaseLiffUrl] = useState(getBaseLiffUrl());
 
   const [form, setForm] = useState({
     title: '',
@@ -130,7 +127,7 @@ export default function Questionnaire() {
   };
 
   const makeLiffUrl = (survey) => {
-    const url = new URL(baseLiffUrl);
+    const url = new URL(LIFF_ENTRY_URL);
     url.searchParams.set('oaId', oaId);
     url.searchParams.set('surveyId', survey.survey_key);
     if (survey.default_tags?.length) url.searchParams.set('defaultTags', survey.default_tags.join(','));
@@ -142,11 +139,6 @@ export default function Questionnaire() {
   const copyText = async (text, message = '已複製') => {
     await navigator.clipboard.writeText(text);
     showToast(message, 'success');
-  };
-
-  const saveBaseUrl = () => {
-    localStorage.setItem('liffQuestionnaireUrl', baseLiffUrl);
-    showToast('LIFF 網址已儲存在此瀏覽器', 'success');
   };
 
   const resetForm = () => {
@@ -244,21 +236,6 @@ export default function Questionnaire() {
         <Typography variant="h5" sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', mb: 2 }}>
           LIFF 問卷管理
         </Typography>
-
-        <Paper sx={{ p: 2, mb: 2, background: '#222', border: '1px solid #444' }}>
-          <Typography sx={{ color: '#fff', fontWeight: 'bold', mb: 1 }}>LIFF 部署網址</Typography>
-          <TextField
-            fullWidth
-            size="small"
-            value={baseLiffUrl}
-            onChange={e => setBaseLiffUrl(e.target.value)}
-            helperText="GitHub Pages 部署後，把 index.html 所在網址貼在這裡"
-            sx={{ ...fieldSx, mb: 1 }}
-          />
-          <Button size="small" variant="outlined" onClick={saveBaseUrl} sx={{ color: 'var(--primary-yellow)', borderColor: 'var(--primary-yellow)' }}>
-            儲存網址
-          </Button>
-        </Paper>
 
         <Paper sx={{ p: 2, background: '#222', border: '1px solid #444' }}>
           <Typography sx={{ color: '#fff', fontWeight: 'bold', mb: 2 }}>建立問卷</Typography>
