@@ -132,6 +132,7 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 ### 4.7 多租戶專案與 OA 切換狀態防護 (Multi-Tenant Session & State Guard)
 - **多專案隔離與即時更新**：由於本系統採單頁面應用程式 (SPA) 架構，使用者在頂部切換官方帳號 (OA) 時，URL path 的變更 (`oaId` 或 `location.pathname`) 會觸發對應頁面組件的非同步資料載入。
 - **狀態清空防範資料殘留**：在 `CustomerCenter.jsx`、`Questionnaire.jsx` 與 `MessageCenter.jsx` 中實作了強化的狀態防護機制。當偵測到專案切換（即監聽的依賴項變更）時，第一時間清空該頁面所有與前一專案相關的 React 狀態（如客戶名單、問卷列表、表單輸入、可用標籤等），確保載入期間不會暫時呈現舊專案的資料，徹底防範跨專案的資料污染與顯示混淆。
+- **Request 攔截器防衛機制**：在前端 Axios 攔截器中，強制唯有在 `config.headers['X-OA-ID']` 尚未被手動設定（如背景預載所有 OA 的 API 請求）時，才從當前網址路徑匹配注入 OA ID。這確保了背景非同步發起跨 OA 查詢時，Header 不會被當前網址強行覆蓋，徹底阻斷了快取資料串線與混淆的成因。
 
 ## 5. 基礎架構與連線穩定性
 - **連線池管理 (Connection Pooling)**：

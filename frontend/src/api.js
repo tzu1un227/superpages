@@ -32,9 +32,8 @@ api.interceptors.request.use(
             config.headers['Authorization'] = `Bearer ${token}`;
         }
 
-        // X-OA-ID from URL
-        // Match format /oa/:oaId/...
-        if (typeof window !== 'undefined') {
+        // X-OA-ID from URL (only if not already set manually)
+        if (typeof window !== 'undefined' && !config.headers['X-OA-ID']) {
             const match = window.location.pathname.match(/\/oa\/(\d+)/);
             if (match) {
                 config.headers['X-OA-ID'] = match[1];
