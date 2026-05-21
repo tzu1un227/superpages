@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## [2026-05-21] 全域載入動畫與資料庫連線池優化
+- **前端全域載入動畫與預載優化**：
+  - 新增 `GlobalLoading` 元件與 CSS 樣式，在頁面初始載入時顯示全螢幕半透明黑底與 Spinner 動畫。
+  - 修改 `App.jsx` 中的 `preloadPagesData` 邏輯，現在會自動遍歷並在背景預載使用者所有權限 (`myOAs`) 的頁面資料，而非僅預載當前選擇的權限。
+- **後端資料庫連線池優化**：
+  - 由於 RDS 連線數上限提升至 120，將 `db_utils.py` 中的 `SimplePool` 全面替換為標準的 `psycopg2.pool.ThreadedConnectionPool`。
+  - 將各資料庫連線池大小設定為 `minconn=1`, `maxconn=10`，以支援更高的併發存取並確保閒置連線的彈性管理。
+- **問卷系統 LIFF 轉型架構設計**：
+  - 提出問卷系統轉移至 LIFF 架構的技術評估，確認部署至 GitHub Pages 的靜態網站架構可行性。
+
 ## [2026-05-20] 變更主資料庫連線 URL
 - **更新 RDS_URL 連線設定**：
   - 更新後端 `app.py`、`db_utils.py`、`endpoints/broadcast.py` 與 `insert_test_data.py` 中的主資料庫連線字串 (`RDS_URL`)，改為新提供的 Heroku PostgreSQL 資料庫。

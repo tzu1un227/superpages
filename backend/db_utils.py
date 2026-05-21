@@ -2,38 +2,10 @@
 import psycopg2
 from flask import g
 import os
-import queue
-import threading
-import time
+from psycopg2 import pool
 
 # Configuration
 RDS_URL = "postgresql://u96dp6sm9o9f9:p7ac2133ca353c2b313a9f40e8624cd3674aa088bc788dd3f6b45afd3a2439527@ec2-100-55-231-150.compute-1.amazonaws.com:5432/d5l2u0pogs9o2"
-
-class SimplePool:
-    """A custom minimal pool to strictly limit connections to 1 per DB."""
-    def __init__(self, creator, max_size=1):
-        self.creator = creator
-        self.pool = queue.Queue(maxsize=max_size)
-    
-    def getconn(self):
-        try:
-            # Try to get existing connection from queue
-            return self.pool.get(block=False)
-        except queue.Empty:
-            # Create new connection if pool is empty
-            return self.creator()
-    
-    def putconn(self, conn):
-        try:
-            # FORCE ROLLBACK to clean up any aborted transactions before reuse
-            try:
-                conn.rollback()
-            except:
-                pass
-            self.pool.put(conn, block=False)
-        except queue.Full:
-            # Close connection if pool already has its quota
-            conn.close()
 
 # Registry for pools
 db_pools = {}
@@ -89,7 +61,7 @@ def get_main_db_connection():
     global db_pools
     if RDS_URL not in db_pools:
         try:
-            db_pools[RDS_URL] = SimplePool(lambda: psycopg2.connect(RDS_URL), max_size=3)
+            db_pools[RDS_URL] = pool.ThreadedConnectionPool(1, 10, dsn=RDS_URL)
         except Exception as e:
             print(f"ERROR: Failed to create RDS pool: {e}")
             raise e
@@ -115,8 +87,8 @@ def get_db_connection(db_url=None):
     global db_pools
     if db_url not in db_pools:
         try:
-            # We strictly keep pool size 1 for extreme savings
-            db_pools[db_url] = SimplePool(lambda: psycopg2.connect(db_url), max_size=3)
+            # We use a proper connection pool to support higher concurrency (min: 1, max: 10)
+            db_pools[db_url] = pool.ThreadedConnectionPool(1, 10, dsn=db_url)
         except Exception as e:
             print(f"ERROR: Failed to create pool for {db_url}: {e}")
             raise e

@@ -23,17 +23,26 @@ import TestRunner from './pages/TestRunner';
 import CustomerCenter from './pages/CustomerCenter';
 import { Users } from 'lucide-react';
 
+const GlobalLoading = () => (
+  <div className="overlay" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.7)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
+      <div className="spinner"></div>
+      <div style={{ color: 'var(--primary-yellow)', fontWeight: 'bold', letterSpacing: '1px' }}>載入中...</div>
+    </div>
+  </div>
+);
+
 const GOOGLE_CLIENT_ID = "909213734319-feblc4e1vhgu7e0r340e43h9aabc8iqf.apps.googleusercontent.com";
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
-  if (isLoading) return <div>Loading...</div>;
+  if (isLoading) return <GlobalLoading />;
   return isAuthenticated ? children : <Navigate to="/login" />;
 };
 
 const AdminRoute = ({ children }) => {
   const { isAuthenticated, user, isLoading } = useAuth();
-  if (isLoading) return <div>Loading...</div>;
+  if (isLoading) return <GlobalLoading />;
   if (!isAuthenticated) return <Navigate to="/login" />;
   if (user?.role !== 'admin') return <Navigate to="/" />;
   return children;
@@ -95,17 +104,18 @@ const MainLayout = () => {
   const { taskState } = useTask();
   const location = useLocation();
 
-  if (isLoading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: '#fff', background: '#111' }}>Loading...</div>;
+  if (isLoading) return <GlobalLoading />;
 
   React.useEffect(() => {
     if (isAuthenticated && myOAs && myOAs.length > 0) {
-      const match = location.pathname.match(/\/oa\/(\d+)/);
-      const currentOaId = match ? match[1] : myOAs[0].id;
-      if (currentOaId) {
-        preloadPagesData(currentOaId);
-      }
+      // 預載所有權限的所有頁面資料
+      myOAs.forEach(oa => {
+        if (oa.id) {
+          preloadPagesData(oa.id);
+        }
+      });
     }
-  }, [isAuthenticated, myOAs, location.pathname]);
+  }, [isAuthenticated, myOAs]);
 
   const getHelpContent = () => {
     if (location.pathname === '/admin') return HELP_CONTENT_MAP['admin'];
