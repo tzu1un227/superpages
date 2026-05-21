@@ -799,7 +799,7 @@ function MessageCenter() {
 
     useEffect(() => {
         fetchAvailableTags();
-    }, []);
+    }, [location.pathname]);
 
     const sendMessage = async () => {
         if (isSendingRef.current || !selectedUser || !input.trim()) return;

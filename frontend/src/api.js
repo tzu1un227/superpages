@@ -142,19 +142,10 @@ api.get = async function(url, config) {
     }
 };
 
-// Track the last seen OA ID to detect context switches
-let lastOaId = '';
-
 // Response interceptor to invalidate cache on mutations
 api.interceptors.response.use(
     (response) => {
-        // Detect OA Switch via Header (returned from server) or Request
         const currentOaId = response.config.headers['X-OA-ID'];
-        if (currentOaId && lastOaId && currentOaId !== lastOaId) {
-            console.log(`OA Switch detected (${lastOaId} -> ${currentOaId}). Clearing cache.`);
-            apiCache.clear();
-        }
-        if (currentOaId) lastOaId = currentOaId;
 
         const method = response.config.method?.toLowerCase() || '';
         if (['post', 'put', 'patch', 'delete'].includes(method)) {
