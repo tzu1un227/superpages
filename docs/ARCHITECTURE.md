@@ -49,25 +49,34 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 - **訊息預覽**：後端會自動從 `QA_bank` 中提取並解析訊息摘要，前端亦內建 `JourneyPreview` 提供 Flex Message 即時預覽。
 - **防禦性渲染 (Defensive Rendering)**：使用 Error Boundary 及可選串連 (Optional Chaining) 確保含有不完整舊資料時，UI 依然能穩定運行。
 - **編輯器雙向綁定競態阻斷 (Bidirectional State Guard)**：
-  - 在 `FlexMessageEditor` 的 auto-save 機制中引入 `lastSavedJsonRef` 快取技術。
-  - 當編輯器將狀態自動儲存至父元件後，父元件所產生的非同步狀態回流（Prop updates）在抵達子元件時，子元件會比對 `lastSavedJsonRef` 以確認是否為編輯器自身觸發的回流。
-  - 若是自身觸發則直接忽略，不重新載入或重設 `cards` 本機狀態，藉此完美解決非同步圖片上傳完成與打字等多執行緒操作下的競態回溯問題。
-
-### 4.4 法則表設計器 (Rule Designer)
-- **雙模式編輯**：提供「簡易模式」(卡片式任務管理，適合非技術人員) 與「工程模式」(直接編輯 JSON 與條件式，適合進階使用者)。
-- **自動化除錯**：在建立或更新法則時，後端會自動透過 Python `ast.parse` 等機制驗證語法、參數與 `QA_bank` 標籤的正確性。
-
-### 4.5 資料庫檢視器 (Database Viewer)
-- 提供 `/dbviewer` 介面，讓管理者能動態瀏覽公開的資料表。
-- 支援分批載入 (Chunked loading)、文字搜尋 (`ILIKE`) 及前端快取機制。
-
-### 4.6 客戶中心與資料編輯 (Customer Center & Data Management)
-- **客戶資料庫結構**：每個用戶的「名稱」、「手機」、「電子信箱」、「標籤」以及「客群」均以鍵值對 (Key-Value) 形式存放在 PostgreSQL 中的 `Private_var:{app_id}` 資料表中。
-- **編輯客戶資訊**：提供 `PUT /api/customers/<user_id>` 端點，允許對 `Private_var` 中特定 user_id 的 `'name'`、`'phone'` 與 `'email'` 等變數值進行安全 upsert（即先以 `UPDATE` 更新，若異動行數為 0 則以 `INSERT` 新增）。這確保了動態欄位更新的安全性與資料完整性。
-
-### 4.7 多租戶專案與 OA 切換狀態防護 (Multi-Tenant Session & State Guard)
-- **多專案隔離與即時更新**：由於本系統採單頁面應用程式 (SPA) 架訊，使用者在頂部切換官方帳號 (OA) 時，URL path 的變更 (`oaId` 或 `location.pathname`) 會觸發對應頁面組件的非同步資料載入。
-- **狀態清空防範資料殘留**：在 `CustomerCenter.jsx`、`Questionnaire.jsx` 與 `MessageCenter.jsx` 中實作了強化的狀態防護機制。當偵測到專案切換（即監聽的依賴項變更）時，第一時間清空該頁面所有與前一專案相關的 React 狀態（如客戶名單、問卷列表、表單輸入、可用標籤等），確保載入期間不會暫時呈現舊專案的資料，徹底防範跨專案的資料污染與顯示混淆。
+  - 在 `FlexMessageEditor` 的 auto-save 機制中引入 `lastSavedJso## 6. LIFF 問卷管理與防禦性更新機制
+- **LIFF問卷防禦性編輯 (Defensive Survey Editing)**：
+  - 為了解決編輯問卷時題目增刪改對歷史作答紀錄關聯的破壞性，系統實作了防禦性的 `PUT /api/liff-questionnaires/<survey_key>` API。
+  - 對於前端提交具有 `id` 屬性的題目，系統會直接進行 `UPDATE` 以保留其在 `liff_questionnaire_questions` 資料表中的原生資料庫識別碼，保護歷史答案（Answers）的完整性。
+  - 對於新增加的題目，系統進行 `INSERT`。
+  - 對於從題目清單中移除 of the 舊題目，則進行 `DELETE`。
+  - **編輯防護狀態**：在載入與儲存修改的異步處理期間，系統會將儲存狀態設為 `saving`。此時除顯示載入/儲存中的 Toast 提醒外，亦會限制「取消編輯」按鈕變為停用（disabled），防範非預期狀態重置與競態衝突。
+- **Clipboard 複製防禦與 Fallback**：
+  - 由於各瀏覽器及非安全環境（如非 HTTPS 網域）中對新版 `navigator.clipboard.writeText` 有嚴格的權限與焦點限制，前端 `copyText` 設計了 try-catch 架構與以 textarea 為主體的舊版 `document.execCommand('copy')` 雙層相容性機制，確保複製失敗時不影響建立流程的主狀態變更。
+- **資料庫表格設計 (Survey Database Schema)**：
+  LIFF 問卷模組採用多租戶結構（以 `app_id` 作為資料表字尾進行隔離），主要使用以下 5 個表格：
+  1. `liff_questionnaires:{app_id}`：存放問卷主檔（包含 `survey_key`, `title`, `status`, `start_time`, `end_time`, `finish_message` 等，已廢除並移除無作用之 `liff_id` 欄位）。
+  2. `liff_questionnaire_questions:{app_id}`：存放問卷的問題細節。
+     - `options` (JSONB)：存放該題目單選/多選之所有可用選項。
+     - `condition_detail` (TEXT)：限制詳情，依據 `condition_type` 紀錄特定的限制參數（例如字數限制的範圍 `"5,20"`）。
+     - 其它欄位如：`content`、`answer_type`、`required`、`tags` 等。
+  3. `liff_questionnaire_responses:{app_id}`：存放使用者的填寫紀錄主檔（記錄哪位 LINE 用戶 `line_user_id` 在何時 `submitted_at` 提交了哪份問卷，並包含 `display_name` 與 `picture_url`）。
+  4. `liff_questionnaire_answers:{app_id}`：存放使用者的具體作答答案明細（每題的回答 `answer_value`，並與 questions 和 responses 關聯）。
+  5. `Private_var:{app_id}`：用戶私有變數與標籤資料表。當使用者提交問卷且回答觸發標籤附加時，系統會在此表的 `tags` 欄位中合併寫入對應標籤，完成用戶畫像標籤化。
+  6. `v_liff_questionnaire_results:{app_id}` (平面化 VIEW)：
+     - 整合了 `responses`、`questionnaires`、`answers` 與 `questions` 四張表格。
+     - 目的為讓開發者/管理員能在一張平面表中一目了然看見「哪位使用者、在什麼時間、填寫了哪一份問卷、回答了哪個問題、答案是什麼」，避免物理性合併表格導致一對多關係被破壞或難以做資料統計。
+- **GitHub Pages 前端部署與移地開發架構 (GitHub Pages Deployment)**：
+  - **移地開發與部署**：前端填寫網頁已完全從主專案的 `superpages/liff-questionnaire/` 目錄中移除，遷移至獨立儲存庫目錄 `liff_questionnaire/index.html`，以利獨立版本管理與 GitHub Pages 託管。
+  - **自動帶入 API Origin 參數**：當管理者點擊「複製連結」時，前端 React 應用會自動解析當前 Axios `api.defaults.baseURL` 或瀏覽器環境的 API Root Origin，並將其作為 `backend` 參數附加至 LIFF URL。這使得 LINE 客戶端能動態識別並連線至正確的後端 API 位置。
+  - **LIFF 優先初始化 (LINE App Crash Prevention)**：
+    - 為了解決 LINE 內置瀏覽器因過早執行慢速 API 請求而逾時秒退的問題，網頁在 `window.onload` 時優先執行 `liff.init()`，初始化完成後才進行問卷詳情的載入。
+    - 網頁具備健全的錯誤防禦，若在 LINE App 內載入或初始化失敗，會中斷流程並顯示紅叉錯誤畫面（包含詳細錯誤訊息），便於管理者除錯與使用者排查。�案切換（即監聽的依賴項變更）時，第一時間清空該頁面所有與前一專案相關的 React 狀態（如客戶名單、問卷列表、表單輸入、可用標籤等），確保載入期間不會暫時呈現舊專案的資料，徹底防範跨專案的資料污染與顯示混淆。
 - **Request 攔截器防衛機制**：在前端 Axios 攔截器中，強制唯有在 `config.headers['X-OA-ID']` 尚未被手動設定（如背景預載所有 OA 的 API 請求）時，才從當前網址路徑匹配注入 OA ID。這確保了背景非同步發起跨 OA 查詢時，Header 不會被當前網址強行覆蓋，徹底阻斷了快取資料串線與混淆的成因。
 
 ## 5. 基礎架構與連線穩定性

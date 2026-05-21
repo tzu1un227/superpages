@@ -139,6 +139,26 @@ export default function Questionnaire() {
     url.searchParams.set('surveyId', survey.survey_key);
     const appName = survey.bot_app_name || botAppName;
     if (appName) url.searchParams.set('botAppName', appName);
+
+    // 自動獲取後端 API Origin 並帶入 query string
+    let backendUrl = '';
+    const baseURL = api.defaults.baseURL || '';
+    if (baseURL.startsWith('http')) {
+      backendUrl = baseURL.replace(/\/api$/, '');
+    } else {
+      const { protocol, hostname, port } = window.location;
+      if (port === '5016') {
+        backendUrl = `${protocol}//${hostname}:5017`;
+      } else if (port === '9016') {
+        backendUrl = `${protocol}//${hostname}:9017`;
+      } else {
+        backendUrl = `${protocol}//${hostname}${port ? ':' + port : ''}`;
+      }
+    }
+    if (backendUrl) {
+      url.searchParams.set('backend', backendUrl);
+    }
+
     return url.toString();
   };
 
@@ -177,6 +197,7 @@ export default function Questionnaire() {
   const handleStartEdit = async (survey) => {
     setSaving(true);
     try {
+      showToast('正在讀取問卷詳情...', 'info');
       const res = await api.get(`/liff-questionnaires/${survey.survey_key}`, authHeaders);
       const detail = res.data.survey;
       setEditingSurveyKey(detail.survey_key);
@@ -235,6 +256,7 @@ export default function Questionnaire() {
 
     setSaving(true);
     try {
+      showToast(editingSurveyKey ? '正在儲存修改...' : '正在建立問卷...', 'info');
       const payload = {
         title: form.title,
         description: form.description,

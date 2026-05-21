@@ -1,5 +1,15 @@
 # CHANGELOG
 
+### [2026-05-21] LIFF 問卷UI通知提醒、移地開發與手機即時關閉問題排修
+- **前端問卷管理（LiffQuestionnaire.jsx）**：加入載入問卷詳情與儲存修改時的 Toast 狀態通知提醒，優化使用者操作體驗；同時在儲存修改或建立問卷期間，限制「取消編輯」按鈕為 disabled，防範競態衝突與非預期重設。
+- **自動帶入 API Origin 參數**：於前端生成複製連結時，自動解析當前 Axios `api.defaults.baseURL` 或瀏覽器 location 連線 Origin，自動附加 `backend` 參數至 LIFF URL，讓 LINE 客戶端能動態知道要連線的後端 API 位置。
+- **LIFF 填寫頁優化（liff_questionnaire/index.html）**：
+  - 將 `liff.init()` 初始化步驟優先提到最前端，防範 LINE App 內置瀏覽器因過早執行耗時的後端 API 請求而逾時自動關閉（秒退問題）。
+  - 重構初始化與錯誤捕捉機制，若於 LINE 內載入或初始化失敗，向上拋出錯誤並顯示防禦性的紅叉錯誤提示畫面，引導使用者排查，提升 App 健全度。
+  - 預設後端位址 `DEFAULT_BACKEND_ORIGIN` 調整為正式環境 `https://irl-svr.ee.yzu.edu.tw:5017`。
+- **清理舊檔案與移地開發**：
+  - 物理刪除原先位於 `superpages/liff-questionnaire/` 的舊前端填寫端代碼，完全遷移至獨立的儲存庫目錄 `c:\Users\70640\Documents\GitHub\liff_questionnaire\` 下，避免重複與版本混亂。
+
 ### [2026-05-21] LIFF 問卷功能欄位調整與時間 Bug 修復
 - **修正開始與結束時間 Bug**：修復 `_parse_time` 解析 datetime-local 時長度計算錯誤（因 `len(fmt)` 回傳格式代碼字元數而非格式化字串的字元數）導致時間解析為 None 的 Bug。改用動態長度擷取解析。
 - **移除 `liff_id` 欄位**：廢除並移除 `liff_questionnaires` 中無實質作用的 `liff_id` 欄位。更新後端 DDL、建立自動執行 `DROP COLUMN` 遷移、移除 `create_survey` 與 `_survey_payload` 中該欄位存取，並更新填答頁面 [index.html](file:///c:/Users/70640/Documents/GitHub/superpages/liff-questionnaire/index.html) 直接使用預設 ID。
