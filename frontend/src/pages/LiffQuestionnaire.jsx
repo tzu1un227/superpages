@@ -1,0 +1,414 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  FormControl,
+  FormControlLabel,
+  IconButton,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Select,
+  Switch,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  TextField,
+  Tooltip,
+  Typography,
+} from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import DeleteIcon from '@mui/icons-material/Delete';
+import InsightsIcon from '@mui/icons-material/Insights';
+import LaunchIcon from '@mui/icons-material/Launch';
+import api from '../api';
+import { useParams } from 'react-router-dom';
+import { useToast } from '../contexts/ToastContext';
+
+const fieldSx = {
+  '& .MuiInputBase-input, & .MuiInputBase-inputMultiline': { color: 'white' },
+  '& .MuiInputLabel-root': { color: '#B0B0B0' },
+  '& .MuiFormHelperText-root': { color: '#888' },
+  '& .MuiOutlinedInput-root': {
+    '& fieldset': { borderColor: '#555' },
+    '&:hover fieldset': { borderColor: '#888' },
+    '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' },
+  },
+};
+
+const selectSx = {
+  color: 'white',
+  '.MuiOutlinedInput-notchedOutline': { borderColor: '#555' },
+  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#888' },
+  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: 'var(--primary-yellow)' },
+  '.MuiSvgIcon-root': { color: '#B0B0B0' },
+};
+
+const answerTypes = [
+  { value: 'text', label: '文字' },
+  { value: 'number', label: '數字' },
+  { value: 'single_choice', label: '單選' },
+  { value: 'multiple_choice', label: '多選' },
+  { value: 'phone', label: '手機' },
+  { value: 'email', label: 'Email' },
+  { value: 'date', label: '日期' },
+];
+
+const emptyQuestion = () => ({
+  content: '',
+  answer_type: 'text',
+  required: true,
+  condition_type: '1',
+  condition_detail: '',
+  optionsText: '',
+  tagsText: '',
+});
+
+const getBaseLiffUrl = () => {
+  return localStorage.getItem('liffQuestionnaireUrl') || 'https://your-github-name.github.io/liff-questionnaire/';
+};
+
+export default function Questionnaire() {
+  const { oaId } = useParams();
+  const { showToast } = useToast();
+  const authHeaders = useMemo(() => ({ headers: { 'X-OA-ID': oaId } }), [oaId]);
+
+  const [surveys, setSurveys] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [selectedSurvey, setSelectedSurvey] = useState(null);
+  const [responses, setResponses] = useState([]);
+  const [responsesOpen, setResponsesOpen] = useState(false);
+  const [loadingResponses, setLoadingResponses] = useState(false);
+  const [baseLiffUrl, setBaseLiffUrl] = useState(getBaseLiffUrl());
+
+  const [form, setForm] = useState({
+    title: '',
+    description: '',
+    status: 'published',
+    defaultTagsText: '',
+    botAppName: '',
+    liffId: '',
+    startTime: '',
+    endTime: '',
+    allowMultiple: true,
+    finishMessage: '感謝你的填寫',
+    questions: [emptyQuestion()],
+  });
+
+  const fetchSurveys = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/liff-questionnaires', authHeaders);
+      setSurveys(res.data.surveys || []);
+    } catch (e) {
+      showToast(e.response?.data?.error || '讀取 LIFF 問卷失敗', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSurveys();
+  }, [oaId]);
+
+  const updateQuestion = (index, patch) => {
+    setForm(prev => ({
+      ...prev,
+      questions: prev.questions.map((q, i) => (i === index ? { ...q, ...patch } : q)),
+    }));
+  };
+
+  const makeLiffUrl = (survey) => {
+    const url = new URL(baseLiffUrl);
+    url.searchParams.set('oaId', oaId);
+    url.searchParams.set('surveyId', survey.survey_key);
+    if (survey.default_tags?.length) url.searchParams.set('defaultTags', survey.default_tags.join(','));
+    if (survey.bot_app_name) url.searchParams.set('botAppName', survey.bot_app_name);
+    if (survey.liff_id) url.searchParams.set('liffId', survey.liff_id);
+    return url.toString();
+  };
+
+  const copyText = async (text, message = '已複製') => {
+    await navigator.clipboard.writeText(text);
+    showToast(message, 'success');
+  };
+
+  const saveBaseUrl = () => {
+    localStorage.setItem('liffQuestionnaireUrl', baseLiffUrl);
+    showToast('LIFF 網址已儲存在此瀏覽器', 'success');
+  };
+
+  const resetForm = () => {
+    setForm({
+      title: '',
+      description: '',
+      status: 'published',
+      defaultTagsText: '',
+      botAppName: '',
+      liffId: '',
+      startTime: '',
+      endTime: '',
+      allowMultiple: true,
+      finishMessage: '感謝你的填寫',
+      questions: [emptyQuestion()],
+    });
+  };
+
+  const handleSubmit = async () => {
+    if (!form.title.trim()) {
+      showToast('請輸入問卷名稱', 'error');
+      return;
+    }
+    if (form.questions.some(q => !q.content.trim())) {
+      showToast('每一題都需要題目內容', 'error');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const payload = {
+        title: form.title,
+        description: form.description,
+        status: form.status,
+        default_tags: form.defaultTagsText,
+        bot_app_name: form.botAppName,
+        liff_id: form.liffId,
+        start_time: form.startTime,
+        end_time: form.endTime,
+        allow_multiple: form.allowMultiple,
+        finish_message: form.finishMessage,
+        questions: form.questions.map((q, index) => ({
+          content: q.content,
+          answer_type: q.answer_type,
+          required: q.required,
+          condition_type: q.answer_type === 'number' ? '2' : q.answer_type === 'phone' ? '5' : q.answer_type === 'email' ? '6' : q.answer_type === 'date' ? '7' : q.answer_type.includes('choice') ? '3' : q.condition_type,
+          condition_detail: q.condition_detail,
+          options: q.optionsText,
+          tags: q.tagsText,
+          question_no: index + 1,
+        })),
+      };
+      const res = await api.post('/liff-questionnaires', payload, authHeaders);
+      const survey = res.data.survey;
+      showToast('LIFF 問卷已建立', 'success');
+      await fetchSurveys();
+      resetForm();
+      setSelectedSurvey(survey);
+      await copyText(makeLiffUrl(survey), '問卷已建立，LIFF 連結也已複製');
+    } catch (e) {
+      showToast(e.response?.data?.error || '建立問卷失敗', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (survey) => {
+    if (!window.confirm(`確定刪除「${survey.title}」？作答資料也會一起刪除。`)) return;
+    try {
+      await api.delete(`/liff-questionnaires/${survey.survey_key}`, authHeaders);
+      showToast('問卷已刪除', 'success');
+      fetchSurveys();
+    } catch (e) {
+      showToast(e.response?.data?.error || '刪除失敗', 'error');
+    }
+  };
+
+  const openResponses = async (survey) => {
+    setSelectedSurvey(survey);
+    setResponsesOpen(true);
+    setLoadingResponses(true);
+    try {
+      const res = await api.get(`/liff-questionnaires/${survey.survey_key}/responses`, authHeaders);
+      setResponses(res.data.responses || []);
+    } catch (e) {
+      showToast(e.response?.data?.error || '讀取作答失敗', 'error');
+    } finally {
+      setLoadingResponses(false);
+    }
+  };
+
+  return (
+    <Box sx={{ display: 'grid', gridTemplateColumns: '420px minmax(0, 1fr)', gap: 3 }}>
+      <Box>
+        <Typography variant="h5" sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', mb: 2 }}>
+          LIFF 問卷管理
+        </Typography>
+
+        <Paper sx={{ p: 2, mb: 2, background: '#222', border: '1px solid #444' }}>
+          <Typography sx={{ color: '#fff', fontWeight: 'bold', mb: 1 }}>LIFF 部署網址</Typography>
+          <TextField
+            fullWidth
+            size="small"
+            value={baseLiffUrl}
+            onChange={e => setBaseLiffUrl(e.target.value)}
+            helperText="GitHub Pages 部署後，把 index.html 所在網址貼在這裡"
+            sx={{ ...fieldSx, mb: 1 }}
+          />
+          <Button size="small" variant="outlined" onClick={saveBaseUrl} sx={{ color: 'var(--primary-yellow)', borderColor: 'var(--primary-yellow)' }}>
+            儲存網址
+          </Button>
+        </Paper>
+
+        <Paper sx={{ p: 2, background: '#222', border: '1px solid #444' }}>
+          <Typography sx={{ color: '#fff', fontWeight: 'bold', mb: 2 }}>建立問卷</Typography>
+          <TextField fullWidth size="small" label="問卷名稱" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} sx={{ ...fieldSx, mb: 2 }} />
+          <TextField fullWidth multiline minRows={2} size="small" label="問卷說明" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} sx={{ ...fieldSx, mb: 2 }} />
+          <TextField fullWidth size="small" label="預設標籤" helperText="用逗號分隔，會透過網址參數帶到 LIFF，也會存進作答紀錄" value={form.defaultTagsText} onChange={e => setForm({ ...form, defaultTagsText: e.target.value })} sx={{ ...fieldSx, mb: 2 }} />
+          <TextField fullWidth size="small" label="機器人 appName" helperText="例如 yzulabuse；會放入 LIFF URL 的 botAppName" value={form.botAppName} onChange={e => setForm({ ...form, botAppName: e.target.value })} sx={{ ...fieldSx, mb: 2 }} />
+          <TextField fullWidth size="small" label="LIFF ID" helperText="可留空，連結會優先用這裡的 LIFF ID 初始化" value={form.liffId} onChange={e => setForm({ ...form, liffId: e.target.value })} sx={{ ...fieldSx, mb: 2 }} />
+
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mb: 2 }}>
+            <TextField size="small" type="datetime-local" label="開始時間" InputLabelProps={{ shrink: true }} value={form.startTime} onChange={e => setForm({ ...form, startTime: e.target.value })} sx={fieldSx} />
+            <TextField size="small" type="datetime-local" label="結束時間" InputLabelProps={{ shrink: true }} value={form.endTime} onChange={e => setForm({ ...form, endTime: e.target.value })} sx={fieldSx} />
+          </Box>
+
+          <FormControlLabel
+            control={<Switch checked={form.allowMultiple} onChange={e => setForm({ ...form, allowMultiple: e.target.checked })} />}
+            label={<Typography sx={{ color: '#ddd' }}>允許重複填答</Typography>}
+            sx={{ mb: 1 }}
+          />
+          <TextField fullWidth size="small" label="完成訊息" value={form.finishMessage} onChange={e => setForm({ ...form, finishMessage: e.target.value })} sx={{ ...fieldSx, mb: 2 }} />
+
+          <Divider sx={{ borderColor: '#444', my: 2 }} />
+          {form.questions.map((q, index) => (
+            <Paper key={index} sx={{ p: 1.5, mb: 1.5, background: '#2a2a2a', border: '1px solid #444' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 1 }}>
+                <Typography sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', flex: 1 }}>第 {index + 1} 題</Typography>
+                <Tooltip title="刪除題目">
+                  <span>
+                    <IconButton size="small" disabled={form.questions.length === 1} onClick={() => setForm(prev => ({ ...prev, questions: prev.questions.filter((_, i) => i !== index) }))} sx={{ color: '#e57373' }}>
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Box>
+              <TextField fullWidth size="small" label="題目內容" value={q.content} onChange={e => updateQuestion(index, { content: e.target.value })} sx={{ ...fieldSx, mb: 1.5 }} />
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: 1, mb: 1.5 }}>
+                <FormControl size="small">
+                  <InputLabel sx={{ color: '#B0B0B0' }}>答案類型</InputLabel>
+                  <Select value={q.answer_type} label="答案類型" onChange={e => updateQuestion(index, { answer_type: e.target.value })} sx={selectSx}>
+                    {answerTypes.map(type => <MenuItem key={type.value} value={type.value}>{type.label}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <FormControlLabel
+                  control={<Switch checked={q.required} onChange={e => updateQuestion(index, { required: e.target.checked })} />}
+                  label={<Typography sx={{ color: '#ddd' }}>必填</Typography>}
+                />
+              </Box>
+              {(q.answer_type === 'single_choice' || q.answer_type === 'multiple_choice') && (
+                <TextField fullWidth size="small" label="選項" helperText="用逗號分隔" value={q.optionsText} onChange={e => updateQuestion(index, { optionsText: e.target.value })} sx={{ ...fieldSx, mb: 1.5 }} />
+              )}
+              <TextField fullWidth size="small" label="答此題後加入標籤" helperText="用逗號分隔，使用者有填這題就會加入" value={q.tagsText} onChange={e => updateQuestion(index, { tagsText: e.target.value })} sx={fieldSx} />
+            </Paper>
+          ))}
+
+          <Button startIcon={<AddIcon />} onClick={() => setForm(prev => ({ ...prev, questions: [...prev.questions, emptyQuestion()] }))} sx={{ color: 'var(--primary-yellow)', mb: 2 }}>
+            新增題目
+          </Button>
+
+          <Button fullWidth variant="contained" disabled={saving} onClick={handleSubmit} sx={{ background: 'var(--primary-yellow)', color: '#111', fontWeight: 'bold' }}>
+            {saving ? '建立中...' : '建立 LIFF 問卷並複製連結'}
+          </Button>
+        </Paper>
+      </Box>
+
+      <Box>
+        <Alert severity="info" sx={{ mb: 2, background: '#1e2a38', color: '#d7e3f4' }}>
+          新版問卷不再寫入 Q_bank；題目、限制和回答都存在 LIFF 問卷專用表。LIFF URL 只帶 surveyId、oaId、預設標籤與 botAppName。
+        </Alert>
+        {loading ? (
+          <CircularProgress sx={{ color: 'var(--primary-yellow)' }} />
+        ) : surveys.length === 0 ? (
+          <Typography sx={{ color: '#888' }}>還沒有 LIFF 問卷。</Typography>
+        ) : (
+          surveys.map(survey => (
+            <Paper key={survey.survey_key} sx={{ p: 2, mb: 2, background: '#222', border: '1px solid #444' }}>
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                <Box sx={{ flex: 1 }}>
+                  <Typography sx={{ color: '#fff', fontWeight: 'bold', fontSize: '1.1rem' }}>{survey.title}</Typography>
+                  <Typography sx={{ color: '#999', fontSize: '0.85rem', mt: 0.5 }}>surveyId: {survey.survey_key}</Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mt: 1 }}>
+                    <Chip size="small" label={`${survey.question_count} 題`} sx={{ background: '#333', color: '#ddd' }} />
+                    <Chip size="small" label={`${survey.response_count} 份作答`} sx={{ background: '#333', color: '#ddd' }} />
+                    <Chip size="small" label={survey.status === 'published' ? '開放中' : '草稿'} sx={{ background: survey.status === 'published' ? '#2e7d32' : '#555', color: '#fff' }} />
+                    {(survey.default_tags || []).map(tag => <Chip key={tag} size="small" label={tag} sx={{ background: '#4b3f12', color: '#ffe082' }} />)}
+                  </Box>
+                </Box>
+                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                  <Tooltip title="查看作答">
+                    <IconButton onClick={() => openResponses(survey)} sx={{ color: '#ffb300' }}><InsightsIcon /></IconButton>
+                  </Tooltip>
+                  <Tooltip title="複製 LIFF 連結">
+                    <IconButton onClick={() => copyText(makeLiffUrl(survey), 'LIFF 連結已複製')} sx={{ color: '#81c784' }}><ContentCopyIcon /></IconButton>
+                  </Tooltip>
+                  <Tooltip title="開啟 LIFF 連結">
+                    <IconButton component="a" href={makeLiffUrl(survey)} target="_blank" rel="noreferrer" sx={{ color: '#4fc3f7' }}><LaunchIcon /></IconButton>
+                  </Tooltip>
+                  <Tooltip title="刪除">
+                    <IconButton onClick={() => handleDelete(survey)} sx={{ color: '#e57373' }}><DeleteIcon /></IconButton>
+                  </Tooltip>
+                </Box>
+              </Box>
+            </Paper>
+          ))
+        )}
+      </Box>
+
+      <Dialog open={responsesOpen} onClose={() => setResponsesOpen(false)} maxWidth="lg" fullWidth>
+        <DialogTitle>{selectedSurvey?.title} 作答情況</DialogTitle>
+        <DialogContent dividers sx={{ background: '#1f1f1f' }}>
+          {loadingResponses ? (
+            <CircularProgress sx={{ color: 'var(--primary-yellow)' }} />
+          ) : responses.length === 0 ? (
+            <Typography sx={{ color: '#888' }}>目前沒有作答。</Typography>
+          ) : (
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ color: '#ddd' }}>使用者</TableCell>
+                  <TableCell sx={{ color: '#ddd' }}>時間</TableCell>
+                  <TableCell sx={{ color: '#ddd' }}>標籤/來源</TableCell>
+                  <TableCell sx={{ color: '#ddd' }}>答案</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {responses.map(row => (
+                  <TableRow key={row.response_id}>
+                    <TableCell sx={{ color: '#fff', verticalAlign: 'top' }}>
+                      <div>{row.display_name}</div>
+                      <Typography sx={{ color: '#888', fontSize: '0.75rem' }}>{row.line_user_id}</Typography>
+                    </TableCell>
+                    <TableCell sx={{ color: '#ccc', verticalAlign: 'top' }}>{row.submitted_at}</TableCell>
+                    <TableCell sx={{ color: '#ccc', verticalAlign: 'top' }}>
+                      {(row.source_meta?.default_tags || []).map(tag => <Chip key={tag} size="small" label={tag} sx={{ mr: 0.5, mb: 0.5, background: '#4b3f12', color: '#ffe082' }} />)}
+                      {row.source_meta?.bot_app_name && <Typography sx={{ color: '#888', fontSize: '0.75rem' }}>bot: {row.source_meta.bot_app_name}</Typography>}
+                    </TableCell>
+                    <TableCell sx={{ color: '#ddd' }}>
+                      {row.answers.map(answer => (
+                        <Box key={answer.question_id} sx={{ mb: 1 }}>
+                          <Typography sx={{ color: '#aaa', fontSize: '0.78rem' }}>Q{answer.question_no}. {answer.question}</Typography>
+                          <Typography sx={{ color: '#fff' }}>{answer.answer || '-'}</Typography>
+                        </Box>
+                      ))}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </DialogContent>
+      </Dialog>
+    </Box>
+  );
+}

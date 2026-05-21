@@ -13,7 +13,13 @@ import requests
 import urllib.parse
 
 app = Flask(__name__)
-CORS(app, origins=["https://irl-svr.ee.yzu.edu.tw:5014", "http://localhost:3000", "http://localhost:9016", "https://irl-svr.ee.yzu.edu.tw:5016"])
+CORS(app, origins=[
+    "https://irl-svr.ee.yzu.edu.tw:5014",
+    "http://localhost:3000",
+    "http://localhost:9016",
+    "https://irl-svr.ee.yzu.edu.tw:5016",
+    "https://*.github.io",
+])
 
 # Auth and DB imports
 from models import db, User, Page, OAConfig
@@ -87,6 +93,10 @@ app.register_blueprint(broadcast_bp, url_prefix='/api/broadcast')
 # Register Questionnaire Blueprint
 from endpoints.questionnaire import questionnaire_bp
 app.register_blueprint(questionnaire_bp, url_prefix='/api/questionnaire')
+
+# Register LIFF Questionnaire Blueprint
+from endpoints.liff_questionnaire import liff_questionnaire_bp
+app.register_blueprint(liff_questionnaire_bp, url_prefix='/api/liff-questionnaires')
 
 # Register Rule Designer Blueprint
 from endpoints.rule_designer import rule_designer_bp

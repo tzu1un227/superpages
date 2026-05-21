@@ -11,6 +11,7 @@ import Statistics from './pages/Statistics';
 import RichMenu from './pages/RichMenu';
 import AdminPage from './pages/AdminPage';
 import Questionnaire from './pages/Questionnaire';
+import LiffQuestionnaire from './pages/LiffQuestionnaire';
 import api, { preloadPagesData } from './api';
 import { ToastProvider, useToast } from './contexts/ToastContext';
 import { TaskProvider, useTask } from './contexts/TaskContext';
@@ -173,7 +174,8 @@ const MainLayout = () => {
                                   page.description;
 
                     return (
-                      <li key={page.id} style={{ marginBottom: '5px' }}>
+                      <React.Fragment key={page.id}>
+                      <li style={{ marginBottom: '5px' }}>
                         <Link
                           to={fullPath}
                           style={{
@@ -193,6 +195,29 @@ const MainLayout = () => {
                           <RouteIcon size={18} className="text-yellow" /> {displayName}
                         </Link>
                       </li>
+                      {page.name === 'Questionnaire' && (
+                        <li style={{ marginBottom: '5px' }}>
+                          <Link
+                            to={`/oa/${oa.id}/liff-questionnaire`}
+                            style={{
+                              color: 'white',
+                              textDecoration: 'none',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '12px',
+                              padding: '10px 12px',
+                              borderRadius: '8px',
+                              fontSize: '14px',
+                              backgroundColor: location.pathname.startsWith(`/oa/${oa.id}/liff-questionnaire`) ? '#333' : 'transparent',
+                              borderLeft: location.pathname.startsWith(`/oa/${oa.id}/liff-questionnaire`) ? '4px solid #FFD700' : '4px solid transparent'
+                            }}
+                            className="nav-link"
+                          >
+                            <ClipboardList size={18} className="text-yellow" /> LIFF 問卷
+                          </Link>
+                        </li>
+                      )}
+                      </React.Fragment>
                     );
                   })}
                 </ul>
@@ -231,6 +256,7 @@ const MainLayout = () => {
           <Route path="/oa/:oaId/statistics" element={<ProtectedRoute><Statistics /></ProtectedRoute>} />
           <Route path="/oa/:oaId/richmenu" element={<ProtectedRoute><RichMenu /></ProtectedRoute>} />
           <Route path="/oa/:oaId/questionnaire" element={<ProtectedRoute><Questionnaire /></ProtectedRoute>} />
+          <Route path="/oa/:oaId/liff-questionnaire" element={<ProtectedRoute><LiffQuestionnaire /></ProtectedRoute>} />
           <Route path="/oa/:oaId/ruledesigner" element={<ProtectedRoute><RuleDesigner /></ProtectedRoute>} />
           <Route path="/oa/:oaId/dbviewer" element={<ProtectedRoute><DatabaseViewer /></ProtectedRoute>} />
           <Route path="/oa/:oaId/testrunner" element={<ProtectedRoute><TestRunner /></ProtectedRoute>} />
