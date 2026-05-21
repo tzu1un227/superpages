@@ -1952,7 +1952,7 @@ def get_users_list():
 
         visible_message_filter = """
                          AND (LOWER(category) NOT IN ('sensor', 'postback', 'follow', 'unfollow', 'beacon') OR category IS NULL)
-                         AND (content IS NULL OR content NOT LIKE 'bmcast|%')
+                         AND (content IS NULL OR content NOT LIKE 'bmcast|%%')
         """
 
         query = f"""
