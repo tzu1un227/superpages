@@ -91,10 +91,16 @@ const CustomerCenter = () => {
     }
   }, [oaId, customers.length]); // eslint-disable-line
 
-  // Initial load
+  // Initial load and when OA changes
   useEffect(() => {
+    setCustomers([]);
+    setGroups([]);
+    setTags([]);
+    setSelectedUserIds([]);
+    setFilterContext({ type: null, value: null });
+    setSearchQuery('');
     refreshAllData(true);
-  }, []);
+  }, [oaId]);
 
   // When tab changes, just clear selection
   useEffect(() => {

@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [2026-05-21] 多專案與 OA 切換狀態殘留 Bug 修復
+- **客戶中心狀態重設**：修復 `CustomerCenter.jsx` 在切換 OA (`oaId` 變更) 時，未能即時更新或清空舊客戶資料與分頁狀態，現已加入依賴項監聽並清空 state 的安全重載邏輯。
+- **問卷管理狀態重設**：修復 `Questionnaire.jsx` 切換 OA 時殘留上一個專案問卷的 Bug，現已於監聽 `oaId` 的 effect 中先清空問卷群組、列表，並重設表單狀態。
+- **訊息中心可用標籤切換**：修復 `MessageCenter.jsx` 從不同 OA 切換時，標籤篩選清單仍殘留上個 OA 的標籤的 Bug。現已在 `location.pathname` 變更的 effect 中先清空可用標籤並重新 fetch。
+
 ## [2026-05-21] 資料庫連線外洩安全修復
 - **後端連線外洩全面修復**：系統性修復 `app.py` 中約 20 個 Route Handler 的危險連線模式，統一改為 `conn = None` 初始化 + `try/except/finally`，確保 Exception 發生時連線 100% 歸還至 `ThreadedConnectionPool`。
 - **修復雙重連線 Bug**：修復 `delete_project`、`delete_schedule` 重複呼叫 `get_db_connection()` 導致第一條連線永久洩漏，改為複用同一條連線。

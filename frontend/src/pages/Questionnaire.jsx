@@ -249,6 +249,9 @@ export default function Questionnaire() {
     };
 
     useEffect(() => {
+        setGroups([]);
+        setQuestionnaires([]);
+        resetForm();
         fetchGroups();
         fetchList();
     }, [oaId]);

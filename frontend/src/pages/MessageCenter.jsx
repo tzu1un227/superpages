@@ -798,6 +798,7 @@ function MessageCenter() {
     };
 
     useEffect(() => {
+        setAvailableTags([]);
         fetchAvailableTags();
     }, [location.pathname]);
 

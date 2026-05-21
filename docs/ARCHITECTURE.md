@@ -129,6 +129,10 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 - **客戶資料庫結構**：每個用戶的「名稱」、「手機」、「電子信箱」、「標籤」以及「客群」均以鍵值對 (Key-Value) 形式存放在 PostgreSQL 中的 `Private_var:{app_id}` 資料表中。
 - **編輯客戶資訊**：提供 `PUT /api/customers/<user_id>` 端點，允許對 `Private_var` 中特定 user_id 的 `'name'`、`'phone'` 與 `'email'` 等變數值進行安全 upsert（即先以 `UPDATE` 更新，若異動行數為 0 則以 `INSERT` 新增）。這確保了動態欄位更新的安全性與資料完整性。
 
+### 4.7 多租戶專案與 OA 切換狀態防護 (Multi-Tenant Session & State Guard)
+- **多專案隔離與即時更新**：由於本系統採單頁面應用程式 (SPA) 架構，使用者在頂部切換官方帳號 (OA) 時，URL path 的變更 (`oaId` 或 `location.pathname`) 會觸發對應頁面組件的非同步資料載入。
+- **狀態清空防範資料殘留**：在 `CustomerCenter.jsx`、`Questionnaire.jsx` 與 `MessageCenter.jsx` 中實作了強化的狀態防護機制。當偵測到專案切換（即監聽的依賴項變更）時，第一時間清空該頁面所有與前一專案相關的 React 狀態（如客戶名單、問卷列表、表單輸入、可用標籤等），確保載入期間不會暫時呈現舊專案的資料，徹底防範跨專案的資料污染與顯示混淆。
+
 ## 5. 基礎架構與連線穩定性
 - **連線池管理 (Connection Pooling)**：
   - 後端集中由 `backend/db_utils.py` 管理資料庫連線，全面移除私有實作。
