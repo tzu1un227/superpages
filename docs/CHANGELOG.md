@@ -3,6 +3,7 @@
 ### [2026-05-21] 修正 LIFF ID 錯誤導致的初始化失敗與手機秒退問題
 - **修正 LIFF 問卷 ID**：將 `superpages` 前端的 `LiffQuestionnaire.jsx` 以及獨立部署的 `liff_questionnaire/index.html` 中誤植的舊 LIFF ID `2009851813-AgTeSa4r` 更換為正確的專屬 LIFF ID `2009851813-eNpc9OUb`。這解決了因 LIFF ID 不符合導致 Endpoint URL 驗證失敗，進而造成手機版 LINE 秒退與電腦版卡在載入畫面的問題。（圖文選單與 Flex 編輯器用於跳轉追蹤的功能則保留使用原 LIFF ID）。
 - **強化網址參數解析機制**：在 `liff_questionnaire/index.html` 中加入對 `liff.state` 機制的支援。當 LINE 客戶端重導向時將查詢參數隱藏於 `liff.state` 內時，能正確解析並合併出 `oaId` 與 `surveyId`，徹底解決進入問卷卻顯示「網址缺少必要參數」的問題。
+- **修復後端 CORS 跨域阻擋問題**：修正 `backend/app.py` 中 `flask_cors` 關於 GitHub Pages 網域的白名單設定，將無效的字串比對 `"https://*.github.io"` 替換為正規表示式 `re.compile(r"^https://.*\.github\.io$")`。這解決了後端明明回傳 200 OK，前端卻因 CORS 跨域阻擋而引發「無法取得問卷資料」的 Network Error 問題。
 
 ### [2026-05-21] LIFF 問卷UI通知提醒、移地開發與手機即時關閉問題排修
 - **前端問卷管理（LiffQuestionnaire.jsx）**：加入載入問卷詳情與儲存修改時的 Toast 狀態通知提醒，優化使用者操作體驗；同時在儲存修改或建立問卷期間，限制「取消編輯」按鈕為 disabled，防範競態衝突與非預期重設。

@@ -12,13 +12,15 @@ import json
 import requests
 import urllib.parse
 
+import re
+
 app = Flask(__name__)
 CORS(app, origins=[
     "https://irl-svr.ee.yzu.edu.tw:5014",
     "http://localhost:3000",
     "http://localhost:9016",
     "https://irl-svr.ee.yzu.edu.tw:5016",
-    "https://*.github.io",
+    re.compile(r"^https://.*\.github\.io$"),
 ])
 
 # Auth and DB imports
