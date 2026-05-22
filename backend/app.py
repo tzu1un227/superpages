@@ -47,10 +47,6 @@ from auth import generate_token, token_required, admin_required
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
-# Database configuration (Legacy)
-default_legacy_db = "postgresql://postgres:0000@140.138.176.197:5432/5013"
-LEGACY_DB_URL = os.environ.get('LEGACY_DB_URL', default_legacy_db)
-
 # New RDS Database URL
 default_rds_url = "postgresql://u96dp6sm9o9f9:p7ac2133ca353c2b313a9f40e8624cd3674aa088bc788dd3f6b45afd3a2439527@ec2-100-55-231-150.compute-1.amazonaws.com:5432/d5l2u0pogs9o2"
 DATABASE_URL = os.environ.get('DATABASE_URL', default_rds_url)
@@ -62,10 +58,6 @@ if DATABASE_URL.startswith("postgres://"):
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'dev_secret_key'
 # RDS is the new Primary for Users, Pages, Permissions
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
-# Legacy Bind for OA RULE BANKS (Not yet migrated)
-app.config['SQLALCHEMY_BINDS'] = {
-    'legacy': LEGACY_DB_URL
-}
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_size': 3,
