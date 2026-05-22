@@ -5,6 +5,8 @@ services:
     build: ./backend
     ports:
       - "9017:9017"
+    env_file:
+      - .env
     environment:
       - PYTHONUNBUFFERED=1
       - TZ=Asia/Taipei
