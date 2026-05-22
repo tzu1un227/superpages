@@ -47,6 +47,12 @@ else:
     ]
 CORS(app, origins=origins_list)
 
+def json_response(data):
+    return app.response_class(
+        json.dumps(data, default=lambda x: float(x) if isinstance(x, Decimal) else (x.strftime('%Y-%m-%d %H:%M:%S') if isinstance(x, (datetime, date)) else str(x))),
+        mimetype='application/json'
+    )
+
 # Auth and DB imports
 from models import db, User, Page, OAConfig
 from auth import generate_token, token_required, admin_required
