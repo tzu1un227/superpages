@@ -8,47 +8,63 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal
 import threading
 import time
+from flask import Flask, request, jsonify, g, redirect
+from flask_cors import CORS
+from config import Config
+import psycopg2
+from psycopg2 import pool
+from psycopg2.extras import RealDictCursor, Json
+from datetime import datetime, date, timedelta
+from decimal import Decimal
+import threading
+import time
 import json
 import requests
 import urllib.parse
 
 import re
 
+import os
+
 app = Flask(__name__, static_folder='../frontend/dist', static_url_path='/')
-CORS(app, origins=[
-    "https://irl-svr.ee.yzu.edu.tw:5014",
-    "http://localhost:3000",
-    "http://localhost:9016",
-    "https://irl-svr.ee.yzu.edu.tw:5016",
-    re.compile(r"^https://.*\.github\.io$"),
-])
+cors_origins_env = os.environ.get('CORS_ORIGINS')
+if cors_origins_env:
+    origins_list = [origin.strip() for origin in cors_origins_env.split(',')]
+    origins_list.append(re.compile(r"^https://.*\.github\.io$"))
+else:
+    origins_list = [
+        "https://irl-svr.ee.yzu.edu.tw:5014",
+        "http://localhost:3000",
+        "http://localhost:9016",
+        "https://irl-svr.ee.yzu.edu.tw:5016",
+        re.compile(r"^https://.*\.github\.io$"),
+    ]
+CORS(app, origins=origins_list)
 
 # Auth and DB imports
 from models import db, User, Page, OAConfig
 from auth import generate_token, token_required, admin_required
-import os
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
 # Database configuration (Legacy)
-DB_CONFIG = {
-    "host": "140.138.176.197",
-    "port": "5432",
-    "database": "5013",
-    "user": "postgres",
-    "password": "0000"
-}
+default_legacy_db = "postgresql://postgres:0000@140.138.176.197:5432/5013"
+LEGACY_DB_URL = os.environ.get('LEGACY_DB_URL', default_legacy_db)
 
 # New RDS Database URL
-RDS_URL = "postgresql://u96dp6sm9o9f9:p7ac2133ca353c2b313a9f40e8624cd3674aa088bc788dd3f6b45afd3a2439527@ec2-100-55-231-150.compute-1.amazonaws.com:5432/d5l2u0pogs9o2"
+default_rds_url = "postgresql://u96dp6sm9o9f9:p7ac2133ca353c2b313a9f40e8624cd3674aa088bc788dd3f6b45afd3a2439527@ec2-100-55-231-150.compute-1.amazonaws.com:5432/d5l2u0pogs9o2"
+DATABASE_URL = os.environ.get('DATABASE_URL', default_rds_url)
+# Heroku uses postgres:// but SQLAlchemy requires postgresql://
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # Configuration for SQLAlchemy
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'dev_secret_key'
 # RDS is the new Primary for Users, Pages, Permissions
-app.config['SQLALCHEMY_DATABASE_URI'] = RDS_URL
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 # Legacy Bind for OA RULE BANKS (Not yet migrated)
 app.config['SQLALCHEMY_BINDS'] = {
-    'legacy': f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
+    'legacy': LEGACY_DB_URL
 }
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
@@ -99,81 +115,6 @@ app.register_blueprint(questionnaire_bp, url_prefix='/api/questionnaire')
 # Register LIFF Questionnaire Blueprint
 from endpoints.liff_questionnaire import liff_questionnaire_bp
 app.register_blueprint(liff_questionnaire_bp, url_prefix='/api/liff-questionnaires')
-
-# Register Rule Designer Blueprint
-from endpoints.rule_designer import rule_designer_bp
-app.register_blueprint(rule_designer_bp, url_prefix='/api/rule-designer')
-
-# Register DB Viewer Blueprint
-from endpoints.db_viewer import db_viewer_bp
-app.register_blueprint(db_viewer_bp, url_prefix='/api/db')
-
-# Register Test Runner Blueprint
-from endpoints.test_runner import test_runner_bp
-app.register_blueprint(test_runner_bp, url_prefix='/api/test-runner')
-
-# Register Customers Blueprint
-from endpoints.customers import customers_bp
-app.register_blueprint(customers_bp, url_prefix='/api/customers')
-
-with app.app_context():
-    db.create_all()
-
-    # Seeding Data
-    # Seeding Data
-    def seed_data():
-        print("Seeding/Updating pages...")
-        default_pages = [
-            {'name': 'Statistics', 'description': '綜合數據'},
-            {'name': 'MessageCenter', 'description': '訊息中心'},
-            {'name': 'Projects', 'description': '自動旅程'},
-            {'name': 'Broadcast', 'description': '群發訊息'},
-            {'name': 'ScheduledEvents', 'description': '定時排程'},
-            {'name': 'RichMenu', 'description': '圖文選單'},
-            {'name': 'Questionnaire', 'description': '問卷管理'},
-            {'name': 'RuleDesigner', 'description': '法則表設計'},
-            {'name': 'DatabaseViewer', 'description': '資料庫檢視'},
-            {'name': 'TestRunner', 'description': '系統測試'},
-            {'name': 'CustomerCenter', 'description': '客戶中心'}
-        ]
-        
-        for p in default_pages:
-            page = Page.query.filter_by(name=p['name']).first()
-            if page:
-                if page.description != p['description']:
-                    page.description = p['description']
-                    print(f"Updated description for {p['name']}")
-            else:
-                max_id = db.session.query(db.func.max(Page.id)).scalar() or 0
-                page = Page(id=max_id + 1, name=p['name'], description=p['description'])
-                db.session.add(page)
-                db.session.flush()
-                print(f"Created page {p['name']}")
-        
-        db.session.commit()
-    
-    seed_data()
-
-import json
-
-def json_response(data):
-    return app.response_class(
-        json.dumps(data, default=lambda x: float(x) if isinstance(x, Decimal) else (x.strftime('%Y-%m-%d %H:%M:%S') if isinstance(x, (datetime, date)) else str(x))),
-        mimetype='application/json'
-    )
-
-import socketio
-
-
-
-WS_URL = "https://irl-svr.ee.yzu.edu.tw:5013"
-BOT_NAME = "websoc"
-
-from utils.socket_utils import send_socket_event
-
-
-
-
 # (get_db_connection removed, imported from db_utils)
 
 def get_current_app_id():

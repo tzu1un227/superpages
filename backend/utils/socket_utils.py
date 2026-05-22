@@ -1,9 +1,10 @@
 import socketio
 import time
+import os
 from flask import g
 from models import OAConfig
 
-WS_URL = "https://irl-svr.ee.yzu.edu.tw:5013"
+WS_URL = os.environ.get('WS_URL', "https://irl-svr.ee.yzu.edu.tw:5013")
 DEFAULT_BOT_NAME = "websoc"
 
 def send_socket_event(data, namespace=None):

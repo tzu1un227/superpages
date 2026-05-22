@@ -236,3 +236,7 @@
 ## [2026-05-22] - Support Heroku Unified Deployment
 - 新增根目錄 `Procfile`、`package.json` 與 `requirements.txt` 以支援 Heroku Multi-Buildpack 部署。
 - 修改 `backend/app.py`，加入伺服 `frontend/dist` 靜態檔案的功能與 Catch-all 路由。
+
+## [2026-05-22] - Refactor Hardcoded URLs to Config Vars
+- 移除 `backend/app.py` 與 `backend/utils/socket_utils.py` 中所有寫死的伺服器位址與資料庫密碼。
+- 導入環境變數 (Config Vars) 控制機密與環境相依設定：`DATABASE_URL`, `LEGACY_DB_URL`, `WS_URL`, `CORS_ORIGINS`。
