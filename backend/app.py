@@ -2257,6 +2257,14 @@ def sys_debug():
     except Exception as e:
         return str(e)
 
+@app.errorhandler(Exception)
+def handle_exception(e):
+    import traceback
+    # Pass through HTTP errors
+    if hasattr(e, 'code'):
+        return e
+    return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
+
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_frontend(path):
