@@ -14,7 +14,7 @@ import urllib.parse
 
 import re
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='../frontend/dist', static_url_path='/')
 CORS(app, origins=[
     "https://irl-svr.ee.yzu.edu.tw:5014",
     "http://localhost:3000",
@@ -2301,6 +2301,17 @@ def get_line_message_content(message_id):
 
 # DISABLE conflicting scheduler (Line-Bot-Main/sensors/cronjobs.py handles this)
 # threading.Thread(target=cron_scheduler_processor, daemon=True).start()
+
+from flask import send_from_directory
+import os
+
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_frontend(path):
+    if path != "" and os.path.exists(app.static_folder + '/' + path):
+        return send_from_directory(app.static_folder, path)
+    else:
+        return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=9017)

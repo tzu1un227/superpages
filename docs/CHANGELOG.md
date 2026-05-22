@@ -232,3 +232,7 @@
 
 ### Documentation
 - 重整文件架構。
+
+## [2026-05-22] - Support Heroku Unified Deployment
+- 新增根目錄 `Procfile`、`package.json` 與 `requirements.txt` 以支援 Heroku Multi-Buildpack 部署。
+- 修改 `backend/app.py`，加入伺服 `frontend/dist` 靜態檔案的功能與 Catch-all 路由。

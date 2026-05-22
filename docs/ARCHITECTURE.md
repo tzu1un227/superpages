@@ -117,3 +117,9 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
   - 呼叫後端公開 API `GET /api/liff-questionnaires/public/<survey_key>?oaId=<oaId>` 取得問卷資訊。
   - 使用者填寫完畢並通過輸入驗證（如手機 09 開頭 10 碼、Email 格式等）後，呼叫 `POST /api/liff-questionnaires/public/<survey_key>/responses?oaId=<oaId>` 提交作答，並在成功後自動顯示 `finish_message` 並關閉 LIFF 視窗。
 
+
+### Heroku Deployment Architecture
+- 使用 Heroku Multi-Buildpack 進行部署 (Node.js + Python)。
+- Node.js buildpack 透過根目錄的 `package.json` 的 `postinstall` 觸發前端編譯。
+- Python buildpack 讀取根目錄 `requirements.txt` 並透過 `Procfile` 使用 `gunicorn` 啟動 Flask 伺服器。
+- Flask 負責統一伺服前端打包完成的靜態檔案與處理 SPA 路由。
