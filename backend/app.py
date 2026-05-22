@@ -2238,6 +2238,19 @@ def get_line_message_content(message_id):
 from flask import send_from_directory
 import os
 
+@app.route('/sys-debug')
+def sys_debug():
+    import os
+    folder = app.static_folder
+    cwd = os.getcwd()
+    if not os.path.exists(folder):
+        return f"Static folder DOES NOT EXIST: {folder} (cwd: {cwd})"
+    try:
+        files = os.listdir(folder)
+        return f"Static folder EXISTS: {folder} | cwd: {cwd} | Files: {files}"
+    except Exception as e:
+        return str(e)
+
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_frontend(path):
