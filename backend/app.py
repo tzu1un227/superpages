@@ -26,7 +26,13 @@ import re
 
 import os
 
-app = Flask(__name__, static_folder='../frontend/dist', static_url_path='/')
+# Resolve static folder to an absolute path to prevent send_from_directory issues on Heroku
+basedir = os.path.abspath(os.path.dirname(__file__))
+static_dir = os.path.abspath(os.path.join(basedir, '../frontend/dist'))
+
+# Remove static_url_path='/' because it creates a greedy /<path:filename> route 
+# that intercepts React routes and throws 404 instead of falling back to index.html
+app = Flask(__name__, static_folder=static_dir)
 cors_origins_env = os.environ.get('CORS_ORIGINS')
 if cors_origins_env:
     origins_list = [origin.strip() for origin in cors_origins_env.split(',')]
