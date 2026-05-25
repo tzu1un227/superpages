@@ -397,6 +397,9 @@ function RuleDesigner() {
                 setDraftRules(newDrafts);
                 // Optionally re-fetch to ensure sync with DB, but local update is enough for now
                 fetchRules();
+                if (designMode === 'simple') {
+                    setSelectedRuleIndex(null);
+                }
             }
         } catch (err) {
             // Handle validation errors from backend
