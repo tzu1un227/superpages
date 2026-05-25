@@ -963,9 +963,11 @@ function MessageCenter() {
     // 聊天室中實際顯示的訊息（過濾掉系統指令與 follow 事件，但不因搜尋而隱藏）
     const displayedMessages = messages.filter(m => {
         const cat = (m.category || '').toLowerCase();
-        // 過濾 Postback, Sensor, Follow, Beacon 等不需要顯示給客服看的系統訊息
-        if (['sensor', 'follow', 'postback', 'beacon'].includes(cat)) return false;
-        if (typeof m.content === 'string' && m.content.startsWith('QA|')) return false;
+        // 過濾 Postback, Sensor, Follow, Unfollow, Beacon 等不需要顯示給客服看的系統訊息
+        if (['sensor', 'follow', 'unfollow', 'postback', 'beacon'].includes(cat)) return false;
+        if (typeof m.content === 'string') {
+            if (m.content.startsWith('QA|') || m.content.startsWith('set_tag|') || m.content.startsWith('del_tag|') || m.content.startsWith('bmcast|')) return false;
+        }
         return true;
     });
 

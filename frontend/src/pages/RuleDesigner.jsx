@@ -210,7 +210,7 @@ function RuleDesigner() {
     // Initial Load
     useEffect(() => {
         fetchRules();
-    }, [bankType, oaId]);
+    }, [bankType, oaId, designMode]);
 
     useEffect(() => {
         if (designMode === 'simple') {
