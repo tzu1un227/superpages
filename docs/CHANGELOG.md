@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## [2026-05-25] 系統穩定性修復 (訊息廣播、圖文選單、排程時區)
+- **訊息中心廣播修復 (Issue 1)**：修復 `app.py` 中因遺漏匯入 `send_socket_event` 導致的發送訊息、新增與刪除標籤時發生的 500 Socket.IO Trigger Error。
+- **圖文選單修復 (Issue 2)**：
+  - **草稿圖片遺失**：修復在 `RichMenu.jsx` 中儲存草稿時遺失原始圖片的錯誤。現在圖片會自動轉換為 Base64 格式並與草稿資料一同儲存，重新編輯時能正確還原出 `File` 物件。
+  - **切換選單 400 錯誤**：修復前端在設定「切換選單」(richmenuswitch) 動作時，因未攜帶 LINE API 所需之 `richMenuAliasId` 欄位而發布失敗的問題，並將 action.data 轉換為合法的 switch 前綴格式。
+- **自動排程時區轉換修復 (Issue 3)**：
+  - 修復 `endpoints/broadcast.py` 中寫入 `cron_table` 的 `push_time` 時區錯誤。先前直接將前端傳入的台灣時間 (UTC+8) 作為 Naive Time 存入，導致資料庫判定時間落後 8 小時而無法按時觸發排程。現已改為強制將接收的時間轉為 UTC 後再存入資料庫。
 ### [2026-05-21] 修正 LIFF ID 錯誤導致的初始化失敗與手機秒退問題
 - **修正 LIFF 問卷 ID**：將 `superpages` 前端的 `LiffQuestionnaire.jsx` 以及獨立部署的 `liff_questionnaire/index.html` 中誤植的舊 LIFF ID `2009851813-AgTeSa4r` 更換為正確的專屬 LIFF ID `2009851813-eNpc9OUb`。這解決了因 LIFF ID 不符合導致 Endpoint URL 驗證失敗，進而造成手機版 LINE 秒退與電腦版卡在載入畫面的問題。（圖文選單與 Flex 編輯器用於跳轉追蹤的功能則保留使用原 LIFF ID）。
 - **強化網址參數解析機制**：在 `liff_questionnaire/index.html` 中加入對 `liff.state` 機制的支援。當 LINE 客戶端重導向時將查詢參數隱藏於 `liff.state` 內時，能正確解析並合併出 `oaId` 與 `surveyId`，徹底解決進入問卷卻顯示「網址缺少必要參數」的問題。

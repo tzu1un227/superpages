@@ -223,6 +223,25 @@ function RichMenu() {
         try {
             if (isMetadata) {
                 const data = typeof item.data === 'string' ? JSON.parse(item.data) : item.data;
+                
+                // dataURL to file conversion
+                const dataURLtoFile = (dataurl, filename) => {
+                    const arr = dataurl.split(',');
+                    const mime = arr[0].match(/:(.*?);/)[1];
+                    const bstr = atob(arr[1]);
+                    let n = bstr.length;
+                    const u8arr = new Uint8Array(n);
+                    while(n--) {
+                        u8arr[n] = bstr.charCodeAt(n);
+                    }
+                    return new File([u8arr], filename, {type:mime});
+                };
+                
+                let file = null;
+                if (data.imageBase64) {
+                    file = dataURLtoFile(data.imageBase64, 'draft.png');
+                }
+
                 setCurrentMenu({
                     ...emptyMenu,
                     ...data,
@@ -232,11 +251,12 @@ function RichMenu() {
                     start_time: item.start_time || '',
                     end_time: item.end_time || '',
                     name: item.name,
-                    chatBarText: item.chat_bar_text
+                    chatBarText: item.chat_bar_text,
+                    imageFile: file
                 });
                 setViewOnly(item.status === 'published');
-                setBackgroundImage(null);
-                if (item.rich_menu_id) {
+                setBackgroundImage(data.imageBase64 || null);
+                if (item.rich_menu_id && !data.imageBase64) {
                     fetchImageWithAuth(item.rich_menu_id).then(imageUrl => {
                         setBackgroundImage(imageUrl);
                     });
@@ -295,7 +315,8 @@ function RichMenu() {
                 setCurrentMenu({
                     ...currentMenu,
                     imageFile: file,
-                    size: { width, height }
+                    size: { width, height },
+                    imageBase64: event.target.result
                 });
             };
             img.src = event.target.result;
@@ -318,7 +339,8 @@ function RichMenu() {
                     size: currentMenu.size,
                     areas: currentMenu.areas,
                     name: currentMenu.name,
-                    chatBarText: currentMenu.chatBarText
+                    chatBarText: currentMenu.chatBarText,
+                    imageBase64: currentMenu.imageBase64
                 })
             };
             await api.post('/richmenu/metadata', payload);
@@ -361,6 +383,10 @@ function RichMenu() {
                             action.uri = `${API_BASE_URL}/redirect?tags=${encodeURIComponent(tagName)}&redirect=${encodeURIComponent(targetUrl)}`;
                         }
                         delete action.tags; // Remove tags before sending to LINE API
+                    }
+                    if (action.type === 'richmenuswitch') {
+                        action.richMenuAliasId = action.data; // use the input data as alias ID
+                        action.data = `switch=${action.data}`; // line API requires some data string
                     }
                     return {
                         bounds: { x: Math.round(a.bounds.x), y: Math.round(a.bounds.y), width: Math.round(a.bounds.width), height: Math.round(a.bounds.height) },
