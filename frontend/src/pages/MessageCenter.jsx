@@ -370,8 +370,8 @@ function MessageCenter() {
             });
 
             // 處理從其他頁面跳轉時的 userId 參數
-            const params = new URLSearchParams(location.search);
-            const targetUserId = params.get('userId');
+            const urlParams = new URLSearchParams(location.search);
+            const targetUserId = urlParams.get('userId');
 
             if (targetUserId) {
                 if (selectedUserRef.current !== targetUserId) {
