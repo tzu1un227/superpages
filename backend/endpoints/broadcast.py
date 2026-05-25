@@ -369,11 +369,7 @@ def create_broadcast():
         try:
             # Handle standard ISO and common variations (with space instead of T)
             iso_str = scheduled_at_raw.replace(' ', 'T')
-            naive_dt = datetime.fromisoformat(iso_str)
-            # Convert Taiwan time (+8) to UTC for database storage
-            tw_tz = timezone(timedelta(hours=8))
-            aware_dt = naive_dt.replace(tzinfo=tw_tz)
-            scheduled_at = aware_dt.astimezone(timezone.utc).replace(tzinfo=None)
+            scheduled_at = datetime.fromisoformat(iso_str)
         except ValueError as ve:
             logger.error(f"Invalid date format: {scheduled_at_raw} - {ve}")
             return jsonify({'error': '無效的日期格式，請使用 ISO 格式'}), 400
@@ -421,10 +417,7 @@ def update_broadcast(id):
         status = data.get('status', bc['status'])
         if data.get('scheduled_at'):
             iso_str = data['scheduled_at'].replace(' ', 'T')
-            naive_dt = datetime.fromisoformat(iso_str)
-            tw_tz = timezone(timedelta(hours=8))
-            aware_dt = naive_dt.replace(tzinfo=tw_tz)
-            scheduled_at = aware_dt.astimezone(timezone.utc).replace(tzinfo=None)
+            scheduled_at = datetime.fromisoformat(iso_str)
         else:
             scheduled_at = bc['scheduled_at']
         message_tag = data.get('message_tag', bc['message_tag'])

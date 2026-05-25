@@ -376,7 +376,9 @@ function RuleDesigner() {
                 const updatedErrors = { ...rowErrors };
                 updatedErrors[index] = err.response.data.errors;
                 setRowErrors(updatedErrors);
-                showToast(`偵錯發現 ${err.response.data.errors.length} 個問題，請修正後再儲存`, 'error');
+                
+                const errorDetails = err.response.data.errors.join('\n');
+                showToast(`偵錯發現 ${err.response.data.errors.length} 個問題:\n${errorDetails}`, 'error');
             } else {
                 showToast('儲存失敗', 'error');
             }

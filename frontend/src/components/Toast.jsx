@@ -67,7 +67,7 @@ const ToastItem = ({ toast, onClose }) => {
             <div style={{ marginTop: '2px' }}>
                 {icons[toast.type] || <Info size={18} />}
             </div>
-            <div style={{ flex: 1, fontSize: '14px', lineHeight: '1.4' }}>
+            <div style={{ flex: 1, fontSize: '14px', lineHeight: '1.4', whiteSpace: 'pre-wrap' }}>
                 {toast.message}
             </div>
             <button

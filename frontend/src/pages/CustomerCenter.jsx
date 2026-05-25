@@ -27,6 +27,8 @@ const CustomerCenter = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
+  
+  const [selectedCustomerForSidebar, setSelectedCustomerForSidebar] = useState(null);
 
   const navigate = useNavigate();
   const { oaId } = useParams();
@@ -275,7 +277,8 @@ const CustomerCenter = () => {
     showToast(`${action}功能開發中: ${item}`, 'info');
   };
 
-  const handleEditClick = (customer) => {
+  const handleEditClick = (e, customer) => {
+    e.stopPropagation();
     setEditingCustomer({
       user_id: customer.user_id,
       name: customer.name || '',
@@ -490,12 +493,18 @@ const CustomerCenter = () => {
               </tr>
             ) : (
               sortedCustomers.map((c, idx) => (
-                <tr key={idx} style={{ borderBottom: '1px solid #333', transition: 'background-color 0.2s', backgroundColor: selectedUserIds.includes(c.user_id) ? 'rgba(255, 215, 0, 0.05)' : 'transparent' }} onMouseEnter={e => {if(!selectedUserIds.includes(c.user_id)) e.currentTarget.style.backgroundColor = '#2A2A2A'}} onMouseLeave={e => {if(!selectedUserIds.includes(c.user_id)) e.currentTarget.style.backgroundColor = 'transparent'}}>
+                <tr 
+                  key={idx} 
+                  onClick={() => setSelectedCustomerForSidebar(c)}
+                  style={{ cursor: 'pointer', borderBottom: '1px solid #333', transition: 'background-color 0.2s', backgroundColor: selectedUserIds.includes(c.user_id) ? 'rgba(255, 215, 0, 0.05)' : 'transparent' }} 
+                  onMouseEnter={e => {if(!selectedUserIds.includes(c.user_id)) e.currentTarget.style.backgroundColor = '#2A2A2A'}} 
+                  onMouseLeave={e => {if(!selectedUserIds.includes(c.user_id)) e.currentTarget.style.backgroundColor = 'transparent'}}
+                >
                   <td style={{ padding: '16px' }}>
                     <input 
                       type="checkbox" 
                       checked={selectedUserIds.includes(c.user_id)}
-                      onChange={() => handleSelectUser(c.user_id)}
+                      onChange={(e) => { e.stopPropagation(); handleSelectUser(c.user_id); }}
                       style={{ cursor: 'pointer', transform: 'scale(1.2)' }}
                     />
                   </td>
@@ -509,7 +518,7 @@ const CustomerCenter = () => {
                         )}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <div style={{ fontWeight: '500', fontSize: '15px' }}>{c.name || '未命名用戶'}</div>
+                        <div style={{ fontWeight: '500', fontSize: '15px', whiteSpace: 'nowrap' }}>{c.name || '未命名用戶'}</div>
                       </div>
                     </div>
                   </td>
@@ -554,7 +563,7 @@ const CustomerCenter = () => {
                     )}
                   </td>
                   <td style={{ padding: '16px', textAlign: 'center' }}>
-                    <button onClick={() => handleEditClick(c)} style={{ padding: '6px 12px', backgroundColor: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }} title="編輯客戶">
+                    <button onClick={(e) => handleEditClick(e, c)} style={{ padding: '6px 12px', backgroundColor: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }} title="編輯客戶">
                       編輯
                     </button>
                   </td>
@@ -1045,6 +1054,88 @@ const CustomerCenter = () => {
           </button>
         </div>
       )}
+
+      )}
+
+      {/* Customer Detail Sidebar */}
+      <div style={{
+        position: 'fixed', top: 0, right: selectedCustomerForSidebar ? 0 : '-400px', width: '400px', height: '100vh',
+        backgroundColor: '#1a1a1a', borderLeft: '1px solid #333', boxShadow: '-5px 0 25px rgba(0,0,0,0.5)',
+        transition: 'right 0.3s ease-in-out', zIndex: 1050, display: 'flex', flexDirection: 'column'
+      }}>
+        {selectedCustomerForSidebar && (
+          <>
+            <div style={{ padding: '24px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, fontSize: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#333', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {selectedCustomerForSidebar.pic ? (
+                    <img src={selectedCustomerForSidebar.pic} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <Users size={20} color="#888" />
+                  )}
+                </div>
+                {selectedCustomerForSidebar.name || '未命名用戶'}
+              </h2>
+              <X size={24} color="#888" style={{ cursor: 'pointer' }} onClick={() => setSelectedCustomerForSidebar(null)} />
+            </div>
+            
+            <div style={{ padding: '24px', flex: 1, overflowY: 'auto' }}>
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ color: '#888', fontSize: '14px', marginBottom: '8px' }}>聯絡資訊</div>
+                <div style={{ backgroundColor: '#222', borderRadius: '8px', padding: '16px', border: '1px solid #333' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                    <Phone size={16} color="#FFD700" /> 
+                    <span>{selectedCustomerForSidebar.phone || '未設定'}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <Mail size={16} color="#FFD700" /> 
+                    <span>{selectedCustomerForSidebar.email || '未設定'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ color: '#888', fontSize: '14px', marginBottom: '8px' }}>標籤</div>
+                <div style={{ backgroundColor: '#222', borderRadius: '8px', padding: '16px', border: '1px solid #333', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {Array.isArray(selectedCustomerForSidebar.tag) && selectedCustomerForSidebar.tag.length > 0 ? (
+                    selectedCustomerForSidebar.tag.map((t, i) => (
+                      <span key={i} style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '16px', backgroundColor: '#333', fontSize: '13px', border: '1px solid #444', color: '#FFD700' }}>
+                        <Tag size={12} style={{ marginRight: '6px' }} /> {t}
+                      </span>
+                    ))
+                  ) : (
+                    <span style={{ color: '#666', fontSize: '14px' }}>無標籤</span>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ color: '#888', fontSize: '14px', marginBottom: '8px' }}>所屬客群</div>
+                <div style={{ backgroundColor: '#222', borderRadius: '8px', padding: '16px', border: '1px solid #333', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {Array.isArray(selectedCustomerForSidebar.group_name) && selectedCustomerForSidebar.group_name.length > 0 ? (
+                    selectedCustomerForSidebar.group_name.map((g, i) => (
+                      <span key={i} style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '16px', backgroundColor: '#FFD700', fontSize: '13px', color: '#000', fontWeight: 'bold' }}>
+                        <Users size={12} style={{ marginRight: '6px' }} /> {g}
+                      </span>
+                    ))
+                  ) : (
+                    <span style={{ color: '#666', fontSize: '14px' }}>未加入任何客群</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding: '24px', borderTop: '1px solid #333' }}>
+              <button 
+                onClick={() => navigate(`/oa/${oaId}/message-center?userId=${selectedCustomerForSidebar.user_id}`)}
+                style={{ width: '100%', padding: '12px', backgroundColor: '#FFD700', color: '#000', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
+              >
+                <MessageSquare size={18} /> 跳轉至訊息中心
+              </button>
+            </div>
+          </>
+        )}
+      </div>
 
     </div>
   );

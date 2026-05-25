@@ -947,6 +947,7 @@ function MessageCenter() {
         const cat = (m.category || '').toLowerCase();
         // 過濾 Postback, Sensor, Follow, Beacon 等不需要顯示給客服看的系統訊息
         if (['sensor', 'follow', 'postback', 'beacon'].includes(cat)) return false;
+        if (typeof m.content === 'string' && m.content.startsWith('QA|')) return false;
         return true;
     });
 

@@ -520,9 +520,16 @@ function BroadcastContent() {
     };
 
     const finishBroadcast = async () => {
-        if (formData.send_type === 'scheduled' && !formData.scheduled_at) {
-            showToast('請選擇預約時間', 'warning');
-            return;
+        if (formData.send_type === 'scheduled') {
+            if (!formData.scheduled_at) {
+                showToast('請選擇預約時間', 'warning');
+                return;
+            }
+            const scheduledTime = new Date(formData.scheduled_at).getTime();
+            if (scheduledTime <= Date.now()) {
+                showToast('預約時間不能早於或等於現在時間，請選擇未來的時間', 'warning');
+                return;
+            }
         }
 
         // Validation: Comprehensive check for all message types

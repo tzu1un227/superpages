@@ -1927,7 +1927,7 @@ def get_users_list():
 
         visible_message_filter = """
                          AND (LOWER(category) NOT IN ('sensor', 'postback', 'follow', 'unfollow', 'beacon') OR category IS NULL)
-                         AND (content IS NULL OR content NOT LIKE 'bmcast|%%')
+                         AND (content IS NULL OR (content NOT LIKE 'bmcast|%%' AND content NOT LIKE 'QA|%%'))
         """
 
         query = f"""
@@ -2073,9 +2073,10 @@ def create_scheduled_event():
         cur = conn.cursor()
         t_cron = get_suffixed_table('cron_table')
         
-        # Calculate initial push_time in UTC
-        from datetime import timezone as tz_zone
-        push_time = datetime.now(tz_zone.utc).replace(tzinfo=None) + timedelta(hours=float(interval_hours))
+        # Calculate initial push_time in Taiwan time (UTC+8)
+        from datetime import timezone as tz_zone, timedelta
+        tw_tz = tz_zone(timedelta(hours=8))
+        push_time = datetime.now(tw_tz).replace(tzinfo=None) + timedelta(hours=float(interval_hours))
         
         cur.execute(
             f"INSERT INTO {t_cron} (user_id, message_content, repeat_interval, push_time, status) VALUES (%s, %s, %s, %s, 'active') RETURNING task_id",

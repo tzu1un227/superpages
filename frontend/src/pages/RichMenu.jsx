@@ -105,6 +105,15 @@ function RichMenu() {
 
         try {
             await Promise.all([fetchMenus(), fetchMetadata()]);
+            // 取得別名清單供下拉選單使用
+            try {
+                const aliasRes = await api.get('/richmenu/aliases');
+                if (aliasRes.data && aliasRes.data.aliases) {
+                    setAllAliases(aliasRes.data.aliases.map(a => a.richMenuAliasId));
+                }
+            } catch (err) {
+                console.error('Failed to fetch aliases:', err);
+            }
         } finally {
             setLoading(false);
         }
@@ -424,9 +433,13 @@ function RichMenu() {
             await api.post('/richmenu/metadata', payload);
 
             showToast('選單已成功同步至 LINE！', 'success');
+            // 清空本地狀態以防殘影，並回到列表
+            setCurrentMenu(null);
             setView('list');
         } catch (err) {
-            showToast('發佈失敗', 'error');
+            console.error(err);
+            const detail = err.response?.data?.line_error?.message || err.response?.data?.message || err.message || '未知錯誤';
+            showToast(`發佈失敗: ${detail}`, 'error');
         } finally {
             setLoading(false);
         }
@@ -539,9 +552,29 @@ function RichMenu() {
 
     // Combined and Grouped logic
     const combinedList = React.useMemo(() => {
+        const metadataItems = metadata.map(m => ({ ...m, isMetadata: true }));
+        const lineItems = menus
+            .filter(rm => !metadataItems.some(m => m.rich_menu_id === rm.richMenuId))
+            .map(rm => ({ ...rm, isMetadata: false }));
+            
+        // 額外過濾機制：如果在 metadata 中有相同 name 但不同狀態的異常重複（例如同時有草稿和發佈的），只保留最新的。
+        // 這可以解決過去因為發生錯誤導致建立重複草稿的畫面殘影問題。
+        const deduplicatedMetadata = [];
+        const seenNames = new Set();
+        
+        // 排序讓最新的在前面
+        metadataItems.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        
+        for (const item of metadataItems) {
+            if (!seenNames.has(item.name)) {
+                deduplicatedMetadata.push(item);
+                seenNames.add(item.name);
+            }
+        }
+
         const list = [
-            ...metadata.map(m => ({ ...m, isMetadata: true })),
-            ...menus.filter(rm => !metadata.some(m => m.rich_menu_id === rm.richMenuId)).map(rm => ({ ...rm, isMetadata: false }))
+            ...deduplicatedMetadata,
+            ...lineItems
         ].sort((a, b) => {
             const timeA = a.isMetadata ? new Date(a.created_at).getTime() : 0;
             const timeB = b.isMetadata ? new Date(b.created_at).getTime() : 0;
@@ -702,7 +735,19 @@ function RichMenu() {
                                         </div>
                                     )}
                                     {currentMenu.areas[selectedAreaIndex].action.type === 'richmenuswitch' && (
-                                        <input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.data || ''} onChange={e => updateAreaAction(selectedAreaIndex, { data: e.target.value })} placeholder="Rich Menu Alias ID" />
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                            <input 
+                                                list="alias-options" 
+                                                type="text" 
+                                                disabled={viewOnly} 
+                                                value={currentMenu.areas[selectedAreaIndex].action.data || ''} 
+                                                onChange={e => updateAreaAction(selectedAreaIndex, { data: e.target.value })} 
+                                                placeholder="輸入或選擇別名 (Alias ID)" 
+                                            />
+                                            <datalist id="alias-options">
+                                                {allAliases.map((alias, i) => <option key={i} value={alias} />)}
+                                            </datalist>
+                                        </div>
                                     )}
                                 </div>
                             ) : (
