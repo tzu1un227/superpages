@@ -416,7 +416,7 @@ def project_stats_processor():
 
 def rich_menu_scheduler_processor():
     """
-    Background task to check rich_menu_metadata:{appname} for start/end times
+    Check rich_menu_metadata:{appname} for start/end times
     and perform Link/Unlink actions per OA.
     
     Logic (per OA):
@@ -432,6 +432,7 @@ def rich_menu_scheduler_processor():
     """
     while True:
         try:
+            # We need an app context if called outside request, but here we will mostly call it via API
             with app.app_context():
                 from models import OAConfig
                 from db_utils import get_main_db_connection
@@ -538,6 +539,7 @@ def rich_menu_scheduler_processor():
         time.sleep(60)
 
 
+
 # Only start background threads if not in development or specifically requested
 # These are known to hog connections in a shared 20-conn environment.
 # slowing them down significantly to give priority to user API requests.
@@ -549,9 +551,9 @@ def run_background_threads():
     threading.Thread(target=project_stats_processor, daemon=True).start()
     threading.Thread(target=rich_menu_scheduler_processor, daemon=True).start()
 
-# Only start if NOT already handled by another system (like Line-Bot-Main)
-# threading.Thread(target=project_stats_processor, daemon=True).start() 
-# threading.Thread(target=rich_menu_scheduler_processor, daemon=True).start()
+# Start background threads directly since we have only 1 gunicorn worker.
+# This avoids needing an external cron trigger while still maintaining scheduled tasks.
+run_background_threads()
 
 @app.route('/api/login', methods=['POST'])
 def login():
