@@ -464,7 +464,7 @@ def save_rich_menu_metadata():
                 
                 cur.execute(f"""
                     UPDATE {t_metadata}
-                    SET name=%s, chat_bar_text=%s, data=%s, status=%s, rich_menu_id=%s, start_time=%s, end_time=%s, updated_at=NOW()
+                    SET name=%s, chat_bar_text=%s, data=%s, status=%s, rich_menu_id=%s, start_time=%s, end_time=%s, updated_at=(NOW() AT TIME ZONE 'Asia/Taipei')
                     WHERE id=%s
                 """, (name, chat_bar_text, data_json, status, rich_menu_id, start_time, end_time, id))
                 conn.commit()
@@ -472,7 +472,7 @@ def save_rich_menu_metadata():
             else:
                 cur.execute(f"""
                     INSERT INTO {t_metadata} (oa_id, name, chat_bar_text, data, status, rich_menu_id, start_time, end_time, created_at, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()) RETURNING id
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, (NOW() AT TIME ZONE 'Asia/Taipei'), (NOW() AT TIME ZONE 'Asia/Taipei')) RETURNING id
                 """, (oa_id, name, chat_bar_text, data_json, status, rich_menu_id, start_time, end_time))
                 new_id = cur.fetchone()['id']
                 conn.commit()
