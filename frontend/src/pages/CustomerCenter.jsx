@@ -1125,7 +1125,7 @@ const CustomerCenter = () => {
 
             <div style={{ padding: '24px', borderTop: '1px solid #333' }}>
               <button 
-                onClick={() => navigate(`/oa/${oaId}/message-center?userId=${selectedCustomerForSidebar.user_id}`)}
+                onClick={() => navigate(`/oa/${oaId}/messages?userId=${selectedCustomerForSidebar.user_id}`)}
                 style={{ width: '100%', padding: '12px', backgroundColor: '#FFD700', color: '#000', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
               >
                 <MessageSquare size={18} /> 跳轉至訊息中心

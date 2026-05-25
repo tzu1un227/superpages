@@ -1744,10 +1744,15 @@ def get_user_history(user_id):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
+        visible_message_filter = """
+            AND (LOWER(category) NOT IN ('sensor', 'postback', 'follow', 'unfollow', 'beacon') OR category IS NULL)
+            AND (content IS NULL OR (content NOT LIKE 'bmcast|%%' AND content NOT LIKE 'QA|%%' AND content NOT LIKE 'set_tag|%%' AND content NOT LIKE 'del_tag|%%'))
+        """
+        
         if after:
             # Incremental polling: only fetch messages newer than the given timestamp
             cur.execute(
-                f'SELECT * FROM "history:{app_id}" WHERE user_id = %s AND timestamp > %s ORDER BY timestamp ASC',
+                f'SELECT * FROM "history:{app_id}" WHERE user_id = %s AND timestamp > %s {visible_message_filter} ORDER BY timestamp ASC',
                 (user_id, after)
             )
             history = cur.fetchall()
@@ -1755,7 +1760,7 @@ def get_user_history(user_id):
             if before:
                 # Paginated load: fetch older messages before the given timestamp
                 cur.execute(
-                    f'SELECT * FROM "history:{app_id}" WHERE user_id = %s AND timestamp < %s ORDER BY timestamp DESC LIMIT %s',
+                    f'SELECT * FROM "history:{app_id}" WHERE user_id = %s AND timestamp < %s {visible_message_filter} ORDER BY timestamp DESC LIMIT %s',
                     (user_id, before, limit)
                 )
                 history = cur.fetchall()
@@ -1763,14 +1768,14 @@ def get_user_history(user_id):
             else:
                 # Initial load: fetch the latest N messages
                 cur.execute(
-                    f'SELECT * FROM "history:{app_id}" WHERE user_id = %s ORDER BY timestamp DESC LIMIT %s',
+                    f'SELECT * FROM "history:{app_id}" WHERE user_id = %s {visible_message_filter} ORDER BY timestamp DESC LIMIT %s',
                     (user_id, limit)
                 )
                 history = cur.fetchall()
                 history.reverse()
         else:
             cur.execute(
-                f'SELECT * FROM "history:{app_id}" WHERE user_id = %s ORDER BY timestamp ASC',
+                f'SELECT * FROM "history:{app_id}" WHERE user_id = %s {visible_message_filter} ORDER BY timestamp ASC',
                 (user_id,)
             )
             history = cur.fetchall()
@@ -1927,7 +1932,7 @@ def get_users_list():
 
         visible_message_filter = """
                          AND (LOWER(category) NOT IN ('sensor', 'postback', 'follow', 'unfollow', 'beacon') OR category IS NULL)
-                         AND (content IS NULL OR (content NOT LIKE 'bmcast|%%' AND content NOT LIKE 'QA|%%'))
+                         AND (content IS NULL OR (content NOT LIKE 'bmcast|%%' AND content NOT LIKE 'QA|%%' AND content NOT LIKE 'set_tag|%%' AND content NOT LIKE 'del_tag|%%'))
         """
 
         query = f"""

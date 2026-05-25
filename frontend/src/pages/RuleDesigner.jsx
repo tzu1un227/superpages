@@ -224,7 +224,30 @@ function RuleDesigner() {
         setRowErrors({}); // Clear all errors on reload/switch
         try {
             const res = await api.get(`/rule-designer/rules?type=${bankType}`);
-            const newRules = res.data.rules || [];
+            let newRules = res.data.rules || [];
+            
+            // Parse _updatedAt from note
+            newRules = newRules.map(r => {
+                const parts = (r.note || '').split('|UPDATED:');
+                return {
+                    ...r,
+                    note: parts[0],
+                    _updatedAt: parts.length > 1 ? parts[1] : null
+                };
+            });
+
+            if (designMode === 'simple') {
+                // Filter out '工程用法則'
+                newRules = newRules.filter(r => !r.note.includes('工程用法則'));
+                
+                // Sort by _updatedAt descending
+                newRules.sort((a, b) => {
+                    const timeA = a._updatedAt ? new Date(a._updatedAt).getTime() : 0;
+                    const timeB = b._updatedAt ? new Date(b._updatedAt).getTime() : 0;
+                    return timeB - timeA;
+                });
+            }
+
             setRules(newRules);
             setDraftRules(JSON.parse(JSON.stringify(newRules)).map(r => ({ ...r, _isDirty: false })));
         } catch (err) {
@@ -346,6 +369,9 @@ function RuleDesigner() {
         const ruleToSave = { ...draftRules[index] };
         delete ruleToSave._isDirty;
         delete ruleToSave._isNew;
+        const nowIso = new Date().toISOString();
+        ruleToSave.note = `${ruleToSave.note || ''}|UPDATED:${nowIso}`;
+        delete ruleToSave._updatedAt;
 
         try {
             let res;
@@ -366,8 +392,10 @@ function RuleDesigner() {
                 const newDrafts = [...draftRules];
                 newDrafts[index]._isDirty = false;
                 newDrafts[index]._isNew = false;
+                newDrafts[index]._updatedAt = nowIso;
                 if (res.data.id) newDrafts[index].id = res.data.id;
                 setDraftRules(newDrafts);
+                // Optionally re-fetch to ensure sync with DB, but local update is enough for now
                 fetchRules();
             }
         } catch (err) {
@@ -583,6 +611,7 @@ function RuleDesigner() {
                                         {!isEnabled && <span style={{ backgroundColor: '#333', color: '#aaa', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>未啟用</span>}
                                         {rule._isNew && <span style={{ backgroundColor: 'rgba(255, 215, 0, 0.2)', color: '#FFD700', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>新建立</span>}
                                         {rule._isDirty && <span style={{ backgroundColor: 'rgba(76, 175, 80, 0.2)', color: '#4CAF50', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>未儲存</span>}
+                                        {rule._updatedAt && <span style={{ color: '#666', fontSize: '11px', marginLeft: 'auto' }}>更新時間: {new Date(rule._updatedAt).toLocaleString()}</span>}
                                     </div>
                                     <div style={{ display: 'flex', gap: '20px', color: '#888', fontSize: '13px', flexWrap: 'wrap' }}>
                                         <span><span style={{ color: '#aaa' }}>觸發關鍵字:</span> {Array.isArray(rule.content) ? rule.content.join(', ') : (rule.content || '無')}</span>
