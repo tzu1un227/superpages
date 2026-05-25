@@ -1055,8 +1055,6 @@ const CustomerCenter = () => {
         </div>
       )}
 
-      )}
-
       {/* Customer Detail Sidebar */}
       <div style={{
         position: 'fixed', top: 0, right: selectedCustomerForSidebar ? 0 : '-400px', width: '400px', height: '100vh',

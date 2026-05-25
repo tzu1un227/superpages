@@ -230,29 +230,28 @@ function RichMenu() {
     const handleEditMenu = (item, isMetadata = false) => {
         setLoading(true);
         try {
+            const dataURLtoFile = (dataurl, filename) => {
+                const arr = dataurl.split(',');
+                const mime = arr[0].match(/:(.*?);/)[1];
+                const bstr = atob(arr[1]);
+                let n = bstr.length;
+                const u8arr = new Uint8Array(n);
+                while(n--) {
+                    u8arr[n] = bstr.charCodeAt(n);
+                }
+                return new File([u8arr], filename, {type:mime});
+            };
+
             if (isMetadata) {
                 const data = typeof item.data === 'string' ? JSON.parse(item.data) : item.data;
-                
-                // dataURL to file conversion
-                const dataURLtoFile = (dataurl, filename) => {
-                    const arr = dataurl.split(',');
-                    const mime = arr[0].match(/:(.*?);/)[1];
-                    const bstr = atob(arr[1]);
-                    let n = bstr.length;
-                    const u8arr = new Uint8Array(n);
-                    while(n--) {
-                        u8arr[n] = bstr.charCodeAt(n);
-                    }
-                    return new File([u8arr], filename, {type:mime});
-                };
-                
+                const defaultAlias = (item.aliases && item.aliases.length > 0) ? item.aliases[0] : (data.alias || '');
+
                 let file = null;
                 if (data.imageBase64) {
                     file = dataURLtoFile(data.imageBase64, 'draft.png');
                 }
 
                 setCurrentMenu({
-                    ...emptyMenu,
                     ...data,
                     id: item.id,
                     status: item.status,
@@ -261,6 +260,7 @@ function RichMenu() {
                     end_time: item.end_time || '',
                     name: item.name,
                     chatBarText: item.chat_bar_text,
+                    alias: defaultAlias,
                     imageFile: file
                 });
                 setViewOnly(item.status === 'published');
@@ -271,6 +271,7 @@ function RichMenu() {
                     });
                 }
             } else {
+                const defaultAlias = (item.aliases && item.aliases.length > 0) ? item.aliases[0] : '';
                 setCurrentMenu({
                     ...emptyMenu,
                     richMenuId: item.richMenuId,
@@ -278,6 +279,7 @@ function RichMenu() {
                     chatBarText: item.chatBarText,
                     size: item.size,
                     areas: item.areas,
+                    alias: defaultAlias,
                     status: 'published'
                 });
                 setViewOnly(true);
@@ -349,7 +351,8 @@ function RichMenu() {
                     areas: currentMenu.areas,
                     name: currentMenu.name,
                     chatBarText: currentMenu.chatBarText,
-                    imageBase64: currentMenu.imageBase64
+                    imageBase64: currentMenu.imageBase64,
+                    alias: currentMenu.alias
                 })
             };
             await api.post('/richmenu/metadata', payload);
@@ -427,10 +430,24 @@ function RichMenu() {
                     size: currentMenu.size,
                     areas: currentMenu.areas,
                     name: currentMenu.name,
-                    chatBarText: currentMenu.chatBarText
+                    chatBarText: currentMenu.chatBarText,
+                    alias: currentMenu.alias
                 })
             };
             await api.post('/richmenu/metadata', payload);
+
+            // Bind alias if provided
+            if (currentMenu.alias) {
+                try {
+                    await api.post('/richmenu/alias', {
+                        richMenuAliasId: currentMenu.alias,
+                        richMenuId: richMenuId
+                    });
+                } catch (aliasErr) {
+                    console.error('Alias creation failed:', aliasErr);
+                    showToast('別名設定失敗，但選單已建立', 'warning');
+                }
+            }
 
             showToast('選單已成功同步至 LINE！', 'success');
             // 清空本地狀態以防殘影，並回到列表
@@ -681,6 +698,7 @@ function RichMenu() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
                                 <div><label className="label">選單名稱</label><input type="text" disabled={viewOnly} value={currentMenu.name} onChange={e => setCurrentMenu({ ...currentMenu, name: e.target.value })} /></div>
                                 <div><label className="label">聊天欄標題</label><input type="text" disabled={viewOnly} value={currentMenu.chatBarText} onChange={e => setCurrentMenu({ ...currentMenu, chatBarText: e.target.value })} /></div>
+                                <div><label className="label">選單別名 (Alias ID)</label><input type="text" disabled={viewOnly} value={currentMenu.alias || ''} onChange={e => setCurrentMenu({ ...currentMenu, alias: e.target.value })} placeholder="例如: menu-a (小寫英數字及連字號)" /></div>
                             </div>
                         </div>
 

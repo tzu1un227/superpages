@@ -268,7 +268,7 @@ def list_broadcasts():
                         s_at = b['scheduled_at']
                         if s_at.tzinfo is not None:
                             s_at = s_at.replace(tzinfo=None)
-                        if s_at <= now:
+                        if s_at <= datetime.now(timezone(timedelta(hours=8))).replace(tzinfo=None):
                             to_check.append(b)
 
                 if to_check:
@@ -326,6 +326,10 @@ def list_broadcasts():
                 except Exception as e:
                     print(f"Error fetching summary for {b['message_tag']}: {e}")
 
+            b_scheduled_at = None
+            if b['scheduled_at']:
+                b_scheduled_at = b['scheduled_at'].isoformat()[:16]
+
             broadcast_list.append({
                 'id': b['id'],
                 'name': b['name'],
@@ -334,7 +338,7 @@ def list_broadcasts():
                 'message_tag': b['message_tag'],
                 'send_type': b['send_type'],
                 'status': b['status'],
-                'scheduled_at': b['scheduled_at'].isoformat() if b['scheduled_at'] else None,
+                'scheduled_at': b_scheduled_at,
                 'created_at': b['created_at'].isoformat(),
                 'messages': summary
             })
@@ -369,7 +373,10 @@ def create_broadcast():
         try:
             # Handle standard ISO and common variations (with space instead of T)
             iso_str = scheduled_at_raw.replace(' ', 'T')
-            scheduled_at = datetime.fromisoformat(iso_str)
+            naive_dt = datetime.fromisoformat(iso_str)
+            tw_tz = timezone(timedelta(hours=8))
+            tw_dt = naive_dt.replace(tzinfo=tw_tz)
+            scheduled_at = tw_dt.replace(tzinfo=None)
         except ValueError as ve:
             logger.error(f"Invalid date format: {scheduled_at_raw} - {ve}")
             return jsonify({'error': '無效的日期格式，請使用 ISO 格式'}), 400
@@ -417,7 +424,10 @@ def update_broadcast(id):
         status = data.get('status', bc['status'])
         if data.get('scheduled_at'):
             iso_str = data['scheduled_at'].replace(' ', 'T')
-            scheduled_at = datetime.fromisoformat(iso_str)
+            naive_dt = datetime.fromisoformat(iso_str)
+            tw_tz = timezone(timedelta(hours=8))
+            tw_dt = naive_dt.replace(tzinfo=tw_tz)
+            scheduled_at = tw_dt.replace(tzinfo=None)
         else:
             scheduled_at = bc['scheduled_at']
         message_tag = data.get('message_tag', bc['message_tag'])
@@ -558,7 +568,7 @@ def execute_broadcast(id):
                 if not user_ids:
                     return jsonify({'status': 'success', 'targets': 0, 'message': '沒有找到符合條件的受眾'}), 200
 
-                push_time = bc['scheduled_at'] if bc['scheduled_at'] else datetime.now(timezone.utc).replace(tzinfo=None)
+                push_time = bc['scheduled_at'] if bc['scheduled_at'] else datetime.now(timezone(timedelta(hours=8))).replace(tzinfo=None)
                 msg_content = f"QA|{bc['message_tag']}"
                 
                 insert_data = [(uid, msg_content, push_time, 'active') for uid in user_ids]

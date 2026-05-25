@@ -368,7 +368,16 @@ function MessageCenter() {
             newUsers.forEach(u => {
                 if (u.last_time) lastKnownTimeRef.current[u.user_id] = u.last_time;
             });
-            if (newUsers.length > 0 && !selectedUserRef.current) {
+
+            // 處理從其他頁面跳轉時的 userId 參數
+            const params = new URLSearchParams(location.search);
+            const targetUserId = params.get('userId');
+
+            if (targetUserId) {
+                if (selectedUserRef.current !== targetUserId) {
+                    setSelectedUser(targetUserId);
+                }
+            } else if (newUsers.length > 0 && !selectedUserRef.current) {
                 setSelectedUser(newUsers[0].user_id);
             }
         } catch (err) {
@@ -555,7 +564,11 @@ function MessageCenter() {
                 setMessages(prev => {
                     // 過濾掉可能重複的訊息，確保穩定陣列與避免型別錯誤
                     const existingKeys = new Set(prev.map(m => m.timestamp + m.content));
-                    const uniqueNew = newMessages.filter(m => m && m.timestamp && !existingKeys.has(m.timestamp + m.content));
+                    const uniqueNew = newMessages.filter(m => {
+                        if (!m || !m.timestamp || existingKeys.has(m.timestamp + m.content)) return false;
+                        if (m.content && (m.content.startsWith('QA|') || m.content.startsWith('set_tag|') || m.content.startsWith('del_tag|') || m.content.startsWith('bmcast|'))) return false;
+                        return true;
+                    });
                     
                     if (uniqueNew.length > 0) {
                         // 記錄當前捲軸位置，以便插入舊訊息後保持瀏覽位置
@@ -613,7 +626,12 @@ function MessageCenter() {
             const resp = await api.get(`/history/${currentUserId}`);
             if (selectedUserRef.current === currentUserId) {
                 const fullMessages = Array.isArray(resp.data) ? resp.data : [];
-                setMessages(fullMessages);
+                const filteredFull = fullMessages.filter(m => {
+                    if (!m) return false;
+                    if (m.content && (m.content.startsWith('QA|') || m.content.startsWith('set_tag|') || m.content.startsWith('del_tag|') || m.content.startsWith('bmcast|'))) return false;
+                    return true;
+                });
+                setMessages(filteredFull);
                 setHasMoreHistory(false);
             }
         } catch (error) {

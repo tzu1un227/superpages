@@ -2073,10 +2073,9 @@ def create_scheduled_event():
         cur = conn.cursor()
         t_cron = get_suffixed_table('cron_table')
         
-        # Calculate initial push_time in Taiwan time (UTC+8)
+        # Calculate initial push_time in UTC
         from datetime import timezone as tz_zone, timedelta
-        tw_tz = tz_zone(timedelta(hours=8))
-        push_time = datetime.now(tw_tz).replace(tzinfo=None) + timedelta(hours=float(interval_hours))
+        push_time = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=float(interval_hours))
         
         cur.execute(
             f"INSERT INTO {t_cron} (user_id, message_content, repeat_interval, push_time, status) VALUES (%s, %s, %s, %s, 'active') RETURNING task_id",
@@ -2115,6 +2114,15 @@ def get_scheduled_events():
         """)
         events = cur.fetchall()
         
+        # Convert push_time from UTC to Taiwan time for frontend display
+        from datetime import timezone, timedelta
+        tw_tz = timezone(timedelta(hours=8))
+        for e in events:
+            if e['scheduled_at']:
+                utc_dt = e['scheduled_at'].replace(tzinfo=timezone.utc)
+                tw_dt = utc_dt.astimezone(tw_tz)
+                e['scheduled_at'] = tw_dt.isoformat()[:16]
+
         # Enrich with user names from OA DB
         try:
             conn_oa = get_db_connection()
