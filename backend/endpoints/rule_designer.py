@@ -67,7 +67,12 @@ def validate_python_syntax(code_str, field_name):
         # Some legacy formats might use commas to separate expressions in 'check'
         # which Python 'exec' treats as a single tuple. This is fine.
         # But if it's really a syntax error, we report it.
-        return [f"{field_name} 語法錯誤 '{code_str}': {e.msg} (第 {e.lineno} 行)"]
+        field_names_cn = {
+            'check': '檢查條件',
+            'function': '執行動作'
+        }
+        cn_field = field_names_cn.get(field_name, field_name)
+        return [f"{cn_field} 語法錯誤 '{code_str}': {e.msg} (第 {e.lineno} 行)"]
 
 def validate_rule_fields(rule_data, bank_type):
     """
@@ -86,7 +91,7 @@ def validate_rule_fields(rule_data, bank_type):
     msg_rpy = rule_data.get('msg_rpy')
     function_val = rule_data.get('function', '')
     if (not msg_rpy or (isinstance(msg_rpy, list) and len(msg_rpy) == 0)) and not function_val:
-        errors.append('msg_rpy 與 function 皆為空：此規則觸發後既不會回覆訊息，也不會執行函數')
+        errors.append('回覆訊息與執行動作皆為空：此規則觸發後既不會回覆訊息，也不會執行動作')
     
     # 3. check field Python syntax validation
     check_val = rule_data.get('check')
@@ -113,7 +118,7 @@ def validate_rule_fields(rule_data, bank_type):
         content = rule_data.get('content')
         if rule_type and rule_type.lower() == 'message':
             if not content or (isinstance(content, list) and all(not c.strip() for c in content)):
-                errors.append('content 不能為空：Message 類型的規則必須設定觸發內容')
+                errors.append('關鍵字內容不能為空：文字訊息類型的規則必須設定觸發內容')
     
     # 6. tag validation (required for qa_bank)
     if bank_type == 'qa_bank':

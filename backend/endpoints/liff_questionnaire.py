@@ -154,6 +154,7 @@ def _parse_time(value):
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
         try:
             # 動態算出該 format 的實際字元長度（如 19, 16, 10）
+            from datetime import datetime
             expected_len = len(datetime.now().strftime(fmt))
             if len(clean) >= expected_len:
                 return datetime.strptime(clean[:expected_len], fmt)
@@ -724,10 +725,14 @@ def public_get_survey(survey_key):
             return jsonify({"error": "問卷不存在"}), 404
         if survey["status"] != "published":
             return jsonify({"error": "問卷尚未開放"}), 403
-        now = datetime.now()
-        if survey["start_time"] and now < survey["start_time"]:
+        
+        from datetime import datetime, timedelta
+        # 台灣時區 (UTC+8)
+        now_tw = datetime.utcnow() + timedelta(hours=8)
+        
+        if survey["start_time"] and now_tw < survey["start_time"]:
             return jsonify({"error": "問卷尚未開始"}), 403
-        if survey["end_time"] and now > survey["end_time"]:
+        if survey["end_time"] and now_tw > survey["end_time"]:
             return jsonify({"error": "問卷已結束"}), 403
         return jsonify({"survey": _survey_payload(survey, questions)})
     except Exception as e:
@@ -752,6 +757,13 @@ def public_submit_response(survey_key):
             return jsonify({"error": "問卷不存在"}), 404
         if survey["status"] != "published":
             return jsonify({"error": "問卷尚未開放"}), 403
+
+        from datetime import datetime, timedelta
+        now_tw = datetime.utcnow() + timedelta(hours=8)
+        if survey["start_time"] and now_tw < survey["start_time"]:
+            return jsonify({"error": "問卷尚未開始"}), 403
+        if survey["end_time"] and now_tw > survey["end_time"]:
+            return jsonify({"error": "問卷已結束"}), 403
 
         identity = _verify_line_identity(data)
         answers = data.get("answers") or {}

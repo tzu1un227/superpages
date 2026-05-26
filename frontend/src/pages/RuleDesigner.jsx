@@ -614,7 +614,6 @@ function RuleDesigner() {
                                         {!isEnabled && <span style={{ backgroundColor: '#333', color: '#aaa', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>未啟用</span>}
                                         {rule._isNew && <span style={{ backgroundColor: 'rgba(255, 215, 0, 0.2)', color: '#FFD700', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>新建立</span>}
                                         {rule._isDirty && <span style={{ backgroundColor: 'rgba(76, 175, 80, 0.2)', color: '#4CAF50', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>未儲存</span>}
-                                        {rule._updatedAt && <span style={{ color: '#666', fontSize: '11px', marginLeft: 'auto' }}>更新時間: {new Date(rule._updatedAt).toLocaleString()}</span>}
                                     </div>
                                     <div style={{ display: 'flex', gap: '20px', color: '#888', fontSize: '13px', flexWrap: 'wrap' }}>
                                         <span><span style={{ color: '#aaa' }}>觸發關鍵字:</span> {Array.isArray(rule.content) ? rule.content.join(', ') : (rule.content || '無')}</span>
@@ -625,6 +624,7 @@ function RuleDesigner() {
                                     </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                                    {rule._updatedAt && <span style={{ color: '#666', fontSize: '11px', textAlign: 'right' }}>更新時間:<br/>{new Date(rule._updatedAt).toLocaleString()}</span>}
                                     <label onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
                                         <input 
                                             type="checkbox" 
@@ -954,7 +954,8 @@ function RuleDesigner() {
                                                     padding: '6px 12px', fontSize: '11px', width: '100%', 
                                                     backgroundColor: msgCount > 0 ? 'rgba(76, 175, 80, 0.1)' : 'rgba(255, 255, 255, 0.05)',
                                                     color: msgCount > 0 ? '#4CAF50' : '#aaa',
-                                                    border: `1px solid ${msgCount > 0 ? 'rgba(76, 175, 80, 0.3)' : '#333'}`
+                                                    border: `1px solid ${msgCount > 0 ? 'rgba(76, 175, 80, 0.3)' : '#333'}`,
+                                                    height: '32px'
                                                 }}
                                             >
                                                 編輯訊息 ({msgCount}則)
@@ -1014,12 +1015,12 @@ function RuleDesigner() {
                                 <MessageSquare size={18} className="text-yellow" />
                                 編輯回應訊息
                                 <span style={{ fontSize: '12px', color: '#666', fontWeight: 'normal' }}>
-                                    (法則 ID: {draftRules[editingRowIndex]?.id || '新建'})
+                                    (規則 ID: {draftRules[editingRowIndex]?.id || '新建'})
                                 </span>
                             </h3>
                             <div style={{ display: 'flex', gap: '10px' }}>
                                 <button onClick={() => setIsMsgModalOpen(false)} className="secondary" style={{ background: 'transparent', color: '#fff' }}>取消</button>
-                                <button onClick={handleSaveMsgModal} className="primary">確認並套用至表格</button>
+                                <button onClick={handleSaveMsgModal} className="primary">確認並儲存</button>
                             </div>
                         </div>
 
@@ -1037,12 +1038,17 @@ function RuleDesigner() {
                                 </div>
                                 
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                    {msgRpyList.map((msg, idx) => (
+                                    {msgRpyList.map((msg, idx) => {
+                                        let typeLabel = msg.OTYPE || (msg.Line?.OTYPE);
+                                        if (typeLabel === 'TextSendMessage') typeLabel = '文字訊息';
+                                        if (typeLabel === 'ImageSendMessage') typeLabel = '圖片訊息';
+                                        if (typeLabel === 'FlexSendMessage') typeLabel = '圖文訊息';
+                                        return (
                                         <div key={idx} className="card" style={{ padding: '15px', backgroundColor: '#1a1a1a', border: '1px solid #333' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', alignItems: 'center' }}>
                                                 <span style={{ fontSize: '12px', padding: '2px 8px', backgroundColor: '#333', borderRadius: '4px', display: 'flex', gap: '6px', alignItems: 'center' }}>
                                                     <span>#{idx + 1}</span>
-                                                    <span style={{ color: '#FFD700' }}>{msg.OTYPE || (msg.Line?.OTYPE)}</span>
+                                                    <span style={{ color: '#FFD700' }}>{typeLabel}</span>
                                                 </span>
                                                 <Trash2 size={16} className="text-red" style={{ cursor: 'pointer', opacity: 0.7 }} onClick={() => handleRemoveMessage(idx)} />
                                             </div>
@@ -1061,19 +1067,36 @@ function RuleDesigner() {
                                             {/* Editor for Image */}
                                             {(msg.OTYPE === 'ImageSendMessage' || msg.Line?.OTYPE === 'ImageSendMessage') && (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                    { (msg.original_content_url || msg.Line?.original_content_url) && (
+                                                        <img src={msg.original_content_url || msg.Line?.original_content_url} alt="預覽" style={{ maxWidth: '100%', maxHeight: '200px', objectFit: 'contain', borderRadius: '4px', border: '1px solid #333' }} />
+                                                    )}
                                                     <input 
-                                                        type="text" 
-                                                        placeholder="圖片原圖網址 (original_content_url)" 
-                                                        value={msg.original_content_url || msg.Line?.original_content_url || ''}
-                                                        onChange={e => handleUpdateMessage(idx, 'original_content_url', e.target.value)}
-                                                        style={{ width: '100%', fontSize: '12px', backgroundColor: '#000', border: '1px solid #333', padding: '8px', borderRadius: '4px' }}
-                                                    />
-                                                    <input 
-                                                        type="text" 
-                                                        placeholder="預覽圖網址 (preview_image_url)" 
-                                                        value={msg.preview_image_url || msg.Line?.preview_image_url || ''}
-                                                        onChange={e => handleUpdateMessage(idx, 'preview_image_url', e.target.value)}
-                                                        style={{ width: '100%', fontSize: '12px', backgroundColor: '#000', border: '1px solid #333', padding: '8px', borderRadius: '4px' }}
+                                                        type="file" 
+                                                        accept="image/*"
+                                                        onChange={async e => {
+                                                            const file = e.target.files[0];
+                                                            if (!file) return;
+                                                            if (file.size > 1024 * 1024) {
+                                                                alert('錯誤：圖片大小不可超過 1MB');
+                                                                return;
+                                                            }
+                                                            const formData = new FormData();
+                                                            formData.append('file', file);
+                                                            try {
+                                                                const res = await api.post('/upload/github', formData, {
+                                                                    headers: { 'Content-Type': 'multipart/form-data' }
+                                                                });
+                                                                if (res.data && res.data.url) {
+                                                                    // 把 original_content_url 和 preview_image_url 都設定為這個上傳成功的網址
+                                                                    handleUpdateMessage(idx, 'original_content_url', res.data.url);
+                                                                    handleUpdateMessage(idx, 'preview_image_url', res.data.url);
+                                                                }
+                                                            } catch (err) {
+                                                                alert('圖片上傳失敗');
+                                                                console.error(err);
+                                                            }
+                                                        }}
+                                                        style={{ width: '100%', fontSize: '12px', backgroundColor: '#000', border: '1px solid #333', padding: '8px', borderRadius: '4px', color: '#fff' }}
                                                     />
                                                 </div>
                                             )}
@@ -1082,33 +1105,20 @@ function RuleDesigner() {
                                             {(msg.OTYPE === 'FlexSendMessage' || msg.Line?.OTYPE === 'FlexSendMessage') && (
                                                 <div>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                                        <span style={{ fontSize: '12px', color: '#888' }}>JSON Payload</span>
-                                                        <button 
-                                                            onClick={() => { setFlexEditorIndex(idx); setShowFlexEditor(true); }}
-                                                            className="secondary" 
-                                                            style={{ fontSize: '11px', padding: '4px 10px', backgroundColor: 'rgba(255, 215, 0, 0.1)', color: '#FFD700', border: '1px solid rgba(255, 215, 0, 0.3)' }}
-                                                        >
-                                                            <Layers size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                                                            打開視覺化編輯器
-                                                        </button>
+                                                        <span style={{ fontSize: '12px', color: '#888' }}>請使用視覺化編輯器編輯圖文訊息內容</span>
                                                     </div>
-                                                    <textarea 
-                                                        value={typeof (msg.contents || msg.Line?.contents) === 'string' ? (msg.contents || msg.Line?.contents) : JSON.stringify(msg.contents || msg.Line?.contents, null, 2)}
-                                                        onChange={e => {
-                                                            try {
-                                                                const val = JSON.parse(e.target.value);
-                                                                handleUpdateMessage(idx, 'contents', val);
-                                                            } catch {
-                                                                handleUpdateMessage(idx, 'contents', e.target.value);
-                                                            }
-                                                        }}
-                                                        rows={6}
-                                                        style={{ width: '100%', fontSize: '11px', fontFamily: 'monospace', backgroundColor: '#000', border: '1px solid #333', padding: '10px', borderRadius: '6px' }}
-                                                    />
+                                                    <button 
+                                                        onClick={() => { setFlexEditorIndex(idx); setShowFlexEditor(true); }}
+                                                        className="secondary" 
+                                                        style={{ width: '100%', fontSize: '13px', padding: '12px', backgroundColor: 'rgba(255, 215, 0, 0.1)', color: '#FFD700', border: '1px dashed rgba(255, 215, 0, 0.5)' }}
+                                                    >
+                                                        <Layers size={16} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
+                                                        打開視覺化編輯器
+                                                    </button>
                                                 </div>
                                             )}
                                         </div>
-                                    ))}
+                                    )})}
                                     {msgRpyList.length === 0 && (
                                         <div style={{ textAlign: 'center', padding: '40px', color: '#555', border: '1px dashed #333', borderRadius: '8px', backgroundColor: '#111' }}>
                                             這條規則目前沒有設定任何回應訊息。

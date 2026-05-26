@@ -500,7 +500,11 @@ function MessageCenter() {
                 if (selectedUserRef.current === userId && Array.isArray(resp.data) && resp.data.length > 0) {
                     setMessages(prev => {
                         const existingKeys = new Set(prev.map(m => m.timestamp + m.content));
-                        const uniqueNew = resp.data.filter(m => m && m.timestamp && !existingKeys.has(m.timestamp + m.content));
+                        const uniqueNew = resp.data.filter(m => {
+                            if (!m || !m.timestamp || existingKeys.has(m.timestamp + m.content)) return false;
+                            if (m.content && (m.content.startsWith('QA|') || m.content.startsWith('set_tag|') || m.content.startsWith('del_tag|') || m.content.startsWith('bmcast|'))) return false;
+                            return true;
+                        });
                         if (uniqueNew.length > 0) {
                             const latest = uniqueNew[uniqueNew.length - 1];
                             // 同步更新側邊欄用戶狀態
@@ -526,8 +530,13 @@ function MessageCenter() {
             const resp = await api.get(`/history/${userId}?limit=50`, { signal });
             if (selectedUserRef.current === userId) {
                 const loadedMessages = Array.isArray(resp.data) ? resp.data : [];
-                setMessages(loadedMessages);
-                setHasMoreHistory(loadedMessages.length >= 50); // 如果不足 50 筆代表已無更舊的訊息
+                const filteredMessages = loadedMessages.filter(m => {
+                    if (!m) return false;
+                    if (m.content && (m.content.startsWith('QA|') || m.content.startsWith('set_tag|') || m.content.startsWith('del_tag|') || m.content.startsWith('bmcast|'))) return false;
+                    return true;
+                });
+                setMessages(filteredMessages);
+                setHasMoreHistory(loadedMessages.length >= 50); // 如果原始不足 50 筆代表已無更舊的訊息
                 setLoadingChat(false);
             }
 

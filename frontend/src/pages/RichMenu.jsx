@@ -335,8 +335,45 @@ function RichMenu() {
         reader.readAsDataURL(file);
     };
 
+    const validateMenu = () => {
+        if (!currentMenu.name || !currentMenu.name.trim()) {
+            showToast('錯誤：請填寫選單名稱', 'error');
+            return false;
+        }
+        if (!currentMenu.chatBarText || !currentMenu.chatBarText.trim()) {
+            showToast('錯誤：請填寫聊天欄標題', 'error');
+            return false;
+        }
+        if (!currentMenu.areas || currentMenu.areas.length === 0) {
+            showToast('錯誤：請至少設定一個點擊區域', 'error');
+            return false;
+        }
+        for (let i = 0; i < currentMenu.areas.length; i++) {
+            const area = currentMenu.areas[i];
+            if (area.action.type === 'uri' && (!area.action.uri || !area.action.uri.trim())) {
+                showToast(`錯誤：區域 ${i + 1} 尚未填寫連結網址`, 'error');
+                return false;
+            }
+            if (area.action.type === 'message' && (!area.action.text || !area.action.text.trim())) {
+                showToast(`錯誤：區域 ${i + 1} 尚未填寫文字內容`, 'error');
+                return false;
+            }
+        }
+        
+        const trimmedName = currentMenu.name.trim();
+        const duplicateInMetadata = metadata.some(m => m.name === trimmedName && m.id !== currentMenu.id);
+        const duplicateInMenus = menus.some(m => m.name === trimmedName && m.richMenuId !== currentMenu.richMenuId);
+        if (duplicateInMetadata || duplicateInMenus) {
+            showToast('錯誤：選單名稱不能重複', 'error');
+            return false;
+        }
+
+        return true;
+    };
+
     const saveAsDraft = async () => {
         if (viewOnly) return;
+        if (!validateMenu()) return;
         setLoading(true);
         try {
             const payload = {
@@ -367,8 +404,9 @@ function RichMenu() {
 
     const publishToLine = async () => {
         if (viewOnly) return;
+        if (!validateMenu()) return;
         if (!backgroundImage) {
-            showToast('同步至 LINE 必須上傳底圖', 'warning');
+            showToast('錯誤：同步至 LINE 必須上傳底圖', 'error');
             return;
         }
         
