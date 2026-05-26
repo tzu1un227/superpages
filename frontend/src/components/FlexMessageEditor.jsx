@@ -315,9 +315,10 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                     // Base redirect URL through the central API
                     // Always inject oaId for correct tenant context and event tracking
                     const redirectBase = API_BASE_URL ? `${API_BASE_URL}/redirect` : '/api/redirect';
+                    const absoluteRedirectBase = redirectBase.startsWith('/') ? window.location.origin + redirectBase : redirectBase;
                     
                     // Construct final target URL with oaId
-                    const finalTargetUrl = `${redirectBase}?url=${encodeURIComponent(finalVal)}&oaId=${oaId}&tags=${encodeURIComponent(tags.join(','))}`;
+                    const finalTargetUrl = `${absoluteRedirectBase}?url=${encodeURIComponent(finalVal)}&oaId=${oaId}&tags=${encodeURIComponent(tags.join(','))}`;
 
                     // If we have an appName, wrap in LIFF jump-site
                     if (appName) {
@@ -333,7 +334,8 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                 
                 // Even without tags, route through central API for tracking and inject oaId
                 const redirectBase = API_BASE_URL ? `${API_BASE_URL}/redirect` : '/api/redirect';
-                const finalTargetUrl = `${redirectBase}?url=${encodeURIComponent(finalVal)}&oaId=${oaId}`;
+                const absoluteRedirectBase = redirectBase.startsWith('/') ? window.location.origin + redirectBase : redirectBase;
+                const finalTargetUrl = `${absoluteRedirectBase}?url=${encodeURIComponent(finalVal)}&oaId=${oaId}`;
                 return { type: 'uri', label: 'action', uri: finalTargetUrl };
             }
 
