@@ -1754,7 +1754,7 @@ def get_user_history(user_id):
         if after:
             # Incremental polling: only fetch messages newer than the given timestamp
             cur.execute(
-                f'SELECT * FROM "history:{app_id}" WHERE user_id = %s AND timestamp >= %s {visible_message_filter} ORDER BY timestamp ASC',
+                f'SELECT * FROM "history:{app_id}" WHERE user_id = %s AND timestamp > %s {visible_message_filter} ORDER BY timestamp ASC',
                 (user_id, after)
             )
             history = cur.fetchall()
