@@ -74,7 +74,7 @@ def validate_python_syntax(code_str, field_name):
         cn_field = field_names_cn.get(field_name, field_name)
         return [f"{cn_field} 語法錯誤 '{code_str}': {e.msg} (第 {e.lineno} 行)"]
 
-def validate_rule_fields(rule_data, bank_type):
+def validate_rule_fields(rule_data, bank_type, design_mode='engineering'):
     """
     Validate rule fields before saving.
     Returns a list of error messages, or empty list if all valid.
@@ -85,13 +85,15 @@ def validate_rule_fields(rule_data, bank_type):
     if bank_type in ('q_bank', 'ad_bank'):
         state_in = rule_data.get('state_in')
         if not state_in or (isinstance(state_in, list) and all(not s.strip() for s in state_in)):
-            errors.append('state_in 不能為空：請設定至少一個輸入狀態（例如 * 代表任意狀態）')
+            msg = 'state_in 不能為空：請設定至少一個輸入狀態（例如 * 代表任意狀態）' if design_mode == 'engineering' else '標籤狀態不能為空'
+            errors.append(msg)
     
     # 2. msg_rpy validation (warn if empty — rule has no response)
     msg_rpy = rule_data.get('msg_rpy')
     function_val = rule_data.get('function', '')
     if (not msg_rpy or (isinstance(msg_rpy, list) and len(msg_rpy) == 0)) and not function_val:
-        errors.append('回覆訊息與執行動作皆為空：此規則觸發後既不會回覆訊息，也不會執行動作')
+        msg = '回覆訊息與執行動作皆為空：此規則觸發後既不會回覆訊息，也不會執行動作' if design_mode == 'engineering' else '回覆訊息不可不填'
+        errors.append(msg)
     
     # 3. check field Python syntax validation
     check_val = rule_data.get('check')
@@ -118,13 +120,15 @@ def validate_rule_fields(rule_data, bank_type):
         content = rule_data.get('content')
         if rule_type and rule_type.lower() == 'message':
             if not content or (isinstance(content, list) and all(not c.strip() for c in content)):
-                errors.append('關鍵字內容不能為空：文字訊息類型的規則必須設定觸發內容')
+                msg = '關鍵字內容不能為空：文字訊息類型的規則必須設定觸發內容' if design_mode == 'engineering' else '關鍵字內容不能為空'
+                errors.append(msg)
     
     # 6. tag validation (required for qa_bank)
     if bank_type == 'qa_bank':
         tag = rule_data.get('tag', '')
         if not tag or not tag.strip():
-            errors.append('tag 不能為空：QA 規則必須設定標籤以配對 Input/Output')
+            msg = 'tag 不能為空：QA 規則必須設定標籤以配對 Input/Output' if design_mode == 'engineering' else '標籤不能為空'
+            errors.append(msg)
     
     return errors
 
@@ -178,13 +182,14 @@ def list_rules():
 def create_rule():
     data = request.json
     bank_type = data.get('bank_type', 'q_bank')
+    design_mode = data.get('design_mode', 'engineering')
     rule_data = data.get('rule')
     
     if not rule_data:
         return jsonify({'error': 'Rule data is required'}), 400
     
     # Validate fields before saving
-    validation_errors = validate_rule_fields(rule_data, bank_type)
+    validation_errors = validate_rule_fields(rule_data, bank_type, design_mode)
     if validation_errors:
         return jsonify({'status': 'validation_error', 'errors': validation_errors}), 400
         

@@ -1747,8 +1747,8 @@ def get_user_history(user_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
         visible_message_filter = """
-            AND (LOWER(category) NOT IN ('sensor', 'postback', 'follow', 'unfollow', 'beacon') OR category IS NULL)
-            AND (content IS NULL OR (content NOT LIKE 'bmcast|%%' AND content NOT LIKE 'QA|%%' AND content NOT LIKE 'set_tag|%%' AND content NOT LIKE 'del_tag|%%'))
+            AND (LOWER(category) NOT IN ('sensor', 'postback', 'follow', 'unfollow', 'beacon', 'cron', 'bmcast') OR category IS NULL)
+            AND (content IS NULL OR (content NOT LIKE 'bmcast|%%' AND content NOT LIKE 'QA|%%' AND content NOT LIKE 'set_tag|%%' AND content NOT LIKE 'del_tag|%%' AND content NOT LIKE 'cron|%%'))
         """
         
         if after:
@@ -1933,8 +1933,8 @@ def get_users_list():
         where_sql = ('WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
 
         visible_message_filter = """
-                         AND (LOWER(category) NOT IN ('sensor', 'postback', 'follow', 'unfollow', 'beacon') OR category IS NULL)
-                         AND (content IS NULL OR (content NOT LIKE 'bmcast|%%' AND content NOT LIKE 'QA|%%' AND content NOT LIKE 'set_tag|%%' AND content NOT LIKE 'del_tag|%%'))
+                         AND (LOWER(category) NOT IN ('sensor', 'postback', 'follow', 'unfollow', 'beacon', 'cron', 'bmcast') OR category IS NULL)
+                         AND (content IS NULL OR (content NOT LIKE 'bmcast|%%' AND content NOT LIKE 'QA|%%' AND content NOT LIKE 'set_tag|%%' AND content NOT LIKE 'del_tag|%%' AND content NOT LIKE 'cron|%%'))
         """
 
         query = f"""

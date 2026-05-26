@@ -378,11 +378,13 @@ function RuleDesigner() {
             if (ruleToSave.id !== undefined && ruleToSave.id !== null && !draftRules[index]._isNew) {
                 res = await api.put(`/rule-designer/rules/${ruleToSave.id}`, {
                     bank_type: bankType,
+                    design_mode: designMode,
                     rule: ruleToSave
                 });
             } else {
                 res = await api.post('/rule-designer/rules', {
                     bank_type: bankType,
+                    design_mode: designMode,
                     rule: ruleToSave
                 });
             }
