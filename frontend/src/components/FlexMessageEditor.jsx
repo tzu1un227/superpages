@@ -324,7 +324,8 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                     if (appName) {
                         const liffId = "2009851813-AgTeSa4r";
                         const tagName = tags.join(',');
-                        const liffUrl = `https://liff.line.me/${liffId}?bot=${appName}&tag=${encodeURIComponent(tagName)}&redirect=${encodeURIComponent(finalTargetUrl)}`;
+                        // 使用 finalVal (原網址) 取代 finalTargetUrl (/api/redirect) 以加速跳轉
+                        const liffUrl = `https://liff.line.me/${liffId}?bot=${appName}&tag=${encodeURIComponent(tagName)}&redirect=${encodeURIComponent(finalVal)}`;
                         return { type: 'uri', label: 'action', uri: liffUrl };
                     }
                     
