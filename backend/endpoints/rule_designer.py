@@ -92,7 +92,7 @@ def validate_rule_fields(rule_data, bank_type, design_mode='engineering'):
     msg_rpy = rule_data.get('msg_rpy')
     function_val = rule_data.get('function', '')
     if (not msg_rpy or (isinstance(msg_rpy, list) and len(msg_rpy) == 0)) and not function_val:
-        msg = '回覆訊息與執行動作皆為空：此規則觸發後既不會回覆訊息，也不會執行動作' if design_mode == 'engineering' else '回覆訊息不可不填'
+        msg = '回覆訊息與執行動作皆為空：此規則觸發後既不會回覆訊息，也不會執行動作' if design_mode == 'engineering' else '請設定至少一則回覆訊息，讓機器人知道該回覆什麼內容唷！'
         errors.append(msg)
     
     # 3. check field Python syntax validation

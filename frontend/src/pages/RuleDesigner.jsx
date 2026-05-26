@@ -325,6 +325,22 @@ function RuleDesigner() {
 
     const handleSaveMsgModal = () => {
         if (editingRowIndex === null) return;
+        
+        for (let i = 0; i < msgRpyList.length; i++) {
+            const msg = msgRpyList[i];
+            if (msg.OTYPE === 'TextSendMessage') {
+                if (!msg.text || !msg.text.trim()) {
+                    showToast('文字訊息內容不能為空白', 'error');
+                    return;
+                }
+            } else if (msg.OTYPE === 'ImageSendMessage') {
+                if (!msg.original_content_url || !msg.original_content_url.trim()) {
+                    showToast('圖片訊息網址不能為空白', 'error');
+                    return;
+                }
+            }
+        }
+        
         const newDrafts = [...draftRules];
         newDrafts[editingRowIndex].msg_rpy = msgRpyList;
         newDrafts[editingRowIndex]._isDirty = true;
