@@ -540,28 +540,16 @@ function RichMenu() {
         }
     };
 
-    const unlinkToAll = async (id) => {
-        if (!window.confirm('確定要解除全體用戶的圖文選單連結嗎？這將使他們恢復為預設圖文選單。')) return;
+    
+    const handleClearAll = async () => {
+        if (!window.confirm('確定要清除所有的圖文選單嗎？這將會移除全域預設選單，並解除所有用戶的個別綁定。')) return;
         setLoading(true);
         try {
-            await api.post(`/richmenu/unlink/${id}`);
-            showToast('已解除個別連結', 'success');
+            await api.post('/richmenu/clear-all');
+            showToast('已清除所有圖文選單', 'success');
+            await fetchData();
         } catch (err) {
-            showToast('解除失敗', 'error');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleUnsetDefault = async () => {
-        if (!window.confirm('確定要解除全域預設選單嗎？')) return;
-        setLoading(true);
-        try {
-            await api.delete('/richmenu/set-default');
-            fetchData();
-            showToast('已解除預設', 'success');
-        } catch (err) {
-            showToast('解除失敗', 'error');
+            showToast('清除失敗', 'error');
         } finally {
             setLoading(false);
         }
@@ -705,9 +693,7 @@ function RichMenu() {
                         {!viewOnly && currentMenu.richMenuId && (
                             <button onClick={() => linkToAll(currentMenu.richMenuId)} className="primary" style={{ backgroundColor: '#4CAF50', color: '#fff', border: 'none' }}><LinkIcon size={18} /> 立即連結全體</button>
                         )}
-                        {!viewOnly && currentMenu.richMenuId && (
-                            <button onClick={() => unlinkToAll(currentMenu.richMenuId)} className="primary" style={{ backgroundColor: '#f44336', color: '#fff', border: 'none' }}><Unlink size={18} /> 解除個別連結</button>
-                        )}
+                        
                     </div>
                 </div>
 
@@ -902,7 +888,7 @@ function RichMenu() {
                 </div>
                 <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
                     <button onClick={() => setView('permissions')} className="secondary"><Shield size={18} /> 權限控管</button>
-                    <button onClick={handleUnsetDefault} className="secondary" style={{ color: '#ff4d4d' }}><RotateCcw size={18} /> 重置預設</button>
+                    <button onClick={handleClearAll} className="secondary" style={{ color: '#ff4d4d' }}><Trash2 size={18} /> 清除所有圖文選單</button>
                     <button onClick={handleCreateNew} className="primary"><Plus size={20} /> 新增選單</button>
                 </div>
             </div>
@@ -950,11 +936,7 @@ function RichMenu() {
                                                             <LinkIcon size={16} />
                                                         </button>
                                                     </Tooltip>
-                                                    <Tooltip title="解除全體用戶與此選單的個別連結 (Unlink)">
-                                                        <button onClick={() => unlinkToAll(rid)} className="secondary" style={{ padding: '8px', color: '#fff', borderColor: '#f44336', backgroundColor: 'rgba(244, 67, 54, 0.1)' }}>
-                                                            <Unlink size={16} />
-                                                        </button>
-                                                    </Tooltip>
+                                                    
                                                     {!isDefault && (
                                                         <Tooltip title="設為全域預設選單 (Set Default)">
                                                             <button onClick={() => setDefault(rid)} className="secondary" style={{ padding: '8px' }}>

@@ -341,6 +341,25 @@ def unset_default_rich_menu():
     except Exception as e:
         return jsonify({'message': 'Error', 'error': str(e)}), 500
 
+@richmenu_bp.route('/clear-all', methods=['POST'])
+@token_required
+def clear_all_rich_menus():
+    token = get_line_token()
+    if not token:
+        return jsonify({'message': 'Line token not configured'}), 400
+    
+    headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
+    
+    try:
+        # 1. Clear default rich menu
+        requests.delete('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
+        # 2. Unlink individual users
+        bulk_unlink_all_users(headers)
+        
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'message': 'Error', 'error': str(e)}), 500
+
 @richmenu_bp.route('/permissions', methods=['GET'], strict_slashes=False)
 @token_required
 def get_rich_menu_permissions():
