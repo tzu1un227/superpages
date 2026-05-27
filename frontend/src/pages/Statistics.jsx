@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import api from '../api';
 import {
     Users,
@@ -88,6 +89,7 @@ const StatCard = ({ title, value, loading, icon: Component, color }) => (
 );
 
 const Statistics = () => {
+    const { oaId } = useParams();
     const [globalData, setGlobalData] = useState({ follow: [], user: [], message: [], total_counts: {} });
     const [lineInsight, setLineInsight] = useState(null);
     const [quotaConsumption, setQuotaConsumption] = useState(null);
@@ -135,12 +137,12 @@ const Statistics = () => {
 
     useEffect(() => {
         fetchStats();
-    }, [statsDateRange, groupUnit]);
+    }, [statsDateRange, groupUnit, oaId]);
 
     // 關鍵字排行：當標籤篩選或日期範圍變化時重新抓取
     useEffect(() => {
         fetchKeywords();
-    }, [keywordTag, statsDateRange]);
+    }, [keywordTag, statsDateRange, oaId]);
 
     const fetchKeywords = async () => {
         setKeywordLoading(true);

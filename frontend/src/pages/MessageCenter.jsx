@@ -1225,11 +1225,16 @@ function MessageCenter() {
                     <>
                         {/* 聊天室 Header：用戶名 + 標籤 + 新增標籤 */}
                         <div style={{ padding: '20px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <div>
-                                <h3 style={{ fontSize: '18px', marginBottom: '5px' }}>{currentUserInfo?.name || selectedUser}</h3>
-                                {currentUserInfo?.name && (
-                                    <p style={{ fontSize: '12px', color: '#555', marginBottom: '5px' }}>{selectedUser}</p>
+                            <div style={{ display: 'flex', gap: '15px' }}>
+                                {currentUserInfo?.pic ? (
+                                    <img src={currentUserInfo.pic} alt="avatar" style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover' }} />
+                                ) : (
+                                    <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <User size={24} color="#666" />
+                                    </div>
                                 )}
+                                <div>
+                                    <h3 style={{ fontSize: '18px', marginBottom: '5px', marginTop: 0 }}>{currentUserInfo?.name || selectedUser}</h3>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '10px' }}>
                                     {getCurrentUserTags(currentUserInfo).map((t, i) => (
                                         <span key={i} style={{
@@ -1262,6 +1267,7 @@ function MessageCenter() {
                                             >×</button>
                                         </span>
                                     ))}
+                                </div>
                                 </div>
                             </div>
                             <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>

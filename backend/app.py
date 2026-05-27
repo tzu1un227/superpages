@@ -2268,7 +2268,7 @@ def get_line_message_content(message_id):
     try:
         # Use api-data.line.me for content retrieval
         url = f"https://api-data.line.me/v2/bot/message/{message_id}/content"
-        resp = requests.get(url, headers=headers, stream=True)
+        resp = requests.get(url, headers=headers, stream=True, timeout=10)
         
         if resp.status_code == 200:
             from flask import Response

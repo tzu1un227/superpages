@@ -295,6 +295,29 @@ def set_default_rich_menu(richMenuId):
     }
     
     try:
+        from db_utils import get_main_db_connection
+        from psycopg2.extras import RealDictCursor
+        
+        # 取消所有個別使用者的綁定，確保 default 選單能覆蓋所有用戶
+        try:
+            conn = get_main_db_connection()
+            if conn:
+                t_users = get_t('users_table')
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute(f"SELECT user_id FROM {t_users}")
+                users = cur.fetchall()
+                user_ids = [u['user_id'] for u in users if u.get('user_id')]
+                
+                # 每次最多 500 筆，批次解除綁定
+                for i in range(0, len(user_ids), 500):
+                    batch = user_ids[i:i+500]
+                    requests.post('https://api.line.me/v2/bot/richmenu/bulk/unlink', headers=headers, json={'userIds': batch})
+                
+                cur.close()
+                conn.close()
+        except Exception as e:
+            print(f"Error unlinking bulk users: {e}")
+            
         resp = requests.post(f'https://api.line.me/v2/bot/user/all/richmenu/{richMenuId}', headers=headers)
         if resp.status_code == 200:
             return jsonify({'status': 'success'})

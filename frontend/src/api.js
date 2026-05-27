@@ -34,7 +34,7 @@ api.interceptors.request.use(
 
         // X-OA-ID from URL (only if not already set manually)
         if (typeof window !== 'undefined' && !config.headers['X-OA-ID']) {
-            const match = window.location.pathname.match(/\/oa\/(\d+)/);
+            const match = window.location.pathname.match(/\/oa\/([^\/]+)/);
             if (match) {
                 config.headers['X-OA-ID'] = match[1];
             }
@@ -61,7 +61,7 @@ const normalizeCacheUrl = (url) => {
 const getCacheKey = (url, config = {}) => {
     let oaId = '';
     if (typeof window !== 'undefined') {
-        const match = window.location.pathname.match(/\/oa\/(\d+)/);
+        const match = window.location.pathname.match(/\/oa\/([^\/]+)/);
         if (match) oaId = match[1];
     }
 
@@ -94,7 +94,7 @@ api.get = async function(url, config) {
     // Include X-OA-ID in cache key manually since interceptor adds it later
     let oaId = '';
     if (typeof window !== 'undefined') {
-        const match = window.location.pathname.match(/\/oa\/(\d+)/);
+        const match = window.location.pathname.match(/\/oa\/([^\/]+)/);
         if (match) oaId = match[1];
     }
     
@@ -182,7 +182,7 @@ api.interceptors.response.use(
                 
                 // Immediately reload data in the background instead of waiting for navigation
                 let currentOaId = '';
-                const match = window.location.pathname.match(/\/oa\/(\d+)/);
+                const match = window.location.pathname.match(/\/oa\/([^\/]+)/);
                 if (match) currentOaId = match[1];
                 if (currentOaId) {
                     preloadPagesData(currentOaId, true);

@@ -1,5 +1,13 @@
 import React from 'react';
 import { User } from 'lucide-react';
+import { API_BASE_URL } from '../api';
+
+const getMediaUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
+    if (url.startsWith('/')) return `${API_BASE_URL}${url}`;
+    return `${API_BASE_URL}/${url}`;
+};
 
 // Mock styles for LINE simulation
 const styles = {
@@ -209,7 +217,7 @@ const JourneyPreview = ({ steps = [] }) => {
         if (msg.OTYPE === 'ImageSendMessage') {
             return (
                 <div key={idx} style={styles.imageBubble}>
-                    <img src={msg.preview_image_url || msg.original_content_url} alt="Image" style={{ width: '100%' }} />
+                    <img src={getMediaUrl(msg.preview_image_url || msg.original_content_url)} alt="Image" style={{ width: '100%' }} />
                 </div>
             );
         }
@@ -219,8 +227,8 @@ const JourneyPreview = ({ steps = [] }) => {
             return (
                 <div key={idx} style={{ ...styles.imageBubble, position: 'relative' }}>
                     <video
-                        src={msg.original_content_url}
-                        poster={msg.preview_image_url}
+                        src={getMediaUrl(msg.original_content_url)}
+                        poster={getMediaUrl(msg.preview_image_url)}
                         controls
                         style={{ width: '100%', borderRadius: '10px' }}
                     />

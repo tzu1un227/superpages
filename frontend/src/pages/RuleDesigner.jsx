@@ -1026,7 +1026,7 @@ function RuleDesigner() {
             {isMsgModalOpen && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'stretch', padding: '40px' }}>
                     
-                    <div className="card" style={{ flex: 1, maxWidth: '1200px', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
+                    <div className="card" style={{ flex: 1, maxWidth: '900px', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
                         {/* Modal Header */}
                         <div style={{ padding: '15px 20px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#111' }}>
                             <h3 style={{ margin: 0, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1176,7 +1176,6 @@ function RuleDesigner() {
                             initialContent={msgRpyList[flexEditorIndex]?.contents || msgRpyList[flexEditorIndex]?.Line?.contents}
                             onSave={(json) => {
                                 handleUpdateMessage(flexEditorIndex, 'contents', JSON.parse(json));
-                                setShowFlexEditor(false);    
                             }}
                             onCancel={() => setShowFlexEditor(false)}
                         />

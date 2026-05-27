@@ -37,8 +37,17 @@ const CustomerCenter = () => {
   const fetchCustomers = async (silent = false) => {
     if (!silent && customers.length === 0) setIsLoading(true);
     try {
-      const response = await api.get('/customers');
+      const response = await api.get('/customers?limit=100&offset=0');
       setCustomers(response.data);
+      
+      // 若數量滿 100 筆，表示可能還有更多資料，在背景繼續載入剩餘的
+      if (response.data.length === 100) {
+        api.get('/customers?offset=100').then(res => {
+          if (res.data && res.data.length > 0) {
+            setCustomers(prev => [...prev, ...res.data]);
+          }
+        }).catch(e => console.error('Background fetch failed:', e));
+      }
     } catch (error) {
       console.error('Error fetching customers:', error);
       showToast('無法取得客戶名單', 'error');

@@ -15,6 +15,13 @@ def get_current_app_id():
 @token_required
 def get_customers():
     print("DEBUG: get_customers called")
+    
+    from flask import request
+    limit = request.args.get('limit', type=int)
+    offset = request.args.get('offset', type=int)
+    limit_clause = f"LIMIT {limit}" if limit else ""
+    offset_clause = f"OFFSET {offset}" if offset else ""
+    
     conn = None
     try:
         app_id = get_current_app_id()
@@ -39,7 +46,9 @@ def get_customers():
                 GROUP BY user_id
                 HAVING MAX(CASE WHEN name = 'name' THEN value END) IS NOT NULL 
                    AND MAX(CASE WHEN name = 'name' THEN value END) NOT IN ('', 'None', '未命名用戶')
-                LIMIT 500
+                ORDER BY user_id
+                {limit_clause}
+                {offset_clause}
             )
             SELECT u.*, 
                    (SELECT MAX(timestamp) FROM {history_table} h WHERE h.user_id = u.user_id) as last_interaction,
