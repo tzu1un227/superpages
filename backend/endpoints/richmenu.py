@@ -412,6 +412,40 @@ def bulk_unlink_all_users(headers):
     except Exception as e:
         print(f"Error unlinking bulk users: {e}")
 
+def bulk_link_all_users(headers, richMenuId):
+    try:
+        from db_utils import get_main_db_connection
+        from psycopg2.extras import RealDictCursor
+        from flask import g
+        conn = get_main_db_connection()
+        if conn:
+            app_name = getattr(g, 'current_app_name', None)
+            if not app_name:
+                oa_id = getattr(g, 'current_oa_id', None)
+                if oa_id:
+                    from models import OAConfig
+                    oa = OAConfig.query.get(oa_id)
+                    if oa and oa.other_settings and oa.other_settings.get('app_name'):
+                        app_name = str(oa.other_settings['app_name'])
+                        g.current_app_name = app_name
+            if not app_name: return
+            
+            t_users = f'"Private_var:{app_name}"'
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(f"SELECT DISTINCT user_id FROM {t_users} WHERE user_id IS NOT NULL")
+            users = cur.fetchall()
+            user_ids = [u['user_id'] for u in users if u.get('user_id')]
+            
+            import requests
+            for i in range(0, len(user_ids), 500):
+                batch = user_ids[i:i+500]
+                requests.post('https://api.line.me/v2/bot/richmenu/bulk/link', headers=headers, json={'userIds': batch, 'richMenuId': richMenuId})
+            
+            cur.close()
+            conn.close()
+    except Exception as e:
+        print(f"Error linking bulk users: {e}")
+
 def get_t(base):
     """
     Returns the table name with the appropriate suffix for multi-tenancy.
@@ -704,29 +738,21 @@ def delete_rich_menu_metadata(id):
 @richmenu_bp.route('/link/<richMenuId>', methods=['POST'])
 @token_required
 def link_rich_menu_to_all(richMenuId):
-    """將圖文選單設為全域預設 (Link to All)"""
+    """將圖文選單個別綁定至全體用戶 (Individual Bulk Link to All)"""
     token = get_line_token()
     if not token: return jsonify({'message': 'Line token not configured'}), 400
-    headers = {'Authorization': f'Bearer {token}'}
+    headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
     
-    bulk_unlink_all_users(headers)
-    
-    resp = requests.post(f'https://api.line.me/v2/bot/user/all/richmenu/{richMenuId}', headers=headers)
-    if resp.status_code == 200:
-        return jsonify({'status': 'success'})
-    return jsonify({'message': 'Link failed', 'error': resp.text}), resp.status_code
+    bulk_link_all_users(headers, richMenuId)
+    return jsonify({'status': 'success'})
 
 @richmenu_bp.route('/unlink', methods=['POST'])
 @token_required
 def unlink_rich_menu_from_all():
-    """解除全域預設圖文選單 (Unlink from All)"""
+    """解除全體用戶的個別圖文選單綁定 (Bulk Unlink from All)"""
     token = get_line_token()
     if not token: return jsonify({'message': 'Line token not configured'}), 400
-    headers = {'Authorization': f'Bearer {token}'}
+    headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
     
     bulk_unlink_all_users(headers)
-    
-    resp = requests.delete('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
-    if resp.status_code == 200:
-        return jsonify({'status': 'success'})
-    return jsonify({'message': 'Unlink failed', 'error': resp.text}), resp.status_code
+    return jsonify({'status': 'success'})
