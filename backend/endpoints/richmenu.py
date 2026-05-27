@@ -307,13 +307,11 @@ def set_default_rich_menu(richMenuId):
                 cur.execute(f"SELECT user_id FROM {t_users}")
                 users = cur.fetchall()
                 user_ids = [u['user_id'] for u in users if u.get('user_id')]
-            print(f'Found {len(user_ids)} users to link', flush=True)
                 
                 # 每次最多 500 筆，批次解除綁定
                 for i in range(0, len(user_ids), 500):
                     batch = user_ids[i:i+500]
-                    resp = requests.post('https://api.line.me/v2/bot/richmenu/bulk/unlink', headers=headers, json={'userIds': batch})
-                print(f'bulk_unlink batch {i} response: {resp.status_code} {resp.text}', flush=True)
+                    requests.post('https://api.line.me/v2/bot/richmenu/bulk/unlink', headers=headers, json={'userIds': batch})
                 
                 cur.close()
                 conn.close()
@@ -396,22 +394,18 @@ def bulk_unlink_all_users(headers):
                     if oa and oa.other_settings and oa.other_settings.get('app_name'):
                         app_name = str(oa.other_settings['app_name'])
                         g.current_app_name = app_name
-            if not app_name:
-        print('bulk_link_all_users failed: app_name is None', flush=True)
-        return
+            if not app_name: return
             
             t_users = f'"Private_var:{app_name}"'
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(f"SELECT DISTINCT user_id FROM {t_users} WHERE user_id IS NOT NULL")
             users = cur.fetchall()
             user_ids = [u['user_id'] for u in users if u.get('user_id')]
-            print(f'Found {len(user_ids)} users to link', flush=True)
             
             import requests
             for i in range(0, len(user_ids), 500):
                 batch = user_ids[i:i+500]
-                resp = requests.post('https://api.line.me/v2/bot/richmenu/bulk/unlink', headers=headers, json={'userIds': batch})
-                print(f'bulk_unlink batch {i} response: {resp.status_code} {resp.text}', flush=True)
+                requests.post('https://api.line.me/v2/bot/richmenu/bulk/unlink', headers=headers, json={'userIds': batch})
             
             cur.close()
             conn.close()
@@ -435,23 +429,18 @@ def bulk_link_all_users(headers, richMenuId):
                     if oa and oa.other_settings and oa.other_settings.get('app_name'):
                         app_name = str(oa.other_settings['app_name'])
                         g.current_app_name = app_name
-            if not app_name:
-        print('bulk_link_all_users failed: app_name is None', flush=True)
-        return
+            if not app_name: return
             
             t_users = f'"Private_var:{app_name}"'
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(f"SELECT DISTINCT user_id FROM {t_users} WHERE user_id IS NOT NULL")
             users = cur.fetchall()
             user_ids = [u['user_id'] for u in users if u.get('user_id')]
-            print(f'Found {len(user_ids)} users to link', flush=True)
             
             import requests
             for i in range(0, len(user_ids), 500):
                 batch = user_ids[i:i+500]
-                
-                resp = resp = requests.post('https://api.line.me/v2/bot/richmenu/bulk/link', headers=headers, json={'userIds': batch, 'richMenuId': richMenuId})
-                print(f'bulk_link batch {i} response: {resp.status_code} {resp.text}', flush=True)
+                requests.post('https://api.line.me/v2/bot/richmenu/bulk/link', headers=headers, json={'userIds': batch, 'richMenuId': richMenuId})
             
             cur.close()
             conn.close()
