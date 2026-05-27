@@ -945,9 +945,14 @@ function RichMenu() {
                                             </button>
                                             {isPublished && rid && (
                                                 <>
-                                                    <Tooltip title="立即將此選單連結至所有用戶 (Link)">
-                                                        <button onClick={() => linkToAll(rid)} className="secondary" style={{ padding: '8px', color: 'var(--primary-yellow)', borderColor: 'var(--primary-yellow)' }}>
+                                                    <Tooltip title="立即將此圖文選單連結至全體用戶 (Link)">
+                                                        <button onClick={() => linkToAll(rid)} className="secondary" style={{ padding: '8px', color: '#fff', borderColor: '#4CAF50', backgroundColor: 'rgba(76, 175, 80, 0.1)' }}>
                                                             <LinkIcon size={16} />
+                                                        </button>
+                                                    </Tooltip>
+                                                    <Tooltip title="解除全體用戶與此選單的個別連結 (Unlink)">
+                                                        <button onClick={() => unlinkToAll(rid)} className="secondary" style={{ padding: '8px', color: '#fff', borderColor: '#f44336', backgroundColor: 'rgba(244, 67, 54, 0.1)' }}>
+                                                            <Unlink size={16} />
                                                         </button>
                                                     </Tooltip>
                                                     {!isDefault && (
