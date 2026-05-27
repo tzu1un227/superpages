@@ -396,7 +396,7 @@ def bulk_unlink_all_users(headers):
                         g.current_app_name = app_name
             if not app_name: return
             
-            t_users = f'"Private_var:{app_name}"'
+            t_users = get_t('users_table')
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(f"SELECT DISTINCT user_id FROM {t_users} WHERE user_id IS NOT NULL")
             users = cur.fetchall()
@@ -431,7 +431,7 @@ def bulk_link_all_users(headers, richMenuId):
                         g.current_app_name = app_name
             if not app_name: return
             
-            t_users = f'"Private_var:{app_name}"'
+            t_users = get_t('users_table')
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(f"SELECT DISTINCT user_id FROM {t_users} WHERE user_id IS NOT NULL")
             users = cur.fetchall()
