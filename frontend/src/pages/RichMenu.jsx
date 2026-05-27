@@ -544,7 +544,7 @@ function RichMenu() {
         if (!window.confirm('確定要解除全體用戶的圖文選單連結嗎？這將使他們恢復為預設圖文選單。')) return;
         setLoading(true);
         try {
-            await api.post(`/richmenu/unlink`);
+            await api.post(`/richmenu/unlink/${id}`);
             showToast('已解除個別連結', 'success');
         } catch (err) {
             showToast('解除失敗', 'error');
