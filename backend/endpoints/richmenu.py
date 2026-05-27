@@ -396,10 +396,20 @@ def bulk_unlink_all_users(headers):
                         g.current_app_name = app_name
             if not app_name: return
             
-            t_users = get_t('users_table')
+            t_private = f'"Private_var:{app_name}"'
+            t_history = f'"history:{app_name}"'
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute(f"SELECT DISTINCT user_id FROM {t_users} WHERE user_id IS NOT NULL")
-            users = cur.fetchall()
+            try:
+                cur.execute(f"""
+                    SELECT DISTINCT user_id FROM {t_private} WHERE user_id IS NOT NULL
+                    UNION
+                    SELECT DISTINCT user_id FROM {t_history} WHERE user_id IS NOT NULL
+                """)
+                users = cur.fetchall()
+            except Exception:
+                conn.rollback()
+                cur.execute(f"SELECT DISTINCT user_id FROM {t_private} WHERE user_id IS NOT NULL")
+                users = cur.fetchall()
             user_ids = [u['user_id'] for u in users if u.get('user_id')]
             
             import requests
@@ -431,10 +441,20 @@ def bulk_link_all_users(headers, richMenuId):
                         g.current_app_name = app_name
             if not app_name: return
             
-            t_users = get_t('users_table')
+            t_private = f'"Private_var:{app_name}"'
+            t_history = f'"history:{app_name}"'
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute(f"SELECT DISTINCT user_id FROM {t_users} WHERE user_id IS NOT NULL")
-            users = cur.fetchall()
+            try:
+                cur.execute(f"""
+                    SELECT DISTINCT user_id FROM {t_private} WHERE user_id IS NOT NULL
+                    UNION
+                    SELECT DISTINCT user_id FROM {t_history} WHERE user_id IS NOT NULL
+                """)
+                users = cur.fetchall()
+            except Exception:
+                conn.rollback()
+                cur.execute(f"SELECT DISTINCT user_id FROM {t_private} WHERE user_id IS NOT NULL")
+                users = cur.fetchall()
             user_ids = [u['user_id'] for u in users if u.get('user_id')]
             
             import requests
