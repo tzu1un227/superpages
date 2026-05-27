@@ -1085,9 +1085,6 @@ function RuleDesigner() {
                                             {/* Editor for Image */}
                                             {(msg.OTYPE === 'ImageSendMessage' || msg.Line?.OTYPE === 'ImageSendMessage') && (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                                    { (msg.original_content_url || msg.Line?.original_content_url) && (
-                                                        <img src={msg.original_content_url || msg.Line?.original_content_url} alt="預覽" style={{ maxWidth: '100%', maxHeight: '200px', objectFit: 'contain', borderRadius: '4px', border: '1px solid #333' }} />
-                                                    )}
                                                     <input 
                                                         type="file" 
                                                         accept="image/*"

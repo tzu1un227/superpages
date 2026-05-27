@@ -224,7 +224,7 @@ def _validate_answer(question, value):
     if answer_type == "number" or condition_type == "2":
         if not re.fullmatch(r"-?\d+(\.\d+)?", text):
             return False, "請輸入數字"
-    if answer_type == "single_choice" or condition_type == "3":
+    if answer_type == "single_choice" or (condition_type == "3" and answer_type != "multiple_choice"):
         allowed = options or _json_list(detail)
         if text not in allowed:
             return False, "請選擇有效選項"

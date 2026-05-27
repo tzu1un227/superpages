@@ -532,9 +532,22 @@ function RichMenu() {
         setLoading(true);
         try {
             await api.post(`/richmenu/link/${id}`);
-            showToast('已成功連結至所有用戶', 'success');
+            showToast('已連結至全體用戶', 'success');
         } catch (err) {
             showToast('連結失敗', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const unlinkToAll = async (id) => {
+        if (!window.confirm('確定要解除全體用戶的圖文選單連結嗎？這將使他們恢復為預設圖文選單。')) return;
+        setLoading(true);
+        try {
+            await api.post(`/richmenu/unlink`);
+            showToast('已解除個別連結', 'success');
+        } catch (err) {
+            showToast('解除失敗', 'error');
         } finally {
             setLoading(false);
         }
@@ -689,8 +702,11 @@ function RichMenu() {
                                 <button onClick={publishToLine} className="primary" disabled={loading}><Send size={18} /> {loading ? '同步中...' : '同步至 LINE'}</button>
                             </>
                         )}
-                        {viewOnly && currentMenu.richMenuId && (
-                            <button onClick={() => linkToAll(currentMenu.richMenuId)} className="primary"><LinkIcon size={18} /> 立即連結</button>
+                        {!viewOnly && currentMenu.richMenuId && (
+                            <button onClick={() => linkToAll(currentMenu.richMenuId)} className="primary" style={{ backgroundColor: '#4CAF50', color: '#fff', border: 'none' }}><LinkIcon size={18} /> 立即連結全體</button>
+                        )}
+                        {!viewOnly && currentMenu.richMenuId && (
+                            <button onClick={() => unlinkToAll(currentMenu.richMenuId)} className="primary" style={{ backgroundColor: '#f44336', color: '#fff', border: 'none' }}><Unlink size={18} /> 解除個別連結</button>
                         )}
                     </div>
                 </div>

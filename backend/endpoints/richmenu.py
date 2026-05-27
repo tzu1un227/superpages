@@ -378,6 +378,40 @@ def save_rich_menu_permissions():
 
 # --- Metadata and Scheduling ---
 
+def bulk_unlink_all_users(headers):
+    try:
+        from db_utils import get_main_db_connection
+        from psycopg2.extras import RealDictCursor
+        from flask import g
+        conn = get_main_db_connection()
+        if conn:
+            app_name = getattr(g, 'current_app_name', None)
+            if not app_name:
+                oa_id = getattr(g, 'current_oa_id', None)
+                if oa_id:
+                    from models import OAConfig
+                    oa = OAConfig.query.get(oa_id)
+                    if oa and oa.other_settings and oa.other_settings.get('app_name'):
+                        app_name = str(oa.other_settings['app_name'])
+                        g.current_app_name = app_name
+            if not app_name: return
+            
+            t_users = f'"Private_var:{app_name}"'
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(f"SELECT DISTINCT user_id FROM {t_users} WHERE user_id IS NOT NULL")
+            users = cur.fetchall()
+            user_ids = [u['user_id'] for u in users if u.get('user_id')]
+            
+            import requests
+            for i in range(0, len(user_ids), 500):
+                batch = user_ids[i:i+500]
+                requests.post('https://api.line.me/v2/bot/richmenu/bulk/unlink', headers=headers, json={'userIds': batch})
+            
+            cur.close()
+            conn.close()
+    except Exception as e:
+        print(f"Error unlinking bulk users: {e}")
+
 def get_t(base):
     """
     Returns the table name with the appropriate suffix for multi-tenancy.
