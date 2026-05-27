@@ -605,13 +605,23 @@ def link_rich_menu_to_all(richMenuId):
     bulk_link_all_users(headers, richMenuId)
     return jsonify({'status': 'success'})
 
-@richmenu_bp.route('/unlink', methods=['POST'])
+@richmenu_bp.route('/unlink/<richMenuId>', methods=['POST'])
 @token_required
-def unlink_rich_menu_from_all():
-    """解除全體用戶的個別圖文選單綁定 (Bulk Unlink from All)"""
+def unlink_rich_menu_from_all(richMenuId):
+    """解除全體用戶的個別圖文選單綁定，並在預設為該選單時清除預設 (Bulk Unlink from All + Clear Default)"""
     token = get_line_token()
     if not token: return jsonify({'message': 'Line token not configured'}), 400
     headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
     
+    # 1. 解除所有個別綁定
     bulk_unlink_all_users(headers)
+    
+    # 2. 檢查目前的全域預設是否為此選單，若是則一併清除
+    import requests
+    resp = requests.get('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
+    if resp.status_code == 200:
+        data = resp.json()
+        if data.get('richMenuId') == richMenuId:
+            requests.delete('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
+            
     return jsonify({'status': 'success'})
