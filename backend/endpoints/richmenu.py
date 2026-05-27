@@ -410,7 +410,9 @@ def bulk_unlink_all_users(headers):
                 conn.rollback()
                 cur.execute(f"SELECT DISTINCT user_id FROM {t_private} WHERE user_id IS NOT NULL")
                 users = cur.fetchall()
-            user_ids = [u['user_id'] for u in users if u.get('user_id')]
+                
+            # 過濾出有效的 LINE User ID (必須是字串，且長度為33，且以 'U' 開頭)
+            user_ids = [u['user_id'] for u in users if u.get('user_id') and isinstance(u['user_id'], str) and u['user_id'].startswith('U') and len(u['user_id']) == 33]
             
             import requests
             for i in range(0, len(user_ids), 500):
@@ -455,7 +457,9 @@ def bulk_link_all_users(headers, richMenuId):
                 conn.rollback()
                 cur.execute(f"SELECT DISTINCT user_id FROM {t_private} WHERE user_id IS NOT NULL")
                 users = cur.fetchall()
-            user_ids = [u['user_id'] for u in users if u.get('user_id')]
+                
+            # 過濾出有效的 LINE User ID (必須是字串，且長度為33，且以 'U' 開頭)
+            user_ids = [u['user_id'] for u in users if u.get('user_id') and isinstance(u['user_id'], str) and u['user_id'].startswith('U') and len(u['user_id']) == 33]
             
             import requests
             for i in range(0, len(user_ids), 500):
