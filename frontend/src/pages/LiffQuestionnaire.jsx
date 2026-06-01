@@ -438,7 +438,30 @@ export default function Questionnaire() {
         ) : surveys.length === 0 ? (
           <Typography sx={{ color: '#888' }}>還沒有 LIFF 問卷。</Typography>
         ) : (
-          surveys.map(survey => (
+          surveys.map(survey => {
+            let statusLabel = '草稿';
+            let statusColor = '#555';
+            
+            if (survey.status === 'published') {
+              const now = new Date();
+              // getTime() returns UTC time. survey.start_time / end_time might be returned as UTC strings or local strings.
+              // Assuming they are parsed correctly by Date() as local time.
+              const start = survey.start_time ? new Date(survey.start_time) : null;
+              const end = survey.end_time ? new Date(survey.end_time) : null;
+              
+              if (start && start > now) {
+                statusLabel = '尚未開始';
+                statusColor = '#ed6c02';
+              } else if (end && end < now) {
+                statusLabel = '已結束';
+                statusColor = '#d32f2f';
+              } else {
+                statusLabel = '開放中';
+                statusColor = '#2e7d32';
+              }
+            }
+            
+            return (
             <Paper key={survey.survey_key} sx={{ p: 2, mb: 2, background: '#222', border: '1px solid #444' }}>
               <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
                 <Box sx={{ flex: 1 }}>
@@ -446,7 +469,7 @@ export default function Questionnaire() {
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mt: 1 }}>
                     <Chip size="small" label={`${survey.question_count} 題`} sx={{ background: '#333', color: '#ddd' }} />
                     <Chip size="small" label={`${survey.response_count} 份作答`} sx={{ background: '#333', color: '#ddd' }} />
-                    <Chip size="small" label={survey.status === 'published' ? '開放中' : '草稿'} sx={{ background: survey.status === 'published' ? '#2e7d32' : '#555', color: '#fff' }} />
+                    <Chip size="small" label={statusLabel} sx={{ background: statusColor, color: '#fff' }} />
                     {(survey.question_tags || []).map(tag => <Chip key={tag} size="small" label={tag} sx={{ background: '#4b3f12', color: '#ffe082' }} />)}
                   </Box>
                 </Box>
@@ -469,7 +492,8 @@ export default function Questionnaire() {
                 </Box>
               </Box>
             </Paper>
-          ))
+            );
+          })
         )}
       </Box>
 
