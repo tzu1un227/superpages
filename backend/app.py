@@ -38,6 +38,7 @@ app = Flask(__name__, static_folder=static_dir)
 cors_origins_env = os.environ.get('CORS_ORIGINS')
 if cors_origins_env:
     origins_list = [origin.strip() for origin in cors_origins_env.split(',')]
+    origins_list.append("https://liff.line.me")
     origins_list.append(re.compile(r"^https://.*\.github\.io$"))
 else:
     origins_list = [
@@ -45,6 +46,7 @@ else:
         "http://localhost:3000",
         "http://localhost:9016",
         "https://irl-svr.ee.yzu.edu.tw:5016",
+        "https://liff.line.me",
         re.compile(r"^https://.*\.github\.io$"),
     ]
 CORS(app, origins=origins_list)
