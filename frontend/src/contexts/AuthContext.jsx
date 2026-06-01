@@ -145,6 +145,41 @@ export const AuthProvider = ({ children }) => {
     setCurrentAccount(null);
   };
 
+  // Auto-logout mechanism (30 minutes inactivity)
+  useEffect(() => {
+    let timeoutId;
+    const AUTO_LOGOUT_TIME = 30 * 60 * 1000; // 30 minutes
+
+    const resetTimer = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        if (isAuthenticated) {
+          console.log("Auto-logging out due to inactivity");
+          logout();
+        }
+      }, AUTO_LOGOUT_TIME);
+    };
+
+    if (isAuthenticated) {
+      // Initialize timer
+      resetTimer();
+
+      // Listen to user activities
+      const events = ['mousemove', 'keydown', 'scroll', 'click', 'touchstart'];
+      events.forEach(event => {
+        window.addEventListener(event, resetTimer);
+      });
+
+      // Cleanup
+      return () => {
+        if (timeoutId) clearTimeout(timeoutId);
+        events.forEach(event => {
+          window.removeEventListener(event, resetTimer);
+        });
+      };
+    }
+  }, [isAuthenticated]);
+
   // Get token for API calls
   const getToken = () => {
     return localStorage.getItem('jwt');
