@@ -1580,6 +1580,7 @@ function MessageCenter() {
                                                 borderRadius: '16px',
                                                 backgroundColor: isAdmin ? 'var(--primary-yellow)' : '#333',
                                                 color: isAdmin ? 'black' : 'white',
+                                                wordBreak: 'break-word',
                                             }}>
                                                 <div style={{ fontSize: '14px' }}>
                                                     {renderMessageContent()}

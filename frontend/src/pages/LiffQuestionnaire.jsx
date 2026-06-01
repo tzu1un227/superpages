@@ -354,7 +354,23 @@ export default function Questionnaire() {
 
           <TextField fullWidth size="small" label="完成訊息" value={form.finishMessage} onChange={e => setForm({ ...form, finishMessage: e.target.value })} sx={{ ...fieldSx, mb: 2 }} />
 
-          <TextField fullWidth size="small" type="color" label="問卷主題顏色" value={form.themeColor} onChange={e => setForm({ ...form, themeColor: e.target.value })} sx={{ ...fieldSx, mb: 2, '& input': { padding: '4px', height: '40px', cursor: 'pointer' } }} />
+          <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
+            <TextField 
+              size="small" 
+              label="問卷主題顏色 (色碼)" 
+              value={form.themeColor} 
+              onChange={e => setForm({ ...form, themeColor: e.target.value })} 
+              sx={{ ...fieldSx, flex: 1 }} 
+              placeholder="#FFD700"
+            />
+            <input 
+              type="color" 
+              value={/^#[0-9A-Fa-f]{6}$/.test(form.themeColor) ? form.themeColor : '#FFD700'} 
+              onChange={e => setForm({ ...form, themeColor: e.target.value.toUpperCase() })} 
+              style={{ width: '40px', height: '40px', padding: 0, border: 'none', cursor: 'pointer', backgroundColor: 'transparent' }} 
+              title="選擇顏色"
+            />
+          </Box>
 
           <Divider sx={{ borderColor: '#444', my: 2 }} />
           {form.questions.map((q, index) => (

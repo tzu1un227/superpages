@@ -461,7 +461,7 @@ const CustomerCenter = () => {
 
   const renderCustomersTable = () => (
     <div style={{ backgroundColor: '#222', borderRadius: '12px', overflow: 'hidden', border: '1px solid #333' }}>
-      <div style={{ overflowX: 'auto' }}>
+      <div style={{ overflowX: 'auto', maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#fff' }}>
           <thead>
             <tr style={{ backgroundColor: '#2A2A2A', borderBottom: '1px solid #444' }}>
