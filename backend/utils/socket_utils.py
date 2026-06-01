@@ -52,22 +52,32 @@ def send_socket_event(data, namespace=None):
             print(f"DEBUG: send_socket_event | Error querying OAConfig: {e}")
 
     # Priority 3: Explicit override in data
+    # Save the original target app_name to look up DB
+    target_app_name = None
+    if 'bot_name' in data:
+         target_app_name = data['bot_name']
+         # Don't overwrite bot_name yet, we need it to default to websoc
+         
     if 'target_ws_url' in data:
          target_ws_url = data['target_ws_url']
-    if 'bot_name' in data:
-         bot_name = data['bot_name']
 
-    # Priority 4: Dynamic lookup by bot_name if target_ws_url is still default
-    if target_ws_url == WS_URL and bot_name != DEFAULT_BOT_NAME:
+    # Priority 4: Dynamic lookup by app_name if target_ws_url is still default
+    if target_app_name and target_app_name != DEFAULT_BOT_NAME:
         try:
             # Look through all OAConfigs to find a matching app_name
             for oa in OAConfig.query.all():
-                if oa.other_settings and oa.other_settings.get('app_name') == bot_name:
-                    if oa.other_settings.get('socket_url'):
+                if oa.other_settings and oa.other_settings.get('app_name') == target_app_name:
+                    if target_ws_url == WS_URL and oa.other_settings.get('socket_url'):
                         target_ws_url = oa.other_settings['socket_url']
-                        break
+                    if bot_name == DEFAULT_BOT_NAME and oa.other_settings.get('socket_name'):
+                        bot_name = oa.other_settings['socket_name']
+                    break
         except Exception as e:
-            print(f"DEBUG: send_socket_event | Error querying OAConfig by bot_name: {e}")
+            print(f"DEBUG: send_socket_event | Error querying OAConfig by app_name: {e}")
+
+    # Ensure bot_name falls back to websoc if not overridden by DB or 'socket_name'
+    if not bot_name:
+        bot_name = DEFAULT_BOT_NAME
 
     # Resolve Namespace
     final_namespace = namespace if namespace else f"/{bot_name}"
