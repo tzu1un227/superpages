@@ -119,6 +119,9 @@ def _ensure_tables(conn, app_id):
     
     # 遷移舊資料表：如果存在 liff_id 欄位則將其移除
     cur.execute(f'ALTER TABLE "{t["questionnaires"]}" DROP COLUMN IF EXISTS liff_id')
+    
+    # 新增 theme_color 欄位
+    cur.execute(f'ALTER TABLE "{t["questionnaires"]}" ADD COLUMN IF NOT EXISTS theme_color TEXT')
 
     # 建立平面化 VIEW 供方便的一鍵查詢作答結果
     view_name = f"v_liff_questionnaire_results:{app_id}"
@@ -327,6 +330,7 @@ def _survey_payload(survey, questions):
         "end_time": survey["end_time"].isoformat(timespec="minutes") if survey["end_time"] else "",
         "allow_multiple": survey["allow_multiple"],
         "finish_message": survey["finish_message"] or "感謝你的填寫",
+        "theme_color": survey.get("theme_color") or "#FFD700",
         "questions": [_serialize_question(q) for q in questions],
     }
 
@@ -415,8 +419,8 @@ def create_survey():
             f'''
             INSERT INTO "{t["questionnaires"]}"
                 (survey_key, title, description, status, default_tags, bot_app_name,
-                 start_time, end_time, allow_multiple, finish_message, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                 start_time, end_time, allow_multiple, finish_message, theme_color, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
             RETURNING *
             ''',
             (
@@ -430,6 +434,7 @@ def create_survey():
                 _parse_time(data.get("end_time")),
                 bool(data.get("allow_multiple", True)),
                 data.get("finish_message") or "感謝你的填寫",
+                data.get("theme_color") or "#FFD700",
             ),
         )
         survey = cur.fetchone()
@@ -551,6 +556,7 @@ def update_survey(survey_key):
                 end_time = %s,
                 allow_multiple = %s,
                 finish_message = %s,
+                theme_color = %s,
                 updated_at = NOW()
             WHERE id = %s
             RETURNING *
@@ -564,6 +570,7 @@ def update_survey(survey_key):
                 _parse_time(data.get("end_time")),
                 bool(data.get("allow_multiple", True)),
                 data.get("finish_message") or "感謝你的填寫",
+                data.get("theme_color") or "#FFD700",
                 survey["id"]
             )
         )

@@ -269,7 +269,8 @@ function MessageCenter() {
             if (q) params.q = q;
             if (tags.length > 0) params.tag = tags.join(',');
             const resp = await api.get('/users', { params });
-            const newUsers = resp.data;
+            let newUsers = Array.isArray(resp.data) ? resp.data : [];
+            newUsers = newUsers.filter(u => u.user_id !== 'yzuadmin' && u.name !== 'yzuadmin');
             
             // 預先寫入最新 10 筆歷史訊息的快取，確保點擊時瞬間載入
             newUsers.forEach(u => {
@@ -311,14 +312,20 @@ function MessageCenter() {
                     let result = nu;
                     // 防呆：如果當前選中的用戶在 local messages 中有更即時的內容，保留 local state，防止被伺服器舊緩存覆蓋
                     if (nu.user_id === selectedUserRef.current && messages.length > 0) {
-                        const localLatest = messages[messages.length - 1];
-                        if (localLatest.timestamp && nu.last_time && new Date(localLatest.timestamp) > new Date(nu.last_time)) {
-                            result = { 
-                                ...result, 
-                                last_message: localLatest.content, 
-                                last_time: localLatest.timestamp,
-                                last_message_category: localLatest.category || 'Message'
-                            };
+                        const realMessages = messages.filter(m => {
+                            const cat = (m.category || '').toLowerCase();
+                            return !['sensor', 'postback', 'follow', 'unfollow', 'beacon', 'cron', 'bmcast'].includes(cat);
+                        });
+                        if (realMessages.length > 0) {
+                            const localLatest = realMessages[realMessages.length - 1];
+                            if (localLatest.timestamp && nu.last_time && new Date(localLatest.timestamp) > new Date(nu.last_time)) {
+                                result = { 
+                                    ...result, 
+                                    last_message: localLatest.content, 
+                                    last_time: localLatest.timestamp,
+                                    last_message_category: localLatest.category || 'Message'
+                                };
+                            }
                         }
                     }
                     // --- 標籤操作護欄 (10秒機制) ---
@@ -506,17 +513,25 @@ function MessageCenter() {
                             return true;
                         });
                         if (uniqueNew.length > 0) {
-                            const latest = uniqueNew[uniqueNew.length - 1];
-                            // 同步更新側邊欄用戶狀態
-                            setUsers(currentUsers => currentUsers.map(u => u.user_id === userId ? {
-                                ...u,
-                                last_message: latest.content,
-                                last_time: latest.timestamp,
-                                last_message_category: latest.category
-                            } : u));
+                            const realNew = uniqueNew.filter(m => {
+                                const cat = (m.category || '').toLowerCase();
+                                return !['sensor', 'postback', 'follow', 'unfollow', 'beacon', 'cron', 'bmcast'].includes(cat);
+                            });
                             
+                            if (realNew.length > 0) {
+                                const latestReal = realNew[realNew.length - 1];
+                                // 同步更新側邊欄用戶狀態
+                                setUsers(currentUsers => currentUsers.map(u => u.user_id === userId ? {
+                                    ...u,
+                                    last_message: latestReal.content,
+                                    last_time: latestReal.timestamp,
+                                    last_message_category: latestReal.category
+                                } : u));
+                            }
+                            
+                            const latestAny = uniqueNew[uniqueNew.length - 1];
                             // 更新最後已知時間
-                            lastKnownTimeRef.current[userId] = latest.timestamp;
+                            lastKnownTimeRef.current[userId] = latestAny.timestamp;
 
                             return [...prev, ...uniqueNew];
                         }

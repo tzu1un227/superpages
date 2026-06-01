@@ -105,6 +105,7 @@ export default function Questionnaire() {
     startTime: '',
     endTime: '',
     finishMessage: '感謝你的填寫',
+    themeColor: '#FFD700',
     questions: [emptyQuestion()],
   });
 
@@ -208,6 +209,7 @@ export default function Questionnaire() {
         startTime: detail.start_time ? detail.start_time.replace(' ', 'T') : '',
         endTime: detail.end_time ? detail.end_time.replace(' ', 'T') : '',
         finishMessage: detail.finish_message || '感謝你的填寫',
+        themeColor: detail.theme_color || '#FFD700',
         questions: detail.questions.map(q => ({
           id: q.id,
           content: q.content || '',
@@ -240,6 +242,7 @@ export default function Questionnaire() {
       startTime: '',
       endTime: '',
       finishMessage: '感謝你的填寫',
+      themeColor: '#FFD700',
       questions: [emptyQuestion()],
     });
   };
@@ -265,6 +268,7 @@ export default function Questionnaire() {
         start_time: form.startTime,
         end_time: form.endTime,
         finish_message: form.finishMessage,
+        theme_color: form.themeColor,
         questions: form.questions.map((q, index) => ({
           id: q.id,
           content: q.content,
@@ -349,6 +353,8 @@ export default function Questionnaire() {
           </Box>
 
           <TextField fullWidth size="small" label="完成訊息" value={form.finishMessage} onChange={e => setForm({ ...form, finishMessage: e.target.value })} sx={{ ...fieldSx, mb: 2 }} />
+
+          <TextField fullWidth size="small" type="color" label="問卷主題顏色" value={form.themeColor} onChange={e => setForm({ ...form, themeColor: e.target.value })} sx={{ ...fieldSx, mb: 2, '& input': { padding: '4px', height: '40px', cursor: 'pointer' } }} />
 
           <Divider sx={{ borderColor: '#444', my: 2 }} />
           {form.questions.map((q, index) => (
