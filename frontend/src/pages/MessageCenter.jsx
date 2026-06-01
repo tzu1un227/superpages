@@ -1201,9 +1201,13 @@ function MessageCenter() {
                                         </div>
                                     )}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                        <div style={{ backgroundColor: '#333', padding: '8px', borderRadius: '50%', flexShrink: 0 }}>
-                                            <User size={18} />
-                                        </div>
+                                        {u.pic ? (
+                                            <img src={u.pic} alt="avatar" style={{ width: '34px', height: '34px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                                        ) : (
+                                            <div style={{ backgroundColor: '#333', padding: '8px', borderRadius: '50%', flexShrink: 0 }}>
+                                                <User size={18} />
+                                            </div>
+                                        )}
                                         <div style={{ flex: 1, overflow: 'hidden' }}>
                                             <p style={{ fontWeight: '600', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name || u.user_id}</p>
                                             <p style={{ fontSize: '12px', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatSidebarMessage(u) || '尚無訊息'}</p>

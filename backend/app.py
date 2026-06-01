@@ -1969,6 +1969,7 @@ def get_users_list():
                    sub.last_time,
                     (SELECT string_agg(value, '|') FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'tag') as tags,
                     (SELECT value FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'name' LIMIT 1) as name,
+                    (SELECT value FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'pic' LIMIT 1) as pic,
                     (SELECT value FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'unread_count' LIMIT 1) as unread_count
             FROM (
                 SELECT user_id,
