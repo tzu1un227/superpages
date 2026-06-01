@@ -57,6 +57,18 @@ def send_socket_event(data, namespace=None):
     if 'bot_name' in data:
          bot_name = data['bot_name']
 
+    # Priority 4: Dynamic lookup by bot_name if target_ws_url is still default
+    if target_ws_url == WS_URL and bot_name != DEFAULT_BOT_NAME:
+        try:
+            # Look through all OAConfigs to find a matching app_name
+            for oa in OAConfig.query.all():
+                if oa.other_settings and oa.other_settings.get('app_name') == bot_name:
+                    if oa.other_settings.get('socket_url'):
+                        target_ws_url = oa.other_settings['socket_url']
+                        break
+        except Exception as e:
+            print(f"DEBUG: send_socket_event | Error querying OAConfig by bot_name: {e}")
+
     # Resolve Namespace
     final_namespace = namespace if namespace else f"/{bot_name}"
 
