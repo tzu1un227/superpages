@@ -106,6 +106,7 @@ export default function Questionnaire() {
     endTime: '',
     finishMessage: '感謝你的填寫',
     themeColor: '#FFD700',
+    bgImage: '',
     questions: [emptyQuestion()],
   });
 
@@ -210,6 +211,7 @@ export default function Questionnaire() {
         endTime: detail.end_time ? detail.end_time.replace(' ', 'T') : '',
         finishMessage: detail.finish_message || '感謝你的填寫',
         themeColor: detail.theme_color || '#FFD700',
+        bgImage: detail.bg_image || '',
         questions: detail.questions.map(q => ({
           id: q.id,
           content: q.content || '',
@@ -243,6 +245,7 @@ export default function Questionnaire() {
       endTime: '',
       finishMessage: '感謝你的填寫',
       themeColor: '#FFD700',
+      bgImage: '',
       questions: [emptyQuestion()],
     });
   };
@@ -269,6 +272,7 @@ export default function Questionnaire() {
         end_time: form.endTime,
         finish_message: form.finishMessage,
         theme_color: form.themeColor,
+        bg_image: form.bgImage,
         questions: form.questions.map((q, index) => ({
           id: q.id,
           content: q.content,
@@ -304,6 +308,37 @@ export default function Questionnaire() {
       showToast(e.response?.data?.error || (editingSurveyKey ? '更新問卷失敗' : '建立問卷失敗'), 'error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast('錯誤：必須為圖片檔 (JPEG/PNG)', 'error');
+      return;
+    }
+    if (file.size > 1024 * 1024) {
+      showToast('錯誤：檔案大小不可大於 1MB', 'error');
+      return;
+    }
+    setSaving(true);
+    showToast('圖片上傳中...', 'info');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await api.post('/upload/github', formData, {
+        headers: { 'Content-Type': 'multipart/form-data', 'X-OA-ID': oaId }
+      });
+      if (res.data && res.data.url) {
+        setForm(prev => ({ ...prev, bgImage: res.data.url }));
+        showToast('圖片上傳成功', 'success');
+      }
+    } catch (err) {
+      showToast('圖片上傳失敗', 'error');
+    } finally {
+      setSaving(false);
+      e.target.value = ''; // Reset input
     }
   };
 
@@ -370,6 +405,25 @@ export default function Questionnaire() {
               style={{ width: '40px', height: '40px', padding: 0, border: 'none', cursor: 'pointer', backgroundColor: 'transparent' }} 
               title="選擇顏色"
             />
+          </Box>
+
+          <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center', background: '#2a2a2a', p: 1.5, borderRadius: 1, border: '1px solid #444' }}>
+            <Button variant="outlined" component="label" sx={{ color: 'white', borderColor: '#555', minWidth: '120px' }} disabled={saving}>
+              {saving ? '上傳中...' : '上傳背景底圖'}
+              <input type="file" hidden accept="image/*" onChange={handleImageUpload} />
+            </Button>
+            {form.bgImage && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, overflow: 'hidden' }}>
+                <img src={form.bgImage} alt="bg" style={{ height: '40px', borderRadius: '4px', objectFit: 'cover' }} />
+                <Typography sx={{ color: '#aaa', fontSize: '12px', wordBreak: 'break-all', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{form.bgImage}</Typography>
+                <IconButton size="small" onClick={() => setForm({...form, bgImage: ''})} sx={{ color: '#e57373', ml: 'auto' }}>
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </Box>
+            )}
+            {!form.bgImage && (
+              <Typography sx={{ color: '#888', fontSize: '12px' }}>可上傳 JPG/PNG (小於 1MB)，若未上傳將使用主題色背景</Typography>
+            )}
           </Box>
 
           <Divider sx={{ borderColor: '#444', my: 2 }} />

@@ -122,6 +122,7 @@ def _ensure_tables(conn, app_id):
     
     # 新增 theme_color 欄位
     cur.execute(f'ALTER TABLE "{t["questionnaires"]}" ADD COLUMN IF NOT EXISTS theme_color TEXT')
+    cur.execute(f'ALTER TABLE "{t["questionnaires"]}" ADD COLUMN IF NOT EXISTS bg_image TEXT')
 
     # 建立平面化 VIEW 供方便的一鍵查詢作答結果
     view_name = f"v_liff_questionnaire_results:{app_id}"
@@ -331,6 +332,7 @@ def _survey_payload(survey, questions):
         "allow_multiple": survey["allow_multiple"],
         "finish_message": survey["finish_message"] or "感謝你的填寫",
         "theme_color": survey.get("theme_color") or "#FFD700",
+        "bg_image": survey.get("bg_image") or "",
         "questions": [_serialize_question(q) for q in questions],
     }
 
@@ -419,8 +421,8 @@ def create_survey():
             f'''
             INSERT INTO "{t["questionnaires"]}"
                 (survey_key, title, description, status, default_tags, bot_app_name,
-                 start_time, end_time, allow_multiple, finish_message, theme_color, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                 start_time, end_time, allow_multiple, finish_message, theme_color, bg_image, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
             RETURNING *
             ''',
             (
@@ -435,6 +437,7 @@ def create_survey():
                 bool(data.get("allow_multiple", True)),
                 data.get("finish_message") or "感謝你的填寫",
                 data.get("theme_color") or "#FFD700",
+                data.get("bg_image") or "",
             ),
         )
         survey = cur.fetchone()
@@ -557,6 +560,7 @@ def update_survey(survey_key):
                 allow_multiple = %s,
                 finish_message = %s,
                 theme_color = %s,
+                bg_image = %s,
                 updated_at = NOW()
             WHERE id = %s
             RETURNING *
@@ -571,6 +575,7 @@ def update_survey(survey_key):
                 bool(data.get("allow_multiple", True)),
                 data.get("finish_message") or "感謝你的填寫",
                 data.get("theme_color") or "#FFD700",
+                data.get("bg_image") or "",
                 survey["id"]
             )
         )
