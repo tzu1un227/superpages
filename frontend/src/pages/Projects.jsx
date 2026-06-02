@@ -1291,10 +1291,11 @@ const ProjectsManagement = () => {
                         </div>
                     )}
 
-                    <div style={{ overflowX: 'auto' }}>
-                        <table>
-                            <thead>
-                                <tr>
+                    <div style={{ backgroundColor: '#222', borderRadius: '12px', overflow: 'hidden', border: '1px solid #333' }}>
+                        <div style={{ overflowX: 'auto', maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
+                            <table>
+                                <thead>
+                                    <tr>
                                     <th>專案名稱</th>
                                     <th>有效期間</th>
                                     <th>狀態</th>
@@ -1376,6 +1377,7 @@ const ProjectsManagement = () => {
                                 ))}
                             </tbody>
                         </table>
+                        </div>
                     </div>
                 </div>
                 )
@@ -1549,10 +1551,11 @@ const ProjectsManagement = () => {
                             <LoadingSpinner message="載入中..." />
                         </div>
                     ) : (
-                        <div style={{ overflowX: 'auto' }}>
-                            <table>
-                                <thead>
-                                    <tr>
+                        <div style={{ backgroundColor: '#222', borderRadius: '12px', overflow: 'hidden', border: '1px solid #333' }}>
+                            <div style={{ overflowX: 'auto', maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
+                                <table>
+                                    <thead>
+                                        <tr>
                                         <th>專案</th>
                                         <th>步驟</th>
                                         <th>間隔時間</th>
@@ -1759,8 +1762,9 @@ const ProjectsManagement = () => {
                                             </td>
                                         </tr>
                                     )}
-                                </tbody>
-                            </table>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -1793,10 +1797,11 @@ const ProjectsManagement = () => {
                             <LoadingSpinner message="載入用戶中..." />
                         </div>
                     ) : (
-                        <div style={{ overflowX: 'auto' }}>
-                            <table>
-                                <thead>
-                                    <tr>
+                        <div style={{ backgroundColor: '#222', borderRadius: '12px', overflow: 'hidden', border: '1px solid #333' }}>
+                            <div style={{ overflowX: 'auto', maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
+                                <table>
+                                    <thead>
+                                        <tr>
                                         <th>姓名</th>
                                         <th>目前步驟</th>
                                         <th>狀態</th>
@@ -1866,6 +1871,7 @@ const ProjectsManagement = () => {
                                     )}
                                 </tbody>
                             </table>
+                            </div>
                         </div>
                     )}
                 </div>

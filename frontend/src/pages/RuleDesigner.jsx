@@ -1161,8 +1161,8 @@ function RuleDesigner() {
 
             {/* Flex Editor Nested Modal */}
             {showFlexEditor && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 2000, display: 'flex', padding: '40px' }}>
-                    <div style={{ flex: 1, backgroundColor: '#222', borderRadius: '12px', overflow: 'hidden', position: 'relative' }}>
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 2000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '40px' }}>
+                    <div style={{ width: '55%', minWidth: '800px', height: '100%', backgroundColor: '#222', borderRadius: '12px', overflow: 'hidden', position: 'relative' }}>
                         <button 
                             onClick={() => setShowFlexEditor(false)}
                             style={{ position: 'absolute', top: '15px', right: '15px', background: '#333', border: 'none', color: '#fff', borderRadius: '50%', padding: '8px', cursor: 'pointer', zIndex: 10 }}

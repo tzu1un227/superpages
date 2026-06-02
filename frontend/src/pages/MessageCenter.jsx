@@ -669,7 +669,10 @@ function MessageCenter() {
         return [...users].sort((a, b) => {
             const aTime = new Date(a.last_time || 0).getTime();
             const bTime = new Date(b.last_time || 0).getTime();
-            return bTime - aTime;
+            if (bTime !== aTime) {
+                return bTime - aTime;
+            }
+            return (b.user_id || '').localeCompare(a.user_id || '');
         });
     }, [users]);
 

@@ -694,9 +694,18 @@ def get_my_oas():
         pages_map = {p.id: p for p in all_pages}
         
         for c in configs:
+            account_name = c.oa_name
+            if c.line_channel_access_token:
+                try:
+                    resp = requests.get('https://api.line.me/v2/bot/info', headers={'Authorization': f'Bearer {c.line_channel_access_token}'}, timeout=3)
+                    if resp.status_code == 200:
+                        account_name = resp.json().get('displayName', c.oa_name)
+                except Exception as e:
+                    print(f"Failed to fetch bot info for OA {c.id}: {e}")
+
             oa_data = {
                 'id': c.id, 
-                'oa_name': c.oa_name, 
+                'oa_name': account_name, 
                 'other_settings': {
                     'app_name': c.other_settings.get('app_name') if c.other_settings else None
                 },

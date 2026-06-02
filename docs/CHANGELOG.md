@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [2026-06-02] UI與穩定性修復 (介面、列表排序、LINE官方帳號名稱顯示)
+- **左側邊欄顯示 LINE 官方帳號名稱 (Request 1)**：在 `backend/app.py` 的 `/api/my_oas` 端點中加入呼叫 LINE Messaging API (`/v2/bot/info`)，動態取得並顯示真實的官方帳號顯示名稱 (displayName)，替換掉原本僅顯示資料庫內部設定的名稱。
+- **自動旅程排程列表 UI 優化 (Request 2)**：修改 `frontend/src/pages/Projects.jsx`，為排程列表、專案列表與用戶列表加入固定的最大高度 (`max-height: calc(100vh - 280px)`) 與垂直捲軸 (`overflow-y: auto`)，解決排程數量過多時頁面無限延伸的問題，使其排版行為與客戶中心一致。
+- **訊息中心聊天室順序跳動修復 (Request 3)**：修復 `frontend/src/pages/MessageCenter.jsx` 中，每 5 秒輪詢更新用戶列表時，因多個用戶具有相同的 `last_time` (最後訊息時間) 導致 React 排序不穩定 (Unstable Sort) 而發生列表隨機跳動的問題。現已加入 `user_id` 作為次要排序依據 (Tie-breaker)，確保在時間相同時順序固定不跳動。
+- **關鍵字回覆視覺化編輯器縮小 (Request 4)**：修改 `frontend/src/pages/RuleDesigner.jsx` 中的 `FlexMessageEditor` 外層 Modal 樣式。將其寬度從佔滿全螢幕調整為 55% 網頁寬度 (與群發訊息編輯器大小相仿)，並將位置置中，改善在大螢幕上編輯時視覺過於發散的問題。
 ## [2026-05-25] 系統穩定性修復 (訊息廣播、圖文選單、排程時區)
 - **訊息中心廣播修復 (Issue 1)**：修復 `app.py` 中因遺漏匯入 `send_socket_event` 導致的發送訊息、新增與刪除標籤時發生的 500 Socket.IO Trigger Error。
 - **圖文選單修復 (Issue 2)**：

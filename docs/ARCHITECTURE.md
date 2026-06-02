@@ -123,3 +123,8 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 - Node.js buildpack 透過根目錄的 `package.json` 的 `postinstall` 觸發前端編譯。
 - Python buildpack 讀取根目錄 `requirements.txt` 並透過 `Procfile` 使用 `gunicorn` 啟動 Flask 伺服器。
 - Flask 負責統一伺服前端打包完成的靜態檔案與處理 SPA 路由。
+
+## 9. 前端 UI 渲染與樣式約定 (2026-06-02 新增)
+- **排版行為一致性**: 對於長列表 (如自動旅程的專案與排程列表)，統一採用受限的最大高度 (max-height: calc(100vh - 280px)) 搭配局部垂直捲動 (overflow-y: auto)，以避免長列表導致外層頁面無限延伸，破壞側邊欄與整體版面的結構。
+- **React 排序穩定性**: 在依賴頻繁輪詢更新狀態 (如訊息中心) 的列表元件中，若依賴時間 (timestamp) 等非唯一值作為排序依據，必須加入次要排序鍵 (例如 user_id) 作為 Tie-breaker，防止因預設不穩定排序造成的畫面隨機跳動現象。
+- **外部資源整合顯示**: 系統應優先整合並顯示對用戶友善的外部資源名稱 (如透過 LINE API 取得之 displayName)，取代內部技術命名，提升可用性。
