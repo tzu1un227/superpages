@@ -310,25 +310,6 @@ function MessageCenter() {
             setUsers(prev => {
                 const updatedUsers = newUsers.map(nu => {
                     let result = nu;
-                    // 防呆：如果當前選中的用戶在 local messages 中有更即時的內容，保留 local state，防止被伺服器舊緩存覆蓋
-                    const currentMessages = messagesRef.current;
-                    if (nu.user_id === selectedUserRef.current && currentMessages.length > 0) {
-                        const realMessages = currentMessages.filter(m => {
-                            const cat = (m.category || '').toLowerCase();
-                            return !['sensor', 'postback', 'follow', 'unfollow', 'beacon', 'cron', 'bmcast'].includes(cat);
-                        });
-                        if (realMessages.length > 0) {
-                            const localLatest = realMessages[realMessages.length - 1];
-                            if (localLatest.timestamp && nu.last_time && new Date(localLatest.timestamp) > new Date(nu.last_time)) {
-                                result = { 
-                                    ...result, 
-                                    last_message: localLatest.content, 
-                                    last_time: localLatest.timestamp,
-                                    last_message_category: localLatest.category || 'Message'
-                                };
-                            }
-                        }
-                    }
                     // --- 標籤操作護欄 (10秒機制) ---
                     const now = Date.now();
                     const currentTagsStr = typeof result.tags === 'string' ? result.tags : String(result.tags || '');
@@ -673,7 +654,7 @@ function MessageCenter() {
             if (bTime !== aTime) {
                 return bTime - aTime;
             }
-            return (b.user_id || '').localeCompare(a.user_id || '');
+            return (a.user_id || '').localeCompare(b.user_id || '');
         });
     }, [users]);
 
