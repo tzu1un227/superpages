@@ -311,8 +311,9 @@ function MessageCenter() {
                 const updatedUsers = newUsers.map(nu => {
                     let result = nu;
                     // 防呆：如果當前選中的用戶在 local messages 中有更即時的內容，保留 local state，防止被伺服器舊緩存覆蓋
-                    if (nu.user_id === selectedUserRef.current && messages.length > 0) {
-                        const realMessages = messages.filter(m => {
+                    const currentMessages = messagesRef.current;
+                    if (nu.user_id === selectedUserRef.current && currentMessages.length > 0) {
+                        const realMessages = currentMessages.filter(m => {
                             const cat = (m.category || '').toLowerCase();
                             return !['sensor', 'postback', 'follow', 'unfollow', 'beacon', 'cron', 'bmcast'].includes(cat);
                         });
