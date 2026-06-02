@@ -695,9 +695,10 @@ def get_my_oas():
         
         for c in configs:
             account_name = c.oa_name
-            if c.line_channel_access_token:
+            line_token = c.other_settings.get('line_token') if c.other_settings else None
+            if line_token:
                 try:
-                    resp = requests.get('https://api.line.me/v2/bot/info', headers={'Authorization': f'Bearer {c.line_channel_access_token}'}, timeout=3)
+                    resp = requests.get('https://api.line.me/v2/bot/info', headers={'Authorization': f'Bearer {line_token}'}, timeout=3)
                     if resp.status_code == 200:
                         account_name = resp.json().get('displayName', c.oa_name)
                 except Exception as e:
