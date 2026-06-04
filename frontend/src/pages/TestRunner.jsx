@@ -200,7 +200,7 @@ function TestRunner() {
 
     const addTestCase = () => {
         const newId = testCases.length > 0 ? Math.max(...testCases.map(t => t.id || 0)) + 1 : 1;
-        setTestCases([...testCases, { id: newId, trigger_type: 'Message', trigger_keyword: '', expected_state: '00000' }]);
+        setTestCases([...testCases, { id: newId, trigger_type: 'Message', trigger_keyword: '', expected_state: '00000', expected_reply_type: '', expected_content: '' }]);
     };
 
     const removeTestCase = (index) => {
@@ -309,7 +309,8 @@ function TestRunner() {
                                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333', width: '110px' }}>事件類型</th>
                                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>觸發內容/關鍵字</th>
                                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333', width: '120px' }}>預期回覆格式</th>
-                                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333', width: '120px' }}>預期狀態</th>
+                                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333' }}>預期文字內容</th>
+                                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #333', width: '80px' }}>預期狀態</th>
                                         <th style={{ padding: '10px', textAlign: 'center', borderBottom: '1px solid #333', width: '40px' }}>刪除</th>
                                     </tr>
                                 </thead>
@@ -345,6 +346,10 @@ function TestRunner() {
                                                     <option value="audio">語音 (audio)</option>
                                                     <option value="location">位置 (location)</option>
                                                 </select>
+                                            </td>
+                                            <td style={{ padding: '8px' }}>
+                                                <input type="text" value={tc.expected_content || ''} onChange={e => updateTestCase(idx, 'expected_content', e.target.value)} 
+                                                    style={{ width: '100%', padding: '6px', backgroundColor: '#111', border: '1px solid #444', color: '#fff' }} placeholder="包含此字串" />
                                             </td>
                                             <td style={{ padding: '8px' }}>
                                                 <input type="text" value={tc.expected_state || ''} onChange={e => updateTestCase(idx, 'expected_state', e.target.value)} 

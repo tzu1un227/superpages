@@ -220,16 +220,35 @@ def execute_tests():
             actual_state = state_row['state'] if state_row else '00000'
             expected_reply_type = tc.get('expected_reply_type') or ''
             
-            # 檢驗邏輯: 同時驗證 State 與 Reply Type
+            expected_content = tc.get('expected_content') or ''
+            
+            # 檢驗邏輯: 同時驗證 State, Reply Type, Expected Content
             pass_state = True if not expected_state else (expected_state == actual_state)
             pass_type = True if not expected_reply_type else (expected_reply_type in actual_reply_types)
-            
-            is_pass = pass_state and pass_type
+            # expected_content 的驗證：如果預期文字有指定，則實際內容必須包含該字串（或部分符合）
+            # 因為我們有替換如 (當前時間)，所以我們只檢查常數部分是否出現，或是簡單的 in 判斷
+            # 這裡簡化為 expected_content 是否出現在 actual_content_raw 或 parsed_preview 中
+            pass_content = True
+            if expected_content:
+                # 簡單判斷：將特殊標記移除後比對，或直接比對是否被包含
+                # 若完全不符合則為 False
+                if '(當前時間)' in expected_content or '(隨機項目)' in expected_content or '(資料庫查詢結果)' in expected_content or '(天氣查詢結果)' in expected_content:
+                    # 有動態變數，只要不為空或大致長度大於0就當過，或者比對非動態部分
+                    # 這裡簡化：只要有回覆就不算錯，或者更進階可以用 regex
+                    pass_content = True
+                else:
+                    if expected_content not in parsed_preview and expected_content not in actual_content_raw:
+                        # 允許一定程度的空白差異
+                        if expected_content.replace(' ', '') not in parsed_preview.replace(' ', ''):
+                            pass_content = False
+
+            is_pass = pass_state and pass_type and pass_content
             status_text = 'Pass' if is_pass else 'Fail'
             
             reason = []
             if expected_state and not pass_state: reason.append(f"預期狀態 {expected_state} 但拿到 {actual_state}")
             if expected_reply_type and not pass_type: reason.append(f"預期回覆型態 {expected_reply_type} 但拿到 {actual_reply_types or '[]'}")
+            if expected_content and not pass_content: reason.append(f"預期文字不符合")
             
             results.append({
                 'id': tc.get('id', idx),

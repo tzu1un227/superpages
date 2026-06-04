@@ -10,15 +10,11 @@ upload_bp = Blueprint('upload', __name__)
 @upload_bp.route('/github', methods=['POST'])
 @token_required
 def upload_to_github():
-    # Retrieve settings from current OA context
-    github_config = {}
-    if hasattr(g, 'current_oa_config') and g.current_oa_config.other_settings:
-        github_config = g.current_oa_config.other_settings.get('github_config', {})
-
-    token = github_config.get('token') or os.environ.get('GITHUB_TOKEN')
-    repo = github_config.get('repo') or os.environ.get('GITHUB_REPO')
-    branch = github_config.get('branch') or os.environ.get('GITHUB_BRANCH', 'main')
-    path = github_config.get('path') or os.environ.get('GITHUB_PATH', 'assets/images/')
+    # Retrieve settings from environment variables only
+    token = os.environ.get('GITHUB_TOKEN')
+    repo = os.environ.get('GITHUB_REPO')
+    branch = os.environ.get('GITHUB_BRANCH', 'main')
+    path = os.environ.get('GITHUB_PATH', 'assets/images/')
 
     if not token or not repo:
         return jsonify({'message': 'GitHub configuration is missing (Token or Repo)'}), 500

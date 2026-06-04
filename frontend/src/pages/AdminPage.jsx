@@ -76,12 +76,7 @@ function AdminPage() {
     const [appName, setAppName] = useState('');
     const [lineToken, setLineToken] = useState('');
     const [lineSecret, setLineSecret] = useState('');
-    const [githubConfig, setGithubConfig] = useState({
-        token: '',
-        repo: '',
-        branch: 'main',
-        path: 'assets/images/'
-    });
+    const [lineSecret, setLineSecret] = useState('');
     const [oaValidated, setOaValidated] = useState(false);
 
     // axiosInstance removed in favor of shared api
@@ -184,11 +179,7 @@ function AdminPage() {
                 socketUrl.trim() !== '' &&
                 appName.trim() !== '' &&
                 lineToken.trim() !== '' &&
-                lineSecret.trim() !== '' &&
-                githubConfig.token.trim() !== '' &&
-                githubConfig.repo.trim() !== '' &&
-                githubConfig.branch.trim() !== '' &&
-                githubConfig.path.trim() !== '';
+                lineSecret.trim() !== '';
 
             if (!isValid) {
                 alert("請填寫所有必填欄位。標記為紅色的項目尚未完成。");
@@ -203,8 +194,7 @@ function AdminPage() {
                     socket_url: socketUrl,
                     app_name: appName.trim(),
                     line_token: lineToken,
-                    line_secret: lineSecret,
-                    github_config: githubConfig
+                    line_secret: lineSecret
                 }
             };
             if (currentOA) {
@@ -229,12 +219,6 @@ function AdminPage() {
         setAppName('');
         setLineToken('');
         setLineSecret('');
-        setGithubConfig({
-            token: '',
-            repo: '',
-            branch: 'main',
-            path: 'assets/images/'
-        });
         setOaValidated(false);
     };
 
@@ -247,16 +231,6 @@ function AdminPage() {
         setAppName(oa.other_settings?.app_name || '');
         setLineToken(oa.other_settings?.line_token || '');
         setLineSecret(oa.other_settings?.line_secret || '');
-        if (oa.other_settings && oa.other_settings.github_config) {
-            setGithubConfig(oa.other_settings.github_config);
-        } else {
-            setGithubConfig({
-                token: '',
-                repo: '',
-                branch: 'main',
-                path: 'assets/images/'
-            });
-        }
         setOaValidated(false);
         setOpenOADialog(true);
     };
@@ -619,65 +593,6 @@ function AdminPage() {
                         helperText={oaValidated && !lineSecret.trim() ? "請輸入 Channel Secret" : ""}
                         value={lineSecret}
                         onChange={(e) => setLineSecret(e.target.value)}
-                        sx={{
-                            input: { color: 'white' },
-                            label: { color: '#B0B0B0' },
-                            '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#555' }, '&:hover fieldset': { borderColor: '#888' }, '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' } }
-                        }}
-                    />
-
-                    <Typography variant="h6" sx={{ mt: 2, mb: 1, fontSize: '1rem', color: 'var(--primary-yellow)' }}>GitHub 圖片上傳設定</Typography>
-                    <TextField
-                        margin="dense"
-                        label="GitHub Token"
-                        fullWidth
-                        type="password"
-                        error={oaValidated && !githubConfig.token.trim()}
-                        helperText={oaValidated && !githubConfig.token.trim() ? "請輸入 GitHub Token" : ""}
-                        value={githubConfig.token}
-                        onChange={(e) => setGithubConfig({ ...githubConfig, token: e.target.value })}
-                        sx={{
-                            input: { color: 'white' },
-                            label: { color: '#B0B0B0' },
-                            '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#555' }, '&:hover fieldset': { borderColor: '#888' }, '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' } }
-                        }}
-                    />
-                    <TextField
-                        margin="dense"
-                        label="GitHub Repository (例如: username/repo)"
-                        fullWidth
-                        error={oaValidated && !githubConfig.repo.trim()}
-                        helperText={oaValidated && !githubConfig.repo.trim() ? "請輸入 Repository 名稱" : ""}
-                        value={githubConfig.repo}
-                        onChange={(e) => setGithubConfig({ ...githubConfig, repo: e.target.value })}
-                        sx={{
-                            input: { color: 'white' },
-                            label: { color: '#B0B0B0' },
-                            '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#555' }, '&:hover fieldset': { borderColor: '#888' }, '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' } }
-                        }}
-                    />
-                    <TextField
-                        margin="dense"
-                        label="分支 (Branch)"
-                        fullWidth
-                        error={oaValidated && !githubConfig.branch.trim()}
-                        helperText={oaValidated && !githubConfig.branch.trim() ? "請指定分支名稱 (預設: main)" : ""}
-                        value={githubConfig.branch}
-                        onChange={(e) => setGithubConfig({ ...githubConfig, branch: e.target.value })}
-                        sx={{
-                            input: { color: 'white' },
-                            label: { color: '#B0B0B0' },
-                            '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#555' }, '&:hover fieldset': { borderColor: '#888' }, '&.Mui-focused fieldset': { borderColor: 'var(--primary-yellow)' } }
-                        }}
-                    />
-                    <TextField
-                        margin="dense"
-                        label="儲存路徑 (Path)"
-                        fullWidth
-                        error={oaValidated && !githubConfig.path.trim()}
-                        helperText={oaValidated && !githubConfig.path.trim() ? "請指定儲存路徑 (預設: assets/images/)" : ""}
-                        value={githubConfig.path}
-                        onChange={(e) => setGithubConfig({ ...githubConfig, path: e.target.value })}
                         sx={{
                             input: { color: 'white' },
                             label: { color: '#B0B0B0' },

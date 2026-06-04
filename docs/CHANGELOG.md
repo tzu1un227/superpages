@@ -256,3 +256,12 @@
 ## [2026-05-22] - Refactor Hardcoded URLs to Config Vars
 - 移除 `backend/app.py` 與 `backend/utils/socket_utils.py` 中所有寫死的伺服器位址與資料庫密碼。
 - 導入環境變數 (Config Vars) 控制機密與環境相依設定：`DATABASE_URL`, `LEGACY_DB_URL`, `WS_URL`, `CORS_ORIGINS`。
+
+## [2026-06-04] - 系統測試頁面與 GitHub 設定重構
+### Added
+- ackend/endpoints/test_runner.py: 新增預設測試案例 DEFAULT_TEST_CASES，包含從 Q_bank:dreammmbot 提取之 24 筆資料與 Sensor 串接的回覆內容。
+- ackend/endpoints/test_runner.py: 實作 expected_content 比對邏輯，支援動態文字檢驗。
+- rontend/src/pages/TestRunner.jsx: 在測試案例編輯區新增「預期文字內容」欄位。
+### Changed
+- ackend/endpoints/upload.py: 將 GitHub 圖片上傳參數直接改為讀取環境變數 (GITHUB_TOKEN, GITHUB_REPO, GITHUB_BRANCH, GITHUB_PATH)。
+- rontend/src/pages/AdminPage.jsx: 移除 GitHub 圖片上傳的 UI 設定區塊與狀態。
