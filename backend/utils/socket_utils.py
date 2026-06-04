@@ -7,17 +7,21 @@ from models import OAConfig
 WS_URL = os.environ.get('WS_URL', "https://irl-svr.ee.yzu.edu.tw:5013")
 DEFAULT_BOT_NAME = "websoc"
 
+_global_sios = {}
+
+def get_shared_sio(target_ws_url, namespace):
+    key = f"{target_ws_url}_{namespace}"
+    sio = _global_sios.get(key)
+    if not sio:
+        sio = socketio.Client(reconnection=True, ssl_verify=False, request_timeout=15)
+        _global_sios[key] = sio
+    return sio
+
 def send_socket_event(data, namespace=None, wait_time=0.5, poll_func=None, max_polls=15, poll_interval=1.0):
     """
     Sends an event via Socket.IO to the bot engine.
-    Ensures thread-safe connection by creating a new client instance per call.
-    wait_time: The time to keep the connection alive after emitting the event (if not polling).
-    poll_func: Optional function to call repeatedly to check for a response before disconnecting.
+    Uses a persistent shared connection per target to prevent Heroku/eventlet connect/disconnect crashes.
     """
-    # Create a fresh client for every call to prevent concurrency race conditions
-    # ssl_verify=False is needed due to internal Docker/Proxy cert issues
-    local_sio = socketio.Client(reconnection=False, ssl_verify=False, request_timeout=15)
-    
     target_ws_url = WS_URL
     bot_name = DEFAULT_BOT_NAME
     current_oa_id = getattr(g, 'current_oa_id', None)
@@ -31,16 +35,10 @@ def send_socket_event(data, namespace=None, wait_time=0.5, poll_func=None, max_p
                 if settings.get('socket_url'):
                     target_ws_url = settings['socket_url']
                 
-                # Resolve bot name: 
-                # According to user, project standard is 'websoc' regardless of app_name.
-                # Priority: 1. socket_name (explicit override) 2. DEFAULT_BOT_NAME ('websoc')
                 bot_name = settings.get('socket_name') or DEFAULT_BOT_NAME
-                
         except Exception as e:
             print(f"DEBUG: send_socket_event | Error reading from g.current_oa_config: {e}")
 
-
-    # Fallback to DB query if ID provided but names missing in g
     if (bot_name == DEFAULT_BOT_NAME) and current_oa_id:
         try:
             oa = OAConfig.query.get(int(current_oa_id))
@@ -48,17 +46,25 @@ def send_socket_event(data, namespace=None, wait_time=0.5, poll_func=None, max_p
                 settings = oa.other_settings
                 if target_ws_url == WS_URL and settings.get('socket_url'):
                     target_ws_url = settings['socket_url']
-                if bot_name == DEFAULT_BOT_NAME:
-                    bot_name = settings.get('socket_name') or DEFAULT_BOT_NAME
+                if settings.get('socket_name'):
+                    bot_name = settings['socket_name']
         except Exception as e:
-            print(f"DEBUG: send_socket_event | Error querying OAConfig: {e}")
+            pass
 
+    if not target_ws_url:
+        target_ws_url = WS_URL
+    if not bot_name:
+        bot_name = DEFAULT_BOT_NAME
+
+    final_namespace = namespace if namespace else f"/{bot_name}"
+    
+    local_sio = get_shared_sio(target_ws_url, final_namespace)
+    
     # Priority 3: Explicit override in data
     # Save the original target app_name to look up DB
     target_app_name = None
     if 'bot_name' in data:
          target_app_name = data['bot_name']
-         # Don't overwrite bot_name yet, we need it to default to websoc
          
     if 'target_ws_url' in data:
          target_ws_url = data['target_ws_url']
@@ -81,21 +87,17 @@ def send_socket_event(data, namespace=None, wait_time=0.5, poll_func=None, max_p
     if not bot_name:
         bot_name = DEFAULT_BOT_NAME
 
-    # Resolve Namespace
     final_namespace = namespace if namespace else f"/{bot_name}"
-
+    local_sio = get_shared_sio(target_ws_url, final_namespace)
+        
     print(f"DEBUG: [SOCKET_INIT] Target: {target_ws_url} | BotName: {bot_name} | Namespace: {final_namespace} | OA_ID: {current_oa_id}")
     
     try:
-        # Use polling for better robustness across proxies and faster connection in one-off calls
-        transports = ['polling'] 
-        
-        # Connect to *only* the specific namespace needed to avoid "One or more namespaces failed" error
-        # Some servers/load balancers (especially on Heroku) are picky about multi-namespace requests
-        local_sio.connect(target_ws_url, namespaces=[final_namespace], wait_timeout=10, transports=transports)
-        print(f"DEBUG: [SOCKET_CONNECTED] Active Transport: {local_sio.transport}")
+        if not local_sio.connected:
+            transports = ['polling'] 
+            local_sio.connect(target_ws_url, namespaces=[final_namespace], wait_timeout=10, transports=transports)
+            print(f"DEBUG: [SOCKET_CONNECTED] Active Transport: {local_sio.transport}")
     except Exception as e:
-
         print(f"SOCKET_ERROR: Connection failed to {target_ws_url}: {e}")
         raise Exception(f"無法連線至機器人服務 ({target_ws_url}): {str(e)}")
     
@@ -138,11 +140,8 @@ def send_socket_event(data, namespace=None, wait_time=0.5, poll_func=None, max_p
     except Exception as e:
         print(f"SOCKET_ERROR: Emission failed: {e}")
     finally:
-        try:
-            local_sio.disconnect()
-            print(f"DEBUG: [SOCKET_DISCONNECTED]")
-        except:
-            pass
+        # DO NOT disconnect here! We want to keep the connection alive in the global pool.
+        pass
 
 def send_socket_events_batch(events, namespace=None, socket_url=None, bot_name=None):
     """
