@@ -136,9 +136,7 @@ app.register_blueprint(db_viewer_bp, url_prefix='/api/db')
 from endpoints.rule_designer import rule_designer_bp
 app.register_blueprint(rule_designer_bp, url_prefix='/api/rule-designer')
 
-# Register Test Runner Blueprint
-from endpoints.test_runner import test_runner_bp
-app.register_blueprint(test_runner_bp, url_prefix='/api/test-runner')
+
 # (get_db_connection removed, imported from db_utils)
 
 def get_current_app_id():
