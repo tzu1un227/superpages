@@ -259,9 +259,13 @@
 
 ## [2026-06-04] - 系統測試頁面與 GitHub 設定重構
 ### Added
-- ackend/endpoints/test_runner.py: 新增預設測試案例 DEFAULT_TEST_CASES，包含從 Q_bank:dreammmbot 提取之 24 筆資料與 Sensor 串接的回覆內容。
-- ackend/endpoints/test_runner.py: 實作 expected_content 比對邏輯，支援動態文字檢驗。
-- rontend/src/pages/TestRunner.jsx: 在測試案例編輯區新增「預期文字內容」欄位。
+- backend/endpoints/test_runner.py: 新增預設測試案例 DEFAULT_TEST_CASES，包含從 Q_bank:dreammmbot 提取之 24 筆資料與 Sensor 串接的回覆內容。
+- backend/endpoints/test_runner.py: 實作 expected_content 比對邏輯，支援動態文字檢驗。
+- frontend/src/pages/TestRunner.jsx: 在測試案例編輯區新增「預期文字內容」欄位。
 ### Changed
-- ackend/endpoints/upload.py: 將 GitHub 圖片上傳參數直接改為讀取環境變數 (GITHUB_TOKEN, GITHUB_REPO, GITHUB_BRANCH, GITHUB_PATH)。
-- rontend/src/pages/AdminPage.jsx: 移除 GitHub 圖片上傳的 UI 設定區塊與狀態。
+- backend/endpoints/upload.py: 將 GitHub 圖片上傳參數直接改為讀取環境變數 (GITHUB_TOKEN, GITHUB_REPO, GITHUB_BRANCH, GITHUB_PATH)。
+- frontend/src/pages/AdminPage.jsx: 移除 GitHub 圖片上傳的 UI 設定區塊與狀態。
+
+## [2026-06-04] - 系統測試 Timeout 修正
+### Changed
+- `frontend/src/pages/TestRunner.jsx`: 將逐筆測試執行的 API timeout 從 30 秒提高至 90 秒，避免涉及計時器或長時間處理的測試案例（如 `timer測試`）因後端 Socket 連線 + 機器人處理 + 資料庫輪詢的總時間超過前端 timeout 而誤報失敗。
