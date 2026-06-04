@@ -32,6 +32,10 @@ import EditIcon from '@mui/icons-material/Edit';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
 
+const DISABLED_PAGE_NAMES = new Set(['TestRunner']);
+
+const isEnabledPage = (page) => !DISABLED_PAGE_NAMES.has(page.name);
+
 function TabPanel(props) {
     const { children, value, index, ...other } = props;
     return (
@@ -102,7 +106,7 @@ function AdminPage() {
         // Fetch Pages
         try {
             const pagesRes = await api.get('/admin/pages', { headers: { Authorization: `Bearer ${token}` } });
-            setPages(pagesRes.data);
+            setPages((pagesRes.data || []).filter(isEnabledPage));
         } catch (error) {
             console.error("Error fetching pages", error);
         }
@@ -224,7 +228,8 @@ function AdminPage() {
     const openEditOA = (oa) => {
         setCurrentOA(oa);
         setOaName(oa.oa_name);
-        setPageIds(oa.page_ids || []);
+        const enabledPageIds = new Set(pages.filter(isEnabledPage).map(page => String(page.id)));
+        setPageIds((oa.page_ids || []).filter(pageId => enabledPageIds.has(String(pageId))));
         setDbUrl(oa.db_url);
         setSocketUrl(oa.other_settings?.socket_url || '');
         setAppName(oa.other_settings?.app_name || '');
@@ -340,8 +345,8 @@ function AdminPage() {
                                 // For page_ids list
                                 const pageNames = (oa.page_ids || []).map(pid => {
                                     const p = pages.find(pg => pg.id === pid);
-                                    return p ? (p.description || p.name) : pid;
-                                }).join(', ');
+                                    return p ? (p.description || p.name) : null;
+                                }).filter(Boolean).join(', ');
 
                                 return (
                                     <TableRow key={oa.id} hover sx={{ '&:hover': { backgroundColor: 'rgba(255, 215, 0, 0.05)' } }}>

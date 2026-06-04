@@ -139,6 +139,8 @@ app.register_blueprint(rule_designer_bp, url_prefix='/api/rule-designer')
 
 # (get_db_connection removed, imported from db_utils)
 
+DISABLED_PAGE_NAMES = {'TestRunner'}
+
 def get_current_app_id():
     """Returns the current logical app name/id (e.g. '5013')."""
     if hasattr(g, 'current_app_name') and g.current_app_name:
@@ -689,6 +691,7 @@ def get_my_oas():
         
         # Pre-fetch all pages to avoid N+1 queries ideally, but here list is small
         all_pages = Page.query.all()
+        all_pages = [p for p in all_pages if p.name not in DISABLED_PAGE_NAMES]
         pages_map = {p.id: p for p in all_pages}
         
         for c in configs:
