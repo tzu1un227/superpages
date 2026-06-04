@@ -7,11 +7,12 @@ from models import OAConfig
 WS_URL = os.environ.get('WS_URL', "https://irl-svr.ee.yzu.edu.tw:5013")
 DEFAULT_BOT_NAME = "websoc"
 
-def send_socket_event(data, namespace=None, wait_time=0.5):
+def send_socket_event(data, namespace=None, wait_time=0.5, poll_func=None, max_polls=15, poll_interval=1.0):
     """
     Sends an event via Socket.IO to the bot engine.
     Ensures thread-safe connection by creating a new client instance per call.
-    wait_time: The time to keep the connection alive after emitting the event.
+    wait_time: The time to keep the connection alive after emitting the event (if not polling).
+    poll_func: Optional function to call repeatedly to check for a response before disconnecting.
     """
     # Create a fresh client for every call to prevent concurrency race conditions
     # ssl_verify=False is needed due to internal Docker/Proxy cert issues
@@ -122,8 +123,18 @@ def send_socket_event(data, namespace=None, wait_time=0.5):
             local_sio.emit(event_name, data, namespace=final_namespace)
             print(f"DEBUG: [SOCKET_EMITTED] Event: {event_name} | Type: {msg_type}")
             
-        # Give some time for emission to flush before disconnect
-        time.sleep(wait_time)
+        # Give some time for emission to flush before disconnect, or poll DB
+        if poll_func:
+            poll_result = None
+            for _ in range(max_polls):
+                time.sleep(poll_interval)
+                poll_result = poll_func()
+                if poll_result is not None:
+                    break
+            return poll_result
+        else:
+            time.sleep(wait_time)
+            return None
     except Exception as e:
         print(f"SOCKET_ERROR: Emission failed: {e}")
     finally:
