@@ -128,18 +128,23 @@ def execute_tests():
                     if last_ts:
                         cur.execute(f"""
                             SELECT category, content, timestamp FROM "{history_table}" 
-                            WHERE user_id = %s AND timestamp > %s AND category IN ('Response', 'sys_reply')
+                            WHERE user_id = %s AND timestamp > %s 
+                              AND LOWER(category) NOT IN ('message', 'follow', 'unfollow', 'postback', 'beacon', 'sensor', 'image', 'location')
                             ORDER BY timestamp DESC LIMIT 1
                         """, (test_user_id, last_ts))
                     else:
                         cur.execute(f"""
                             SELECT category, content, timestamp FROM "{history_table}" 
-                            WHERE user_id = %s AND category IN ('Response', 'sys_reply')
+                            WHERE user_id = %s 
+                              AND LOWER(category) NOT IN ('message', 'follow', 'unfollow', 'postback', 'beacon', 'sensor', 'image', 'location')
                             ORDER BY timestamp DESC LIMIT 1
                         """, (test_user_id,))
                     row = cur.fetchone()
+                    if row:
+                        print(f"DEBUG: [POLL_DB_HIT] category={row['category']} | content={str(row['content'])[:80]} | ts={row['timestamp']}")
                     return row if row else None
-                except Exception:
+                except Exception as e:
+                    print(f"DEBUG: [POLL_DB_ERR] {e}")
                     conn.rollback()
                     return None
 
@@ -152,9 +157,9 @@ def execute_tests():
             }
             history_row = None
             try:
-                # 延長 Socket 連線時間，讓 Line-Bot-Main 有充裕時間處理並回傳訊息
-                # 採用輪詢模式：最長等待 15 秒 (針對 timer 測試情境)，有結果就立刻返回
-                history_row = send_socket_event(payload, poll_func=poll_db, max_polls=15, poll_interval=1.0)
+                # 延長輪詢時間，讓機器人有充裕時間處理並回傳訊息
+                # 採用輪詢模式：最長等待 30 秒，有結果就立刻返回
+                history_row = send_socket_event(payload, poll_func=poll_db, max_polls=30, poll_interval=1.0)
                 if history_row:
                     last_ts = history_row['timestamp']
             except Exception as e:
