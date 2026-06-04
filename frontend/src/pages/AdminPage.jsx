@@ -76,7 +76,6 @@ function AdminPage() {
     const [appName, setAppName] = useState('');
     const [lineToken, setLineToken] = useState('');
     const [lineSecret, setLineSecret] = useState('');
-    const [lineSecret, setLineSecret] = useState('');
     const [oaValidated, setOaValidated] = useState(false);
 
     // axiosInstance removed in favor of shared api
