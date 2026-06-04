@@ -131,7 +131,7 @@ def execute_tests():
             }
             try:
                 # 延長 Socket 連線時間，讓 Line-Bot-Main 有充裕時間處理並回傳訊息，避免 KeyError 斷線衝突
-                send_socket_event(payload, wait_time=2.0)
+                send_socket_event(payload, wait_time=5.0)
             except Exception as e:
                 results.append({'id': tc.get('id', idx), 'status': 'Fail', 'reason': f'Socket Error: {e}'})
                 cur.close()

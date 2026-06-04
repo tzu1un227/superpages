@@ -15,7 +15,7 @@ def send_socket_event(data, namespace=None, wait_time=0.5):
     """
     # Create a fresh client for every call to prevent concurrency race conditions
     # ssl_verify=False is needed due to internal Docker/Proxy cert issues
-    local_sio = socketio.Client(ssl_verify=False)
+    local_sio = socketio.Client(reconnection=False, ssl_verify=False, request_timeout=15)
     
     target_ws_url = WS_URL
     bot_name = DEFAULT_BOT_NAME
