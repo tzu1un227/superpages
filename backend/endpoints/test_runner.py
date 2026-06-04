@@ -18,35 +18,7 @@ def get_logical_app_id():
         return g.current_db_url.split('/')[-1].split('?')[0].strip()
     return '5013'
 
-DEFAULT_TEST_CASES = [
-    # --------------[事件類型測試]--------------
-    {"id": 1, "trigger_type": "Message", "trigger_keyword": "#測試文字", "expected_state": "T0001", "expected_reply_type": "text"},
-    {"id": 2, "trigger_type": "Image", "trigger_keyword": "模擬上傳了一張圖片", "expected_state": "T0002", "expected_reply_type": "text"},
-    {"id": 3, "trigger_type": "Location", "trigger_keyword": "模擬發送了所在位置", "expected_state": "T0003", "expected_reply_type": "text"},
-    {"id": 4, "trigger_type": "Postback", "trigger_keyword": "action=test", "expected_state": "T0004", "expected_reply_type": "text"},
-    # --------------[Smarteval內建變數與函數測試: 數值操作]--------------
-    {"id": 5, "trigger_type": "Message", "trigger_keyword": "#變數設定", "expected_state": "T0005", "expected_reply_type": "text"},
-    {"id": 6, "trigger_type": "Message", "trigger_keyword": "#變數檢驗與遞增", "expected_state": "T0006", "expected_reply_type": "text"},
-    {"id": 7, "trigger_type": "Message", "trigger_keyword": "#遞增後檢驗並刪除", "expected_state": "T0007", "expected_reply_type": "text"},
-    # --------------[Smarteval內建變數與函數測試: 陣列操作]--------------
-    {"id": 8, "trigger_type": "Message", "trigger_keyword": "#陣列推入", "expected_state": "T0008", "expected_reply_type": "text"},
-    {"id": 9, "trigger_type": "Message", "trigger_keyword": "#陣列彈出檢驗", "expected_state": "T0009", "expected_reply_type": "text"},
-    {"id": 10, "trigger_type": "Message", "trigger_keyword": "#陣列指定移除檢驗", "expected_state": "T0010", "expected_reply_type": "text"},
-    # --------------[內建安全函數]--------------
-    {"id": 11, "trigger_type": "Message", "trigger_keyword": "#測試分割|分割後字串", "expected_state": "T0011", "expected_reply_type": "text"},
-    # --------------[Sensor與Update連動測試]--------------
-    {"id": 12, "trigger_type": "Message", "trigger_keyword": "#呼叫系統事件", "expected_state": "T0013", "expected_reply_type": "text"},
-    # --------------[QA與DB工具測試]--------------
-    {"id": 13, "trigger_type": "Message", "trigger_keyword": "#系統工具", "expected_state": "T0014", "expected_reply_type": "text"},
-    {"id": 14, "trigger_type": "Message", "trigger_keyword": "這是一個測試Q", "expected_state": "T0015", "expected_reply_type": "text"},
-    {"id": 15, "trigger_type": "Message", "trigger_keyword": "#QA防呆", "expected_state": "T0016", "expected_reply_type": "text"},
-    # --------------[外推訊息格式與Sys大亂鬥測試]--------------
-    {"id": 16, "trigger_type": "Message", "trigger_keyword": "#圖片格式傳送", "expected_state": "T0017", "expected_reply_type": "image"},
-    {"id": 17, "trigger_type": "Message", "trigger_keyword": "#Flex格式傳送", "expected_state": "T0018", "expected_reply_type": "flex"},
-    {"id": 18, "trigger_type": "Message", "trigger_keyword": "#Sys底層函數群測試", "expected_state": "T0019", "expected_reply_type": "text"},
-    # --------------[Smarteval 內建變數測試]--------------
-    {"id": 19, "trigger_type": "Message", "trigger_keyword": "#內建變數測試", "expected_state": "T0020", "expected_reply_type": "text"}
-]
+DEFAULT_TEST_CASES = []
 
 @test_runner_bp.route('/test_cases', methods=['GET'])
 def get_test_cases():
@@ -224,7 +196,15 @@ def execute_tests():
             
             # 檢驗邏輯: 同時驗證 State, Reply Type, Expected Content
             pass_state = True if not expected_state else (expected_state == actual_state)
-            pass_type = True if not expected_reply_type else (expected_reply_type in actual_reply_types)
+            
+            pass_type = True
+            if expected_reply_type:
+                expected_types = [t.strip().lower() for t in expected_reply_type.replace('|', ',').split(',') if t.strip()]
+                actual_types_lower = [t.lower() for t in actual_reply_types]
+                for et in expected_types:
+                    if et not in actual_types_lower:
+                        pass_type = False
+                        break
             # expected_content 的驗證：如果預期文字有指定，則實際內容必須包含該字串（或部分符合）
             # 因為我們有替換如 (當前時間)，所以我們只檢查常數部分是否出現，或是簡單的 in 判斷
             # 這裡簡化為 expected_content 是否出現在 actual_content_raw 或 parsed_preview 中
