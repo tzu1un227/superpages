@@ -111,46 +111,61 @@ def execute_tests():
                 results.append({'id': tc.get('id', idx), 'status': 'Skip', 'reason': 'No trigger keyword'})
                 continue
             
-            # Step 1: 紀錄發送前的時間戳記 (直接向 DB 取時間避免時區落差造成完全撈不到資料)
+            # Step 1: 紀錄發送前的最新歷史時間戳記，確保不會撈到上一筆測試的舊資料
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("SELECT NOW() - INTERVAL '2 seconds' as now")
-            start_time = cur.fetchone()['now']
+            history_table = f"history:{app_id}"
+            try:
+                cur.execute(f"SELECT MAX(timestamp) as max_ts FROM \"{history_table}\" WHERE user_id = %s", (test_user_id,))
+                res = cur.fetchone()
+                last_ts = res['max_ts'] if res and res['max_ts'] else None
+            except Exception:
+                conn.rollback()
+                last_ts = None
             
-            # Step 2: 透過 Socket.IO 發送模擬訊息
+            # Step 2: 定義資料庫輪詢函數，用來不斷向資料庫確認是否已經有新回覆
+            def poll_db():
+                try:
+                    if last_ts:
+                        cur.execute(f"""
+                            SELECT category, content, timestamp FROM "{history_table}" 
+                            WHERE user_id = %s AND timestamp > %s AND category IN ('Response', 'sys_reply')
+                            ORDER BY timestamp DESC LIMIT 1
+                        """, (test_user_id, last_ts))
+                    else:
+                        cur.execute(f"""
+                            SELECT category, content, timestamp FROM "{history_table}" 
+                            WHERE user_id = %s AND category IN ('Response', 'sys_reply')
+                            ORDER BY timestamp DESC LIMIT 1
+                        """, (test_user_id,))
+                    row = cur.fetchone()
+                    return row if row else None
+                except Exception:
+                    conn.rollback()
+                    return None
+
+            # Step 3: 透過 Socket.IO 發送模擬訊息並等待 (輪詢)
             payload = {
                 'user': test_user_id,
                 'message': trigger,
                 'type': trigger_type,
                 'api_index': 0 
             }
+            history_row = None
             try:
-                # 延長 Socket 連線時間，讓 Line-Bot-Main 有充裕時間處理並回傳訊息，避免 KeyError 斷線衝突
-                send_socket_event(payload, wait_time=5.0)
+                # 延長 Socket 連線時間，讓 Line-Bot-Main 有充裕時間處理並回傳訊息
+                # 採用輪詢模式：最長等待 15 秒 (針對 timer 測試情境)，有結果就立刻返回
+                history_row = send_socket_event(payload, poll_func=poll_db, max_polls=15, poll_interval=1.0)
+                if history_row:
+                    last_ts = history_row['timestamp']
             except Exception as e:
                 results.append({'id': tc.get('id', idx), 'status': 'Fail', 'reason': f'Socket Error: {e}'})
                 cur.close()
                 continue
             
-            # Step 3: 等待 Line-Bot-Main 伺服器處理並寫入 DB (已在 send_socket_event 內完成)
-            
-            # Step 4: 查詢資料庫驗證結果
-            history_row = None
+            # Step 4: 查詢資料庫驗證結果 (狀態表)
             state_row = None
+            private_var_table = f"Private_var:{app_id}"
             try:
-                # 撈取機器人的最新歷史回應 (注意移除沒有的 type 欄位)
-                history_table = f"history:{app_id}"
-                cur.execute(f"""
-                    SELECT category, content FROM "{history_table}" 
-                    WHERE user_id = %s AND timestamp >= %s AND category IN ('Response', 'sys_reply')
-                    ORDER BY timestamp DESC LIMIT 1
-                """, (test_user_id, start_time))
-                history_row = cur.fetchone()
-            except Exception as e:
-                conn.rollback() # 取消發生的錯誤
-                
-            try:
-                # 撈取最新狀態
-                private_var_table = f"Private_var:{app_id}"
                 cur.execute(f"""
                     SELECT value as state FROM "{private_var_table}" 
                     WHERE user_id = %s AND name = 'state'
