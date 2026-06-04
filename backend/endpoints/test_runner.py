@@ -111,10 +111,16 @@ def execute_tests():
                 results.append({'id': tc.get('id', idx), 'status': 'Skip', 'reason': 'No trigger keyword'})
                 continue
             
-            # Step 1: 紀錄發送前的時間戳記 (直接向 DB 取時間避免時區落差造成完全撈不到資料)
+            # Step 1: 紀錄發送前的最新歷史時間戳記，確保不會撈到上一筆測試的舊資料
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("SELECT NOW() - INTERVAL '2 seconds' as now")
-            start_time = cur.fetchone()['now']
+            history_table = f"history:{app_id}"
+            try:
+                cur.execute(f"SELECT MAX(timestamp) as max_ts FROM \"{history_table}\" WHERE user_id = %s", (test_user_id,))
+                res = cur.fetchone()
+                last_ts = res['max_ts'] if res and res['max_ts'] else None
+            except Exception:
+                conn.rollback()
+                last_ts = None
             
             # Step 2: 透過 Socket.IO 發送模擬訊息
             payload = {
@@ -137,13 +143,19 @@ def execute_tests():
             history_row = None
             state_row = None
             try:
-                # 撈取機器人的最新歷史回應 (注意移除沒有的 type 欄位)
-                history_table = f"history:{app_id}"
-                cur.execute(f"""
-                    SELECT category, content FROM "{history_table}" 
-                    WHERE user_id = %s AND timestamp >= %s AND category IN ('Response', 'sys_reply')
-                    ORDER BY timestamp DESC LIMIT 1
-                """, (test_user_id, start_time))
+                # 撈取機器人的最新歷史回應，嚴格限制時間必須大於發送前的最新時間
+                if last_ts:
+                    cur.execute(f"""
+                        SELECT category, content FROM "{history_table}" 
+                        WHERE user_id = %s AND timestamp > %s AND category IN ('Response', 'sys_reply')
+                        ORDER BY timestamp DESC LIMIT 1
+                    """, (test_user_id, last_ts))
+                else:
+                    cur.execute(f"""
+                        SELECT category, content FROM "{history_table}" 
+                        WHERE user_id = %s AND category IN ('Response', 'sys_reply')
+                        ORDER BY timestamp DESC LIMIT 1
+                    """, (test_user_id,))
                 history_row = cur.fetchone()
             except Exception as e:
                 conn.rollback() # 取消發生的錯誤
