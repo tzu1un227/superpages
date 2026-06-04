@@ -20,16 +20,6 @@ function TestRunner() {
     const [results, setResults] = useState([]);
     const [testUserId, setTestUserId] = useState('');
 
-    const [cmdLoadQ, setCmdLoadQ] = useState(localStorage.getItem('cmdLoadQ') || '!更新法則 一般法則_測試版');
-    const [cmdLoadQA, setCmdLoadQA] = useState(localStorage.getItem('cmdLoadQA') || '!更新QA 問答題庫_測試版');
-    const [cmdRestoreQ, setCmdRestoreQ] = useState(localStorage.getItem('cmdRestoreQ') || '上傳');
-    const [cmdRestoreQA, setCmdRestoreQA] = useState(localStorage.getItem('cmdRestoreQA') || 'QA上傳');
-
-    useEffect(() => localStorage.setItem('cmdLoadQ', cmdLoadQ), [cmdLoadQ]);
-    useEffect(() => localStorage.setItem('cmdLoadQA', cmdLoadQA), [cmdLoadQA]);
-    useEffect(() => localStorage.setItem('cmdRestoreQ', cmdRestoreQ), [cmdRestoreQ]);
-    useEffect(() => localStorage.setItem('cmdRestoreQA', cmdRestoreQA), [cmdRestoreQA]);
-
     useEffect(() => {
         fetchTestCases();
     }, [oaId]);
@@ -102,101 +92,7 @@ function TestRunner() {
         }
     };
 
-    const runSheetSyncCommand = async (commandName) => {
-        setRunning(true);
-        try {
-            showToast(`正在發送指令：${commandName}，請稍候...`, 'info');
-            const res = await api.post('/test-runner/execute', { 
-                cases: [{ trigger_keyword: commandName, expected_reply_type: '' }] 
-            }, { timeout: 60000 });
-            const result = res.data.results[0];
-            if (result && result.actual_content) {
-                showToast(`機器人回應：${result.actual_content.substring(0, 50)}...`, 'success');
-            } else {
-                showToast('指令發送成功，但機器人未回應或重新啟動中', 'info');
-            }
-        } catch (err) {
-            showToast('發送指令失敗: ' + (err.response?.data?.error || err.message), 'error');
-        } finally {
-            setRunning(false);
-        }
-    };
 
-    const handleOneClickTest = async () => {
-        if (testCases.length === 0) {
-            showToast('請先新增至少一筆測試案例', 'error');
-            return;
-        }
-        
-        setRunning(true);
-        setResults([]);
-        
-        try {
-            // 階段 1: 載入測試法則 Q
-            showToast('【階段 1/5】向機器人發送載入一般法則庫指令...', 'info');
-            await api.post('/test-runner/execute', { 
-                cases: [{ trigger_keyword: cmdLoadQ, expected_reply_type: '' }] 
-            }, { timeout: 60000 });
-            await new Promise(r => setTimeout(r, 6000));
-
-            // 階段 2: 載入測試 QA
-            showToast('【階段 2/5】向機器人發送載入 QA 題庫指令...', 'info');
-            await api.post('/test-runner/execute', { 
-                cases: [{ trigger_keyword: cmdLoadQA, expected_reply_type: '' }] 
-            }, { timeout: 60000 });
-            await new Promise(r => setTimeout(r, 8000));
-            
-            // 階段 3: 執行全部測試
-            showToast('【階段 3/5】正在自動化逐筆執行測試，請稍後...', 'info');
-            let hasFails = false;
-            let currentResults = [];
-            
-            for (let i = 0; i < testCases.length; i++) {
-                const tc = testCases[i];
-                try {
-                    const res = await api.post('/test-runner/execute', { cases: [tc] }, { timeout: 30000 });
-                    if (res.data.results && res.data.results.length > 0) {
-                        const r = res.data.results[0];
-                        if (r.status === 'Fail') hasFails = true;
-                        currentResults.push(r);
-                        setResults([...currentResults]);
-                        setTestUserId(res.data.test_user_id);
-                    }
-                } catch (err) {
-                    hasFails = true;
-                    currentResults.push({
-                        id: tc.id, keyword: tc.trigger_keyword, status: 'Fail',
-                        reason: 'API連接逾時或發送失敗', actual_content: '', actual_state: ''
-                    });
-                    setResults([...currentResults]);
-                }
-            }
-            
-            // 階段 4: 還原正式法則
-            showToast('【階段 4/5】測試完畢，發送「還原」指令以還原正式法則庫...', 'info');
-            await api.post('/test-runner/execute', { 
-                cases: [{ trigger_keyword: cmdRestoreQ, expected_reply_type: '' }] 
-            }, { timeout: 60000 });
-            await new Promise(r => setTimeout(r, 5000));
-
-            // 階段 5: 還原 QA
-            showToast('【階段 5/5】發送指令還原正式 QA 題庫...', 'info');
-            await api.post('/test-runner/execute', { 
-                cases: [{ trigger_keyword: cmdRestoreQA, expected_reply_type: '' }] 
-            }, { timeout: 60000 });
-            await new Promise(r => setTimeout(r, 5000));
-            
-            if (hasFails) {
-                showToast('一鍵測試流程完成，但有部分測試失敗 ❌', 'error');
-            } else {
-                showToast('🎉 一鍵自動測試全流程完成，且全數通過 ✅', 'success');
-            }
-        } catch (err) {
-            showToast('一鍵自動化流程中斷: ' + (err.response?.data?.error || err.message), 'error');
-        } finally {
-            setRunning(false);
-        }
-    };
 
     const addTestCase = () => {
         const newId = testCases.length > 0 ? Math.max(...testCases.map(t => t.id || 0)) + 1 : 1;
@@ -226,36 +122,6 @@ function TestRunner() {
                     </h1>
                     <p style={{ color: '#B0B0B0' }}>透過底層 Websocket 自動驅動機器人，並直接從資料庫檢驗測試結果。完全無副作用。</p>
                 </div>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                    <button onClick={() => runSheetSyncCommand('!更新法則 一般法則_測試版')} className="secondary" disabled={running} title="模擬發送切換法則表指令">
-                        <Database size={18} /> 載入測試法則庫
-                    </button>
-                    <button onClick={() => runSheetSyncCommand('上傳')} className="secondary" disabled={running}>
-                        <RefreshCw size={18} /> 還原正式法則庫
-                    </button>
-                </div>
-            </div>
-
-            {/* Command Config Bar */}
-            <div className="card" style={{ padding: '15px 20px', display: 'flex', gap: '20px', flexDirection: 'column' }}>
-                <div style={{color: '#888', fontSize: '13px', fontWeight: 'bold'}}>一鍵測試設定 (變更後自動存檔)</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                    <div>
-                        <div style={{fontSize: '12px', color: '#666', marginBottom: '5px'}}>載入一般法則(Q)指令</div>
-                        <input type="text" value={cmdLoadQ} onChange={e => setCmdLoadQ(e.target.value)} style={{width: '100%', padding: '8px', backgroundColor: '#111', border: '1px solid #333', color: '#fff'}} />
-                    </div>
-                    <div>
-                        <div style={{fontSize: '12px', color: '#666', marginBottom: '5px'}}>載入問答題庫(QA)指令</div>
-                        <input type="text" value={cmdLoadQA} onChange={e => setCmdLoadQA(e.target.value)} style={{width: '100%', padding: '8px', backgroundColor: '#111', border: '1px solid #333', color: '#fff'}} />
-                    </div>
-                    <div>
-                        <div style={{fontSize: '12px', color: '#666', marginBottom: '5px'}}>還原一般法則(Q)指令</div>
-                        <input type="text" value={cmdRestoreQ} onChange={e => setCmdRestoreQ(e.target.value)} style={{width: '100%', padding: '8px', backgroundColor: '#111', border: '1px solid #333', color: '#fff'}} />
-                    </div>
-                    <div>
-                        <div style={{fontSize: '12px', color: '#666', marginBottom: '5px'}}>還原問答題庫(QA)指令</div>
-                        <input type="text" value={cmdRestoreQA} onChange={e => setCmdRestoreQA(e.target.value)} style={{width: '100%', padding: '8px', backgroundColor: '#111', border: '1px solid #333', color: '#fff'}} />
-                    </div>
                 </div>
             </div>
 
@@ -266,10 +132,7 @@ function TestRunner() {
                         {running ? <LoadingSpinner size={20} /> : <Play size={20} />} 
                         {running ? '正在自動執行測試...' : '執行全部測試 ▶'}
                     </button>
-                    <button onClick={handleOneClickTest} className="primary" disabled={running || loading} style={{ backgroundColor: '#ff9900', border: 'none', padding: '10px 25px', fontSize: '16px', color: '#111', fontWeight: 'bold' }}>
-                        {running ? <LoadingSpinner size={20} /> : <Zap size={20} />} 
-                        一鍵自動完成 (載入➜測試➜還原) 🚀
-                    </button>
+
                     
                     {testUserId && !running && (
                         <span style={{ fontSize: '13px', color: '#888' }}>測試執行綁定之 UserID: <code style={{color:'#ddd'}}>{testUserId}</code></span>
