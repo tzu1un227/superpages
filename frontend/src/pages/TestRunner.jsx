@@ -65,7 +65,7 @@ function TestRunner() {
             for (let i = 0; i < testCases.length; i++) {
                 const tc = testCases[i];
                 try {
-                    const res = await api.post('/test-runner/execute', { cases: [tc] }, { timeout: 30000 });
+                    const res = await api.post('/test-runner/execute', { cases: [tc] }, { timeout: 90000 });
                     if (res.data.results && res.data.results.length > 0) {
                         const r = res.data.results[0];
                         currentResults.push(r);
