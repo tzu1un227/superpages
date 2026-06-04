@@ -13,7 +13,7 @@ def get_shared_sio(target_ws_url, namespace):
     key = f"{target_ws_url}_{namespace}"
     sio = _global_sios.get(key)
     if not sio:
-        sio = socketio.Client(reconnection=True, ssl_verify=False, request_timeout=15)
+        sio = socketio.Client(reconnection=True, ssl_verify=False, request_timeout=60)
         _global_sios[key] = sio
     return sio
 

@@ -136,10 +136,10 @@ app.register_blueprint(db_viewer_bp, url_prefix='/api/db')
 from endpoints.rule_designer import rule_designer_bp
 app.register_blueprint(rule_designer_bp, url_prefix='/api/rule-designer')
 
-# Register Test Runner Blueprint
-from endpoints.test_runner import test_runner_bp
-app.register_blueprint(test_runner_bp, url_prefix='/api/test-runner')
+
 # (get_db_connection removed, imported from db_utils)
+
+DISABLED_PAGE_NAMES = {'TestRunner'}
 
 def get_current_app_id():
     """Returns the current logical app name/id (e.g. '5013')."""
@@ -691,6 +691,7 @@ def get_my_oas():
         
         # Pre-fetch all pages to avoid N+1 queries ideally, but here list is small
         all_pages = Page.query.all()
+        all_pages = [p for p in all_pages if p.name not in DISABLED_PAGE_NAMES]
         pages_map = {p.id: p for p in all_pages}
         
         for c in configs:

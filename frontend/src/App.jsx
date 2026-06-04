@@ -17,10 +17,10 @@ import { ToastProvider, useToast } from './contexts/ToastContext';
 import { TaskProvider, useTask } from './contexts/TaskContext';
 import Toast from './components/Toast';
 import StatusIndicator from './components/StatusIndicator';
-import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send, Shield, LayoutGrid, ClipboardList, Workflow, Database, Play } from 'lucide-react';
+import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send, Shield, LayoutGrid, ClipboardList, Workflow, Database } from 'lucide-react';
 import RuleDesigner from './pages/RuleDesigner';
 import DatabaseViewer from './pages/DatabaseViewer';
-import TestRunner from './pages/TestRunner';
+
 import CustomerCenter from './pages/CustomerCenter';
 import { Users } from 'lucide-react';
 
@@ -59,7 +59,6 @@ const PAGE_ROUTE_MAP = {
   'Questionnaire': 'questionnaire',
   'RuleDesigner': 'ruledesigner',
   'DatabaseViewer': 'dbviewer',
-  'TestRunner': 'testrunner',
   'CustomerCenter': 'customers'
 };
 
@@ -73,7 +72,6 @@ const PAGE_ICON_MAP = {
   'Questionnaire': ClipboardList,
   'RuleDesigner': Workflow,
   'DatabaseViewer': Database,
-  'TestRunner': Play,
   'CustomerCenter': Users
 };
 
@@ -95,7 +93,6 @@ const HELP_CONTENT_MAP = {
   'questionnaire': '問卷管理：建立與管理互動式問卷，收集用戶回饋與偏好。',
   'ruledesigner': '關鍵字回覆：設定當用戶輸入特定關鍵字時系統自動回覆的內容。',
   'dbviewer': '資料庫檢視：高級工具，用於直接檢視系統底層資料表狀態。',
-  'testrunner': '系統測試：用於開發者進行功能驗證與壓力測試的工具。',
   'customers': '客戶中心：管理客戶基本資料與進階屬性。',
   'admin': '管理員後台：管理系統用戶、帳號權限與全域設定。'
 };
@@ -169,7 +166,6 @@ const MainLayout = () => {
                         page.name === 'Questionnaire' ? '問卷管理' :
                           page.name === 'RuleDesigner' ? '關鍵字回覆' :
                             page.name === 'DatabaseViewer' ? '資料庫檢視' :
-                              page.name === 'TestRunner' ? '系統測試' :
                                 page.name === 'CustomerCenter' ? '客戶中心' :
                                   page.description;
 
@@ -259,7 +255,7 @@ const MainLayout = () => {
           <Route path="/oa/:oaId/liff-questionnaire" element={<ProtectedRoute><LiffQuestionnaire /></ProtectedRoute>} />
           <Route path="/oa/:oaId/ruledesigner" element={<ProtectedRoute><RuleDesigner /></ProtectedRoute>} />
           <Route path="/oa/:oaId/dbviewer" element={<ProtectedRoute><DatabaseViewer /></ProtectedRoute>} />
-          <Route path="/oa/:oaId/testrunner" element={<ProtectedRoute><TestRunner /></ProtectedRoute>} />
+
           <Route path="/oa/:oaId/customers" element={<ProtectedRoute><CustomerCenter /></ProtectedRoute>} />
 
           <Route path="/" element={

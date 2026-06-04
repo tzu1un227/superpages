@@ -129,6 +129,5 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 - **React 排序穩定性**: 在依賴頻繁輪詢更新狀態 (如訊息中心) 的列表元件中，若依賴時間 (timestamp) 等非唯一值作為排序依據，必須加入次要排序鍵 (例如 user_id) 作為 Tie-breaker，防止因預設不穩定排序造成的畫面隨機跳動現象。
 - **外部資源整合顯示**: 系統應優先整合並顯示對用戶友善的外部資源名稱 (如透過 LINE API 取得之 displayName)，取代內部技術命名，提升可用性。
 
-## 系統測試與環境變數重構 (2026-06-04)
+## GitHub Settings Refactor (2026-06-04)
 1. **GitHub 圖片上傳 (upload.py)**: 改為全域依賴環境變數 (GITHUB_TOKEN, GITHUB_REPO, GITHUB_BRANCH, GITHUB_PATH)，移除前台的設定 UI (AdminPage.jsx)，統一全站的 GitHub 儲存庫設定。
-2. **自動化系統測試 (test_runner.py, TestRunner.jsx)**: 系統測試案例預設載入包含 Sensor 連鎖反應的完整 24 筆資料庫題庫，並且新增了 expected_content 的精確比對功能。

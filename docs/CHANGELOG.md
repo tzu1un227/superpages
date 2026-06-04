@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## [2026-06-04] - 移除系統測試功能與清理死碼
+### Removed
+- `frontend/src/pages/TestRunner.jsx`: 移除系統測試前端頁面。原因：透過 Superpages 跨 Heroku App 測試 Line-Bot-Main 架構不當，Socket.IO 延遲與 DB Polling 導致不穩定，將改為在 Line-Bot-Main 端獨立測試。
+- `backend/endpoints/test_runner.py`: 移除系統測試後端 endpoint（包含 Socket.IO 發送與 DB 輪詢邏輯）。
+- `frontend/src/App.jsx`: 清除 TestRunner 的 import、路由設定、icon 映射、tooltip 與導覽列顯示名稱。`Play` icon 不再使用，一併從 lucide-react import 中移除。
+- `backend/app.py`: 移除 test_runner_bp Blueprint 註冊。
+- `scratch_replace.py`, `test_query.py`, `scratch_history.py`, `backend/scratch_history.py`: 清除不被任何程式引用的一次性除錯腳本。
+
 ## [2026-06-02] UI與穩定性修復 (介面、列表排序、LINE官方帳號名稱顯示)
 - **左側邊欄顯示 LINE 官方帳號名稱 (Request 1)**：在 `backend/app.py` 的 `/api/my_oas` 端點中加入呼叫 LINE Messaging API (`/v2/bot/info`)，動態取得並顯示真實的官方帳號顯示名稱 (displayName)，替換掉原本僅顯示資料庫內部設定的名稱。
 - **自動旅程排程列表 UI 優化 (Request 2)**：修改 `frontend/src/pages/Projects.jsx`，為排程列表、專案列表與用戶列表加入固定的最大高度 (`max-height: calc(100vh - 280px)`) 與垂直捲軸 (`overflow-y: auto`)，解決排程數量過多時頁面無限延伸的問題，使其排版行為與客戶中心一致。

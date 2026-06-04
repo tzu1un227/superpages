@@ -4,6 +4,28 @@ from auth import token_required, admin_required
 
 admin_bp = Blueprint('admin', __name__)
 
+DISABLED_PAGE_NAMES = {'TestRunner'}
+
+
+def is_enabled_page(page):
+    return page.name not in DISABLED_PAGE_NAMES
+
+
+def filter_enabled_page_ids(page_ids):
+    if not page_ids or not isinstance(page_ids, list):
+        return page_ids
+
+    enabled_page_ids = {
+        str(page.id)
+        for page in Page.query.all()
+        if is_enabled_page(page)
+    }
+    return [
+        page_id
+        for page_id in page_ids
+        if str(page_id) in enabled_page_ids
+    ]
+
 # --- User Management ---
 
 @admin_bp.route('/users', methods=['GET'])
@@ -101,6 +123,8 @@ def get_pages():
     pages = Page.query.all()
     page_list = []
     for page in pages:
+        if not is_enabled_page(page):
+            continue
         page_list.append({
             'id': page.id,
             'name': page.name,
@@ -136,7 +160,7 @@ def create_oa_config():
         return jsonify({'message': 'OA Name is required'}), 400
         
     # Valid page_ids required
-    page_ids = data.get('page_ids')
+    page_ids = filter_enabled_page_ids(data.get('page_ids'))
     if not page_ids or not isinstance(page_ids, list):
         return jsonify({'message': 'Page IDs list is required'}), 400 
     
@@ -178,7 +202,10 @@ def update_oa_config(config_id):
         
     data = request.get_json()
     if 'page_ids' in data:
-        config.page_ids = data['page_ids']
+        page_ids = filter_enabled_page_ids(data['page_ids'])
+        if not page_ids or not isinstance(page_ids, list):
+            return jsonify({'message': 'Page IDs list is required'}), 400
+        config.page_ids = page_ids
     if 'oa_name' in data:
         config.oa_name = data['oa_name']
     if 'db_url' in data:
