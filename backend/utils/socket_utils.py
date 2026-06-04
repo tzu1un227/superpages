@@ -7,10 +7,11 @@ from models import OAConfig
 WS_URL = os.environ.get('WS_URL', "https://irl-svr.ee.yzu.edu.tw:5013")
 DEFAULT_BOT_NAME = "websoc"
 
-def send_socket_event(data, namespace=None):
+def send_socket_event(data, namespace=None, wait_time=0.5):
     """
     Sends an event via Socket.IO to the bot engine.
     Ensures thread-safe connection by creating a new client instance per call.
+    wait_time: The time to keep the connection alive after emitting the event.
     """
     # Create a fresh client for every call to prevent concurrency race conditions
     # ssl_verify=False is needed due to internal Docker/Proxy cert issues
@@ -122,7 +123,7 @@ def send_socket_event(data, namespace=None):
             print(f"DEBUG: [SOCKET_EMITTED] Event: {event_name} | Type: {msg_type}")
             
         # Give some time for emission to flush before disconnect
-        time.sleep(0.5)
+        time.sleep(wait_time)
     except Exception as e:
         print(f"SOCKET_ERROR: Emission failed: {e}")
     finally:

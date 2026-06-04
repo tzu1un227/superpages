@@ -124,14 +124,14 @@ def execute_tests():
                 'api_index': 0 
             }
             try:
-                send_socket_event(payload)
+                # 延長 Socket 連線時間，讓 Line-Bot-Main 有充裕時間處理並回傳訊息，避免 KeyError 斷線衝突
+                send_socket_event(payload, wait_time=2.0)
             except Exception as e:
                 results.append({'id': tc.get('id', idx), 'status': 'Fail', 'reason': f'Socket Error: {e}'})
                 cur.close()
                 continue
             
-            # Step 3: 等待 Line-Bot-Main 伺服器處理並寫入 DB
-            time.sleep(1.5)
+            # Step 3: 等待 Line-Bot-Main 伺服器處理並寫入 DB (已在 send_socket_event 內完成)
             
             # Step 4: 查詢資料庫驗證結果
             history_row = None
