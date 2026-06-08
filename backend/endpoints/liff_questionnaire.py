@@ -724,6 +724,78 @@ def get_responses(survey_key):
             conn.close()
 
 
+@liff_questionnaire_bp.route("/<survey_key>/download", methods=["GET"], strict_slashes=False)
+def download_responses(survey_key):
+    conn = None
+    try:
+        _set_oa_context_from_request()
+        conn = get_db_connection()
+        app_id = _get_app_id()
+        _ensure_tables(conn, app_id)
+        survey, questions = _load_survey(conn, app_id, survey_key)
+        if not survey:
+            return jsonify({"error": "問卷不存在"}), 404
+
+        t = _tables(app_id)
+        view_name = f"v_liff_questionnaire_results:{app_id}"
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # 抓取該問卷的所有回答
+        cur.execute(f'SELECT * FROM "{view_name}" WHERE survey_key = %s ORDER BY submitted_at DESC, response_id DESC, question_no ASC', (survey_key,))
+        rows = cur.fetchall()
+        cur.close()
+
+        # 將資料轉換為列表形式 (一列為一個回答者的所有資料)
+        by_response = {}
+        for row in rows:
+            rid = row["response_id"]
+            if rid not in by_response:
+                by_response[rid] = {
+                    "Response ID": rid,
+                    "LINE User ID": row["line_user_id"],
+                    "Display Name": row["display_name"],
+                    "Submit Time": row["submitted_at"].strftime("%Y-%m-%d %H:%M:%S") if row["submitted_at"] else ""
+                }
+            if row["question_no"]:
+                col_name = f"Q{row['question_no']}. {row['question_content']}"
+                by_response[rid][col_name] = row["answer_value"] or ""
+
+        # 整理所有的欄位名稱
+        fieldnames = ["Response ID", "LINE User ID", "Display Name", "Submit Time"]
+        for q in questions:
+            fieldnames.append(f"Q{q['question_no']}. {q['content']}")
+
+        import io
+        import csv
+        from flask import Response
+
+        output = io.StringIO()
+        # 寫入 BOM 以便 Excel 支援 UTF-8
+        output.write('\ufeff')
+        writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction='ignore')
+        writer.writeheader()
+        
+        for response_data in by_response.values():
+            writer.writerow(response_data)
+            
+        csv_data = output.getvalue()
+        output.close()
+
+        import urllib.parse
+        encoded_filename = urllib.parse.quote(f"{survey['title']}_問卷結果.csv")
+        
+        return Response(
+            csv_data,
+            mimetype="text/csv",
+            headers={"Content-disposition": f"attachment; filename*=UTF-8''{encoded_filename}"}
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
 @liff_questionnaire_bp.route("/public/<survey_key>", methods=["GET"], strict_slashes=False)
 def public_get_survey(survey_key):
     conn = None

@@ -284,3 +284,4 @@
 - 於左側功能列新增「網路聲量雷達」(SocialRadar) 與「AI 洞察助理」(AiInsight) 兩個頁面。
 - 頁面目前為「施工中」狀態，未來規劃完成後將實作功能。
 - 更新後端資料庫的 pages 與 permission_settings (OAConfigs)，為所有專案加入這兩個新頁面的權限。
+- 於 LIFF 問卷管理頁面中新增「下載作答結果 (CSV)」功能，透過 `v_liff_questionnaire_results` 視圖直接匯出各使用者的作答紀錄。

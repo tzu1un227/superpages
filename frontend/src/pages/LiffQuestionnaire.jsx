@@ -32,6 +32,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import InsightsIcon from '@mui/icons-material/Insights';
 import LaunchIcon from '@mui/icons-material/Launch';
+import DownloadIcon from '@mui/icons-material/Download';
 import api from '../api';
 import TagInput from '../components/TagInput';
 import { useAuth } from '../contexts/AuthContext';
@@ -367,6 +368,26 @@ export default function Questionnaire() {
     }
   };
 
+  const handleDownload = async (survey) => {
+    showToast('準備下載中...', 'info');
+    try {
+      const res = await api.get(`/liff-questionnaires/${survey.survey_key}/download`, {
+        ...authHeaders,
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${survey.title}_問卷結果.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      showToast('下載失敗', 'error');
+    }
+  };
+
   return (
     <Box sx={{ display: 'grid', gridTemplateColumns: '420px minmax(0, 1fr)', gap: 3 }}>
       <Box>
@@ -533,6 +554,9 @@ export default function Questionnaire() {
                   </Tooltip>
                   <Tooltip title="查看作答">
                     <IconButton onClick={() => openResponses(survey)} sx={{ color: '#ffb300' }}><InsightsIcon /></IconButton>
+                  </Tooltip>
+                  <Tooltip title="下載作答結果 (CSV)">
+                    <IconButton onClick={() => handleDownload(survey)} sx={{ color: '#ba68c8' }}><DownloadIcon /></IconButton>
                   </Tooltip>
                   <Tooltip title="複製 LIFF 連結">
                     <IconButton onClick={() => copyText(makeLiffUrl(survey), 'LIFF 連結已複製')} sx={{ color: '#81c784' }}><ContentCopyIcon /></IconButton>
