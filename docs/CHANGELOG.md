@@ -277,3 +277,9 @@
 ## [2026-06-04] - 系統測試 Timeout 修正
 ### Changed
 - `frontend/src/pages/TestRunner.jsx`: 將逐筆測試執行的 API timeout 從 30 秒提高至 90 秒，避免涉及計時器或長時間處理的測試案例（如 `timer測試`）因後端 Socket 連線 + 機器人處理 + 資料庫輪詢的總時間超過前端 timeout 而誤報失敗。
+
+## [Unreleased] - 2026-06-08
+### 新增
+- 於左側功能列新增「網路聲量雷達」(SocialRadar) 與「AI 洞察助理」(AiInsight) 兩個頁面。
+- 頁面目前為「施工中」狀態，未來規劃完成後將實作功能。
+- 更新後端資料庫的 pages 與 permission_settings (OAConfigs)，為所有專案加入這兩個新頁面的權限。

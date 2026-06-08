@@ -131,3 +131,8 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 
 ## GitHub Settings Refactor (2026-06-04)
 1. **GitHub 圖片上傳 (upload.py)**: 改為全域依賴環境變數 (GITHUB_TOKEN, GITHUB_REPO, GITHUB_BRANCH, GITHUB_PATH)，移除前台的設定 UI (AdminPage.jsx)，統一全站的 GitHub 儲存庫設定。
+
+
+## 網路聲量雷達 (SocialRadar) & AI 洞察助理 (AiInsight) (新增於最新更新)
+- **前端實作**: 在 App.jsx 註冊了新的路由 /oa/:oaId/social-radar 與 /oa/:oaId/ai-insight，並對應到新增的 SocialRadar 與 AiInsight React 元件。
+- **後端整合**: 兩者作為新的 Page 記錄新增於資料庫，且授權給現有的 OAConfig。目前為施工中佔位頁面。
