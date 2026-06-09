@@ -1724,6 +1724,13 @@ def get_statistics_keywords():
     try:
         start_time = request.args.get('start_time', (datetime.now().replace(hour=0, minute=0, second=0)).isoformat())
         end_time = request.args.get('end_time', datetime.now().isoformat())
+        
+        # Handle date-only strings from frontend (e.g. YYYY-MM-DD)
+        if len(start_time) == 10:
+            start_time += " 00:00:00"
+        if len(end_time) == 10:
+            end_time += " 23:59:59"
+
         tag = request.args.get('tag', None)
         try:
             limit = int(request.args.get('limit', 150))
