@@ -191,7 +191,7 @@ const MainLayout = () => {
             {myOAs.map(oa => (
               <div key={oa.id} style={{ marginBottom: '25px' }}>
                 <div style={{ color: '#888', fontSize: '12px', fontWeight: 'bold', marginBottom: '10px', paddingLeft: isSidebarCollapsed ? '0' : '12px', textAlign: isSidebarCollapsed ? 'center' : 'left', textTransform: 'uppercase' }}>
-                  {isSidebarCollapsed ? oa.oa_name.substring(0, 2) : oa.oa_name}
+                  {isSidebarCollapsed ? (oa?.oa_name?.substring(0, 2) || 'OA') : oa?.oa_name}
                 </div>
                 <ul style={{ listStyle: 'none', padding: 0 }}>
                   {oa.pages && oa.pages.map(page => {

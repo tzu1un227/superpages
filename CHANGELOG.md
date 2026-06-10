@@ -25,3 +25,5 @@ ote\ 欄位會自動後綴 \- 工程用法則\。
 - **Feature**: 後端 customers.py 新增 /api/customers/<user_id>/details 與 DELETE /api/customers/<user_id>/richmenu。
 
 - **BugFix**: 修正客戶中心右側欄讀取自動旅程狀態時的 SQL 欄位名稱錯誤 (projects 表的 project_id 與 project_name)。
+
+- **Feature**: 系統最外層的主導覽列新增縮放按鈕，可將側邊欄收合以放大主工作區。
