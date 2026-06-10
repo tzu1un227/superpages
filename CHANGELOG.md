@@ -23,3 +23,5 @@ ote\ 欄位會自動後綴 \- 工程用法則\。
 ### 2026-06-10 Customer Center Updates
 - **Feature**: 客戶中心右側欄新增標籤管理 (新增/刪除)、自動旅程狀態顯示與中斷、圖文選單狀態顯示與解除綁定。
 - **Feature**: 後端 customers.py 新增 /api/customers/<user_id>/details 與 DELETE /api/customers/<user_id>/richmenu。
+
+- **BugFix**: 修正客戶中心右側欄讀取自動旅程狀態時的 SQL 欄位名稱錯誤 (projects 表的 project_id 與 project_name)。
