@@ -186,6 +186,11 @@ function QuestionCard({ q, index, total, onChange, onDelete, onMoveUp, onMoveDow
     );
 }
 
+const formatDisplayName = (name) => {
+    if (!name) return '';
+    return name.replace(/ \- 工程用法則$/, '').replace(/工程用法則$/, '');
+};
+
 export default function Questionnaire() {
     const { token } = useAuth();
     const { showToast } = useToast();
@@ -304,7 +309,7 @@ export default function Questionnaire() {
             const res = await api.get(`/questionnaire/detail/${encodeURIComponent(questionnaireNote)}`, authHeaders);
             const data = res.data;
             setSelectedGroupId(data.group_id || '');
-            setNote(data.note || '');
+            setNote(formatDisplayName(data.note) || '');
             setTrigger(data.trigger || '');
             setFinishMsg(data.finish_msg || '問卷已完成，謝謝您的參與！');
             setEnableReview(Boolean(data.enable_review));
@@ -321,7 +326,7 @@ export default function Questionnaire() {
             }));
             setIsEditing(questionnaireNote);
             setActiveStep(0);
-            showToast(`已載入問卷「${questionnaireNote}」`, 'info');
+            showToast(`已載入問卷「${formatDisplayName(questionnaireNote)}」`, 'info');
         } catch (e) {
             showToast(e.response?.data?.error || '載入問卷失敗', 'error');
         }
@@ -340,7 +345,7 @@ export default function Questionnaire() {
             if (expandedNote === deleteDialog.note) {
                 setExpandedNote(null);
             }
-            showToast(`問卷「${deleteDialog.note}」已刪除`, 'success');
+            showToast(`問卷「${formatDisplayName(deleteDialog.note)}」已刪除`, 'success');
             fetchList();
         } catch (e) {
             showToast(e.response?.data?.error || '刪除問卷失敗', 'error');
@@ -518,7 +523,7 @@ export default function Questionnaire() {
                             <Paper key={item.note} sx={{ mb: 1, background: '#222', border: '1px solid #444', overflow: 'hidden' }}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', px: 2, py: 1.5 }}>
                                     <Box sx={{ flex: 1, cursor: 'pointer' }} onClick={() => handleExpandNote(item.note)}>
-                                        <Typography sx={{ color: 'white', fontWeight: 'bold' }}>{item.note}</Typography>
+                                        <Typography sx={{ color: 'white', fontWeight: 'bold' }}>{formatDisplayName(item.note)}</Typography>
                                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
                                             <Chip label={`ID: ${item.id}`} size="small" sx={{ height: 20, background: '#333', color: '#aaa' }} />
                                             {item.enable_review && <Chip label="可回顧" size="small" sx={{ height: 20, background: '#2e7d32', color: 'white' }} />}
@@ -578,7 +583,7 @@ export default function Questionnaire() {
 
             <Box sx={{ flex: 1 }}>
                 <Typography variant="h6" sx={{ color: 'var(--primary-yellow)', mb: 3, fontWeight: 'bold' }}>
-                    {isEditing ? `編輯問卷：${isEditing}` : '建立新問卷'}
+                    {isEditing ? `編輯問卷：${formatDisplayName(isEditing)}` : '建立新問卷'}
                 </Typography>
 
                 <Stepper
@@ -798,7 +803,7 @@ export default function Questionnaire() {
             >
                 <DialogTitle sx={{ color: 'var(--primary-yellow)' }}>刪除問卷</DialogTitle>
                 <DialogContent>
-                    <Typography>確定要刪除問卷「{deleteDialog.note}」嗎？這會移除該問卷的規則。</Typography>
+                    <Typography>確定要刪除問卷「{formatDisplayName(deleteDialog.note)}」嗎？這會移除該問卷的規則。</Typography>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setDeleteDialog({ open: false, note: '' })} sx={{ color: '#B0B0B0' }}>取消</Button>
@@ -814,7 +819,7 @@ export default function Questionnaire() {
                 PaperProps={{ sx: { background: '#161616', color: 'white', border: '1px solid #444' } }}
             >
                 <DialogTitle sx={{ color: 'var(--primary-yellow)' }}>
-                    問卷填答結果：{responsesDialog.note}
+                    問卷填答結果：{formatDisplayName(responsesDialog.note)}
                 </DialogTitle>
                 <DialogContent dividers sx={{ borderColor: '#333' }}>
                     {responsesDialog.loading ? (
