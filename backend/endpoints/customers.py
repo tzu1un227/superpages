@@ -532,3 +532,87 @@ def update_customer(user_id):
         if conn: conn.close()
 
 
+@customers_bp.route('/<user_id>/details', methods=['GET'])
+@token_required
+def get_customer_details(user_id):
+    app_id = get_current_app_id()
+    conn = None
+    cur = None
+    details = {
+        "projects": [],
+        "rich_menu": None
+    }
+    try:
+        # Get active & completed projects
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        t_ups = f'"user_project_status:{app_id}"'
+        t_projects = f'"projects:{app_id}"'
+        cur.execute(f"""
+            SELECT p.id, p.name, LOWER(ups.status) as status
+            FROM {t_ups} ups
+            JOIN {t_projects} p ON ups.project_id = p.id
+            WHERE ups.user_id = %s
+        """, (user_id,))
+        details["projects"] = cur.fetchall()
+        cur.close()
+        conn.close()
+        conn = None
+        
+        # Get Rich Menu from LINE API
+        from endpoints.richmenu import get_line_token
+        token = get_line_token()
+        if token:
+            import requests
+            headers = {'Authorization': f'Bearer {token}'}
+            resp = requests.get(f'https://api.line.me/v2/bot/user/{user_id}/richmenu', headers=headers)
+            if resp.status_code == 200:
+                rich_menu_id = resp.json().get('richMenuId')
+                if rich_menu_id:
+                    # Query metadata for name
+                    from db_utils import get_main_db_connection
+                    m_conn = get_main_db_connection()
+                    m_cur = m_conn.cursor()
+                    t_metadata = f'"rich_menu_metadata:{app_id}"'
+                    try:
+                        m_cur.execute(f"SELECT name FROM {t_metadata} WHERE rich_menu_id = %s", (rich_menu_id,))
+                        row = m_cur.fetchone()
+                        if row:
+                            details["rich_menu"] = {"id": rich_menu_id, "name": row[0]}
+                        else:
+                            details["rich_menu"] = {"id": rich_menu_id, "name": "未知圖文選單"}
+                    except Exception as e:
+                        print("Error querying rich menu metadata:", e)
+                    finally:
+                        m_cur.close()
+                        m_conn.close()
+                        
+        return jsonify(details)
+    except Exception as e:
+        if conn: conn.rollback()
+        print(f"Error in get_customer_details: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cur: cur.close()
+        if conn: conn.close()
+
+@customers_bp.route('/<user_id>/richmenu', methods=['DELETE'])
+@token_required
+def delete_customer_richmenu(user_id):
+    from endpoints.richmenu import get_line_token
+    import requests
+    
+    token = get_line_token()
+    if not token:
+        return jsonify({'message': 'Line token not configured'}), 400
+        
+    headers = {'Authorization': f'Bearer {token}'}
+    try:
+        resp = requests.delete(f'https://api.line.me/v2/bot/user/{user_id}/richmenu', headers=headers)
+        if resp.status_code == 200:
+            return jsonify({'status': 'success'})
+        return jsonify({'message': 'Delete failed', 'line_error': resp.text}), resp.status_code
+    except Exception as e:
+        print(f"Error in delete_customer_richmenu: {e}")
+        return jsonify({'message': 'Error', 'error': str(e)}), 500
+

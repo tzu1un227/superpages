@@ -29,6 +29,8 @@ const CustomerCenter = () => {
   const [editingCustomer, setEditingCustomer] = useState(null);
   
   const [selectedCustomerForSidebar, setSelectedCustomerForSidebar] = useState(null);
+  const [sidebarDetails, setSidebarDetails] = useState({ projects: [], rich_menu: null, loading: false });
+  const [sidebarTagInput, setSidebarTagInput] = useState('');
 
   const navigate = useNavigate();
   const { oaId } = useParams();
@@ -112,6 +114,30 @@ const CustomerCenter = () => {
     setSearchQuery('');
     refreshAllData(true);
   }, [oaId]);
+
+  // Fetch Sidebar Details
+  useEffect(() => {
+    if (selectedCustomerForSidebar) {
+      const fetchDetails = async () => {
+        setSidebarDetails(prev => ({ ...prev, loading: true }));
+        try {
+          const resp = await api.get(`/customers/${selectedCustomerForSidebar.user_id}/details`);
+          setSidebarDetails({
+            projects: resp.data.projects || [],
+            rich_menu: resp.data.rich_menu || null,
+            loading: false
+          });
+        } catch (err) {
+          console.error('Failed to fetch sidebar details:', err);
+          setSidebarDetails({ projects: [], rich_menu: null, loading: false });
+        }
+      };
+      fetchDetails();
+    } else {
+      setSidebarDetails({ projects: [], rich_menu: null, loading: false });
+      setSidebarTagInput('');
+    }
+  }, [selectedCustomerForSidebar]);
 
   // When tab changes, just clear selection
   useEffect(() => {
@@ -422,24 +448,96 @@ const CustomerCenter = () => {
         tag_name: tagInput.trim(),
         user_ids: userIds
       });
-      
       setIsTagModalOpen(false);
       showToast(`成功為 ${userIds.length} 名用戶加入標籤: ${tagInput.trim()}`, 'success');
       setTagInput('');
-      setIsProcessing(false);
-      console.log('Batch tagging successful, refreshing...');
       await refreshAllData();
     } catch (err) {
-
-      showToast('標籤批次更新失敗', 'error');
-      console.error('Batch tagging error:', err);
+      showToast('加入標籤失敗', 'error');
+      console.error(err);
     } finally {
       setIsProcessing(false);
     }
-
-
-
   };
+
+  const handleSidebarAddTag = async () => {
+    if (!sidebarTagInput.trim() || !selectedCustomerForSidebar) return;
+    const tag = sidebarTagInput.trim();
+    setSidebarTagInput('');
+    try {
+      await api.post('/trigger', {
+        user: selectedCustomerForSidebar.user_id,
+        message: `set_tag|${tag}`,
+        type: 'Sensor',
+        api_index: 0
+      });
+      showToast(`已新增標籤: ${tag}`, 'success');
+      // Update local state to reflect UI change immediately
+      setSelectedCustomerForSidebar(prev => {
+        const currentTags = Array.isArray(prev.tag) ? prev.tag : (prev.tag ? [prev.tag] : []);
+        if (!currentTags.includes(tag)) {
+          return { ...prev, tag: [...currentTags, tag] };
+        }
+        return prev;
+      });
+    } catch (err) {
+      showToast('新增標籤失敗', 'error');
+      console.error(err);
+    }
+  };
+
+  const handleSidebarDeleteTag = async (tagName) => {
+    if (!selectedCustomerForSidebar) return;
+    if (!window.confirm(`確定要刪除標籤 [${tagName}] 嗎？`)) return;
+    try {
+      await api.post('/trigger', {
+        user: selectedCustomerForSidebar.user_id,
+        message: `del_tag|${tagName}`,
+        type: 'Sensor',
+        api_index: 0
+      });
+      showToast(`標籤 [${tagName}] 正在刪除中...`, 'success');
+      // Update local state to reflect UI change immediately
+      setSelectedCustomerForSidebar(prev => {
+        const currentTags = Array.isArray(prev.tag) ? prev.tag : (prev.tag ? [prev.tag] : []);
+        return { ...prev, tag: currentTags.filter(t => t !== tagName) };
+      });
+    } catch (err) {
+      showToast('刪除標籤失敗', 'error');
+      console.error(err);
+    }
+  };
+
+  const handleSidebarDeleteProject = async (projectId, projectName) => {
+    if (!selectedCustomerForSidebar) return;
+    if (!window.confirm(`確定要將此用戶退出自動旅程 [${projectName}] 嗎？`)) return;
+    try {
+      await api.delete(`/projects/${projectId}/users/${selectedCustomerForSidebar.user_id}`);
+      showToast('已將用戶退出自動旅程', 'success');
+      // Fetch details again to refresh
+      const resp = await api.get(`/customers/${selectedCustomerForSidebar.user_id}/details`);
+      setSidebarDetails(prev => ({ ...prev, projects: resp.data.projects || [] }));
+    } catch (err) {
+      showToast('退出自動旅程失敗', 'error');
+      console.error(err);
+    }
+  };
+
+  const handleSidebarDeleteRichMenu = async () => {
+    if (!selectedCustomerForSidebar) return;
+    if (!window.confirm(`確定要解除用戶的專屬圖文選單嗎？（將恢復為預設圖文選單）`)) return;
+    try {
+      await api.delete(`/customers/${selectedCustomerForSidebar.user_id}/richmenu`);
+      showToast('已解除綁定圖文選單', 'success');
+      // Update local state to reflect UI change
+      setSidebarDetails(prev => ({ ...prev, rich_menu: null }));
+    } catch (err) {
+      showToast('解除圖文選單失敗', 'error');
+      console.error(err);
+    }
+  };
+
+
 
   const handleSendGroupMessage = () => {
     const userIds = filteredCustomers.map(c => c.user_id).filter(Boolean).join(',');
@@ -1104,12 +1202,29 @@ const CustomerCenter = () => {
               </div>
 
               <div style={{ marginBottom: '24px' }}>
-                <div style={{ color: '#888', fontSize: '14px', marginBottom: '8px' }}>標籤</div>
+                <div style={{ color: '#888', fontSize: '14px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>標籤</span>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                  <input
+                    type="text"
+                    value={sidebarTagInput}
+                    onChange={(e) => setSidebarTagInput(e.target.value)}
+                    placeholder="輸入新標籤..."
+                    onKeyPress={(e) => e.key === 'Enter' && handleSidebarAddTag()}
+                    style={{ flex: 1, padding: '8px 12px', backgroundColor: '#111', color: '#fff', border: '1px solid #444', borderRadius: '6px', outline: 'none' }}
+                  />
+                  <button 
+                    onClick={handleSidebarAddTag}
+                    style={{ padding: '8px 12px', backgroundColor: '#333', color: '#fff', border: '1px solid #444', borderRadius: '6px', cursor: 'pointer' }}
+                  >新增</button>
+                </div>
                 <div style={{ backgroundColor: '#222', borderRadius: '8px', padding: '16px', border: '1px solid #333', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                   {Array.isArray(selectedCustomerForSidebar.tag) && selectedCustomerForSidebar.tag.length > 0 ? (
                     selectedCustomerForSidebar.tag.map((t, i) => (
                       <span key={i} style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '16px', backgroundColor: '#333', fontSize: '13px', border: '1px solid #444', color: '#FFD700' }}>
                         <Tag size={12} style={{ marginRight: '6px' }} /> {t}
+                        <X size={12} style={{ marginLeft: '6px', cursor: 'pointer', color: '#888' }} onClick={() => handleSidebarDeleteTag(t)} />
                       </span>
                     ))
                   ) : (
@@ -1129,6 +1244,47 @@ const CustomerCenter = () => {
                     ))
                   ) : (
                     <span style={{ color: '#666', fontSize: '14px' }}>未加入任何客群</span>
+                  )}
+                </div>
+              </div>
+
+              {/* 自動旅程 (Projects) */}
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ color: '#888', fontSize: '14px', marginBottom: '8px' }}>自動旅程</div>
+                <div style={{ backgroundColor: '#222', borderRadius: '8px', padding: '16px', border: '1px solid #333', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {sidebarDetails.loading ? (
+                    <span style={{ color: '#666', fontSize: '14px' }}>載入中...</span>
+                  ) : sidebarDetails.projects.length > 0 ? (
+                    sidebarDetails.projects.map((p, i) => (
+                      <span key={i} style={{ 
+                        display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '6px', fontSize: '13px', 
+                        backgroundColor: p.status === 'active' ? 'rgba(0,200,0,0.1)' : p.status === 'completed' ? 'rgba(33,150,243,0.1)' : 'rgba(255,255,255,0.1)', 
+                        border: `1px solid ${p.status === 'active' ? '#00c800' : p.status === 'completed' ? '#2196F3' : '#444'}`, 
+                        color: p.status === 'active' ? '#00c800' : p.status === 'completed' ? '#2196F3' : '#ccc' 
+                      }}>
+                        {p.name} ({p.status === 'active' ? '進行中' : p.status === 'completed' ? '已完成' : p.status === 'paused' ? '已中斷' : p.status})
+                        <X size={12} style={{ marginLeft: '6px', cursor: 'pointer', color: p.status === 'active' ? '#00c800' : p.status === 'completed' ? '#2196F3' : '#888' }} onClick={() => handleSidebarDeleteProject(p.id, p.name)} />
+                      </span>
+                    ))
+                  ) : (
+                    <span style={{ color: '#666', fontSize: '14px' }}>未加入任何旅程</span>
+                  )}
+                </div>
+              </div>
+
+              {/* 圖文選單 (Rich Menu) */}
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ color: '#888', fontSize: '14px', marginBottom: '8px' }}>圖文選單</div>
+                <div style={{ backgroundColor: '#222', borderRadius: '8px', padding: '16px', border: '1px solid #333', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {sidebarDetails.loading ? (
+                    <span style={{ color: '#666', fontSize: '14px' }}>載入中...</span>
+                  ) : sidebarDetails.rich_menu ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '6px', backgroundColor: 'rgba(255,215,0,0.1)', fontSize: '13px', border: '1px solid #FFD700', color: '#FFD700' }}>
+                      {sidebarDetails.rich_menu.name}
+                      <X size={12} style={{ marginLeft: '6px', cursor: 'pointer', color: '#FFD700' }} onClick={handleSidebarDeleteRichMenu} />
+                    </span>
+                  ) : (
+                    <span style={{ color: '#aaa', fontSize: '14px' }}>預設圖文選單</span>
                   )}
                 </div>
               </div>

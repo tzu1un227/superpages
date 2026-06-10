@@ -19,3 +19,7 @@
 ote\ 欄位會自動後綴 \- 工程用法則\。
 - **Feature**: 問卷管理前端畫面 (\Questionnaire.jsx\) 隱藏 \工程用法則\ 字尾，不顯示給使用者。
 - **Feature**: \RuleDesigner.jsx\ 的簡易模式利用關鍵字過濾隱藏帶有 \工程用法則\ 的問卷。
+
+### 2026-06-10 Customer Center Updates
+- **Feature**: 客戶中心右側欄新增標籤管理 (新增/刪除)、自動旅程狀態顯示與中斷、圖文選單狀態顯示與解除綁定。
+- **Feature**: 後端 customers.py 新增 /api/customers/<user_id>/details 與 DELETE /api/customers/<user_id>/richmenu。
