@@ -19,7 +19,7 @@ import { ToastProvider, useToast } from './contexts/ToastContext';
 import { TaskProvider, useTask } from './contexts/TaskContext';
 import Toast from './components/Toast';
 import StatusIndicator from './components/StatusIndicator';
-import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send, Shield, LayoutGrid, ClipboardList, Workflow, Database, Radar, BrainCircuit } from 'lucide-react';
+import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send, Shield, LayoutGrid, ClipboardList, Workflow, Database, Radar, BrainCircuit, Menu, ChevronLeft } from 'lucide-react';
 import RuleDesigner from './pages/RuleDesigner';
 import DatabaseViewer from './pages/DatabaseViewer';
 
@@ -109,6 +109,7 @@ const MainLayout = () => {
   const { isAuthenticated, logout, user, myOAs, isLoading } = useAuth();
   const { taskState } = useTask();
   const location = useLocation();
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
 
   if (isLoading) return <GlobalLoading />;
 
@@ -133,8 +134,36 @@ const MainLayout = () => {
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       {isAuthenticated && location.pathname !== '/login' && (
-        <nav style={{ width: '260px', backgroundColor: '#111', borderRight: '1px solid #333', padding: '30px 20px', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-          <h2 className="text-yellow" style={{ marginBottom: '40px', fontSize: '24px' }}>SuperPages</h2>
+        <nav style={{ 
+          width: isSidebarCollapsed ? '80px' : '260px', 
+          transition: 'width 0.3s ease',
+          backgroundColor: '#111', 
+          borderRight: '1px solid #333', 
+          padding: isSidebarCollapsed ? '30px 10px' : '30px 20px', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          overflowY: 'auto',
+          position: 'relative'
+        }}>
+          <button 
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            style={{
+              position: 'absolute',
+              top: '25px',
+              right: isSidebarCollapsed ? '25px' : '20px',
+              background: 'transparent',
+              border: 'none',
+              color: '#888',
+              cursor: 'pointer',
+              padding: '5px'
+            }}
+          >
+            {isSidebarCollapsed ? <Menu size={20} /> : <ChevronLeft size={20} />}
+          </button>
+
+          <h2 className="text-yellow" style={{ marginBottom: '40px', fontSize: isSidebarCollapsed ? '16px' : '24px', textAlign: isSidebarCollapsed ? 'center' : 'left', marginTop: isSidebarCollapsed ? '40px' : '0' }}>
+            {isSidebarCollapsed ? 'SP' : 'SuperPages'}
+          </h2>
 
           {user?.role === 'admin' && (
             <div style={{ marginBottom: '20px' }}>
@@ -145,6 +174,7 @@ const MainLayout = () => {
                   textDecoration: 'none',
                   display: 'flex',
                   alignItems: 'center',
+                  justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
                   gap: '12px',
                   padding: '12px',
                   borderRadius: '8px',
@@ -152,7 +182,7 @@ const MainLayout = () => {
                 }}
                 className="nav-link"
               >
-                <Shield size={20} className="text-yellow" /> 管理員後台
+                <Shield size={20} className="text-yellow" /> {!isSidebarCollapsed && '管理員後台'}
               </Link>
             </div>
           )}
@@ -160,8 +190,8 @@ const MainLayout = () => {
           <div style={{ flex: 1 }}>
             {myOAs.map(oa => (
               <div key={oa.id} style={{ marginBottom: '25px' }}>
-                <div style={{ color: '#888', fontSize: '12px', fontWeight: 'bold', marginBottom: '10px', paddingLeft: '12px', textTransform: 'uppercase' }}>
-                  {oa.oa_name}
+                <div style={{ color: '#888', fontSize: '12px', fontWeight: 'bold', marginBottom: '10px', paddingLeft: isSidebarCollapsed ? '0' : '12px', textAlign: isSidebarCollapsed ? 'center' : 'left', textTransform: 'uppercase' }}>
+                  {isSidebarCollapsed ? oa.oa_name.substring(0, 2) : oa.oa_name}
                 </div>
                 <ul style={{ listStyle: 'none', padding: 0 }}>
                   {oa.pages && oa.pages.map(page => {
@@ -187,6 +217,7 @@ const MainLayout = () => {
                             textDecoration: 'none',
                             display: 'flex',
                             alignItems: 'center',
+                            justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
                             gap: '12px',
                             padding: '10px 12px',
                             borderRadius: '8px',
@@ -196,7 +227,7 @@ const MainLayout = () => {
                           }}
                           className="nav-link"
                         >
-                          <RouteIcon size={18} className="text-yellow" /> {displayName}
+                          <RouteIcon size={18} className="text-yellow" /> {!isSidebarCollapsed && displayName}
                         </Link>
                       </li>
                       {page.name === 'Questionnaire' && (
@@ -208,6 +239,7 @@ const MainLayout = () => {
                               textDecoration: 'none',
                               display: 'flex',
                               alignItems: 'center',
+                              justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
                               gap: '12px',
                               padding: '10px 12px',
                               borderRadius: '8px',
@@ -217,7 +249,7 @@ const MainLayout = () => {
                             }}
                             className="nav-link"
                           >
-                            <ClipboardList size={18} className="text-yellow" /> LIFF 問卷
+                            <ClipboardList size={18} className="text-yellow" /> {!isSidebarCollapsed && 'LIFF 問卷'}
                           </Link>
                         </li>
                       )}
@@ -230,11 +262,13 @@ const MainLayout = () => {
           </div>
 
           <div style={{ marginTop: 'auto', borderTop: '1px solid #333', paddingTop: '20px' }}>
-            <div style={{ color: '#888', marginBottom: '10px', fontSize: '0.9em', paddingLeft: '12px' }}>
-              {user?.email}
-            </div>
-            <button onClick={logout} style={{ background: 'transparent', color: '#B0B0B0', display: 'flex', alignItems: 'center', gap: '12px', width: '100%', padding: '12px', cursor: 'pointer', border: 'none' }}>
-              <LogOut size={20} /> Logout
+            {!isSidebarCollapsed && (
+              <div style={{ color: '#888', marginBottom: '10px', fontSize: '0.9em', paddingLeft: '12px' }}>
+                {user?.email}
+              </div>
+            )}
+            <button onClick={logout} style={{ background: 'transparent', color: '#B0B0B0', display: 'flex', alignItems: 'center', justifyContent: isSidebarCollapsed ? 'center' : 'flex-start', gap: '12px', width: '100%', padding: '12px', cursor: 'pointer', border: 'none' }}>
+              <LogOut size={20} /> {!isSidebarCollapsed && 'Logout'}
             </button>
           </div>
         </nav>
