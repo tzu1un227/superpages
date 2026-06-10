@@ -13,3 +13,9 @@
   - 更新 get_users_list 與 get_project_users API 以回傳 is_following 狀態，供前端判斷用戶追蹤情況。
 
 
+
+### 2026-06-10
+- **Feature**: 透過問卷管理建立問卷時，\
+ote\ 欄位會自動後綴 \- 工程用法則\。
+- **Feature**: 問卷管理前端畫面 (\Questionnaire.jsx\) 隱藏 \工程用法則\ 字尾，不顯示給使用者。
+- **Feature**: \RuleDesigner.jsx\ 的簡易模式利用關鍵字過濾隱藏帶有 \工程用法則\ 的問卷。
