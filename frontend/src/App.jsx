@@ -111,8 +111,6 @@ const MainLayout = () => {
   const location = useLocation();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
 
-  if (isLoading) return <GlobalLoading />;
-
   React.useEffect(() => {
     if (isAuthenticated && myOAs && myOAs.length > 0) {
       // 預載所有權限的所有頁面資料
@@ -123,6 +121,8 @@ const MainLayout = () => {
       });
     }
   }, [isAuthenticated, myOAs]);
+
+  if (isLoading) return <GlobalLoading />;
 
   const getHelpContent = () => {
     if (location.pathname === '/admin') return HELP_CONTENT_MAP['admin'];
