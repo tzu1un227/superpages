@@ -1121,7 +1121,10 @@ function MessageCenter() {
                 <div style={{ flex: 1, overflowY: 'auto', paddingRight: '5px' }} onScroll={(e) => {
                     const { scrollTop, scrollHeight, clientHeight } = e.target;
                     if (scrollHeight - scrollTop - clientHeight < 50) {
-                        setSidebarDisplayCount(prev => Math.min(prev + 15, sortedUsers.length));
+                        setSidebarDisplayCount(prev => {
+                            if (prev >= sortedUsers.length) return prev;
+                            return Math.min(prev + 15, sortedUsers.length);
+                        });
                     }
                 }}>
                     {(loading || (loadingUsers && sortedUsers.length === 0)) ? (
@@ -1613,29 +1616,35 @@ function MessageCenter() {
                         )}
 
                         {/* 訊息輸入框 */}
-                        <div style={{ padding: '20px', borderTop: '1px solid #333', display: 'flex', gap: '15px' }}>
-                            <input
-                                value={input}
-                                onChange={e => setInput(e.target.value)}
-                                onKeyDown={e => {
-                                    if (e.key === 'Enter' && !e.shiftKey) {
-                                        e.preventDefault();
-                                        if (!e.repeat) sendMessage();
-                                    }
-                                }}
-                                placeholder={isSending ? "正在發送..." : "輸入訊息..."}
-                                style={{ flex: 1, cursor: isSending ? 'not-allowed' : 'text', opacity: isSending ? 0.7 : 1 }}
-                                disabled={isSending}
-                            />
-                            <button
-                                onClick={sendMessage}
-                                className="primary"
-                                style={{ padding: '0 25px' }}
-                                disabled={isSending || !input.trim()}
-                            >
-                                <Send size={20} />
-                            </button>
-                        </div>
+                        {currentUserInfo?.is_following === false ? (
+                            <div style={{ padding: '20px', borderTop: '1px solid #333', textAlign: 'center', color: '#ff4d4f', backgroundColor: 'rgba(255, 77, 79, 0.1)' }}>
+                                目前用戶已封鎖
+                            </div>
+                        ) : (
+                            <div style={{ padding: '20px', borderTop: '1px solid #333', display: 'flex', gap: '15px' }}>
+                                <input
+                                    value={input}
+                                    onChange={e => setInput(e.target.value)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            if (!e.repeat) sendMessage();
+                                        }
+                                    }}
+                                    placeholder={isSending ? "正在發送..." : "輸入訊息..."}
+                                    style={{ flex: 1, cursor: isSending ? 'not-allowed' : 'text', opacity: isSending ? 0.7 : 1 }}
+                                    disabled={isSending}
+                                />
+                                <button
+                                    onClick={sendMessage}
+                                    className="primary"
+                                    style={{ padding: '0 25px' }}
+                                    disabled={isSending || !input.trim()}
+                                >
+                                    <Send size={20} />
+                                </button>
+                            </div>
+                        )}
                     </>
                 ) : (
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666' }}>

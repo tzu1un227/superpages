@@ -1147,7 +1147,14 @@ def get_project_users(id):
                    (SELECT MIN(step_id) FROM {t_cron} WHERE user_id = ups.user_id AND project_id = ups.project_id AND status = 'active') as step_id,
                    (SELECT push_time FROM {t_cron} WHERE user_id = ups.user_id AND project_id = ups.project_id AND status = 'active' ORDER BY step_id ASC LIMIT 1) as next_push_time,
                    ups.updated_at as joined_at,
-                   NULL as user_name 
+                   NULL as user_name,
+                   (
+                       SELECT category
+                       FROM "history:{app_id}"
+                       WHERE user_id = ups.user_id AND category IN ('Follow', 'Unfollow')
+                       ORDER BY timestamp DESC
+                       LIMIT 1
+                   ) IS DISTINCT FROM 'Unfollow' as is_following
             FROM {t_ups} ups
             WHERE ups.project_id = %s
             ORDER BY ups.status DESC, step_id ASC
@@ -1990,7 +1997,14 @@ def get_users_list():
                     (SELECT string_agg(value, '|') FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'tag') as tags,
                     (SELECT value FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'name' LIMIT 1) as name,
                     (SELECT value FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'pic' LIMIT 1) as pic,
-                    (SELECT value FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'unread_count' LIMIT 1) as unread_count
+                    (SELECT value FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'unread_count' LIMIT 1) as unread_count,
+                    (
+                        SELECT category
+                        FROM "history:{app_id}"
+                        WHERE user_id = sub.user_id AND category IN ('Follow', 'Unfollow')
+                        ORDER BY timestamp DESC
+                        LIMIT 1
+                    ) IS DISTINCT FROM 'Unfollow' as is_following
             FROM (
                 SELECT user_id,
                        MAX(timestamp) as last_time

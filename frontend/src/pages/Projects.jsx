@@ -1828,9 +1828,13 @@ const ProjectsManagement = () => {
                                                         color = '#2196F3';
                                                         text = '已完成';
                                                     }
+                                                    if (u.is_following === false && (s === 'active' || s === 'Active')) {
+                                                        color = '#FF9800';
+                                                        text = '已中斷';
+                                                    }
                                                     const currentSchedule = schedules.find(sched => sched.project_id == selectedProjectId && sched.step_id == (u.step_id || (s === 'completed' ? Object.keys(schedules).length : 0)));
-                                                    if (s === 'active' && currentSchedule && currentSchedule.message_preview) {
-                                                        preview = <div style={{ fontSize: '12px', color: '#888', marginTop: '4px', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>即將發送: {currentSchedule.message_preview}</div>;
+                                                    if ((s === 'active' || text === '已中斷') && currentSchedule && currentSchedule.message_preview) {
+                                                        preview = <div style={{ fontSize: '12px', color: '#888', marginTop: '4px', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{text === '已中斷' ? '暫停於' : '即將發送'}: {currentSchedule.message_preview}</div>;
                                                     } else if (s === 'completed') {
                                                         const lastSched = [...schedules].filter(sched => sched.project_id == selectedProjectId).sort((a, b) => b.step_id - a.step_id)[0];
                                                         if (lastSched && lastSched.message_preview) {
@@ -1840,7 +1844,7 @@ const ProjectsManagement = () => {
                                                     return (
                                                         <div>
                                                             <span style={{ color, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                                {s === 'completed' ? <CheckCircle2 size={14} /> : (s === 'active' ? <Clock size={14} /> : <Circle size={14} />)}
+                                                                {s === 'completed' ? <CheckCircle2 size={14} /> : (text === '已中斷' ? <Clock size={14} /> : <Circle size={14} />)}
                                                                 {text}
                                                             </span>
                                                             {preview}
