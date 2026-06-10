@@ -841,6 +841,13 @@ function BroadcastContent() {
                                     disabled={(formData.status === 'sent' || formData.status === 'scheduled')}
                                     style={{ flex: 1, padding: '8px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', opacity: (formData.status === 'sent' || formData.status === 'scheduled') ? 0.7 : 1 }}
                                     onClick={() => {
+                                        const currentMsg = formData.messages[idx];
+                                        const hasContent = currentMsg.text || currentMsg.original_content_url || (currentMsg.contents && currentMsg.contents.type);
+                                        if (hasContent && currentMsg.OTYPE !== type.id) {
+                                            if (!window.confirm("確定要切換訊息類別嗎？目前輸入的內容將會遺失。")) {
+                                                return;
+                                            }
+                                        }
                                         const newMsgs = [...formData.messages];
                                         const baseContent = (type.id === 'FlexSendMessage') ? { type: 'bubble', contents: [] } : '';
                                         newMsgs[idx] = {
@@ -925,6 +932,11 @@ function BroadcastContent() {
                                         />
                                     </label>
                                 </div>
+                                {msg.original_content_url && (
+                                    <div style={{ marginTop: '10px', textAlign: 'center' }}>
+                                        <img src={msg.original_content_url} style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px', objectFit: 'contain' }} alt="預覽圖片" />
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -932,20 +944,77 @@ function BroadcastContent() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                 <div>
                                     <label className="label">影片連結 (.mp4)</label>
-                                    <input type="text" value={msg.original_content_url || ''} disabled={(formData.status === 'sent' || formData.status === 'scheduled')} onChange={e => {
-                                        const msgs = [...formData.messages];
-                                        msgs[idx].original_content_url = e.target.value;
-                                        setFormData({ ...formData, messages: msgs });
-                                    }} placeholder="https://..." style={{ width: '100%', opacity: (formData.status === 'sent' || formData.status === 'scheduled') ? 0.7 : 1 }} />
+                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                        <input type="text" value={msg.original_content_url || ''} disabled={(formData.status === 'sent' || formData.status === 'scheduled')} onChange={e => {
+                                            const msgs = [...formData.messages];
+                                            msgs[idx].original_content_url = e.target.value;
+                                            setFormData({ ...formData, messages: msgs });
+                                        }} placeholder="https://..." style={{ flex: 1, opacity: (formData.status === 'sent' || formData.status === 'scheduled') ? 0.7 : 1 }} />
+                                        {!(formData.status === 'sent' || formData.status === 'scheduled') && (
+                                            <label style={{
+                                                padding: '8px 12px', background: 'var(--primary-yellow)', color: '#000', borderRadius: '4px',
+                                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', fontWeight: 'bold'
+                                            }}>
+                                                <Plus size={16} /> 上傳
+                                                <input type="file" accept="video/*" style={{ display: 'none' }} onChange={async (e) => {
+                                                    const file = e.target.files[0];
+                                                    if (!file) return;
+                                                    const uploadData = new FormData();
+                                                    uploadData.append('file', file);
+                                                    try {
+                                                        const res = await api.post('/upload/github', uploadData);
+                                                        const msgs = [...formData.messages];
+                                                        msgs[idx].original_content_url = res.data.url;
+                                                        setFormData({ ...formData, messages: msgs });
+                                                    } catch (err) {
+                                                        showToast('上傳失敗', 'error');
+                                                    } finally {
+                                                        e.target.value = '';
+                                                    }
+                                                }} />
+                                            </label>
+                                        )}
+                                    </div>
                                 </div>
                                 <div>
                                     <label className="label">預覽圖連結 (.jpg)</label>
-                                    <input type="text" value={msg.preview_image_url || ''} disabled={(formData.status === 'sent' || formData.status === 'scheduled')} onChange={e => {
-                                        const msgs = [...formData.messages];
-                                        msgs[idx].preview_image_url = e.target.value;
-                                        setFormData({ ...formData, messages: msgs });
-                                    }} placeholder="https://..." style={{ width: '100%', opacity: (formData.status === 'sent' || formData.status === 'scheduled') ? 0.7 : 1 }} />
+                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                        <input type="text" value={msg.preview_image_url || ''} disabled={(formData.status === 'sent' || formData.status === 'scheduled')} onChange={e => {
+                                            const msgs = [...formData.messages];
+                                            msgs[idx].preview_image_url = e.target.value;
+                                            setFormData({ ...formData, messages: msgs });
+                                        }} placeholder="https://..." style={{ flex: 1, opacity: (formData.status === 'sent' || formData.status === 'scheduled') ? 0.7 : 1 }} />
+                                        {!(formData.status === 'sent' || formData.status === 'scheduled') && (
+                                            <label style={{
+                                                padding: '8px 12px', background: 'var(--primary-yellow)', color: '#000', borderRadius: '4px',
+                                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', fontWeight: 'bold'
+                                            }}>
+                                                <Plus size={16} /> 上傳
+                                                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => {
+                                                    const file = e.target.files[0];
+                                                    if (!file) return;
+                                                    const uploadData = new FormData();
+                                                    uploadData.append('file', file);
+                                                    try {
+                                                        const res = await api.post('/upload/github', uploadData);
+                                                        const msgs = [...formData.messages];
+                                                        msgs[idx].preview_image_url = res.data.url;
+                                                        setFormData({ ...formData, messages: msgs });
+                                                    } catch (err) {
+                                                        showToast('上傳失敗', 'error');
+                                                    } finally {
+                                                        e.target.value = '';
+                                                    }
+                                                }} />
+                                            </label>
+                                        )}
+                                    </div>
                                 </div>
+                                {msg.original_content_url && (
+                                    <div style={{ marginTop: '10px', textAlign: 'center' }}>
+                                        <video controls src={msg.original_content_url} style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px' }} />
+                                    </div>
+                                )}
                             </div>
                         )}
 

@@ -2165,6 +2165,11 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                                 </label>
                                             </div>
                                         </div>
+                                        {messages[activeMsgIndex].original_content_url && (
+                                            <div style={{ marginTop: '10px', textAlign: 'center' }}>
+                                                <img src={messages[activeMsgIndex].original_content_url} style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px', objectFit: 'contain' }} alt="預覽圖片" />
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                                 {messages[activeMsgIndex].OTYPE === 'VideoSendMessage' && (
@@ -2211,6 +2216,11 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                                 </label>
                                             </div>
                                         </div>
+                                        {messages[activeMsgIndex].original_content_url && (
+                                            <div style={{ marginTop: '10px', textAlign: 'center' }}>
+                                                <video controls src={messages[activeMsgIndex].original_content_url} style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px' }} />
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                                 {messages[activeMsgIndex].OTYPE === 'AudioSendMessage' && (
@@ -2224,21 +2234,34 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                                     <input type="file" accept="audio/*" style={{ display: 'none' }} onChange={async (e) => {
                                                         const file = e.target.files[0];
                                                         if (!file) return;
-                                                        const formData = new FormData();
-                                                        formData.append('file', file);
-                                                        try {
-                                                            const res = await api.post('/upload/github', formData);
-                                                            updateMessage(activeMsgIndex, 'original_content_url', res.data.url);
-                                                        } catch (err) {
-                                                            alert('上傳失敗: ' + (err.response?.data?.message || err.message));
-                                                        }
+                                                        const audioObj = new Audio(URL.createObjectURL(file));
+                                                        audioObj.onloadedmetadata = async () => {
+                                                            const dur = Math.round(audioObj.duration * 1000);
+                                                            URL.revokeObjectURL(audioObj.src);
+                                                            const formData = new FormData();
+                                                            formData.append('file', file);
+                                                            try {
+                                                                const res = await api.post('/upload/github', formData);
+                                                                const msgs = [...messages];
+                                                                msgs[activeMsgIndex].original_content_url = res.data.url;
+                                                                msgs[activeMsgIndex].duration = dur;
+                                                                setMessages(msgs);
+                                                            } catch (err) {
+                                                                alert('上傳失敗: ' + (err.response?.data?.message || err.message));
+                                                            }
+                                                        };
                                                     }} />
                                                 </label>
                                             </div>
                                         </div>
+                                        {messages[activeMsgIndex].original_content_url && (
+                                            <div style={{ marginTop: '10px' }}>
+                                                <audio controls src={messages[activeMsgIndex].original_content_url} style={{ width: '100%' }} />
+                                            </div>
+                                        )}
                                         <div>
-                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>長度 (毫秒)</label>
-                                            <input type="number" value={messages[activeMsgIndex].duration} onChange={(e) => updateMessage(activeMsgIndex, 'duration', parseInt(e.target.value) || 0)} style={{ width: '100%', padding: '10px', background: '#222', border: 'none', color: '#fff' }} />
+                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>長度 (毫秒 - 自動偵測)</label>
+                                            <input type="number" value={messages[activeMsgIndex].duration || ''} readOnly disabled style={{ width: '100%', padding: '10px', background: '#333', border: 'none', color: '#aaa', cursor: 'not-allowed' }} placeholder="上傳音檔後自動帶入" />
                                         </div>
                                     </div>
                                 )}
