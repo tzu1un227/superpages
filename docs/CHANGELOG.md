@@ -280,6 +280,12 @@
 
 ## [Unreleased] - 2026-06-08
 ### 新增
+- 將網頁瀏覽器分頁圖示 (favicon) 更新為指定的自訂圖示。
 - 於左側功能列新增「網路聲量雷達」(SocialRadar) 與「AI 洞察助理」(AiInsight) 兩個頁面。
 - 頁面目前為「施工中」狀態，未來規劃完成後將實作功能。
 - 更新後端資料庫的 pages 與 permission_settings (OAConfigs)，為所有專案加入這兩個新頁面的權限。
+- 於 LIFF 問卷管理頁面中新增「下載作答結果 (CSV)」功能，透過 `v_liff_questionnaire_results` 視圖直接匯出各使用者的作答紀錄。
+
+## [2026-06-09] - 綜合數據日期計算修正
+### Fixed
+- backend/app.py: 修正在 `/api/statistics/keywords` 端點中，當前端傳入 `YYYY-MM-DD` 格式的結束日期時，未涵蓋到當天 23:59:59 的問題。現已自動為 `end_time` 補上 ` 23:59:59`。
