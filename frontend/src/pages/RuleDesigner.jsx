@@ -198,10 +198,10 @@ function RuleDesigner() {
     const [designMode, setDesignMode] = useState('simple'); // 'simple' | 'engineering'
     const [selectedRuleIndex, setSelectedRuleIndex] = useState(null);
     
-    // Modal State for msg_rpy
     const [isMsgModalOpen, setIsMsgModalOpen] = useState(false);
     const [editingRowIndex, setEditingRowIndex] = useState(null);
     const [msgRpyList, setMsgRpyList] = useState([]); 
+    const [savingMsg, setSavingMsg] = useState(false);
     
     // Flex Editor State
     const [showFlexEditor, setShowFlexEditor] = useState(false);
@@ -341,12 +341,16 @@ function RuleDesigner() {
             }
         }
         
-        const newDrafts = [...draftRules];
-        newDrafts[editingRowIndex].msg_rpy = msgRpyList;
-        newDrafts[editingRowIndex]._isDirty = true;
-        setDraftRules(newDrafts);
-        setIsMsgModalOpen(false);
-        setEditingRowIndex(null);
+        setSavingMsg(true);
+        setTimeout(() => {
+            const newDrafts = [...draftRules];
+            newDrafts[editingRowIndex].msg_rpy = msgRpyList;
+            newDrafts[editingRowIndex]._isDirty = true;
+            setDraftRules(newDrafts);
+            setIsMsgModalOpen(false);
+            setEditingRowIndex(null);
+            setSavingMsg(false);
+        }, 500); // 模擬載入時間 500ms
     };
 
     // --- Message Editor inside Modal ---
@@ -661,7 +665,9 @@ function RuleDesigner() {
                                         />
                                         <span style={{ fontSize: '13px', color: '#ccc' }}>啟用狀態</span>
                                     </label>
-                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteRow(idx); }} className="secondary" style={{ color: '#ff4d4d', padding: '6px 12px', background: 'transparent', border: '1px solid #ff4d4d' }}>刪除</button>
+                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteRow(idx); }} className="secondary" disabled={loading} style={{ color: '#ff4d4d', padding: '6px 12px', background: 'transparent', border: '1px solid #ff4d4d', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        {loading ? <><RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> 刪除中...</> : '刪除'}
+                                    </button>
                                 </div>
                             </div>
                         );
@@ -695,8 +701,12 @@ function RuleDesigner() {
                                         <ArrowRight size={18} style={{ transform: 'rotate(180deg)' }} /> 返回列表
                                     </button>
                                     <div style={{ display: 'flex', gap: '10px' }}>
-                                        <button onClick={() => handleDeleteRow(idx)} className="secondary" style={{ color: '#ff4d4d', background: 'transparent', border: '1px solid #ff4d4d' }}><Trash2 size={16} /> 刪除此關鍵字</button>
-                                        {rule._isDirty && <button onClick={() => handleSaveRow(idx)} className="primary"><Save size={16} /> 儲存設定</button>}
+                                        <button onClick={() => handleDeleteRow(idx)} className="secondary" disabled={loading} style={{ color: '#ff4d4d', background: 'transparent', border: '1px solid #ff4d4d', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            {loading ? <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Trash2 size={16} />} 刪除此關鍵字
+                                        </button>
+                                        {rule._isDirty && <button onClick={() => handleSaveRow(idx)} className="primary" disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            {loading ? <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={16} />} 儲存設定
+                                        </button>}
                                     </div>
                                 </div>
                                 
@@ -1044,7 +1054,10 @@ function RuleDesigner() {
                             </h3>
                             <div style={{ display: 'flex', gap: '10px' }}>
                                 <button onClick={() => setIsMsgModalOpen(false)} className="secondary" style={{ background: 'transparent', color: '#fff' }}>取消</button>
-                                <button onClick={handleSaveMsgModal} className="primary">確認並儲存</button>
+                                <button onClick={handleSaveMsgModal} className="primary" disabled={savingMsg} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    {savingMsg && <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} />}
+                                    確認並儲存
+                                </button>
                             </div>
                         </div>
 
