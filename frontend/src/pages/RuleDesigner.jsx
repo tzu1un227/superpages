@@ -342,6 +342,7 @@ function RuleDesigner() {
         }
         
         setSavingMsg(true);
+        showToast('正在儲存中...', 'info');
         setTimeout(() => {
             const newDrafts = [...draftRules];
             newDrafts[editingRowIndex].msg_rpy = msgRpyList;
@@ -386,6 +387,7 @@ function RuleDesigner() {
         setRowErrors(newErrors);
 
         setLoading(true);
+        showToast('正在儲存中...', 'info');
         const ruleToSave = { ...draftRules[index] };
         delete ruleToSave._isDirty;
         delete ruleToSave._isNew;
@@ -463,6 +465,7 @@ function RuleDesigner() {
 
         if (!window.confirm(`確定要刪除規則 ${ruleTarget.id} 嗎？`)) return;
         setLoading(true);
+        showToast('正在刪除中...', 'info');
         try {
             await api.delete(`/rule-designer/rules/${ruleTarget.id}?type=${bankType}`);
             showToast('規則已刪除', 'success');
