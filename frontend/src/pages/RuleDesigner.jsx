@@ -719,14 +719,14 @@ function RuleDesigner() {
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                                 <div>
                                                     <label className="label">關鍵字名稱 (內部備註用途)</label>
-                                                    <input type="text" value={rule.note || ''} onChange={e => handleFieldChange(idx, 'note', e.target.value)} style={{ width: '100%', padding: '12px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '14px' }} placeholder="請輸入名稱" />
+                                                    <input type="text" disabled={loading} value={rule.note || ''} onChange={e => handleFieldChange(idx, 'note', e.target.value)} style={{ width: '100%', padding: '12px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '14px', opacity: loading ? 0.6 : 1 }} placeholder="請輸入名稱" />
                                                 </div>
                                                 <div>
                                                     <label className="label">觸發關鍵字 (多個關鍵字請用逗號分隔)</label>
-                                                    <input type="text" value={Array.isArray(rule.content) ? rule.content.join(', ') : (rule.content || '')} onChange={e => handleFieldChange(idx, 'content', e.target.value)} style={{ width: '100%', padding: '12px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '14px' }} placeholder="例如: 優惠, 折扣, 促銷" />
+                                                    <input type="text" disabled={loading} value={Array.isArray(rule.content) ? rule.content.join(', ') : (rule.content || '')} onChange={e => handleFieldChange(idx, 'content', e.target.value)} style={{ width: '100%', padding: '12px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '14px', opacity: loading ? 0.6 : 1 }} placeholder="例如: 優惠, 折扣, 促銷" />
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px', padding: '10px', backgroundColor: '#1a1a1a', borderRadius: '6px' }}>
-                                                    <input type="checkbox" id="rule-enabled" checked={isEnabled} onChange={e => handleFieldChange(idx, 'history', e.target.checked)} style={{ width: '16px', height: '16px' }} />
+                                                    <input type="checkbox" disabled={loading} id="rule-enabled" checked={isEnabled} onChange={e => handleFieldChange(idx, 'history', e.target.checked)} style={{ width: '16px', height: '16px', opacity: loading ? 0.6 : 1 }} />
                                                     <label htmlFor="rule-enabled" style={{ cursor: 'pointer', color: '#ccc', flex: 1 }}>啟用此關鍵字回覆</label>
                                                 </div>
                                             </div>
@@ -760,7 +760,7 @@ function RuleDesigner() {
                                                 </div>
                                             )}
                                             
-                                            <button onClick={() => handleOpenMsgModal(idx)} className="secondary" style={{ width: '100%', padding: '12px', borderStyle: 'dashed', backgroundColor: 'transparent' }}>
+                                            <button onClick={() => handleOpenMsgModal(idx)} disabled={loading} className="secondary" style={{ width: '100%', padding: '12px', borderStyle: 'dashed', backgroundColor: 'transparent', opacity: loading ? 0.6 : 1 }}>
                                                 <Edit2 size={16} /> {msgCount > 0 ? '編輯回覆訊息內容' : '新增回覆訊息'}
                                             </button>
                                         </div>
@@ -775,17 +775,17 @@ function RuleDesigner() {
                                                 <div>
                                                     <label className="label">生效日期區間 (留空白為不限制)</label>
                                                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                                        <input type="date" value={checkData.startDate} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, startDate: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px' }} />
+                                                        <input type="date" disabled={loading} value={checkData.startDate} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, startDate: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} />
                                                         <span style={{ color: '#666' }}>~</span>
-                                                        <input type="date" value={checkData.endDate} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, endDate: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px' }} />
+                                                        <input type="date" disabled={loading} value={checkData.endDate} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, endDate: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} />
                                                     </div>
                                                 </div>
                                                 <div>
                                                     <label className="label">每日生效時段 (留空白為全天)</label>
                                                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                                        <input type="time" value={checkData.startTime} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, startTime: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px' }} />
+                                                        <input type="time" disabled={loading} value={checkData.startTime} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, startTime: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} />
                                                         <span style={{ color: '#666' }}>~</span>
-                                                        <input type="time" value={checkData.endTime} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, endTime: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px' }} />
+                                                        <input type="time" disabled={loading} value={checkData.endTime} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, endTime: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} />
                                                     </div>
                                                 </div>
                                             </div>
@@ -796,7 +796,7 @@ function RuleDesigner() {
                                             <h3 style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}><Tag size={18} className="text-yellow" /> 觸發後動作</h3>
                                             <div>
                                                 <label className="label">自動上標 (限填一個標籤)</label>
-                                                <input type="text" value={funcData.tag} onChange={e => handleFieldChange(idx, 'function', stringifyFunction(e.target.value))} style={{ width: '100%', padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px' }} placeholder="例如: 已互動" />
+                                                <input type="text" disabled={loading} value={funcData.tag} onChange={e => handleFieldChange(idx, 'function', stringifyFunction(e.target.value))} style={{ width: '100%', padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} placeholder="例如: 已互動" />
                                                 <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#888' }}>當用戶觸發此關鍵字時，將自動為該用戶貼上此標籤。</p>
                                             </div>
                                         </div>
@@ -1068,9 +1068,9 @@ function RuleDesigner() {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                                     <h4 style={{ margin: 0, fontSize: '14px', color: '#ccc' }}>訊息封包清單</h4>
                                     <div style={{ display: 'flex', gap: '8px' }}>
-                                        <button onClick={() => handleAddMessage('TextSendMessage')} style={{ fontSize: '11px', padding: '4px 8px' }} className="secondary">+ 文字</button>
-                                        <button onClick={() => handleAddMessage('ImageSendMessage')} style={{ fontSize: '11px', padding: '4px 8px' }} className="secondary">+ 圖片</button>
-                                        <button onClick={() => handleAddMessage('FlexSendMessage')} style={{ fontSize: '11px', padding: '4px 8px' }} className="secondary">+ 圖文訊息</button>
+                                        <button onClick={() => handleAddMessage('TextSendMessage')} disabled={savingMsg} style={{ fontSize: '11px', padding: '4px 8px', opacity: savingMsg ? 0.6 : 1 }} className="secondary">+ 文字</button>
+                                        <button onClick={() => handleAddMessage('ImageSendMessage')} disabled={savingMsg} style={{ fontSize: '11px', padding: '4px 8px', opacity: savingMsg ? 0.6 : 1 }} className="secondary">+ 圖片</button>
+                                        <button onClick={() => handleAddMessage('FlexSendMessage')} disabled={savingMsg} style={{ fontSize: '11px', padding: '4px 8px', opacity: savingMsg ? 0.6 : 1 }} className="secondary">+ 圖文訊息</button>
                                     </div>
                                 </div>
                                 
@@ -1087,16 +1087,17 @@ function RuleDesigner() {
                                                     <span>#{idx + 1}</span>
                                                     <span style={{ color: '#FFD700' }}>{typeLabel}</span>
                                                 </span>
-                                                <Trash2 size={16} className="text-red" style={{ cursor: 'pointer', opacity: 0.7 }} onClick={() => handleRemoveMessage(idx)} />
+                                                <Trash2 size={16} className="text-red" style={{ cursor: savingMsg ? 'not-allowed' : 'pointer', opacity: savingMsg ? 0.3 : 0.7, pointerEvents: savingMsg ? 'none' : 'auto' }} onClick={() => handleRemoveMessage(idx)} />
                                             </div>
                                             
                                             {/* Editor for Text */}
                                             {(msg.OTYPE === 'TextSendMessage' || msg.Line?.OTYPE === 'TextSendMessage') && (
                                                 <textarea 
+                                                    disabled={savingMsg}
                                                     value={msg.text || msg.Line?.text || ''}
                                                     onChange={e => handleUpdateMessage(idx, 'text', e.target.value)}
                                                     rows={3}
-                                                    style={{ width: '100%', fontSize: '13px', backgroundColor: '#000', border: '1px solid #333', padding: '10px', borderRadius: '6px' }}
+                                                    style={{ width: '100%', fontSize: '13px', backgroundColor: '#000', border: '1px solid #333', padding: '10px', borderRadius: '6px', opacity: savingMsg ? 0.6 : 1 }}
                                                     placeholder="輸入文字內容..."
                                                 />
                                             )}
@@ -1106,6 +1107,7 @@ function RuleDesigner() {
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                     <input 
                                                         type="file" 
+                                                        disabled={savingMsg}
                                                         accept="image/*"
                                                         onChange={async e => {
                                                             const file = e.target.files[0];
@@ -1142,9 +1144,10 @@ function RuleDesigner() {
                                                         <span style={{ fontSize: '12px', color: '#888' }}>請使用視覺化編輯器編輯圖文訊息內容</span>
                                                     </div>
                                                     <button 
+                                                        disabled={savingMsg}
                                                         onClick={() => { setFlexEditorIndex(idx); setShowFlexEditor(true); }}
                                                         className="secondary" 
-                                                        style={{ width: '100%', fontSize: '13px', padding: '12px', backgroundColor: 'rgba(255, 215, 0, 0.1)', color: '#FFD700', border: '1px dashed rgba(255, 215, 0, 0.5)' }}
+                                                        style={{ width: '100%', fontSize: '13px', padding: '12px', backgroundColor: 'rgba(255, 215, 0, 0.1)', color: '#FFD700', border: '1px dashed rgba(255, 215, 0, 0.5)', opacity: savingMsg ? 0.6 : 1 }}
                                                     >
                                                         <Layers size={16} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
                                                         打開視覺化編輯器
