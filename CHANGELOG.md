@@ -1,5 +1,13 @@
-﻿## [2026-06-10] superpages dev-and-deploy-docker Update
-- **自動旅程 (Projects.jsx)**: 
+## [2026-06-12] superpages UI/UX Improvements
+- **前端全域 (App.jsx)**:
+  - 左側邊欄的 OA（官方帳號）區塊新增獨立的收合與展開按鈕功能。
+- **自動旅程 (Projects.jsx)**:
+  - 影片訊息編輯時，影片預覽區現在會正確吃入 `preview_image_url` 顯示為封面圖 (poster)。
+  - 聲音訊息編輯時，隱藏多餘的 duration 長度顯示，改為純自動讀取後端資料，不干擾視覺。
+- **關鍵字回覆 (RuleDesigner.jsx)**:
+  - 修正簡易模式下刪除關鍵字後卡在空白編輯頁面的問題，現在刪除後會自動跳轉回關鍵字列表。
+
+## [2026-06-10] superpages dev-and-deploy-docker Update
   - 進階訊息編輯器新增語音訊息自動偵測長度功能，並鎖定手動輸入框。
   - 進階訊息編輯器新增圖片、影片上傳後即時預覽功能。
   - 新增對 unfollow 用戶的狀態顯示，將 ctive 且已封鎖的用戶標記為【已中斷】，保留當前進度。

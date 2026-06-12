@@ -19,7 +19,7 @@ import { ToastProvider, useToast } from './contexts/ToastContext';
 import { TaskProvider, useTask } from './contexts/TaskContext';
 import Toast from './components/Toast';
 import StatusIndicator from './components/StatusIndicator';
-import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send, Shield, LayoutGrid, ClipboardList, Workflow, Database, Radar, BrainCircuit, Menu, ChevronLeft } from 'lucide-react';
+import { LayoutDashboard, Clock, LogOut, MessageSquare, BarChart3, Send, Shield, LayoutGrid, ClipboardList, Workflow, Database, Radar, BrainCircuit, Menu, ChevronLeft, ChevronDown, ChevronRight } from 'lucide-react';
 import RuleDesigner from './pages/RuleDesigner';
 import DatabaseViewer from './pages/DatabaseViewer';
 
@@ -110,6 +110,16 @@ const MainLayout = () => {
   const { taskState } = useTask();
   const location = useLocation();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
+  const [collapsedOAs, setCollapsedOAs] = React.useState(new Set());
+
+  const toggleOA = (oaId) => {
+    setCollapsedOAs(prev => {
+      const next = new Set(prev);
+      if (next.has(oaId)) next.delete(oaId);
+      else next.add(oaId);
+      return next;
+    });
+  };
 
   React.useEffect(() => {
     if (isAuthenticated && myOAs && myOAs.length > 0) {
@@ -190,9 +200,29 @@ const MainLayout = () => {
           <div style={{ flex: 1 }}>
             {myOAs.map(oa => (
               <div key={oa.id} style={{ marginBottom: '25px' }}>
-                <div style={{ color: '#888', fontSize: '12px', fontWeight: 'bold', marginBottom: '10px', paddingLeft: isSidebarCollapsed ? '0' : '12px', textAlign: isSidebarCollapsed ? 'center' : 'left', textTransform: 'uppercase' }}>
+                <div 
+                  onClick={() => toggleOA(oa.id)}
+                  style={{ 
+                    color: '#888', 
+                    fontSize: '12px', 
+                    fontWeight: 'bold', 
+                    marginBottom: '10px', 
+                    paddingLeft: isSidebarCollapsed ? '0' : '12px', 
+                    textAlign: isSidebarCollapsed ? 'center' : 'left', 
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: isSidebarCollapsed ? 'center' : 'space-between',
+                    userSelect: 'none'
+                  }}
+                >
                   {isSidebarCollapsed ? (oa?.oa_name?.substring(0, 2) || 'OA') : oa?.oa_name}
+                  {!isSidebarCollapsed && (
+                    collapsedOAs.has(oa.id) ? <ChevronRight size={14} /> : <ChevronDown size={14} />
+                  )}
                 </div>
+                {!collapsedOAs.has(oa.id) && (
                 <ul style={{ listStyle: 'none', padding: 0 }}>
                   {oa.pages && oa.pages.map(page => {
                     const RouteIcon = PAGE_ICON_MAP[page.name] || LayoutDashboard;
@@ -257,6 +287,7 @@ const MainLayout = () => {
                     );
                   })}
                 </ul>
+                )}
               </div>
             ))}
           </div>

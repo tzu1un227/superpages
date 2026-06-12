@@ -2218,7 +2218,7 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                         </div>
                                         {messages[activeMsgIndex].original_content_url && (
                                             <div style={{ marginTop: '10px', textAlign: 'center' }}>
-                                                <video controls src={messages[activeMsgIndex].original_content_url} style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px' }} />
+                                                <video controls poster={messages[activeMsgIndex].preview_image_url} src={messages[activeMsgIndex].original_content_url} style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px' }} />
                                             </div>
                                         )}
                                     </div>
@@ -2259,10 +2259,6 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                                 <audio controls src={messages[activeMsgIndex].original_content_url} style={{ width: '100%' }} />
                                             </div>
                                         )}
-                                        <div>
-                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>長度 (毫秒 - 自動偵測)</label>
-                                            <input type="number" value={messages[activeMsgIndex].duration || ''} readOnly disabled style={{ width: '100%', padding: '10px', background: '#333', border: 'none', color: '#aaa', cursor: 'not-allowed' }} placeholder="上傳音檔後自動帶入" />
-                                        </div>
                                     </div>
                                 )}
                                 {messages[activeMsgIndex].OTYPE === 'FlexSendMessage' && (

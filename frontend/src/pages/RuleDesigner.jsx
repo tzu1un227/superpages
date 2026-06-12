@@ -451,6 +451,9 @@ function RuleDesigner() {
                 else if (ki > index) newErrors[ki - 1] = v;
             });
             setRowErrors(newErrors);
+            if (designMode === 'simple') {
+                setSelectedRuleIndex(null);
+            }
             return;
         }
 
@@ -471,6 +474,9 @@ function RuleDesigner() {
             });
             setRowErrors(newErrors);
             fetchRules();
+            if (designMode === 'simple') {
+                setSelectedRuleIndex(null);
+            }
         } catch (err) {
             showToast('刪除失敗', 'error');
         } finally {
