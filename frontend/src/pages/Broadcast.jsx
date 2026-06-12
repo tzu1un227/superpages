@@ -1012,7 +1012,7 @@ function BroadcastContent() {
                                 </div>
                                 {msg.original_content_url && (
                                     <div style={{ marginTop: '10px', textAlign: 'center' }}>
-                                        <video controls src={msg.original_content_url} style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px' }} />
+                                        <video controls poster={msg.preview_image_url || ''} src={msg.original_content_url} style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px' }} />
                                     </div>
                                 )}
                             </div>
