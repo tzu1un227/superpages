@@ -240,8 +240,9 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
             
             let urlParams = null;
             if (payload.includes('liff.line.me')) {
-                const tagMatch = payload.match(/[?&]tag=([^&]*)/);
-                if (tagMatch) urlParams = new URLSearchParams(payload.substring(payload.indexOf('?')));
+                if (payload.match(/[?&](tag|journey|menu)=/)) {
+                    urlParams = new URLSearchParams(payload.substring(payload.indexOf('?')));
+                }
             } else if (payload.includes('/redirect?') || payload.includes('%2Fredirect%3F')) {
                 const search = payload.includes('?') ? payload.substring(payload.indexOf('?')) : decodeURIComponent(payload).substring(decodeURIComponent(payload).indexOf('?'));
                 urlParams = new URLSearchParams(search);
@@ -283,6 +284,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                     if (urlMatch && urlMatch[1]) {
                         return decodeURIComponent(urlMatch[1]);
                     }
+                    return redirectUrl;
                 }
             }
             // Clean redirect format
