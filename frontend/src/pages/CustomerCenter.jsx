@@ -679,17 +679,16 @@ const CustomerCenter = () => {
                     {Array.isArray(c.projects) && c.projects.length > 0 ? (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                         {c.projects.map((p, i) => {
-                          const isCompleted = p.status === 'completed';
                           return (
                             <span key={i} style={{ 
-                              backgroundColor: isCompleted ? 'rgba(156, 163, 175, 0.2)' : 'rgba(59, 130, 246, 0.2)', 
-                              color: isCompleted ? '#9CA3AF' : '#60A5FA', 
+                              backgroundColor: p.status === 'active' ? 'rgba(0,200,0,0.1)' : p.status === 'completed' ? 'rgba(33,150,243,0.1)' : 'rgba(255,255,255,0.1)', 
+                              color: p.status === 'active' ? '#00c800' : p.status === 'completed' ? '#2196F3' : '#ccc', 
                               padding: '2px 6px', 
                               borderRadius: '4px', 
                               fontSize: '12px', 
-                              border: isCompleted ? '1px solid rgba(156, 163, 175, 0.4)' : '1px solid rgba(59, 130, 246, 0.4)' 
+                              border: `1px solid ${p.status === 'active' ? 'rgba(0,200,0,0.4)' : p.status === 'completed' ? 'rgba(33,150,243,0.4)' : 'rgba(255,255,255,0.4)'}`
                             }}>
-                              {p.project_name}{isCompleted ? ' (已完成)' : ''}
+                              {p.project_name}{p.status === 'completed' ? ' (已完成)' : ''}
                             </span>
                           );
                         })}
