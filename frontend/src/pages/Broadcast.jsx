@@ -119,6 +119,7 @@ function BroadcastContent() {
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     // Separate state for list-view preview
     const [previewBcMessages, setPreviewBcMessages] = useState(null);
+    const [isUploadingMsg, setIsUploadingMsg] = useState(null);
 
     // Data sources
     const [availableTags, setAvailableTags] = useState([]);
@@ -897,24 +898,28 @@ function BroadcastContent() {
                                     }} placeholder="https://..." style={{ flex: 1 }} />
                                     <label style={{
                                         padding: '8px 12px',
-                                        background: 'var(--primary-yellow)',
-                                        color: '#000',
+                                        background: isUploadingMsg === `image_${idx}` ? '#555' : 'var(--primary-yellow)',
+                                        color: isUploadingMsg === `image_${idx}` ? '#888' : '#000',
                                         borderRadius: '4px',
-                                        cursor: 'pointer',
+                                        cursor: isUploadingMsg === `image_${idx}` ? 'not-allowed' : 'pointer',
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: '5px',
                                         fontSize: '13px',
-                                        fontWeight: 'bold'
+                                        fontWeight: 'bold',
+                                        pointerEvents: isUploadingMsg === `image_${idx}` ? 'none' : 'auto'
                                     }}>
-                                        <Plus size={16} /> 上傳
+                                        {isUploadingMsg === `image_${idx}` ? <CircularProgress size={16} color="inherit" /> : <Plus size={16} />}
+                                        {isUploadingMsg === `image_${idx}` ? '上傳中...' : '上傳'}
                                         <input
                                             type="file"
                                             accept="image/*"
                                             style={{ display: 'none' }}
+                                            disabled={isUploadingMsg === `image_${idx}`}
                                             onChange={async (e) => {
                                                 const file = e.target.files[0];
                                                 if (!file) return;
+                                                setIsUploadingMsg(`image_${idx}`);
                                                 const uploadData = new FormData();
                                                 uploadData.append('file', file);
                                                 try {
@@ -926,6 +931,7 @@ function BroadcastContent() {
                                                 } catch (err) {
                                                     showToast('上傳失敗', 'error');
                                                 } finally {
+                                                    setIsUploadingMsg(null);
                                                     e.target.value = ''; // Reset input to allow re-uploading same file
                                                 }
                                             }}
@@ -952,13 +958,14 @@ function BroadcastContent() {
                                         }} placeholder="https://..." style={{ flex: 1, opacity: (formData.status === 'sent' || formData.status === 'scheduled') ? 0.7 : 1 }} />
                                         {!(formData.status === 'sent' || formData.status === 'scheduled') && (
                                             <label style={{
-                                                padding: '8px 12px', background: 'var(--primary-yellow)', color: '#000', borderRadius: '4px',
-                                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', fontWeight: 'bold'
+                                                padding: '8px 12px', background: isUploadingMsg === `video_${idx}` ? '#555' : 'var(--primary-yellow)', color: isUploadingMsg === `video_${idx}` ? '#888' : '#000', borderRadius: '4px',
+                                                cursor: isUploadingMsg === `video_${idx}` ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', fontWeight: 'bold', pointerEvents: isUploadingMsg === `video_${idx}` ? 'none' : 'auto'
                                             }}>
-                                                <Plus size={16} /> 上傳
-                                                <input type="file" accept="video/*" style={{ display: 'none' }} onChange={async (e) => {
+                                                {isUploadingMsg === `video_${idx}` ? <CircularProgress size={16} color="inherit" /> : <Plus size={16} />} {isUploadingMsg === `video_${idx}` ? '上傳中...' : '上傳'}
+                                                <input type="file" accept="video/*" style={{ display: 'none' }} disabled={isUploadingMsg === `video_${idx}`} onChange={async (e) => {
                                                     const file = e.target.files[0];
                                                     if (!file) return;
+                                                    setIsUploadingMsg(`video_${idx}`);
                                                     const uploadData = new FormData();
                                                     uploadData.append('file', file);
                                                     try {
@@ -969,6 +976,7 @@ function BroadcastContent() {
                                                     } catch (err) {
                                                         showToast('上傳失敗', 'error');
                                                     } finally {
+                                                        setIsUploadingMsg(null);
                                                         e.target.value = '';
                                                     }
                                                 }} />
@@ -986,13 +994,14 @@ function BroadcastContent() {
                                         }} placeholder="https://..." style={{ flex: 1, opacity: (formData.status === 'sent' || formData.status === 'scheduled') ? 0.7 : 1 }} />
                                         {!(formData.status === 'sent' || formData.status === 'scheduled') && (
                                             <label style={{
-                                                padding: '8px 12px', background: 'var(--primary-yellow)', color: '#000', borderRadius: '4px',
-                                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', fontWeight: 'bold'
+                                                padding: '8px 12px', background: isUploadingMsg === `video_preview_${idx}` ? '#555' : 'var(--primary-yellow)', color: isUploadingMsg === `video_preview_${idx}` ? '#888' : '#000', borderRadius: '4px',
+                                                cursor: isUploadingMsg === `video_preview_${idx}` ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', fontWeight: 'bold', pointerEvents: isUploadingMsg === `video_preview_${idx}` ? 'none' : 'auto'
                                             }}>
-                                                <Plus size={16} /> 上傳
-                                                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => {
+                                                {isUploadingMsg === `video_preview_${idx}` ? <CircularProgress size={16} color="inherit" /> : <Plus size={16} />} {isUploadingMsg === `video_preview_${idx}` ? '上傳中...' : '上傳'}
+                                                <input type="file" accept="image/*" style={{ display: 'none' }} disabled={isUploadingMsg === `video_preview_${idx}`} onChange={async (e) => {
                                                     const file = e.target.files[0];
                                                     if (!file) return;
+                                                    setIsUploadingMsg(`video_preview_${idx}`);
                                                     const uploadData = new FormData();
                                                     uploadData.append('file', file);
                                                     try {
@@ -1003,6 +1012,7 @@ function BroadcastContent() {
                                                     } catch (err) {
                                                         showToast('上傳失敗', 'error');
                                                     } finally {
+                                                        setIsUploadingMsg(null);
                                                         e.target.value = '';
                                                     }
                                                 }} />

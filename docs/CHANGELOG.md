@@ -8,7 +8,16 @@
 - `backend/app.py`: 移除 test_runner_bp Blueprint 註冊。
 - `scratch_replace.py`, `test_query.py`, `scratch_history.py`, `backend/scratch_history.py`: 清除不被任何程式引用的一次性除錯腳本。
 
-## [2026-06-02] UI與穩定性修復 (介面、列表排序、LINE官方帳號名稱顯示)
+## 2026-06-16
+
+### 新增與優化
+- **檔案上傳防呆與提示 (Request)**：為系統中所有上傳圖片、影片與音訊的功能 (`Broadcast.jsx`, `Projects.jsx`, `RuleDesigner.jsx`) 統一加入「上傳中...」的載入動畫提示 (CircularProgress)，並在非同步上傳期間自動禁用 (Disable) File Input 按鈕，防止因網路延遲導致使用者誤以為系統卡死而重複點擊。
+- **客戶中心直接顯示旅程與圖文選單 (Request)**：
+  - **後端架構更新 (資料庫快取)**：在 `backend/endpoints/richmenu.py` 中，將 `bulk_link_all_users`、`bulk_unlink_all_users`、`set_default_rich_menu` 等 API 操作同步寫入至本地資料庫的 `Private_var` (個別選單) 與 `Global_var` (預設選單)，實現「資料庫快取機制」，避免頻繁向 LINE 查詢導致效能瓶頸與被 Rate Limit。
+  - **後端查詢優化**：重構 `backend/endpoints/customers.py` 的 `/customers` 列表查詢，直接利用 `LEFT JOIN` 本地 `user_project_status` 取得進行中的自動旅程，並結合 `rich_menu` 快取，無延遲回傳包含旅程與選單資訊的結果。
+  - **前端列表擴充**：在 `frontend/src/pages/CustomerCenter.jsx` 客戶列表中新增「自動旅程」與「圖文選單」欄位，管理員現在不需點開側邊欄即可一覽所有用戶目前的旅程進度與套用的選單狀態。
+
+## [2026-06-12] UI與穩定性修復 (介面、列表排序、LINE官方帳號名稱顯示)
 - **左側邊欄顯示 LINE 官方帳號名稱 (Request 1)**：在 `backend/app.py` 的 `/api/my_oas` 端點中加入呼叫 LINE Messaging API (`/v2/bot/info`)，動態取得並顯示真實的官方帳號顯示名稱 (displayName)，替換掉原本僅顯示資料庫內部設定的名稱。
 - **自動旅程排程列表 UI 優化 (Request 2)**：修改 `frontend/src/pages/Projects.jsx`，為排程列表、專案列表與用戶列表加入固定的最大高度 (`max-height: calc(100vh - 280px)`) 與垂直捲軸 (`overflow-y: auto`)，解決排程數量過多時頁面無限延伸的問題，使其排版行為與客戶中心一致。
 - **訊息中心聊天室順序跳動修復 (Request 3)**：修復 `frontend/src/pages/MessageCenter.jsx` 中，每 5 秒輪詢更新用戶列表時，因多個用戶具有相同的 `last_time` (最後訊息時間) 導致 React 排序不穩定 (Unstable Sort) 而發生列表隨機跳動的問題。現已加入 `user_id` 作為次要排序依據 (Tie-breaker)，確保在時間相同時順序固定不跳動。
