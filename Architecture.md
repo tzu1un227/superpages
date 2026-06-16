@@ -10,6 +10,7 @@
 - **後端 (Backend)**: 
   - 基於 Flask 構建，提供各種 RESTful API 端點 ( pp.py)。
   - get_users_list & get_project_users API: 負責撈取用戶資訊與最新互動狀態，透過 history 的 Follow/Unfollow 標記來計算 is_following。
+  - questionnaire.py: 負責問卷建立、查詢、列表等邏輯與驗證機制（包含重複名稱檢查等）。
 - **資料庫 (Database)**: 
   - PostgreSQL，透過 psycopg2 操作。使用 user_project_status, history, cron_table 等核心資料表紀錄排程與事件。
 
