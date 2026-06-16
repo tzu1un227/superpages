@@ -215,8 +215,14 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
             let bindData = { tag: [], journey: '', menu: '' };
             if (!payload || typeof payload !== 'string') return bindData;
             
-            if (payload.includes('sys_bind|')) {
-                const parts = payload.split('sys_bind|');
+            if (payload.startsWith('sys_bind|')) {
+                const parts = payload.split('|');
+                if (parts[1]) bindData.tag = parts[1].split(',').filter(t => t);
+                if (parts[2]) bindData.journey = parts[2];
+                if (parts[3]) bindData.menu = parts[3];
+                return bindData;
+            } else if (payload.includes('|sys_bind|')) {
+                const parts = payload.split('|sys_bind|');
                 if (parts.length > 1) {
                     const params = parts[1].split('|');
                     if (params[0]) bindData.tag = params[0].split(',').filter(t => t);
@@ -259,8 +265,11 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
 
         const cleanPayload = (payload) => {
             if (!payload || typeof payload !== 'string') return payload;
-            if (payload.includes('sys_bind|')) {
-                return payload.split('|sys_bind|')[0].replace(/\|$/, '');
+            if (payload.startsWith('sys_bind|')) {
+                return payload.split('|').slice(4).join('|');
+            }
+            if (payload.includes('|sys_bind|')) {
+                return payload.split('|sys_bind|')[0];
             }
             if (payload.includes('set_tag|')) {
                 return payload.split('set_tag|')[0].replace(/\|$/, '');
@@ -385,11 +394,18 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                 return { type: 'postback', label: 'action', data: '', displayText: '' };
             }
 
-            const bindCmd = hasBind ? `|sys_bind|${tagsStr}|${journeyStr}|${menuStr}` : '';
+            if (hasBind) {
+                return {
+                    type: 'postback',
+                    label: 'action',
+                    data: `sys_bind|${tagsStr}|${journeyStr}|${menuStr}|${val}`,
+                    displayText: val
+                };
+            }
             return {
                 type: 'postback',
                 label: 'action',
-                data: val + bindCmd,
+                data: val,
                 displayText: val
             };
         };
