@@ -1,3 +1,7 @@
+## [2026-06-16] 問卷名稱錯誤訊息更新
+- **後端 (backend/endpoints/questionnaire.py)**:
+  - 建立問卷時若名稱重複，錯誤提示訊息隱藏原先顯示的問卷名稱字串。
+
 ## [2026-06-12] superpages UI/UX Improvements
 - **前端全域 (App.jsx)**:
   - 左側邊欄的 OA（官方帳號）區塊新增獨立的收合與展開按鈕功能。

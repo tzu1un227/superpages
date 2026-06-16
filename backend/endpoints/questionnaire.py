@@ -833,7 +833,7 @@ def build_questionnaire():
         cur.execute(f'SELECT 1 FROM "{tables["q_bank"]}" WHERE note = %s LIMIT 1', (note,))
         if cur.fetchone():
             cur.close()
-            return jsonify({"error": f"問卷名稱「{note}」已存在，請使用不同名稱"}), 400
+            return jsonify({"error": "問卷名稱已存在，請使用不同名稱"}), 400
 
         quest_id = _get_next_available_id(conn, app_id)
         build_questionnaire_direct(data, app_id, conn, quest_id)
