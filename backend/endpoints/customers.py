@@ -64,10 +64,10 @@ def get_customers():
                    (SELECT MAX(timestamp) FROM {history_table} h WHERE h.user_id = u.user_id) as last_interaction,
                    (SELECT MIN(timestamp) FROM {history_table} h WHERE h.user_id = u.user_id AND h.category = 'follow') as join_time,
                    (
-                       SELECT json_agg(json_build_object('project_id', p.project_id, 'project_name', p.project_name))
+                       SELECT json_agg(json_build_object('project_id', p.project_id, 'project_name', p.project_name, 'status', LOWER(ups.status)))
                        FROM {ups_table} ups
                        JOIN {projects_table} p ON ups.project_id = p.project_id
-                       WHERE ups.user_id = u.user_id AND ups.status = 'active'
+                       WHERE ups.user_id = u.user_id
                    ) as active_projects,
                    COALESCE(
                        (SELECT name FROM {t_metadata} WHERE rich_menu_id = COALESCE(u.individual_rich_menu_id, %s) LIMIT 1),

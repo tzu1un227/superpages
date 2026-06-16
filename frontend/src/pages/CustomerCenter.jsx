@@ -678,11 +678,21 @@ const CustomerCenter = () => {
                   <td style={{ padding: '16px' }}>
                     {Array.isArray(c.projects) && c.projects.length > 0 ? (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                        {c.projects.map((p, i) => (
-                          <span key={i} style={{ backgroundColor: 'rgba(59, 130, 246, 0.2)', color: '#60A5FA', padding: '2px 6px', borderRadius: '4px', fontSize: '12px', border: '1px solid rgba(59, 130, 246, 0.4)' }}>
-                            {p.project_name}
-                          </span>
-                        ))}
+                        {c.projects.map((p, i) => {
+                          const isCompleted = p.status === 'completed';
+                          return (
+                            <span key={i} style={{ 
+                              backgroundColor: isCompleted ? 'rgba(156, 163, 175, 0.2)' : 'rgba(59, 130, 246, 0.2)', 
+                              color: isCompleted ? '#9CA3AF' : '#60A5FA', 
+                              padding: '2px 6px', 
+                              borderRadius: '4px', 
+                              fontSize: '12px', 
+                              border: isCompleted ? '1px solid rgba(156, 163, 175, 0.4)' : '1px solid rgba(59, 130, 246, 0.4)' 
+                            }}>
+                              {p.project_name}{isCompleted ? ' (已完成)' : ''}
+                            </span>
+                          );
+                        })}
                       </div>
                     ) : (
                       <span style={{ color: '#666', fontSize: '13px' }}>無</span>
