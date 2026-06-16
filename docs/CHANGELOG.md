@@ -16,6 +16,7 @@
   - **後端架構更新 (資料庫快取)**：在 `backend/endpoints/richmenu.py` 中，將 `bulk_link_all_users`、`bulk_unlink_all_users`、`set_default_rich_menu` 等 API 操作同步寫入至本地資料庫的 `Private_var` (個別選單) 與 `Global_var` (預設選單)，實現「資料庫快取機制」，避免頻繁向 LINE 查詢導致效能瓶頸與被 Rate Limit。
   - **後端查詢優化**：重構 `backend/endpoints/customers.py` 的 `/customers` 列表查詢，直接利用 `LEFT JOIN` 本地 `user_project_status` 取得進行中的自動旅程，並結合 `rich_menu` 快取，無延遲回傳包含旅程與選單資訊的結果。
   - **前端列表擴充**：在 `frontend/src/pages/CustomerCenter.jsx` 客戶列表中新增「自動旅程」與「圖文選單」欄位，管理員現在不需點開側邊欄即可一覽所有用戶目前的旅程進度與套用的選單狀態。
+- **綜合數據時間範圍限制 (Request)**：修改 `frontend/src/pages/Statistics.jsx`，為綜合數據分析的日期選擇器加上 `min` 與 `max` 屬性，限制「開始時間不可晚於結束時間」、「結束時間不可早於開始時間」，且結束時間最大值限制為今天。
 
 ## [2026-06-12] UI與穩定性修復 (介面、列表排序、LINE官方帳號名稱顯示)
 - **左側邊欄顯示 LINE 官方帳號名稱 (Request 1)**：在 `backend/app.py` 的 `/api/my_oas` 端點中加入呼叫 LINE Messaging API (`/v2/bot/info`)，動態取得並顯示真實的官方帳號顯示名稱 (displayName)，替換掉原本僅顯示資料庫內部設定的名稱。
