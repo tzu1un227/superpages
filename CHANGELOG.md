@@ -1,7 +1,7 @@
 ## [2026-06-16] Flex 動態綁定機制更新
 - **前端 (frontend/src/components/FlexMessageEditor.jsx)**:
   - 支援在圖片與按鈕行為中設定「加入自動旅程」與「切換圖文選單」。
-  - 重構 payload 生成與解析機制，採用 `sys_bind|{tag}|{journey}|{menu}` 統一格式。
+  - 重構 payload 生成與解析機制，採用 `sys_bind|{tag}|{journey}|{menu}|{displayText}` 統一格式。
 
 ## [2026-06-16] 問卷名稱錯誤訊息更新
 - **後端 (backend/endpoints/questionnaire.py)**:
