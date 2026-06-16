@@ -282,6 +282,7 @@ const Statistics = () => {
                         <input
                             type="date"
                             value={statsDateRange.start}
+                            max={statsDateRange.end}
                             onChange={e => setStatsDateRange({ ...statsDateRange, start: e.target.value })}
                             style={{ padding: '6px 10px', background: '#333', border: '1px solid #444', color: '#fff', borderRadius: '4px' }}
                         />
@@ -289,6 +290,8 @@ const Statistics = () => {
                         <input
                             type="date"
                             value={statsDateRange.end}
+                            min={statsDateRange.start}
+                            max={new Date().toISOString().split('T')[0]}
                             onChange={e => setStatsDateRange({ ...statsDateRange, end: e.target.value })}
                             style={{ padding: '6px 10px', background: '#333', border: '1px solid #444', color: '#fff', borderRadius: '4px' }}
                         />
