@@ -17,3 +17,7 @@
 - **客戶中心模組 (Customer Center Module)**:
   - Frontend (`CustomerCenter.jsx`): 右側欄整合用戶詳細資訊 (標籤管理、自動旅程狀態、專屬圖文選單)。透過 API 讀取特定用戶的 details。
   - Backend (`customers.py`): 提供 `/api/customers/<user_id>/details` 與 `DELETE /api/customers/<user_id>/richmenu`。使用 LINE API 即時查詢與解除專屬圖文選單。
+
+- **動態綁定機制 (Dynamic Bindings)**:
+  - Frontend (`FlexMessageEditor.jsx`): 在進階訊息的按鈕或圖片上設定動作時，可綁定「標籤」、「自動旅程」或「圖文選單」。利用統一格式 `sys_bind|{tag}|{journey}|{menu}` 進行 Payload 編碼。
+  - LIFF4tag (`index.html`): 作為中介層，解析 URL 中夾帶的 `tag`, `journey`, `menu` 參數並轉譯成 `sys_bind` 送入後端觸發。

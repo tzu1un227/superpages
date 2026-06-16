@@ -28,9 +28,29 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
     const [mode, setMode] = useState('single'); // 'single' | 'carousel'
     const [currentCardIndex, setCurrentCardIndex] = useState(0);
     const [appName, setAppName] = useState('');
+    const [menus, setMenus] = useState([]);
+    const [projects, setProjects] = useState([]);
 
     const match = window.location.pathname.match(/\/oa\/(\d+)/);
     const oaId = match ? match[1] : null;
+
+    useEffect(() => {
+        const fetchMenusAndProjects = async () => {
+            try {
+                const menusRes = await api.get(oaId && oaId !== 'all' ? '/richmenu/' : '/richmenu/all');
+                setMenus(menusRes.data.richmenus || menusRes.data || []);
+            } catch (e) {
+                console.error('Failed to fetch menus:', e);
+            }
+            try {
+                const projRes = await api.get('/projects', { params: { _t: new Date().getTime() } });
+                setProjects(Array.isArray(projRes.data) ? projRes.data : []);
+            } catch (e) {
+                console.error('Failed to fetch projects:', e);
+            }
+        };
+        fetchMenusAndProjects();
+    }, [oaId]);
 
     useEffect(() => {
         const fetchOAName = async () => {
@@ -61,7 +81,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
     const defaultCard = {
         template: 'option',
         imageUrl: '',
-        imageAction: { type: 'none', value: '', tags: [] },
+        imageAction: { type: 'none', value: '', tags: [], journey: '', menu: '' },
         title: '',
         description: '',
         buttons: [],
@@ -191,41 +211,57 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
         const body = bubble.body || {};
         const footer = bubble.footer || {};
 
-        const extractTags = (payload) => {
-            if (!payload || typeof payload !== 'string') return [];
-            // Handle postback/message format: |set_tag|tag1|tag2
+        const extractBindData = (payload) => {
+            let bindData = { tag: [], journey: '', menu: '' };
+            if (!payload || typeof payload !== 'string') return bindData;
+            
+            if (payload.includes('sys_bind|')) {
+                const parts = payload.split('sys_bind|');
+                if (parts.length > 1) {
+                    const params = parts[1].split('|');
+                    if (params[0]) bindData.tag = params[0].split(',').filter(t => t);
+                    if (params[1]) bindData.journey = params[1];
+                    if (params[2]) bindData.menu = params[2];
+                }
+                return bindData;
+            }
             if (payload.includes('set_tag|')) {
                 const parts = payload.split('|');
                 const tagIdx = parts.indexOf('set_tag');
-                if (tagIdx !== -1) return parts.slice(tagIdx + 1).filter(t => t);
+                if (tagIdx !== -1) bindData.tag = parts.slice(tagIdx + 1).filter(t => t);
+                return bindData;
             }
-            // Handle LIFF format (liff.line.me)
+            
+            let urlParams = null;
             if (payload.includes('liff.line.me')) {
                 const tagMatch = payload.match(/[?&]tag=([^&]*)/);
-                if (tagMatch && tagMatch[1]) {
-                    const decoded = decodeURIComponent(tagMatch[1]);
-                    return decoded.split(/[,|]/).map(t => t.trim()).filter(t => t);
-                }
+                if (tagMatch) urlParams = new URLSearchParams(payload.substring(payload.indexOf('?')));
+            } else if (payload.includes('/redirect?') || payload.includes('%2Fredirect%3F')) {
+                const search = payload.includes('?') ? payload.substring(payload.indexOf('?')) : decodeURIComponent(payload).substring(decodeURIComponent(payload).indexOf('?'));
+                urlParams = new URLSearchParams(search);
             }
-            // Handle redirect format: /api/redirect?tags=tag1,tag2 (encoded or unencoded)
-            if (payload.includes('/redirect?') || payload.includes('%2Fredirect%3F')) {
-                const tagsMatch = payload.match(/[?&]tags=([^&#]*)/) || decodeURIComponent(payload).match(/[?&]tags=([^&#]*)/);
-                if (tagsMatch && tagsMatch[1]) {
-                    const decoded = decodeURIComponent(tagsMatch[1]);
-                    return decoded.split(/[,|]/).map(t => t.trim()).filter(t => t);
-                }
+            
+            if (urlParams) {
+                const tagStr = urlParams.get('tag') || urlParams.get('tags');
+                if (tagStr) bindData.tag = tagStr.split(/[,|]/).map(t => t.trim()).filter(t => t);
+                const journeyStr = urlParams.get('journey');
+                if (journeyStr) bindData.journey = journeyStr;
+                const menuStr = urlParams.get('menu');
+                if (menuStr) bindData.menu = menuStr;
             }
-            // Handle old URI fragment format: #tags=tag1,tag2
+            
             const match = payload.match(/#tags=([^#?&]*)/);
             if (match && match[1]) {
-                return match[1].split(/[,|]/).map(t => t.trim()).filter(t => t);
+                bindData.tag = match[1].split(/[,|]/).map(t => t.trim()).filter(t => t);
             }
-            return [];
+            return bindData;
         };
 
         const cleanPayload = (payload) => {
             if (!payload || typeof payload !== 'string') return payload;
-            // Clean postback format
+            if (payload.includes('sys_bind|')) {
+                return payload.split('|sys_bind|')[0].replace(/\|$/, '');
+            }
             if (payload.includes('set_tag|')) {
                 return payload.split('set_tag|')[0].replace(/\|$/, '');
             }
@@ -264,7 +300,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
             buttons: (footer.contents || []).filter(c => c.type === 'button').map(b => {
                 const rawVal = b.action.uri || b.action.data || b.action.text || '';
                 const cleanVal = cleanPayload(rawVal);
-                const tags = extractTags(rawVal);
+                const bindData = extractBindData(rawVal);
 
                 // Determine if it was a URI or Message
                 // If it's a URI scheme or was originally a URI type
@@ -274,7 +310,9 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                     text: b.action.label || b.action.text || '',
                     action: isUri ? 'uri' : 'message',
                     value: cleanVal,
-                    tags: tags
+                    tags: bindData.tag,
+                    journey: bindData.journey,
+                    menu: bindData.menu
                 };
             })
         };
@@ -283,13 +321,15 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
         if (hero.action) {
             const rawVal = hero.action.uri || hero.action.data || hero.action.text || '';
             const cleanVal = cleanPayload(rawVal);
-            const tags = extractTags(rawVal);
+            const bindData = extractBindData(rawVal);
             const isUri = hero.action.type === 'uri' || (cleanVal && (cleanVal.startsWith('http') || cleanVal.startsWith('line://')));
 
             card.imageAction = {
                 type: isUri ? 'uri' : 'message',
                 value: cleanVal,
-                tags: tags
+                tags: bindData.tag,
+                journey: bindData.journey,
+                menu: bindData.menu
             };
         }
         return card;
@@ -297,43 +337,44 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
 
     // Helper: Generate Flex JSON from State
     const generateJson = () => {
-        const buildAction = (type, val, tags = []) => {
+        const buildAction = (type, val, bindData = { tag: [], journey: '', menu: '' }) => {
             if (type === 'none') return null;
+
+            const tagsStr = (bindData.tag && bindData.tag.length > 0) ? bindData.tag.join(',') : '';
+            const journeyStr = bindData.journey || '';
+            const menuStr = bindData.menu || '';
+            const hasBind = tagsStr || journeyStr || menuStr;
 
             if (type === 'uri') {
                 if (!val || !val.trim()) return { type: 'uri', label: 'action', uri: '' };
 
-                // Validate URI scheme (optional fallback if scheme is missing, we could auto-prepend https, but for now just pass it)
                 const hasValidScheme = val.startsWith('http://') || val.startsWith('https://') || val.startsWith('line://');
                 let finalVal = val;
                 if (!hasValidScheme && val.trim().length > 0) {
-                    finalVal = 'https://' + val; // auto-fix missing scheme to prevent LINE API errors
+                    finalVal = 'https://' + val;
                 }
 
-                // Add tags using redirect if present
-                if (tags.length > 0) {
-                    // Base redirect URL through the central API
-                    // Always inject oaId for correct tenant context and event tracking
+                if (hasBind) {
                     const redirectBase = API_BASE_URL ? `${API_BASE_URL}/redirect` : '/api/redirect';
                     const absoluteRedirectBase = redirectBase.startsWith('/') ? window.location.origin + redirectBase : redirectBase;
                     
-                    // Construct final target URL with oaId
-                    const finalTargetUrl = `${absoluteRedirectBase}?url=${encodeURIComponent(finalVal)}&oaId=${oaId}&tags=${encodeURIComponent(tags.join(','))}`;
+                    let finalTargetUrl = `${absoluteRedirectBase}?url=${encodeURIComponent(finalVal)}&oaId=${oaId}`;
+                    if (tagsStr) finalTargetUrl += `&tags=${encodeURIComponent(tagsStr)}`;
+                    if (journeyStr) finalTargetUrl += `&journey=${encodeURIComponent(journeyStr)}`;
+                    if (menuStr) finalTargetUrl += `&menu=${encodeURIComponent(menuStr)}`;
 
-                    // If we have an appName, wrap in LIFF jump-site
                     if (appName) {
                         const liffId = "2009851813-AgTeSa4r";
-                        const tagName = tags.join(',');
-                        // 使用 finalVal (原網址) 取代 finalTargetUrl (/api/redirect) 以加速跳轉
-                        const liffUrl = `https://liff.line.me/${liffId}?bot=${appName}&tag=${encodeURIComponent(tagName)}&redirect=${encodeURIComponent(finalVal)}`;
+                        let liffUrl = `https://liff.line.me/${liffId}?bot=${appName}&redirect=${encodeURIComponent(finalVal)}`;
+                        if (tagsStr) liffUrl += `&tag=${encodeURIComponent(tagsStr)}`;
+                        if (journeyStr) liffUrl += `&journey=${encodeURIComponent(journeyStr)}`;
+                        if (menuStr) liffUrl += `&menu=${encodeURIComponent(menuStr)}`;
                         return { type: 'uri', label: 'action', uri: liffUrl };
                     }
                     
-                    // Fallback to direct redirect if appName is missing
                     return { type: 'uri', label: 'action', uri: finalTargetUrl };
                 }
                 
-                // Even without tags, route through central API for tracking and inject oaId
                 const redirectBase = API_BASE_URL ? `${API_BASE_URL}/redirect` : '/api/redirect';
                 const absoluteRedirectBase = redirectBase.startsWith('/') ? window.location.origin + redirectBase : redirectBase;
                 const finalTargetUrl = `${absoluteRedirectBase}?url=${encodeURIComponent(finalVal)}&oaId=${oaId}`;
@@ -344,12 +385,11 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                 return { type: 'postback', label: 'action', data: '', displayText: '' };
             }
 
-            // Default to postback if message + tags
-            const tagCmd = tags.length > 0 ? `|set_tag|${tags.join('|')}` : '';
+            const bindCmd = hasBind ? `|sys_bind|${tagsStr}|${journeyStr}|${menuStr}` : '';
             return {
                 type: 'postback',
                 label: 'action',
-                data: val + tagCmd,
+                data: val + bindCmd,
                 displayText: val
             };
         };
@@ -367,7 +407,11 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                 }
             };
 
-            const heroAction = buildAction(card.imageAction.type, card.imageAction.value, card.imageAction.tags);
+            const heroAction = buildAction(card.imageAction.type, card.imageAction.value, {
+                tag: card.imageAction.tags,
+                journey: card.imageAction.journey,
+                menu: card.imageAction.menu
+            });
             if (heroAction) {
                 bubble.hero.action = heroAction;
             }
@@ -389,7 +433,11 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                         layout: 'vertical',
                         spacing: 'sm',
                         contents: card.buttons.map(btn => {
-                            const btnAction = buildAction(btn.action === 'uri' ? 'uri' : 'message', btn.value, btn.tags || []);
+                            const btnAction = buildAction(btn.action === 'uri' ? 'uri' : 'message', btn.value, {
+                                tag: btn.tags,
+                                journey: btn.journey,
+                                menu: btn.menu
+                            });
                             if (!btnAction) return null;
                             return {
                                 type: 'button',
@@ -404,7 +452,11 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                         bubble.footer.contents.forEach((b, i) => {
                             // Map back labels - search in non-null buttons
                             const originalButtons = card.buttons.filter(ob => {
-                                const act = buildAction(ob.action === 'uri' ? 'uri' : 'message', ob.value, ob.tags || []);
+                                const act = buildAction(ob.action === 'uri' ? 'uri' : 'message', ob.value, {
+                                    tag: ob.tags,
+                                    journey: ob.journey,
+                                    menu: ob.menu
+                                });
                                 return !!act;
                             });
                             b.action.label = originalButtons[i]?.text || '按鈕';
@@ -468,10 +520,10 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
         const newCard = {
             ...first,
             imageUrl: '', // Blank content
-            imageAction: { ...first.imageAction, value: '' },
+            imageAction: { ...first.imageAction, value: '', tags: [], journey: '', menu: '' },
             title: '',
             description: '',
-            buttons: first.buttons.map(b => ({ ...b, value: '' }))
+            buttons: first.buttons.map(b => ({ ...b, value: '', tags: [], journey: '', menu: '' }))
         };
         setCards([...cards, newCard]);
         setCurrentCardIndex(cards.length); // Switch to new card
@@ -509,7 +561,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
     const addCardButton = () => {
         const newCards = [...cards];
         if (newCards[currentCardIndex].buttons.length >= 3) return;
-        newCards[currentCardIndex].buttons.push({ text: '新按鈕', action: 'message', value: '' });
+        newCards[currentCardIndex].buttons.push({ text: '新按鈕', action: 'message', value: '', tags: [], journey: '', menu: '' });
         setCards(newCards);
     };
 
@@ -756,6 +808,34 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                                             singleSelect={true}
                                         />
                                     </div>
+                                    <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
+                                        <div style={{ flex: 1 }}>
+                                            <label style={{ display: 'block', color: '#888', fontSize: '12px', marginBottom: '4px' }}>加入自動旅程</label>
+                                            <select
+                                                value={currentCard.imageAction.journey || ''}
+                                                onChange={e => updateCurrentCard('imageAction', { ...currentCard.imageAction, journey: e.target.value })}
+                                                style={{ width: '100%', padding: '8px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '4px' }}
+                                            >
+                                                <option value="">不設定</option>
+                                                {projects.map(p => (
+                                                    <option key={p.project_id} value={p.project_id}>{p.project_name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div style={{ flex: 1 }}>
+                                            <label style={{ display: 'block', color: '#888', fontSize: '12px', marginBottom: '4px' }}>切換圖文選單</label>
+                                            <select
+                                                value={currentCard.imageAction.menu || ''}
+                                                onChange={e => updateCurrentCard('imageAction', { ...currentCard.imageAction, menu: e.target.value })}
+                                                style={{ width: '100%', padding: '8px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '4px' }}
+                                            >
+                                                <option value="">不設定</option>
+                                                {menus.map(m => (
+                                                    <option key={m.richMenuId} value={m.richMenuId}>{m.name || m.richMenuId}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -827,6 +907,34 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                                                         onChange={newTags => updateCardButton(idx, 'tags', newTags)}
                                                         singleSelect={true}
                                                     />
+                                                </div>
+                                                <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
+                                                    <div style={{ flex: 1 }}>
+                                                        <label style={{ display: 'block', color: '#888', fontSize: '11px', marginBottom: '4px' }}>加入自動旅程</label>
+                                                        <select
+                                                            value={btn.journey || ''}
+                                                            onChange={e => updateCardButton(idx, 'journey', e.target.value)}
+                                                            style={{ width: '100%', padding: '8px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '4px' }}
+                                                        >
+                                                            <option value="">不設定</option>
+                                                            {projects.map(p => (
+                                                                <option key={p.project_id} value={p.project_id}>{p.project_name}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                    <div style={{ flex: 1 }}>
+                                                        <label style={{ display: 'block', color: '#888', fontSize: '11px', marginBottom: '4px' }}>切換圖文選單</label>
+                                                        <select
+                                                            value={btn.menu || ''}
+                                                            onChange={e => updateCardButton(idx, 'menu', e.target.value)}
+                                                            style={{ width: '100%', padding: '8px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '4px' }}
+                                                        >
+                                                            <option value="">不設定</option>
+                                                            {menus.map(m => (
+                                                                <option key={m.richMenuId} value={m.richMenuId}>{m.name || m.richMenuId}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))}
