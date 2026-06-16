@@ -586,6 +586,12 @@ const CustomerCenter = () => {
               <th onClick={() => handleSort('group_name')} style={{ padding: '16px', fontWeight: '500', color: '#888', cursor: 'pointer', userSelect: 'none' }}>
                 客群 <SortIcon columnKey="group_name" />
               </th>
+              <th style={{ padding: '16px', fontWeight: '500', color: '#888' }}>
+                自動旅程
+              </th>
+              <th style={{ padding: '16px', fontWeight: '500', color: '#888' }}>
+                圖文選單
+              </th>
               <th style={{ padding: '16px', fontWeight: '500', color: '#888', textAlign: 'center' }}>操作</th>
             </tr>
           </thead>
@@ -667,6 +673,26 @@ const CustomerCenter = () => {
                       </div>
                     ) : (
                       <span style={{ color: '#666', fontSize: '13px' }}>未規劃</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '16px' }}>
+                    {Array.isArray(c.projects) && c.projects.length > 0 ? (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {c.projects.map((p, i) => (
+                          <span key={i} style={{ backgroundColor: 'rgba(59, 130, 246, 0.2)', color: '#60A5FA', padding: '2px 6px', borderRadius: '4px', fontSize: '12px', border: '1px solid rgba(59, 130, 246, 0.4)' }}>
+                            {p.project_name}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span style={{ color: '#666', fontSize: '13px' }}>無</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '16px' }}>
+                    {c.rich_menu ? (
+                      <span style={{ color: '#FFD700', fontSize: '13px' }}>{c.rich_menu.name}</span>
+                    ) : (
+                      <span style={{ color: '#666', fontSize: '13px' }}>預設選單</span>
                     )}
                   </td>
                   <td style={{ padding: '16px', textAlign: 'center' }}>

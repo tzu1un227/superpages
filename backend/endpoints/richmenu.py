@@ -302,21 +302,40 @@ def set_default_rich_menu(richMenuId):
         try:
             conn = get_main_db_connection()
             if conn:
-                t_users = get_t('users_table')
-                cur = conn.cursor(cursor_factory=RealDictCursor)
-                cur.execute(f"SELECT user_id FROM {t_users}")
-                users = cur.fetchall()
-                user_ids = [u['user_id'] for u in users if u.get('user_id')]
-                
-                # 每次最多 500 筆，批次解除綁定
-                for i in range(0, len(user_ids), 500):
-                    batch = user_ids[i:i+500]
-                    requests.post('https://api.line.me/v2/bot/richmenu/bulk/unlink', headers=headers, json={'userIds': batch})
-                
-                cur.close()
+                app_name = getattr(g, 'current_app_name', None)
+                if not app_name:
+                    oa_id = getattr(g, 'current_oa_id', None)
+                    if oa_id:
+                        from models import OAConfig
+                        oa = OAConfig.query.get(oa_id)
+                        if oa and oa.other_settings and oa.other_settings.get('app_name'):
+                            app_name = str(oa.other_settings['app_name'])
+                            g.current_app_name = app_name
+                if app_name:
+                    t_private = f'"Private_var:{app_name}"'
+                    t_global = f'"Global_var:{app_name}"'
+                    cur = conn.cursor(cursor_factory=RealDictCursor)
+                    cur.execute(f"SELECT DISTINCT user_id FROM {t_private} WHERE user_id IS NOT NULL")
+                    users = cur.fetchall()
+                    user_ids = [u['user_id'] for u in users if u.get('user_id')]
+                    
+                    # 每次最多 500 筆，批次解除綁定
+                    for i in range(0, len(user_ids), 500):
+                        batch = user_ids[i:i+500]
+                        requests.post('https://api.line.me/v2/bot/richmenu/bulk/unlink', headers=headers, json={'userIds': batch})
+                    
+                    # Cache synchronization: remove individual rich_menu for all users
+                    if user_ids:
+                        cur.execute(f"DELETE FROM {t_private} WHERE name = 'rich_menu'")
+                    
+                    # Update global default rich menu
+                    cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
+                    cur.execute(f"INSERT INTO {t_global} (name, value) VALUES ('default_rich_menu', %s)", (richMenuId,))
+                    conn.commit()
+                    cur.close()
                 conn.close()
         except Exception as e:
-            print(f"Error unlinking bulk users: {e}")
+            print(f"Error unlinking bulk users or caching default menu: {e}")
             
         resp = requests.post(f'https://api.line.me/v2/bot/user/all/richmenu/{richMenuId}', headers=headers)
         if resp.status_code == 200:
@@ -336,6 +355,27 @@ def unset_default_rich_menu():
     try:
         resp = requests.delete('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
         if resp.status_code == 200:
+            try:
+                from db_utils import get_main_db_connection
+                conn = get_main_db_connection()
+                if conn:
+                    app_name = getattr(g, 'current_app_name', None)
+                    if not app_name:
+                        oa_id = getattr(g, 'current_oa_id', None)
+                        if oa_id:
+                            from models import OAConfig
+                            oa = OAConfig.query.get(oa_id)
+                            if oa and oa.other_settings and oa.other_settings.get('app_name'):
+                                app_name = str(oa.other_settings['app_name'])
+                    if app_name:
+                        t_global = f'"Global_var:{app_name}"'
+                        cur = conn.cursor()
+                        cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
+                        conn.commit()
+                        cur.close()
+                    conn.close()
+            except Exception as e:
+                print(f"Error removing default rich menu cache: {e}")
             return jsonify({'status': 'success'})
         return jsonify({'message': 'Unset default failed', 'line_error': resp.text}), resp.status_code
     except Exception as e:
@@ -438,6 +478,11 @@ def bulk_unlink_all_users(headers):
                 batch = user_ids[i:i+500]
                 requests.post('https://api.line.me/v2/bot/richmenu/bulk/unlink', headers=headers, json={'userIds': batch})
             
+            # Cache synchronization
+            if user_ids:
+                cur.execute(f"DELETE FROM {t_private} WHERE name = 'rich_menu'")
+                conn.commit()
+                
             cur.close()
             conn.close()
     except Exception as e:
@@ -485,6 +530,14 @@ def bulk_link_all_users(headers, richMenuId):
                 batch = user_ids[i:i+500]
                 requests.post('https://api.line.me/v2/bot/richmenu/bulk/link', headers=headers, json={'userIds': batch, 'richMenuId': richMenuId})
             
+            # Cache synchronization
+            if user_ids:
+                from psycopg2.extras import execute_values
+                cur.execute(f"DELETE FROM {t_private} WHERE name = 'rich_menu' AND user_id = ANY(%s)", (user_ids,))
+                values = [(uid, 'rich_menu', richMenuId) for uid in user_ids]
+                execute_values(cur, f"INSERT INTO {t_private} (user_id, name, value) VALUES %s", values)
+                conn.commit()
+                
             cur.close()
             conn.close()
     except Exception as e:

@@ -200,6 +200,8 @@ function RuleDesigner() {
     
     const [isMsgModalOpen, setIsMsgModalOpen] = useState(false);
     const [editingRowIndex, setEditingRowIndex] = useState(null);
+    const [isUploadingMsg, setIsUploadingMsg] = useState(null);
+    const [editingFlexMsgIndex, setEditingFlexMsgIndex] = useState(null);
     const [msgRpyList, setMsgRpyList] = useState([]); 
     const [savingMsg, setSavingMsg] = useState(false);
     
@@ -1108,35 +1110,61 @@ function RuleDesigner() {
                                             {/* Editor for Image */}
                                             {(msg.OTYPE === 'ImageSendMessage' || msg.Line?.OTYPE === 'ImageSendMessage') && (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                                    <input 
-                                                        type="file" 
-                                                        disabled={savingMsg}
-                                                        accept="image/*"
-                                                        onChange={async e => {
-                                                            const file = e.target.files[0];
-                                                            if (!file) return;
-                                                            if (file.size > 1024 * 1024) {
-                                                                alert('錯誤：圖片大小不可超過 1MB');
-                                                                return;
-                                                            }
-                                                            const formData = new FormData();
-                                                            formData.append('file', file);
-                                                            try {
-                                                                const res = await api.post('/upload/github', formData, {
-                                                                    headers: { 'Content-Type': 'multipart/form-data' }
-                                                                });
-                                                                if (res.data && res.data.url) {
-                                                                    // 把 original_content_url 和 preview_image_url 都設定為這個上傳成功的網址
-                                                                    handleUpdateMessage(idx, 'original_content_url', res.data.url);
-                                                                    handleUpdateMessage(idx, 'preview_image_url', res.data.url);
+                                                    <label style={{
+                                                        padding: '8px 12px',
+                                                        background: isUploadingMsg === `image_${idx}` ? '#555' : 'var(--primary-yellow)',
+                                                        color: isUploadingMsg === `image_${idx}` ? '#888' : '#000',
+                                                        borderRadius: '4px',
+                                                        cursor: isUploadingMsg === `image_${idx}` ? 'not-allowed' : 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '5px',
+                                                        fontSize: '13px',
+                                                        fontWeight: 'bold',
+                                                        pointerEvents: isUploadingMsg === `image_${idx}` ? 'none' : 'auto',
+                                                        width: '100%',
+                                                        justifyContent: 'center'
+                                                    }}>
+                                                        {isUploadingMsg === `image_${idx}` ? <CircularProgress size={16} color="inherit" /> : <Upload size={16} />}
+                                                        {isUploadingMsg === `image_${idx}` ? '上傳中...' : '上傳圖片'}
+                                                        <input 
+                                                            type="file" 
+                                                            disabled={savingMsg || isUploadingMsg === `image_${idx}`}
+                                                            accept="image/*"
+                                                            onChange={async e => {
+                                                                const file = e.target.files[0];
+                                                                if (!file) return;
+                                                                if (file.size > 1024 * 1024) {
+                                                                    alert('錯誤：圖片大小不可超過 1MB');
+                                                                    return;
                                                                 }
-                                                            } catch (err) {
-                                                                alert('圖片上傳失敗');
-                                                                console.error(err);
-                                                            }
-                                                        }}
-                                                        style={{ width: '100%', fontSize: '12px', backgroundColor: '#000', border: '1px solid #333', padding: '8px', borderRadius: '4px', color: '#fff' }}
-                                                    />
+                                                                setIsUploadingMsg(`image_${idx}`);
+                                                                const formData = new FormData();
+                                                                formData.append('file', file);
+                                                                try {
+                                                                    const res = await api.post('/upload/github', formData, {
+                                                                        headers: { 'Content-Type': 'multipart/form-data' }
+                                                                    });
+                                                                    if (res.data && res.data.url) {
+                                                                        handleUpdateMessage(idx, 'original_content_url', res.data.url);
+                                                                        handleUpdateMessage(idx, 'preview_image_url', res.data.url);
+                                                                    }
+                                                                } catch (err) {
+                                                                    alert('圖片上傳失敗');
+                                                                    console.error(err);
+                                                                } finally {
+                                                                    setIsUploadingMsg(null);
+                                                                    e.target.value = '';
+                                                                }
+                                                            }}
+                                                            style={{ display: 'none' }}
+                                                        />
+                                                    </label>
+                                                    {(msg.original_content_url || msg.Line?.original_content_url) && (
+                                                        <div style={{ textAlign: 'center', marginTop: '10px' }}>
+                                                            <img src={msg.original_content_url || msg.Line?.original_content_url} style={{ maxWidth: '100%', maxHeight: '150px', borderRadius: '8px' }} alt="預覽" />
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
 

@@ -30,8 +30,17 @@ def get_customers():
         
         pv_table = f'"Private_var:{app_id}"'
         history_table = f'"history:{app_id}"'
+        ups_table = f'"user_project_status:{app_id}"'
+        projects_table = f'"projects:{app_id}"'
+        t_metadata = f'"rich_menu_metadata:{app_id}"'
+        gv_table = f'"Global_var:{app_id}"'
+
+        # Fetch global default rich menu
+        cur.execute(f"SELECT value FROM {gv_table} WHERE name = 'default_rich_menu'")
+        default_rm_row = cur.fetchone()
+        default_rich_menu_id = default_rm_row['value'] if default_rm_row else None
         
-        # Optimized query: Fetch users first, then join with limited history stats
+        # Optimized query: Fetch users first, then join with limited history stats and projects
         query = f"""
             WITH filtered_users AS (
                 SELECT 
@@ -41,7 +50,8 @@ def get_customers():
                     MAX(CASE WHEN name = 'tag' THEN value END) as tag,
                     MAX(CASE WHEN name = 'g_group' THEN value END) as group_name,
                     MAX(CASE WHEN name = 'phone' THEN value END) as phone,
-                    MAX(CASE WHEN name = 'email' THEN value END) as email
+                    MAX(CASE WHEN name = 'email' THEN value END) as email,
+                    MAX(CASE WHEN name = 'rich_menu' THEN value END) as individual_rich_menu_id
                 FROM {pv_table}
                 GROUP BY user_id
                 HAVING MAX(CASE WHEN name = 'name' THEN value END) IS NOT NULL 
@@ -52,13 +62,24 @@ def get_customers():
             )
             SELECT u.*, 
                    (SELECT MAX(timestamp) FROM {history_table} h WHERE h.user_id = u.user_id) as last_interaction,
-                   (SELECT MIN(timestamp) FROM {history_table} h WHERE h.user_id = u.user_id AND h.category = 'follow') as join_time
+                   (SELECT MIN(timestamp) FROM {history_table} h WHERE h.user_id = u.user_id AND h.category = 'follow') as join_time,
+                   (
+                       SELECT json_agg(json_build_object('project_id', p.project_id, 'project_name', p.project_name))
+                       FROM {ups_table} ups
+                       JOIN {projects_table} p ON ups.project_id = p.project_id
+                       WHERE ups.user_id = u.user_id AND ups.status = 'active'
+                   ) as active_projects,
+                   COALESCE(
+                       (SELECT name FROM {t_metadata} WHERE rich_menu_id = COALESCE(u.individual_rich_menu_id, %s) LIMIT 1),
+                       '未知圖文選單'
+                   ) as rich_menu_name,
+                   COALESCE(u.individual_rich_menu_id, %s) as final_rich_menu_id
             FROM filtered_users u
             ORDER BY last_interaction DESC NULLS LAST
         """
         
         print(f"DEBUG: Executing optimized customer query for {app_id}")
-        cur.execute(query)
+        cur.execute(query, (default_rich_menu_id, default_rich_menu_id))
         rows = cur.fetchall()
         
         import ast
@@ -70,10 +91,24 @@ def get_customers():
             r['last_interaction'] = dt.strftime('%Y-%m-%d %H:%M:%S') if dt else None
             r['join_time'] = jt.strftime('%Y-%m-%d %H:%M:%S') if jt else None
             
+            # Form rich_menu object similar to old API call result
+            rm_id = r.pop('final_rich_menu_id', None)
+            rm_name = r.pop('rich_menu_name', None)
+            r.pop('individual_rich_menu_id', None)
+            
+            if rm_id:
+                r['rich_menu'] = {"id": rm_id, "name": rm_name}
+            else:
+                r['rich_menu'] = None
+                
+            # Parse active projects
+            r['projects'] = r.get('active_projects') or []
+            r.pop('active_projects', None)
+            
             # Efficiently parse tag list
             tag_val = r.get('tag')
             if tag_val:
-                if tag_val.startswith('['):
+                if isinstance(tag_val, str) and tag_val.startswith('['):
                     try:
                         parsed = ast.literal_eval(tag_val)
                         r['tag'] = parsed if isinstance(parsed, list) else [str(parsed)]
@@ -87,7 +122,7 @@ def get_customers():
             # Efficiently parse group list
             group_val = r.get('group_name')
             if group_val:
-                if group_val.startswith('['):
+                if isinstance(group_val, str) and group_val.startswith('['):
                     try:
                         parsed = ast.literal_eval(group_val)
                         r['group_name'] = parsed if isinstance(parsed, list) else [str(parsed)]

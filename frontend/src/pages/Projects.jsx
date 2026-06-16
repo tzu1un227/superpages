@@ -1942,6 +1942,7 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
     const [messages, setMessages] = useState([]);
     const [loading, setLoading] = useState(false);
     const [activeMsgIndex, setActiveMsgIndex] = useState(0);
+    const [isUploadingMsg, setIsUploadingMsg] = useState(null);
 
     const createEmptyMsg = () => ({ OTYPE: 'TextSendMessage', text: '' });
 
@@ -2145,11 +2146,13 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                                     msgs[activeMsgIndex].preview_image_url = val;
                                                     setMessages(msgs);
                                                 }} style={{ flex: 1, padding: '10px', background: '#222', border: 'none', color: '#fff' }} placeholder="https://..." />
-                                                <label style={{ padding: '10px 15px', background: 'var(--primary-yellow)', color: '#000', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold' }}>
-                                                    <Upload size={16} /> 上傳
-                                                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => {
+                                                <label style={{ padding: '10px 15px', background: isUploadingMsg === `image_${activeMsgIndex}` ? '#555' : 'var(--primary-yellow)', color: isUploadingMsg === `image_${activeMsgIndex}` ? '#888' : '#000', borderRadius: '4px', cursor: isUploadingMsg === `image_${activeMsgIndex}` ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold', pointerEvents: isUploadingMsg === `image_${activeMsgIndex}` ? 'none' : 'auto' }}>
+                                                    {isUploadingMsg === `image_${activeMsgIndex}` ? <CircularProgress size={16} color="inherit" /> : <Upload size={16} />} 
+                                                    {isUploadingMsg === `image_${activeMsgIndex}` ? '上傳中...' : '上傳'}
+                                                    <input type="file" accept="image/*" style={{ display: 'none' }} disabled={isUploadingMsg === `image_${activeMsgIndex}`} onChange={async (e) => {
                                                         const file = e.target.files[0];
                                                         if (!file) return;
+                                                        setIsUploadingMsg(`image_${activeMsgIndex}`);
                                                         const formData = new FormData();
                                                         formData.append('file', file);
                                                         try {
@@ -2160,6 +2163,9 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                                             setMessages(msgs);
                                                         } catch (err) {
                                                             alert('上傳失敗: ' + (err.response?.data?.message || err.message));
+                                                        } finally {
+                                                            setIsUploadingMsg(null);
+                                                            e.target.value = '';
                                                         }
                                                     }} />
                                                 </label>
@@ -2178,11 +2184,13 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                             <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>影片連結 (URL)</label>
                                             <div style={{ display: 'flex', gap: '10px' }}>
                                                 <input type="text" value={messages[activeMsgIndex].original_content_url} onChange={(e) => updateMessage(activeMsgIndex, 'original_content_url', e.target.value)} style={{ flex: 1, padding: '10px', background: '#222', border: 'none', color: '#fff' }} placeholder="https://..." />
-                                                <label style={{ padding: '10px 15px', background: 'var(--primary-yellow)', color: '#000', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold' }}>
-                                                    <Upload size={16} /> 上傳
-                                                    <input type="file" accept="video/*" style={{ display: 'none' }} onChange={async (e) => {
+                                                <label style={{ padding: '10px 15px', background: isUploadingMsg === `video_${activeMsgIndex}` ? '#555' : 'var(--primary-yellow)', color: isUploadingMsg === `video_${activeMsgIndex}` ? '#888' : '#000', borderRadius: '4px', cursor: isUploadingMsg === `video_${activeMsgIndex}` ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold', pointerEvents: isUploadingMsg === `video_${activeMsgIndex}` ? 'none' : 'auto' }}>
+                                                    {isUploadingMsg === `video_${activeMsgIndex}` ? <CircularProgress size={16} color="inherit" /> : <Upload size={16} />} 
+                                                    {isUploadingMsg === `video_${activeMsgIndex}` ? '上傳中...' : '上傳'}
+                                                    <input type="file" accept="video/*" style={{ display: 'none' }} disabled={isUploadingMsg === `video_${activeMsgIndex}`} onChange={async (e) => {
                                                         const file = e.target.files[0];
                                                         if (!file) return;
+                                                        setIsUploadingMsg(`video_${activeMsgIndex}`);
                                                         const formData = new FormData();
                                                         formData.append('file', file);
                                                         try {
@@ -2190,6 +2198,9 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                                             updateMessage(activeMsgIndex, 'original_content_url', res.data.url);
                                                         } catch (err) {
                                                             alert('上傳失敗: ' + (err.response?.data?.message || err.message));
+                                                        } finally {
+                                                            setIsUploadingMsg(null);
+                                                            e.target.value = '';
                                                         }
                                                     }} />
                                                 </label>
@@ -2199,11 +2210,13 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                             <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>影片預覽圖連結 (Preview Image URL)</label>
                                             <div style={{ display: 'flex', gap: '10px' }}>
                                                 <input type="text" value={messages[activeMsgIndex].preview_image_url} onChange={(e) => updateMessage(activeMsgIndex, 'preview_image_url', e.target.value)} style={{ flex: 1, padding: '10px', background: '#222', border: 'none', color: '#fff' }} placeholder="https://..." />
-                                                <label style={{ padding: '10px 15px', background: 'var(--primary-yellow)', color: '#000', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold' }}>
-                                                    <Upload size={16} /> 上傳
-                                                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => {
+                                                <label style={{ padding: '10px 15px', background: isUploadingMsg === `video_preview_${activeMsgIndex}` ? '#555' : 'var(--primary-yellow)', color: isUploadingMsg === `video_preview_${activeMsgIndex}` ? '#888' : '#000', borderRadius: '4px', cursor: isUploadingMsg === `video_preview_${activeMsgIndex}` ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold', pointerEvents: isUploadingMsg === `video_preview_${activeMsgIndex}` ? 'none' : 'auto' }}>
+                                                    {isUploadingMsg === `video_preview_${activeMsgIndex}` ? <CircularProgress size={16} color="inherit" /> : <Upload size={16} />} 
+                                                    {isUploadingMsg === `video_preview_${activeMsgIndex}` ? '上傳中...' : '上傳'}
+                                                    <input type="file" accept="image/*" style={{ display: 'none' }} disabled={isUploadingMsg === `video_preview_${activeMsgIndex}`} onChange={async (e) => {
                                                         const file = e.target.files[0];
                                                         if (!file) return;
+                                                        setIsUploadingMsg(`video_preview_${activeMsgIndex}`);
                                                         const formData = new FormData();
                                                         formData.append('file', file);
                                                         try {
@@ -2211,6 +2224,9 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                                             updateMessage(activeMsgIndex, 'preview_image_url', res.data.url);
                                                         } catch (err) {
                                                             alert('上傳失敗: ' + (err.response?.data?.message || err.message));
+                                                        } finally {
+                                                            setIsUploadingMsg(null);
+                                                            e.target.value = '';
                                                         }
                                                     }} />
                                                 </label>
@@ -2229,11 +2245,13 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                             <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>音檔連結 (URL)</label>
                                             <div style={{ display: 'flex', gap: '10px' }}>
                                                 <input type="text" value={messages[activeMsgIndex].original_content_url} onChange={(e) => updateMessage(activeMsgIndex, 'original_content_url', e.target.value)} style={{ flex: 1, padding: '10px', background: '#222', border: 'none', color: '#fff' }} placeholder="https://..." />
-                                                <label style={{ padding: '10px 15px', background: 'var(--primary-yellow)', color: '#000', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold' }}>
-                                                    <Upload size={16} /> 上傳
-                                                    <input type="file" accept="audio/*" style={{ display: 'none' }} onChange={async (e) => {
+                                                <label style={{ padding: '10px 15px', background: isUploadingMsg === `audio_${activeMsgIndex}` ? '#555' : 'var(--primary-yellow)', color: isUploadingMsg === `audio_${activeMsgIndex}` ? '#888' : '#000', borderRadius: '4px', cursor: isUploadingMsg === `audio_${activeMsgIndex}` ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold', pointerEvents: isUploadingMsg === `audio_${activeMsgIndex}` ? 'none' : 'auto' }}>
+                                                    {isUploadingMsg === `audio_${activeMsgIndex}` ? <CircularProgress size={16} color="inherit" /> : <Upload size={16} />} 
+                                                    {isUploadingMsg === `audio_${activeMsgIndex}` ? '上傳中...' : '上傳'}
+                                                    <input type="file" accept="audio/*" style={{ display: 'none' }} disabled={isUploadingMsg === `audio_${activeMsgIndex}`} onChange={async (e) => {
                                                         const file = e.target.files[0];
                                                         if (!file) return;
+                                                        setIsUploadingMsg(`audio_${activeMsgIndex}`);
                                                         const audioObj = new Audio(URL.createObjectURL(file));
                                                         audioObj.onloadedmetadata = async () => {
                                                             const dur = Math.round(audioObj.duration * 1000);
@@ -2248,7 +2266,15 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                                                 setMessages(msgs);
                                                             } catch (err) {
                                                                 alert('上傳失敗: ' + (err.response?.data?.message || err.message));
+                                                            } finally {
+                                                                setIsUploadingMsg(null);
+                                                                e.target.value = '';
                                                             }
+                                                        };
+                                                        audioObj.onerror = () => {
+                                                            setIsUploadingMsg(null);
+                                                            e.target.value = '';
+                                                            alert('無法讀取音檔長度');
                                                         };
                                                     }} />
                                                 </label>
