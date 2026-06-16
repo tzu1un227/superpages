@@ -616,11 +616,33 @@ def get_customer_details(user_id):
                             details["rich_menu"] = {"id": rich_menu_id, "name": row[0]}
                         else:
                             details["rich_menu"] = {"id": rich_menu_id, "name": "未知圖文選單"}
+                            
+                        # Sync to Private_var
+                        pv_table = f'"Private_var:{app_id}"'
+                        m_cur.execute(f"UPDATE {pv_table} SET value = %s WHERE user_id = %s AND name = 'rich_menu'", (rich_menu_id, user_id))
+                        if m_cur.rowcount == 0:
+                            m_cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, 'rich_menu', %s)", (user_id, rich_menu_id))
+                        m_conn.commit()
+                        
                     except Exception as e:
-                        print("Error querying rich menu metadata:", e)
+                        print("Error querying rich menu metadata or syncing:", e)
                     finally:
                         m_cur.close()
                         m_conn.close()
+            elif resp.status_code == 404:
+                # User has no rich menu linked, sync to DB by deleting the Private_var entry
+                from db_utils import get_main_db_connection
+                try:
+                    m_conn = get_main_db_connection()
+                    m_cur = m_conn.cursor()
+                    pv_table = f'"Private_var:{app_id}"'
+                    m_cur.execute(f"DELETE FROM {pv_table} WHERE user_id = %s AND name = 'rich_menu'", (user_id,))
+                    m_conn.commit()
+                except Exception as e:
+                    print("Error syncing missing rich menu:", e)
+                finally:
+                    m_cur.close()
+                    m_conn.close()
                         
         return jsonify(details)
     except Exception as e:
@@ -645,6 +667,19 @@ def delete_customer_richmenu(user_id):
     try:
         resp = requests.delete(f'https://api.line.me/v2/bot/user/{user_id}/richmenu', headers=headers)
         if resp.status_code == 200:
+            app_id = get_current_app_id()
+            from db_utils import get_main_db_connection
+            try:
+                m_conn = get_main_db_connection()
+                m_cur = m_conn.cursor()
+                pv_table = f'"Private_var:{app_id}"'
+                m_cur.execute(f"DELETE FROM {pv_table} WHERE user_id = %s AND name = 'rich_menu'", (user_id,))
+                m_conn.commit()
+                m_cur.close()
+                m_conn.close()
+            except Exception as e:
+                print("Error syncing deleted rich menu:", e)
+                
             return jsonify({'status': 'success'})
         return jsonify({'message': 'Delete failed', 'line_error': resp.text}), resp.status_code
     except Exception as e:

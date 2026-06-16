@@ -2072,6 +2072,20 @@ def check_and_update_rich_menu(user_id, tag):
         resp = requests.post(url, headers=headers)
         if resp.status_code == 200:
             print(f"DEBUG: check_and_update_rich_menu | Successfully linked rich menu {rich_menu_id} to user {user_id}")
+            # Update Private_var to keep DB in sync
+            from db_utils import get_main_db_connection
+            try:
+                m_conn = get_main_db_connection()
+                m_cur = m_conn.cursor()
+                pv_table = f'"Private_var:{current_oa_id}"'
+                m_cur.execute(f"UPDATE {pv_table} SET value = %s WHERE user_id = %s AND name = 'rich_menu'", (rich_menu_id, user_id))
+                if m_cur.rowcount == 0:
+                    m_cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, 'rich_menu', %s)", (user_id, rich_menu_id))
+                m_conn.commit()
+                m_cur.close()
+                m_conn.close()
+            except Exception as e:
+                print(f"DEBUG: check_and_update_rich_menu | DB sync error: {e}")
         else:
             print(f"DEBUG: check_and_update_rich_menu | Failed to link rich menu: {resp.text}")
             
