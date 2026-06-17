@@ -735,7 +735,7 @@ def count_by_tags():
         query = f"""
             SELECT COUNT(DISTINCT user_id) 
             FROM {pv_table} 
-            WHERE name = 'tag' AND ({where_clause}) AND user_id IS NOT NULL AND user_id != '' AND length(user_id) = 33
+            WHERE name = 'tags' AND ({where_clause}) AND user_id IS NOT NULL AND user_id != '' AND length(user_id) = 33
         """
         cur.execute(query, params)
         count = cur.fetchone()[0]
