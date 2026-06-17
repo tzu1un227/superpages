@@ -9,12 +9,17 @@ richmenu_bp = Blueprint('richmenu', __name__)
 # 全域記憶體圖片快取，避免重複向 LINE API 發起慢速的外部請求
 _IMAGE_CACHE = {}  # { richMenuId: (content, mimetype) }
 
-def get_line_token():
-    if hasattr(g, 'current_oa_config') and g.current_oa_config.other_settings:
-        return g.current_oa_config.other_settings.get('line_token')
-    return None
+def get_line_token(app_name=None):
+    """
+    Get LINE token from current_oa_config or database.
+    If app_name is provided, it fetches directly from the database (used in background threads).
+    """
+    if not app_name:
+        if hasattr(g, 'current_oa_config') and g.current_oa_config.other_settings:
+            return g.current_oa_config.other_settings.get('line_token')
+        return None
 
-def get_line_token_by_app_name(app_name):
+    # Fallback to direct DB query if app_name is provided
     from db_utils import get_main_db_connection
     conn = get_main_db_connection()
     if conn:
@@ -31,7 +36,6 @@ def get_line_token_by_app_name(app_name):
         finally:
             conn.close()
     return None
-
 @richmenu_bp.route('/', methods=['GET'], strict_slashes=False)
 @token_required
 def list_rich_menus():
@@ -696,8 +700,8 @@ def save_rich_menu_metadata():
                         dummy_app = Flask(__name__)
                         with dummy_app.app_context():
                             g.current_app_name = app_name_val
-                            from endpoints.richmenu import get_line_token_by_app_name, bulk_check_and_update_rich_menu
-                            token = get_line_token_by_app_name(app_name_val)
+                            from endpoints.richmenu import get_line_token, bulk_check_and_update_rich_menu
+                            token = get_line_token(app_name=app_name_val)
                             g.current_line_token = token
                             if stat == 'public':
                                 # bulk link to all users
@@ -914,8 +918,8 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
         # 4. Perform LINE API bulk link/unlink
         token = getattr(g, 'current_line_token', None)
         if not token:
-            from endpoints.richmenu import get_line_token_by_app_name
-            token = get_line_token_by_app_name(app_name)
+            from endpoints.richmenu import get_line_token
+            token = get_line_token(app_name=app_name)
             
         if token:
             import requests
