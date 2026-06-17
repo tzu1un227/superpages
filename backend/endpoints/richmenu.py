@@ -25,7 +25,13 @@ def get_line_token(app_name=None):
     if conn:
         try:
             cur = conn.cursor()
-            cur.execute("SELECT other_settings FROM permission_settings WHERE oa_name = %s", (app_name,))
+            # Search by oa_name OR by app_name inside other_settings
+            cur.execute("""
+                SELECT other_settings 
+                FROM permission_settings 
+                WHERE oa_name = %s OR (other_settings::jsonb ->> 'app_name') = %s
+                LIMIT 1
+            """, (app_name, app_name))
             row = cur.fetchone()
             if row and row[0]:
                 settings = row[0]
@@ -33,6 +39,8 @@ def get_line_token(app_name=None):
                     import json
                     settings = json.loads(settings)
                 return settings.get('line_token')
+        except Exception as e:
+            print(f"Error getting line token by app_name: {e}")
         finally:
             conn.close()
     return None
@@ -881,6 +889,7 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
                     'rich_menu_id': menu['rich_menu_id'],
                     'tags': tags
                 })
+        print(f"DEBUG: bulk_check_and_update_rich_menu | menu_tag_map: {menu_tag_map}")
         
         # Determine all user IDs to process (if not provided, fetch all users from `users` table)
         if not user_ids:
@@ -891,6 +900,7 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
             except:
                 conn.rollback()
                 user_ids = list(user_tags.keys())
+        print(f"DEBUG: bulk_check_and_update_rich_menu | processing {len(user_ids)} users. user_tags size: {len(user_tags)}")
                 
         # 3. Determine target rich menu for each user
         user_to_menu = {}
@@ -911,9 +921,9 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
         # Group users by target menu
         menu_to_users = {}
         for uid, menu_id in user_to_menu.items():
-            if menu_id not in menu_to_users:
-                menu_to_users[menu_id] = []
-            menu_to_users[menu_id].append(uid)
+            menu_to_users.setdefault(menu_id, []).append(uid)
+            
+        print(f"DEBUG: bulk_check_and_update_rich_menu | menu_to_users: {menu_to_users}")
             
         # 4. Perform LINE API bulk link/unlink
         token = getattr(g, 'current_line_token', None)
@@ -928,13 +938,17 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
             # Bulk Unlink
             for i in range(0, len(users_to_unlink), 500):
                 batch = users_to_unlink[i:i+500]
-                requests.post('https://api.line.me/v2/bot/richmenu/bulk/unlink', headers=headers, json={'userIds': batch})
+                resp = requests.post('https://api.line.me/v2/bot/richmenu/bulk/unlink', headers=headers, json={'userIds': batch})
+                if resp.status_code != 202:
+                    print(f"Error unlinking users: {resp.status_code} {resp.text}")
                 
             # Bulk Link
             for menu_id, uids in menu_to_users.items():
                 for i in range(0, len(uids), 500):
                     batch = uids[i:i+500]
-                    requests.post('https://api.line.me/v2/bot/richmenu/bulk/link', headers=headers, json={'userIds': batch, 'richMenuId': menu_id})
+                    resp = requests.post('https://api.line.me/v2/bot/richmenu/bulk/link', headers=headers, json={'userIds': batch, 'richMenuId': menu_id})
+                    if resp.status_code != 202:
+                        print(f"Error linking menu {menu_id}: {resp.status_code} {resp.text}")
                     
         # 5. Sync to Private_var
         if user_ids:
