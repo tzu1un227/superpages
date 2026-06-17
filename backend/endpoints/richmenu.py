@@ -20,7 +20,7 @@ def get_line_token_by_app_name(app_name):
     if conn:
         try:
             cur = conn.cursor()
-            cur.execute("SELECT other_settings FROM oa_configs WHERE oa_name = %s", (app_name,))
+            cur.execute("SELECT other_settings FROM permission_settings WHERE oa_name = %s", (app_name,))
             row = cur.fetchone()
             if row and row[0]:
                 settings = row[0]
