@@ -1,3 +1,7 @@
+## [2026-06-17] 圖文選單同步與 Link 按鈕分離
+- **前端 (frontend/src/pages/RichMenu.jsx)**:
+  - 於設計圖文選單時，將原先的「同步至 LINE」按鈕拆分為「同步至 LINE」與「同步並 Link」兩個選項，以控制發佈時是否要立即觸發與標籤或全體用戶的綁定。
+
 ## [2026-06-17] 圖文選單標籤與自動綁定更新
 - **後端 (backend/endpoints/richmenu.py, backend/endpoints/customers.py)**:
   - 實作基於標籤的自動化圖文選單綁定機制 (`bulk_check_and_update_rich_menu`)。

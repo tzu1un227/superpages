@@ -8,6 +8,21 @@
 - `backend/app.py`: 移除 test_runner_bp Blueprint 註冊。
 - `scratch_replace.py`, `test_query.py`, `scratch_history.py`, `backend/scratch_history.py`: 清除不被任何程式引用的一次性除錯腳本。
 
+## [2026-06-17] - 圖文選單同步與 Link 按鈕分離
+- **前端 (frontend/src/pages/RichMenu.jsx)**:
+  - 於設計圖文選單時，將原先的「同步至 LINE」按鈕拆分為「同步至 LINE」與「同步並 Link」兩個選項，以控制發佈時是否要立即觸發與標籤或全體用戶的綁定。
+
+## [2026-06-17] - 圖文選單標籤與自動綁定更新
+- **後端 (backend/endpoints/richmenu.py, backend/endpoints/customers.py)**:
+  - 實作基於標籤的自動化圖文選單綁定機制 (`bulk_check_and_update_rich_menu`)。
+  - 新增 `/api/customers/count-by-tags` 用於計算符合標籤的用戶人數。
+  - 從使用者設定變更 (新增/刪除標籤) 或發佈圖文選單時，自動於背景觸發使用者的圖文選單切換。
+- **前端 (frontend/src/pages/RichMenu.jsx)**:
+  - 移除舊版「權限控管」手動設定介面。
+  - 編輯圖文選單新增「公開」與「限定 (指定標籤)」開放狀態。
+  - 支援動態複選標籤，並即時預覽預計套用人數。
+  - 列表介面更新標籤與發佈狀態顯示。
+
 ## 2026-06-16
 
 ### 新增與優化
