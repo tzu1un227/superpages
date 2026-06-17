@@ -542,8 +542,12 @@ function RichMenu() {
     const linkToAll = async (id) => {
         setLoading(true);
         try {
-            await api.post(`/richmenu/link/${id}`);
-            showToast('已連結至全體用戶', 'success');
+            const res = await api.post(`/richmenu/link/${id}`);
+            if (res.data && res.data.message === 'restricted_sync') {
+                showToast('已觸發限定標籤用戶同步', 'success');
+            } else {
+                showToast('已連結至全體用戶', 'success');
+            }
         } catch (err) {
             showToast('連結失敗', 'error');
         } finally {
@@ -1010,7 +1014,7 @@ function RichMenu() {
                                             </button>
                                             {isPublished && rid && (
                                                 <>
-                                                    <Tooltip title="立即將此圖文選單連結至全體用戶 (Link)">
+                                                    <Tooltip title={isRestricted ? "立即將此限定圖文選單同步至標籤用戶 (Link)" : "立即將此圖文選單連結至全體用戶 (Link)"}>
                                                         <button onClick={() => linkToAll(rid)} className="secondary" style={{ padding: '8px', color: '#fff', borderColor: '#4CAF50', backgroundColor: 'rgba(76, 175, 80, 0.1)' }}>
                                                             <LinkIcon size={16} />
                                                         </button>

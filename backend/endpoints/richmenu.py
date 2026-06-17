@@ -720,11 +720,35 @@ def delete_rich_menu_metadata(id):
 @richmenu_bp.route('/link/<richMenuId>', methods=['POST'])
 @token_required
 def link_rich_menu_to_all(richMenuId):
-    """將圖文選單個別綁定至全體用戶 (Individual Bulk Link to All)"""
+    """將圖文選單個別綁定至全體用戶 (Individual Bulk Link to All) 或觸發限定標籤綁定"""
     token = get_line_token()
     if not token: return jsonify({'message': 'Line token not configured'}), 400
     headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
     
+    app_name = getattr(g, 'current_app_name', None)
+    if app_name:
+        from db_utils import get_main_db_connection
+        conn = get_main_db_connection()
+        if conn:
+            try:
+                cur = conn.cursor()
+                t_metadata = f'"rich_menu_metadata:{app_name}"'
+                cur.execute(f"SELECT status FROM {t_metadata} WHERE rich_menu_id = %s", (richMenuId,))
+                m = cur.fetchone()
+                if m and m[0] == 'restricted':
+                    import threading
+                    def bg_update(app_name_val, token_val):
+                        from flask import Flask, g
+                        dummy = Flask(__name__)
+                        with dummy.app_context():
+                            g.current_app_name = app_name_val
+                            g.current_line_token = token_val
+                            bulk_check_and_update_rich_menu(app_name_val)
+                    threading.Thread(target=bg_update, args=(app_name, token)).start()
+                    return jsonify({'status': 'success', 'message': 'restricted_sync'})
+            finally:
+                conn.close()
+                
     bulk_link_all_users(headers, richMenuId)
     return jsonify({'status': 'success'})
 
