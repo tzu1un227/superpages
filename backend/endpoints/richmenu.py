@@ -767,7 +767,7 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
         
         # 1. Fetch user tags
         user_tags = {}
-        conditions = ["name = 'tags'"]
+        conditions = ["name = 'tag'"]
         params = []
         if user_ids:
             conditions.append("user_id = ANY(%s)")
@@ -784,7 +784,8 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
                 except:
                     user_tags[r['user_id']] = {val}
             else:
-                user_tags[r['user_id']] = {val}
+                # If it's comma separated, we can split it. Or just use as is.
+                user_tags[r['user_id']] = set(val.split(',')) if ',' in val else {val}
                 
         # 2. Get all restricted rich menus ordered by updated_at DESC (highest priority first)
         t_metadata = f'"rich_menu_metadata:{app_name}"'
@@ -794,7 +795,7 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
         menu_tag_map = []
         for menu in restricted_menus:
             data = menu['data'] or {}
-            tags = set(data.get('tags', []))
+            tags = set(data.get('targetTags', []))
             if tags and menu.get('rich_menu_id'):
                 menu_tag_map.append({
                     'rich_menu_id': menu['rich_menu_id'],

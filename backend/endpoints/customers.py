@@ -725,17 +725,29 @@ def count_by_tags():
         
         conditions = []
         params = []
-        for tag in tags:
+        for tg in tags:
+            # Match JSON list: ["tag"]
             conditions.append("value ILIKE %s")
-            params.append(f'%"{tag}"%')
+            params.append(f'%"{tg}"%')
+            # Match Python list string: ['tag']
             conditions.append("value ILIKE %s")
-            params.append(tag) # Exact string match if not a list
+            params.append(f"%'\"{tg}\"'%")
+            conditions.append("value ILIKE %s")
+            params.append(f"%'\'{tg}\"'%")
+            conditions.append("value ILIKE %s")
+            params.append(f"%'{tg}'%")
+            # Exact match
+            conditions.append("value ILIKE %s")
+            params.append(tg)
+            # Match comma separated without quotes
+            conditions.append("value ILIKE %s")
+            params.append(f"%{tg}%")
             
         where_clause = " OR ".join(conditions)
         query = f"""
             SELECT COUNT(DISTINCT user_id) 
             FROM {pv_table} 
-            WHERE name = 'tags' AND ({where_clause}) AND user_id IS NOT NULL AND user_id != '' AND length(user_id) = 33
+            WHERE name = 'tag' AND ({where_clause}) AND user_id IS NOT NULL AND user_id != '' AND length(user_id) = 33
         """
         cur.execute(query, params)
         count = cur.fetchone()[0]
