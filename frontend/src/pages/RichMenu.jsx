@@ -991,8 +991,8 @@ function RichMenu() {
                                 } catch (e) { }
 
                                 return (
-                                    <div key={idx} className="card" style={{ border: isDefault ? '2px solid #FFD700' : '1px solid #333' }}>
-                                        <div style={{ height: '150px', backgroundColor: '#111', borderRadius: '8px', marginBottom: '15px', position: 'relative', overflow: 'hidden' }}>
+                                    <div key={idx} className="card" style={{ display: 'flex', flexDirection: 'column', height: '100%', border: isDefault ? '2px solid #FFD700' : '1px solid #333' }}>
+                                        <div style={{ height: '150px', backgroundColor: '#111', borderRadius: '8px', marginBottom: '15px', position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
                                             <RichMenuPreview menuId={rid} />
                                             <div style={{ position: 'absolute', top: '10px', left: '10px', backgroundColor: isDraft ? '#FF9800' : isRestricted ? '#9C27B0' : '#4CAF50', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', zIndex: 2 }}>
                                                 {isDraft ? '草稿' : isRestricted ? '限定發佈' : '公開發佈'}
@@ -1007,31 +1007,33 @@ function RichMenu() {
                                                 ))}
                                             </div>
                                         )}
-                                        <p style={{ fontSize: '12px', color: '#666', marginBottom: '15px' }}>
-                                            {item.isMetadata ? `更新於 ${new Date(item.created_at).toLocaleString()}` : `ID: ${rid?.slice(-8)}`}
-                                        </p>
-                                        <div style={{ display: 'flex', gap: '10px' }}>
-                                            <button onClick={() => handleEditMenu(item, item.isMetadata)} className="secondary" style={{ flex: 1, padding: '8px' }}>
-                                                {isDraft ? <Edit2 size={14} /> : <Eye size={14} />} {isDraft ? '編輯' : '查看'}
-                                            </button>
-                                            {isPublished && rid && (
-                                                <>
-                                                    <Tooltip title={isRestricted ? "立即將此限定圖文選單同步至標籤用戶 (Link)" : "立即將此圖文選單連結至全體用戶 (Link)"}>
-                                                        <button onClick={() => linkToAll(rid)} className="secondary" style={{ padding: '8px', color: '#fff', borderColor: '#4CAF50', backgroundColor: 'rgba(76, 175, 80, 0.1)' }}>
-                                                            <LinkIcon size={16} />
-                                                        </button>
-                                                    </Tooltip>
-                                                    
-                                                    {!isDefault && (
-                                                        <Tooltip title="設為全域預設選單 (Set Default)">
-                                                            <button onClick={() => setDefault(rid)} className="secondary" style={{ padding: '8px' }}>
-                                                                <Check size={16} />
+                                        <div style={{ marginTop: 'auto' }}>
+                                            <p style={{ fontSize: '12px', color: '#666', marginBottom: '15px' }}>
+                                                {item.isMetadata ? `更新於 ${new Date(item.created_at).toLocaleString()}` : `ID: ${rid?.slice(-8)}`}
+                                            </p>
+                                            <div style={{ display: 'flex', gap: '10px' }}>
+                                                <button onClick={() => handleEditMenu(item, item.isMetadata)} className="secondary" style={{ flex: 1, padding: '8px' }}>
+                                                    {isDraft ? <Edit2 size={14} /> : <Eye size={14} />} {isDraft ? '編輯' : '查看'}
+                                                </button>
+                                                {isPublished && rid && (
+                                                    <>
+                                                        <Tooltip title={isRestricted ? "立即將此限定圖文選單同步至標籤用戶 (Link)" : "立即將此圖文選單連結至全體用戶 (Link)"}>
+                                                            <button onClick={() => linkToAll(rid)} className="secondary" style={{ padding: '8px', color: '#fff', borderColor: '#4CAF50', backgroundColor: 'rgba(76, 175, 80, 0.1)' }}>
+                                                                <LinkIcon size={16} />
                                                             </button>
                                                         </Tooltip>
-                                                    )}
-                                                </>
-                                            )}
-                                            <button onClick={() => deleteMenu(item.isMetadata ? item.id : item.richMenuId, item.isMetadata)} style={{ padding: '8px', color: '#ff4d4d', border: '1px solid #444', background: 'none' }}><Trash2 size={16} /></button>
+                                                        
+                                                        {!isDefault && (
+                                                            <Tooltip title="設為全域預設選單 (Set Default)">
+                                                                <button onClick={() => setDefault(rid)} className="secondary" style={{ padding: '8px' }}>
+                                                                    <Check size={16} />
+                                                                </button>
+                                                            </Tooltip>
+                                                        )}
+                                                    </>
+                                                )}
+                                                <button onClick={() => deleteMenu(item.isMetadata ? item.id : item.richMenuId, item.isMetadata)} style={{ padding: '8px', color: '#ff4d4d', border: '1px solid #444', background: 'none' }}><Trash2 size={16} /></button>
+                                            </div>
                                         </div>
                                     </div>
                                 );
