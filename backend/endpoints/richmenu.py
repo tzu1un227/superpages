@@ -688,6 +688,8 @@ def save_rich_menu_metadata():
                 import threading
                 app_name = getattr(g, 'current_app_name', None)
                 def trigger_update(app_name_val, stat, r_id):
+                    import time
+                    time.sleep(1.5)  # Wait for LINE server to process the newly uploaded image
                     try:
                         # Setup fake context
                         from flask import Flask, g
