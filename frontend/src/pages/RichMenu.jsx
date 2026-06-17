@@ -916,7 +916,7 @@ function RichMenu() {
     return (
         <div style={{ position: 'relative', height: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '20px' }}>
                     <div>
                         <h1 style={{ fontSize: '32px', display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '10px' }}>
                             圖文選單
@@ -924,31 +924,33 @@ function RichMenu() {
                                 <HelpCircle size={20} style={{ color: '#888', cursor: 'pointer' }} />
                             </Tooltip>
                         </h1>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <label style={{ fontSize: '14px', color: '#888' }}>選擇帳號:</label>
-                            <select 
-                                value={selectedOAId}
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    setSelectedOAId(val);
-                                    if (val !== 'all') navigate(`/oa/${val}/richmenu`);
-                                }}
-                                style={{ padding: '6px 12px', backgroundColor: '#222', border: '1px solid #444', borderRadius: '6px', color: 'white', fontSize: '14px', outline: 'none' }}
-                            >
-                                <option value="all">全部帳號 (依照分類顯示)</option>
-                                {myOAs.map(oa => <option key={oa.id} value={oa.id}>{oa.oa_name}</option>)}
-                            </select>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <label style={{ fontSize: '14px', color: '#888' }}>選擇帳號:</label>
+                                <select 
+                                    value={selectedOAId}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setSelectedOAId(val);
+                                        if (val !== 'all') navigate(`/oa/${val}/richmenu`);
+                                    }}
+                                    style={{ padding: '6px 12px', backgroundColor: '#222', border: '1px solid #444', borderRadius: '6px', color: 'white', fontSize: '14px', outline: 'none' }}
+                                >
+                                    <option value="all">全部帳號 (依照分類顯示)</option>
+                                    {myOAs.map(oa => <option key={oa.id} value={oa.id}>{oa.oa_name}</option>)}
+                                </select>
+                            </div>
+                            <div style={{ position: 'relative' }}>
+                                <Filter size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
+                                <input
+                                    type="text"
+                                    placeholder="搜尋選單名稱或 ID..."
+                                    value={menuSearch}
+                                    onChange={(e) => setMenuSearch(e.target.value)}
+                                    style={{ padding: '8px 12px 8px 34px', backgroundColor: '#222', border: '1px solid #444', borderRadius: '6px', color: 'white', fontSize: '13px', width: '240px', outline: 'none' }}
+                                />
+                            </div>
                         </div>
-                    </div>
-                    <div style={{ position: 'relative', marginLeft: '20px' }}>
-                        <Filter size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
-                        <input
-                            type="text"
-                            placeholder="搜尋選單名稱或 ID..."
-                            value={menuSearch}
-                            onChange={(e) => setMenuSearch(e.target.value)}
-                            style={{ padding: '10px 12px 10px 34px', backgroundColor: '#222', border: '1px solid #444', borderRadius: '8px', color: 'white', fontSize: '13px', width: '240px', outline: 'none' }}
-                        />
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
