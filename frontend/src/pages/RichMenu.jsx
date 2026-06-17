@@ -760,11 +760,11 @@ function RichMenu() {
                                     <label className="label">開放狀態</label>
                                     <div style={{ display: 'flex', gap: '15px', marginTop: '5px' }}>
                                         <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-                                            <input type="radio" name="visibility" value="public" checked={currentMenu.visibility === 'public'} disabled={viewOnly} onChange={() => setCurrentMenu({ ...currentMenu, visibility: 'public' })} />
+                                            <input type="radio" name="visibility" value="public" checked={currentMenu.visibility === 'public'} disabled={viewOnly} onChange={() => setCurrentMenu({ ...currentMenu, visibility: 'public' })} style={{ accentColor: '#FFD700', transform: 'scale(1.2)', margin: '0 5px' }} />
                                             公開 (發給所有人看的圖文)
                                         </label>
                                         <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-                                            <input type="radio" name="visibility" value="restricted" checked={currentMenu.visibility === 'restricted'} disabled={viewOnly} onChange={() => setCurrentMenu({ ...currentMenu, visibility: 'restricted' })} />
+                                            <input type="radio" name="visibility" value="restricted" checked={currentMenu.visibility === 'restricted'} disabled={viewOnly} onChange={() => setCurrentMenu({ ...currentMenu, visibility: 'restricted' })} style={{ accentColor: '#FFD700', transform: 'scale(1.2)', margin: '0 5px' }} />
                                             限定 (發給指定標籤看的圖文)
                                         </label>
                                     </div>

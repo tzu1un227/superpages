@@ -1160,11 +1160,6 @@ function RuleDesigner() {
                                                             style={{ display: 'none' }}
                                                         />
                                                     </label>
-                                                    {(msg.original_content_url || msg.Line?.original_content_url) && (
-                                                        <div style={{ textAlign: 'center', marginTop: '10px' }}>
-                                                            <img src={msg.original_content_url || msg.Line?.original_content_url} style={{ maxWidth: '100%', maxHeight: '150px', borderRadius: '8px' }} alt="預覽" />
-                                                        </div>
-                                                    )}
                                                 </div>
                                             )}
 
