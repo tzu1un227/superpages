@@ -863,6 +863,12 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
         menu_tag_map = []
         for menu in restricted_menus:
             data = menu['data'] or {}
+            if isinstance(data, str):
+                import json
+                try:
+                    data = json.loads(data)
+                except Exception:
+                    data = {}
             tags = set(data.get('targetTags', []))
             if tags and menu.get('rich_menu_id'):
                 menu_tag_map.append({
