@@ -6,7 +6,7 @@ import {
     Workflow, MessageSquare, ChevronRight, AlertCircle, 
     PlusCircle, Info, ArrowRight, Layers, FileJson,
     SplitSquareVertical, RefreshCw, Layers as LayersIcon,
-    Calendar, Clock, Tag, ChevronDown, ChevronUp
+    Calendar, Clock, Tag, ChevronDown, ChevronUp, Upload
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import JourneyPreview from '../components/JourneyPreview';
@@ -1125,7 +1125,7 @@ function RuleDesigner() {
                                                         width: '100%',
                                                         justifyContent: 'center'
                                                     }}>
-                                                        {isUploadingMsg === `image_${idx}` ? <CircularProgress size={16} color="inherit" /> : <Upload size={16} />}
+                                                        {isUploadingMsg === `image_${idx}` ? <RefreshCw size={16} className="animate-spin" /> : <Upload size={16} />}
                                                         {isUploadingMsg === `image_${idx}` ? '上傳中...' : '上傳圖片'}
                                                         <input 
                                                             type="file" 

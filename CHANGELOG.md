@@ -1,3 +1,14 @@
+## [2026-06-17] 圖文選單標籤與自動綁定更新
+- **後端 (backend/endpoints/richmenu.py, backend/endpoints/customers.py)**:
+  - 實作基於標籤的自動化圖文選單綁定機制 (`bulk_check_and_update_rich_menu`)。
+  - 新增 `/api/customers/count-by-tags` 用於計算符合標籤的用戶人數。
+  - 從使用者設定變更 (新增/刪除標籤) 或發佈圖文選單時，自動於背景觸發使用者的圖文選單切換。
+- **前端 (frontend/src/pages/RichMenu.jsx)**:
+  - 移除舊版「權限控管」手動設定介面。
+  - 編輯圖文選單新增「公開」與「限定 (指定標籤)」開放狀態。
+  - 支援動態複選標籤，並即時預覽預計套用人數。
+  - 列表介面更新標籤與發佈狀態顯示。
+
 ## [2026-06-16] Flex 動態綁定機制更新
 - **前端 (frontend/src/components/FlexMessageEditor.jsx)**:
   - 支援在圖片與按鈕行為中設定「加入自動旅程」與「切換圖文選單」。

@@ -438,8 +438,18 @@ def delete_tag(tag_name):
                 send_socket_events_batch(events, socket_url=s_url, bot_name=s_name, namespace=target_ns)
             threading.Thread(target=notify_socket).start()
 
-
-
+            from endpoints.richmenu import bulk_check_and_update_rich_menu
+            g_context = g._get_current_object()
+            def update_menus():
+                try:
+                    from flask import Flask, g
+                    dummy_app = Flask(__name__)
+                    with dummy_app.app_context():
+                        g.current_app_name = getattr(g_context, 'current_app_name', app_id)
+                        bulk_check_and_update_rich_menu(affected_uids)
+                except Exception as ex:
+                    print("Error updating menus async:", ex)
+            threading.Thread(target=update_menus).start()
 
         conn.commit()
         return jsonify({"success": True})
@@ -515,8 +525,18 @@ def add_tag_batch():
                 send_socket_events_batch(events, socket_url=s_url, bot_name=s_name, namespace=target_ns)
             threading.Thread(target=notify_socket).start()
 
-
-
+            from endpoints.richmenu import bulk_check_and_update_rich_menu
+            g_context = g._get_current_object()
+            def update_menus():
+                try:
+                    from flask import Flask, g
+                    dummy_app = Flask(__name__)
+                    with dummy_app.app_context():
+                        g.current_app_name = getattr(g_context, 'current_app_name', app_id)
+                        bulk_check_and_update_rich_menu(affected_uids)
+                except Exception as ex:
+                    print("Error updating menus async:", ex)
+            threading.Thread(target=update_menus).start()
             
         conn.commit()
         return jsonify({"success": True, "count": len(updates)})
@@ -686,3 +706,43 @@ def delete_customer_richmenu(user_id):
         print(f"Error in delete_customer_richmenu: {e}")
         return jsonify({'message': 'Error', 'error': str(e)}), 500
 
+
+@customers_bp.route('/count-by-tags', methods=['POST'])
+@token_required
+def count_by_tags():
+    data = request.json
+    tags = data.get('tags', [])
+    if not tags:
+        return jsonify({"count": 0})
+        
+    app_id = get_current_app_id()
+    from db_utils import get_db_connection
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        pv_table = f'"Private_var:{app_id}"'
+        
+        conditions = []
+        params = []
+        for tag in tags:
+            conditions.append("value ILIKE %s")
+            params.append(f'%"{tag}"%')
+            conditions.append("value ILIKE %s")
+            params.append(tag) # Exact string match if not a list
+            
+        where_clause = " OR ".join(conditions)
+        query = f"""
+            SELECT COUNT(DISTINCT user_id) 
+            FROM {pv_table} 
+            WHERE name = 'tag' AND ({where_clause}) AND user_id IS NOT NULL AND user_id != '' AND length(user_id) = 33
+        """
+        cur.execute(query, params)
+        count = cur.fetchone()[0]
+        cur.close()
+        return jsonify({"count": count})
+    except Exception as e:
+        print(f"Error in count_by_tags: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()

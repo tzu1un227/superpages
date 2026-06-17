@@ -58,8 +58,6 @@ function RichMenu() {
     const [allAliases, setAllAliases] = useState([]);
     const [viewOnly, setViewOnly] = useState(false);
     const [menuSearch, setMenuSearch] = useState('');
-    const [mappings, setMappings] = useState([]);
-    const [savingMappings, setSavingMappings] = useState(false);
     const { myOAs, currentAccount } = useAuth();
     const navigate = useNavigate();
     const [selectedOAId, setSelectedOAId] = useState(oaId || 'all');
@@ -75,8 +73,13 @@ function RichMenu() {
         areas: [],
         status: 'draft',
         start_time: '',
-        end_time: ''
+        end_time: '',
+        visibility: 'public',
+        targetTags: [],
+        targetUserCount: 0
     };
+
+    const [allTags, setAllTags] = useState([]);
 
     const scale = 0.2;
 
@@ -89,9 +92,6 @@ function RichMenu() {
     useEffect(() => {
         if (view === 'list') {
             fetchData();
-        } else if (view === 'permissions') {
-            fetchMappings();
-            if (menus.length === 0) fetchMenus();
         }
     }, [view, oaId, selectedOAId]);
 
@@ -114,6 +114,12 @@ function RichMenu() {
             } catch (err) {
                 console.error('Failed to fetch aliases:', err);
             }
+            try {
+                const tagsRes = await api.get('/customers/tags');
+                setAllTags(tagsRes.data || []);
+            } catch (err) {
+                console.error('Failed to fetch tags:', err);
+            }
         } finally {
             setLoading(false);
         }
@@ -134,27 +140,6 @@ function RichMenu() {
             setMetadata(res.data || []);
         } catch (err) {
             console.error('Failed to fetch metadata:', err);
-        }
-    };
-
-    const fetchMappings = async () => {
-        try {
-            const res = await api.get('/richmenu/permissions');
-            setMappings(res.data.mappings || []);
-        } catch (err) {
-            console.error('Failed to fetch mappings:', err);
-        }
-    };
-
-    const saveMappings = async () => {
-        setSavingMappings(true);
-        try {
-            await api.post('/richmenu/permissions', { mappings });
-            showToast('權限設定已儲存', 'success');
-        } catch (err) {
-            showToast('儲存失敗', 'error');
-        } finally {
-            setSavingMappings(false);
         }
     };
 
@@ -212,6 +197,23 @@ function RichMenu() {
         };
     }, [dragState, currentMenu, scale]);
 
+    useEffect(() => {
+        if (!currentMenu || view !== 'edit' || viewOnly) return;
+        if (currentMenu.visibility === 'restricted' && currentMenu.targetTags?.length > 0) {
+            const fetchCount = async () => {
+                try {
+                    const res = await api.post('/customers/count-by-tags', { tags: currentMenu.targetTags });
+                    setCurrentMenu(prev => ({ ...prev, targetUserCount: res.data.count }));
+                } catch (e) {
+                    console.error('Failed to fetch target user count', e);
+                }
+            };
+            fetchCount();
+        } else {
+            setCurrentMenu(prev => prev.targetUserCount !== 0 ? { ...prev, targetUserCount: 0 } : prev);
+        }
+    }, [currentMenu?.targetTags, currentMenu?.visibility, view, viewOnly]);
+
     const fetchImageWithAuth = async (richMenuId) => {
         if (!richMenuId) return null;
         if (frontendImageCache[richMenuId]) {
@@ -261,9 +263,12 @@ function RichMenu() {
                     name: item.name,
                     chatBarText: item.chat_bar_text,
                     alias: defaultAlias,
-                    imageFile: file
+                    imageFile: file,
+                    visibility: ['restricted'].includes(item.status) ? 'restricted' : 'public',
+                    targetTags: data.targetTags || [],
+                    targetUserCount: data.targetUserCount || 0
                 });
-                setViewOnly(item.status === 'published');
+                setViewOnly(item.status !== 'draft');
                 setBackgroundImage(data.imageBase64 || null);
                 if (item.rich_menu_id && !data.imageBase64) {
                     fetchImageWithAuth(item.rich_menu_id).then(imageUrl => {
@@ -389,7 +394,10 @@ function RichMenu() {
                     name: currentMenu.name,
                     chatBarText: currentMenu.chatBarText,
                     imageBase64: currentMenu.imageBase64,
-                    alias: currentMenu.alias
+                    alias: currentMenu.alias,
+                    visibility: currentMenu.visibility,
+                    targetTags: currentMenu.targetTags,
+                    targetUserCount: currentMenu.targetUserCount
                 })
             };
             await api.post('/richmenu/metadata', payload);
@@ -460,7 +468,7 @@ function RichMenu() {
                 id: currentMenu.id,
                 name: currentMenu.name,
                 chat_bar_text: currentMenu.chatBarText,
-                status: 'published',
+                status: currentMenu.visibility === 'restricted' ? 'restricted' : 'public',
                 rich_menu_id: richMenuId,
                 start_time: currentMenu.start_time || null,
                 end_time: currentMenu.end_time || null,
@@ -469,7 +477,10 @@ function RichMenu() {
                     areas: currentMenu.areas,
                     name: currentMenu.name,
                     chatBarText: currentMenu.chatBarText,
-                    alias: currentMenu.alias
+                    alias: currentMenu.alias,
+                    visibility: currentMenu.visibility,
+                    targetTags: currentMenu.targetTags,
+                    targetUserCount: currentMenu.targetUserCount
                 })
             };
             await api.post('/richmenu/metadata', payload);
@@ -743,6 +754,56 @@ function RichMenu() {
                         </div>
 
                         <div className="card">
+                            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Shield size={18} /> 發佈對象</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
+                                <div>
+                                    <label className="label">開放狀態</label>
+                                    <div style={{ display: 'flex', gap: '15px', marginTop: '5px' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                                            <input type="radio" name="visibility" value="public" checked={currentMenu.visibility === 'public'} disabled={viewOnly} onChange={() => setCurrentMenu({ ...currentMenu, visibility: 'public' })} />
+                                            公開 (發給所有人看的圖文)
+                                        </label>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                                            <input type="radio" name="visibility" value="restricted" checked={currentMenu.visibility === 'restricted'} disabled={viewOnly} onChange={() => setCurrentMenu({ ...currentMenu, visibility: 'restricted' })} />
+                                            限定 (發給指定標籤看的圖文)
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                {currentMenu.visibility === 'restricted' && (
+                                    <div style={{ backgroundColor: '#111', padding: '15px', borderRadius: '8px', border: '1px solid #333' }}>
+                                        <label className="label">適用標籤 (可複選)</label>
+                                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
+                                            {allTags.map(t => (
+                                                <label key={t.tag_name} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: currentMenu.targetTags.includes(t.tag_name) ? 'var(--primary-yellow)' : '#333', color: currentMenu.targetTags.includes(t.tag_name) ? '#000' : '#fff', padding: '6px 12px', borderRadius: '20px', fontSize: '13px', cursor: viewOnly ? 'default' : 'pointer', transition: 'all 0.2s' }}>
+                                                    <input 
+                                                        type="checkbox" 
+                                                        style={{ display: 'none' }}
+                                                        checked={currentMenu.targetTags.includes(t.tag_name)}
+                                                        disabled={viewOnly}
+                                                        onChange={(e) => {
+                                                            const newTags = e.target.checked 
+                                                                ? [...currentMenu.targetTags, t.tag_name]
+                                                                : currentMenu.targetTags.filter(tag => tag !== t.tag_name);
+                                                            setCurrentMenu({ ...currentMenu, targetTags: newTags });
+                                                        }}
+                                                    />
+                                                    {t.tag_name}
+                                                </label>
+                                            ))}
+                                            {allTags.length === 0 && <span style={{ color: '#666', fontSize: '13px' }}>目前沒有任何標籤</span>}
+                                        </div>
+                                        <div style={{ marginTop: '15px', fontSize: '13px', color: '#aaa', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                            <Shield size={14} /> 預計套用人數：
+                                            <span style={{ color: 'var(--primary-yellow)', fontWeight: 'bold', fontSize: '16px' }}>{currentMenu.targetUserCount}</span> 人
+                                            <span style={{ fontSize: '11px', color: '#666' }}>(若有用戶同時符合多個標籤，只會被算到一次)</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="card">
                             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Clock size={18} /> 排程設定</h3>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
                                 <div><label className="label">開始時間</label><input type="datetime-local" value={currentMenu.start_time} onChange={e => setCurrentMenu({ ...currentMenu, start_time: e.target.value })} /></div>
@@ -887,7 +948,6 @@ function RichMenu() {
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                    <button onClick={() => setView('permissions')} className="secondary"><Shield size={18} /> 權限控管</button>
                     <button onClick={handleClearAll} className="secondary" style={{ color: '#ff4d4d' }}><Trash2 size={18} /> 清除所有圖文選單</button>
                     <button onClick={handleCreateNew} className="primary"><Plus size={20} /> 新增選單</button>
                 </div>
@@ -908,20 +968,39 @@ function RichMenu() {
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
                             {oaMenus.map((item, idx) => {
                                 const isDraft = item.isMetadata && item.status === 'draft';
-                                const isPublished = (item.isMetadata && item.status === 'published') || !item.isMetadata;
+                                const isPublished = (item.isMetadata && ['published', 'public', 'restricted'].includes(item.status)) || !item.isMetadata;
+                                const isPublic = item.status === 'public' || item.status === 'published'; // Fallback to 'published' for legacy
+                                const isRestricted = item.status === 'restricted';
                                 const rid = item.rich_menu_id || item.richMenuId;
                                 const isDefault = item.status === 'default';
+                                
+                                let tagsPreview = [];
+                                try {
+                                    if (item.data && typeof item.data === 'string') {
+                                        const parsed = JSON.parse(item.data);
+                                        if (parsed.targetTags) tagsPreview = parsed.targetTags;
+                                    } else if (item.data && item.data.targetTags) {
+                                        tagsPreview = item.data.targetTags;
+                                    }
+                                } catch (e) { }
 
                                 return (
                                     <div key={idx} className="card" style={{ border: isDefault ? '2px solid #FFD700' : '1px solid #333' }}>
                                         <div style={{ height: '150px', backgroundColor: '#111', borderRadius: '8px', marginBottom: '15px', position: 'relative', overflow: 'hidden' }}>
                                             <RichMenuPreview menuId={rid} />
-                                            <div style={{ position: 'absolute', top: '10px', left: '10px', backgroundColor: isDraft ? '#FF9800' : '#4CAF50', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>
-                                                {isDraft ? '草稿' : '已發佈'}
+                                            <div style={{ position: 'absolute', top: '10px', left: '10px', backgroundColor: isDraft ? '#FF9800' : isRestricted ? '#9C27B0' : '#4CAF50', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', zIndex: 2 }}>
+                                                {isDraft ? '草稿' : isRestricted ? '限定發佈' : '公開發佈'}
                                             </div>
-                                            {isDefault && <div style={{ position: 'absolute', top: '10px', right: '10px', backgroundColor: '#FFD700', color: 'black', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>預設</div>}
+                                            {isDefault && <div style={{ position: 'absolute', top: '10px', right: '10px', backgroundColor: '#FFD700', color: 'black', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', zIndex: 2 }}>預設</div>}
                                         </div>
                                         <h4 style={{ marginBottom: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</h4>
+                                        {isRestricted && tagsPreview.length > 0 && (
+                                            <div style={{ marginBottom: '10px', display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                                                {tagsPreview.map(tag => (
+                                                    <span key={tag} style={{ backgroundColor: '#333', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '11px' }}>{tag}</span>
+                                                ))}
+                                            </div>
+                                        )}
                                         <p style={{ fontSize: '12px', color: '#666', marginBottom: '15px' }}>
                                             {item.isMetadata ? `更新於 ${new Date(item.created_at).toLocaleString()}` : `ID: ${rid?.slice(-8)}`}
                                         </p>
