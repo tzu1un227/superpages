@@ -14,6 +14,24 @@ def get_line_token():
         return g.current_oa_config.other_settings.get('line_token')
     return None
 
+def get_line_token_by_app_name(app_name):
+    from db_utils import get_main_db_connection
+    conn = get_main_db_connection()
+    if conn:
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT other_settings FROM oa_configs WHERE oa_name = %s", (app_name,))
+            row = cur.fetchone()
+            if row and row[0]:
+                settings = row[0]
+                if isinstance(settings, str):
+                    import json
+                    settings = json.loads(settings)
+                return settings.get('line_token')
+        finally:
+            conn.close()
+    return None
+
 @richmenu_bp.route('/', methods=['GET'], strict_slashes=False)
 @token_required
 def list_rich_menus():
@@ -859,6 +877,7 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
                 cur.execute(f"SELECT user_id FROM {t_users}")
                 user_ids = [r['user_id'] for r in cur.fetchall()]
             except:
+                conn.rollback()
                 user_ids = list(user_tags.keys())
                 
         # 3. Determine target rich menu for each user
