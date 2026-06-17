@@ -707,8 +707,34 @@ def delete_rich_menu_metadata(id):
         conn = get_main_db_connection()
         cur = conn.cursor()
         try:
+            cur.execute(f"SELECT rich_menu_id FROM {t_metadata} WHERE id = %s", (id,))
+            m = cur.fetchone()
+            rich_menu_id = m[0] if m else None
+
             cur.execute(f"DELETE FROM {t_metadata} WHERE id = %s", (id,))
             conn.commit()
+
+            if rich_menu_id:
+                token = get_line_token()
+                if token:
+                    headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
+                    import requests
+                    # First, find and delete all associated aliases
+                    alias_resp = requests.get('https://api.line.me/v2/bot/richmenu/alias/list', headers=headers)
+                    if alias_resp.status_code == 200:
+                        aliases = alias_resp.json().get('aliases', [])
+                        for alias in aliases:
+                            if alias.get('richMenuId') == rich_menu_id:
+                                alias_id = alias.get('richMenuAliasId')
+                                requests.delete(f'https://api.line.me/v2/bot/richmenu/alias/{alias_id}', headers=headers)
+                    
+                    # Then delete the rich menu from LINE
+                    requests.delete(f'https://api.line.me/v2/bot/richmenu/{rich_menu_id}', headers=headers)
+                    
+                    # 同步清除全域圖片快取
+                    if rich_menu_id in _IMAGE_CACHE:
+                        del _IMAGE_CACHE[rich_menu_id]
+
             return jsonify({'status': 'success'})
         finally:
             cur.close()
