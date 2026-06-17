@@ -410,7 +410,7 @@ function RichMenu() {
         }
     };
 
-    const publishToLine = async () => {
+    const publishToLine = async (shouldLink = false) => {
         if (viewOnly) return;
         if (!validateMenu()) return;
         if (!backgroundImage) {
@@ -498,7 +498,22 @@ function RichMenu() {
                 }
             }
 
-            showToast('選單已成功同步至 LINE！', 'success');
+            if (shouldLink) {
+                try {
+                    const res = await api.post(`/richmenu/link/${richMenuId}`);
+                    if (res.data && res.data.message === 'restricted_sync') {
+                        showToast('已同步至 LINE 並觸發限定標籤用戶同步', 'success');
+                    } else {
+                        showToast('已同步至 LINE 並連結至全體用戶', 'success');
+                    }
+                } catch (linkErr) {
+                    console.error('Link failed:', linkErr);
+                    showToast('同步成功，但連結失敗', 'warning');
+                }
+            } else {
+                showToast('選單已成功同步至 LINE！', 'success');
+            }
+
             // 清空本地狀態以防殘影，並回到列表
             setCurrentMenu(null);
             setView('list');
@@ -702,7 +717,8 @@ function RichMenu() {
                         {!viewOnly && (
                             <>
                                 <button onClick={saveAsDraft} className="secondary" disabled={loading}><Save size={18} /> 儲存草稿</button>
-                                <button onClick={publishToLine} className="primary" disabled={loading}><Send size={18} /> {loading ? '同步中...' : '同步至 LINE'}</button>
+                                <button onClick={() => publishToLine(false)} className="secondary" disabled={loading}><Send size={18} /> {loading ? '同步中...' : '同步至 LINE'}</button>
+                                <button onClick={() => publishToLine(true)} className="primary" disabled={loading}><Send size={18} /> {loading ? '同步中...' : '同步並 Link'}</button>
                             </>
                         )}
                         {!viewOnly && currentMenu.richMenuId && (
