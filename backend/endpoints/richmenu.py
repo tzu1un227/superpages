@@ -400,6 +400,40 @@ def clear_all_rich_menus():
     except Exception as e:
         return jsonify({'message': 'Error', 'error': str(e)}), 500
 
+@richmenu_bp.route('/permissions', methods=['GET'], strict_slashes=False)
+@token_required
+def get_rich_menu_permissions():
+    oa_config = getattr(g, 'current_oa_config', None)
+    if not oa_config:
+        return jsonify({'error': 'OA config not found'}), 404
+    
+    mappings = oa_config.other_settings.get('rich_menu_mappings', []) if (oa_config.other_settings and isinstance(oa_config.other_settings, dict)) else []
+    return jsonify({'mappings': mappings})
+
+@richmenu_bp.route('/permissions', methods=['POST'], strict_slashes=False)
+@token_required
+def save_rich_menu_permissions():
+    from models import db, OAConfig
+    oa_config = getattr(g, 'current_oa_config', None)
+    if not oa_config:
+        return jsonify({'error': 'OA config not found'}), 404
+    
+    data = request.json
+    mappings = data.get('mappings', [])
+    
+    # 確保是字典
+    if not oa_config.other_settings or not isinstance(oa_config.other_settings, dict):
+        oa_config.other_settings = {}
+    
+    # 深拷貝以觸發 SQLAlchemy 變動偵測
+    settings = dict(oa_config.other_settings)
+    settings['rich_menu_mappings'] = mappings
+    
+    actual_oa = OAConfig.query.get(oa_config.id)
+    actual_oa.other_settings = settings
+    db.session.commit()
+    
+    return jsonify({'status': 'success'})
 
 # --- Metadata and Scheduling ---
 
@@ -598,12 +632,8 @@ def save_rich_menu_metadata():
     id = data.get('id')
     name = data.get('name')
     chat_bar_text = data.get('chat_bar_text')
-    
-    # Extract tags and calculate user count
-    menu_data = data.get('data') or {}
-    status = data.get('status', 'draft') # public, restricted, draft
-    
-    data_json = json.dumps(menu_data)
+    data_json = json.dumps(data.get('data'))
+    status = data.get('status', 'draft')
     rich_menu_id = data.get('rich_menu_id')
     start_time = parse_local_naive(data.get('start_time'))
     end_time = parse_local_naive(data.get('end_time'))
@@ -617,6 +647,8 @@ def save_rich_menu_metadata():
                 cur.execute(f"SELECT * FROM {t_metadata} WHERE id = %s", (id,))
                 m = cur.fetchone()
                 if not m: return jsonify({'error': 'Not found'}), 404
+                if m['status'] == 'published' and status != 'published':
+                    return jsonify({'error': '已發佈的選單不可編輯'}), 400
                 
                 cur.execute(f"""
                     UPDATE {t_metadata}
@@ -637,13 +669,14 @@ def save_rich_menu_metadata():
             if status in ['public', 'restricted']:
                 import threading
                 app_name = getattr(g, 'current_app_name', None)
-                def trigger_update(app_name_val, stat, m_data, r_id):
+                def trigger_update(app_name_val, stat, r_id):
                     try:
                         # Setup fake context
                         from flask import Flask, g
                         dummy_app = Flask(__name__)
                         with dummy_app.app_context():
                             g.current_app_name = app_name_val
+                            from endpoints.richmenu import get_line_token_by_app_name, bulk_check_and_update_rich_menu
                             token = get_line_token_by_app_name(app_name_val)
                             g.current_line_token = token
                             if stat == 'public':
@@ -651,16 +684,99 @@ def save_rich_menu_metadata():
                                 headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
                                 bulk_link_all_users(headers, r_id)
                             elif stat == 'restricted':
-                                # Fetch users with matching tags and update
-                                tags = m_data.get('tags', [])
-                                if tags:
-                                    t_private = f'"Private_var:{app_name_val}"'
-                                    t_conn = get_main_db_connection()
-                                    if t_conn:
-                                        try:
-                                            t_cur = t_conn.cursor(cursor_factory=RealDictCursor)
-                                            conditions = []
-                                            params = []
+                                bulk_check_and_update_rich_menu(app_name_val)
+                    except Exception as e:
+                        print(f"Error in background rich menu update: {e}")
+                
+                if rich_menu_id:
+                    threading.Thread(target=trigger_update, args=(app_name, status, rich_menu_id)).start()
+
+            return jsonify({'status': 'success', 'id': return_id})
+        finally:
+            cur.close()
+            conn.close()
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@richmenu_bp.route('/metadata/<int:id>', methods=['DELETE'])
+@token_required
+def delete_rich_menu_metadata(id):
+    from db_utils import get_main_db_connection
+    try:
+        t_metadata = get_t('rich_menu_metadata')
+        conn = get_main_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(f"DELETE FROM {t_metadata} WHERE id = %s", (id,))
+            conn.commit()
+            return jsonify({'status': 'success'})
+        finally:
+            cur.close()
+            conn.close()
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@richmenu_bp.route('/link/<richMenuId>', methods=['POST'])
+@token_required
+def link_rich_menu_to_all(richMenuId):
+    """將圖文選單個別綁定至全體用戶 (Individual Bulk Link to All)"""
+    token = get_line_token()
+    if not token: return jsonify({'message': 'Line token not configured'}), 400
+    headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
+    
+    bulk_link_all_users(headers, richMenuId)
+    return jsonify({'status': 'success'})
+
+@richmenu_bp.route('/unlink/<richMenuId>', methods=['POST'])
+@token_required
+def unlink_rich_menu_from_all(richMenuId):
+    """解除全體用戶的個別圖文選單綁定，並在預設為該選單時清除預設 (Bulk Unlink from All + Clear Default)"""
+    token = get_line_token()
+    if not token: return jsonify({'message': 'Line token not configured'}), 400
+    headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
+    
+    # 1. 解除所有個別綁定
+    bulk_unlink_all_users(headers)
+    
+    # 2. 檢查目前的全域預設是否為此選單，若是則一併清除
+    import requests
+    resp = requests.get('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
+    if resp.status_code == 200:
+        data = resp.json()
+        if data.get('richMenuId') == richMenuId:
+            requests.delete('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
+            
+    return jsonify({'status': 'success'})
+
+def bulk_check_and_update_rich_menu(app_name, user_ids=None):
+    """
+    Recalculates and updates the rich menu for specified users (or all users) 
+    based on their current tags and the existing restricted rich menus.
+    """
+    from db_utils import get_main_db_connection
+    from psycopg2.extras import RealDictCursor, execute_values
+    from flask import g
+    import ast
+    
+    conn = get_main_db_connection()
+    if not conn: return
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        t_private = f'"Private_var:{app_name}"'
+        
+        # 1. Fetch user tags
+        user_tags = {}
+        conditions = ["name = 'tags'"]
+        params = []
+        if user_ids:
+            conditions.append("user_id = ANY(%s)")
+            params.append(user_ids)
+            
+        where_clause = " AND ".join(conditions)
+        cur.execute(f"SELECT user_id, value FROM {t_private} WHERE {where_clause}", params)
+        for r in cur.fetchall():
+            val = r['value']
             if isinstance(val, str) and val.startswith('['):
                 try:
                     parsed = ast.literal_eval(val)
@@ -685,6 +801,15 @@ def save_rich_menu_metadata():
                     'tags': tags
                 })
         
+        # Determine all user IDs to process (if not provided, fetch all users from `users` table)
+        if not user_ids:
+            t_users = f'"users:{app_name}"'
+            try:
+                cur.execute(f"SELECT user_id FROM {t_users}")
+                user_ids = [r['user_id'] for r in cur.fetchall()]
+            except:
+                user_ids = list(user_tags.keys())
+                
         # 3. Determine target rich menu for each user
         user_to_menu = {}
         users_to_unlink = []
@@ -711,8 +836,8 @@ def save_rich_menu_metadata():
         # 4. Perform LINE API bulk link/unlink
         token = getattr(g, 'current_line_token', None)
         if not token:
-            from endpoints.richmenu import get_line_token
-            token = get_line_token()
+            from endpoints.richmenu import get_line_token_by_app_name
+            token = get_line_token_by_app_name(app_name)
             
         if token:
             import requests
