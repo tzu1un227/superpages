@@ -919,6 +919,11 @@ function BroadcastContent() {
                                             onChange={async (e) => {
                                                 const file = e.target.files[0];
                                                 if (!file) return;
+                                                if (file.size > 5 * 1024 * 1024) {
+                                                    alert('圖片大小不可超過 5 MB');
+                                                    e.target.value = '';
+                                                    return;
+                                                }
                                                 setIsUploadingMsg(`image_${idx}`);
                                                 const uploadData = new FormData();
                                                 uploadData.append('file', file);
@@ -965,6 +970,11 @@ function BroadcastContent() {
                                                 <input type="file" accept="video/*" style={{ display: 'none' }} disabled={isUploadingMsg === `video_${idx}`} onChange={async (e) => {
                                                     const file = e.target.files[0];
                                                     if (!file) return;
+                                                    if (file.size > 50 * 1024 * 1024) {
+                                                        alert('影片大小不可超過 50 MB');
+                                                        e.target.value = '';
+                                                        return;
+                                                    }
                                                     setIsUploadingMsg(`video_${idx}`);
                                                     const uploadData = new FormData();
                                                     uploadData.append('file', file);
@@ -1001,6 +1011,11 @@ function BroadcastContent() {
                                                 <input type="file" accept="image/*" style={{ display: 'none' }} disabled={isUploadingMsg === `video_preview_${idx}`} onChange={async (e) => {
                                                     const file = e.target.files[0];
                                                     if (!file) return;
+                                                    if (file.size > 1 * 1024 * 1024) {
+                                                        alert('預覽圖大小不可超過 1 MB，建議壓到 500 KB 以下');
+                                                        e.target.value = '';
+                                                        return;
+                                                    }
                                                     setIsUploadingMsg(`video_preview_${idx}`);
                                                     const uploadData = new FormData();
                                                     uploadData.append('file', file);

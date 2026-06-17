@@ -8,6 +8,11 @@
 - `backend/app.py`: 移除 test_runner_bp Blueprint 註冊。
 - `scratch_replace.py`, `test_query.py`, `scratch_history.py`, `backend/scratch_history.py`: 清除不被任何程式引用的一次性除錯腳本。
 
+## [2026-06-17] - 前端媒體上傳容量限制與驗證
+- **前端 (frontend/src/pages/Projects.jsx, Broadcast.jsx, RuleDesigner.jsx, RichMenu.jsx, LiffQuestionnaire.jsx, FlexMessageEditor.jsx)**:
+  - 實作前端上傳檔案時的容量限制與錯誤提示，避免大檔案上傳至 GitHub 造成 Repo 肥大或因 GitHub API 限制而失敗。
+  - 各類型媒體限制：圖片 (5 MB)、影片 (50 MB)、音檔 (30 MB)、預覽圖 (1 MB)、圖文選單圖片 (1 MB)、問卷背景圖 (1 MB)。
+
 ## [2026-06-17] - 圖文選單同步與 Link 按鈕分離
 - **前端 (frontend/src/pages/RichMenu.jsx)**:
   - 於設計圖文選單時，將原先的「同步至 LINE」按鈕拆分為「同步至 LINE」與「同步並 Link」兩個選項，以控制發佈時是否要立即觸發與標籤或全體用戶的綁定。

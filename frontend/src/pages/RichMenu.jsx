@@ -312,7 +312,7 @@ function RichMenu() {
         }
 
         if (file.size > 1024 * 1024) {
-            showToast('錯誤：檔案大小不可大於 1MB', 'error');
+            showToast('圖文選單圖片大小不可超過 1 MB', 'error');
             return;
         }
 

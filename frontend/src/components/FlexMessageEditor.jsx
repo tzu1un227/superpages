@@ -769,8 +769,9 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                                             const file = e.target.files[0];
                                             if (!file) return;
 
-                                            if (file.size > 1 * 1024 * 1024) {
-                                                alert('圖片大小不得超過 1MB');
+                                            if (file.size > 5 * 1024 * 1024) {
+                                                alert('圖片大小不可超過 5 MB');
+                                                e.target.value = '';
                                                 return;
                                             }
 
