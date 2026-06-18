@@ -108,6 +108,7 @@ function RichMenu() {
         try {
             await Promise.all([fetchMenus(), fetchMetadata()]);
             // 取得標籤清單供下拉選單使用
+            try {
                 const tagsRes = await api.get('/customers/tags');
                 setAllTags(tagsRes.data || []);
             } catch (err) {
