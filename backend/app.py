@@ -1643,14 +1643,14 @@ def get_statistics():
         for category in ['follow', 'unfollow', 'user', 'message']:
             if category == 'user':
                 cur.execute(
-                    f"SELECT COUNT(DISTINCT user_id) as total FROM {t_static} WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category IN ('Follow', 'Message')",
+                    f"SELECT COUNT(DISTINCT user_id) as total FROM {t_static} WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category IN ('Follow', 'Message') AND user_id LIKE 'U%%' AND length(user_id) = 33",
                     (start_time, end_time)
                 )
                 row = cur.fetchone()
                 results['total_counts'][category] = row['total'] if row else 0
             elif category == 'follow':
                 cur.execute(
-                    f"SELECT COUNT(DISTINCT user_id) as total FROM {t_static} WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category = 'Follow'",
+                    f"SELECT COUNT(DISTINCT user_id) as total FROM {t_static} WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category = 'Follow' AND user_id LIKE 'U%%' AND length(user_id) = 33",
                     (start_time, end_time)
                 )
                 row = cur.fetchone()
@@ -1663,6 +1663,7 @@ def get_statistics():
                         FROM {t_static} 
                         WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s 
                           AND category IN ('Follow', 'Unfollow') 
+                          AND user_id LIKE 'U%%' AND length(user_id) = 33
                         ORDER BY user_id, \"timestamp\" DESC
                     ) as latest_status
                     WHERE category = 'Unfollow'
@@ -1671,7 +1672,7 @@ def get_statistics():
                 results['total_counts'][category] = row['total'] if row else 0
             else: # message
                 cur.execute(
-                    f"SELECT COUNT(*) as total FROM {t_static} WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category = 'Message'",
+                    f"SELECT COUNT(*) as total FROM {t_static} WHERE \"timestamp\" >= %s AND \"timestamp\" <= %s AND category = 'Message' AND user_id LIKE 'U%%' AND length(user_id) = 33",
                     (start_time, end_time)
                 )
                 row = cur.fetchone()

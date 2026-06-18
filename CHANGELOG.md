@@ -1,3 +1,9 @@
+## [2026-06-18] 綜合數據修復
+- **後端 (backend/app.py)**:
+  - 修正 /api/statistics 的好友數與有效好友數計算，確保僅統計符合 U 開頭且長度為 33 的有效 LINE User ID。
+- **資料庫 (RDS & 5014)**:
+  - 同步更新 get_events_count_by_category_and_tag Function，新增相同的 LINE User ID 過濾條件以保證前端圖表資料精確無誤。
+
 ## [2026-06-18] 檔案上傳大小限制放寬與錯誤訊息改善
 - **後端 (backend/endpoints/upload.py)**:
   - 將 GitHub 檔案上傳大小限制由 1MB 提高至 5MB。
