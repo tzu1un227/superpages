@@ -957,7 +957,7 @@ function BroadcastContent() {
                                 <div>
                                     <label className="label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                         影片連結 (.mp4)
-                                        <HelpCircle size={16} style={{ cursor: 'help', color: '#888' }} title="【影片上傳建議】&#10;&#10;影片檔 5MB 限制較為嚴格，為確保系統順暢，建議您：&#10;👉 方案 A（最推薦）：將影片上傳至 YouTube 或其他雲端空間，並在此貼上影片網址。&#10;👉 方案 B：若必須直接上傳影片檔，請先使用線上壓縮工具將影片壓縮至 5MB 以內。" />
+                                        <HelpCircle size={16} style={{ cursor: 'help', color: '#888' }} title="˙可以將影片上傳至 YouTube 或其他雲端空間，並在此貼上影片網址。&#10;˙若必須直接上傳影片檔，請先使用線上壓縮工具將影片壓縮至 5MB 以內。" />
                                     </label>
                                     <div style={{ display: 'flex', gap: '10px' }}>
                                         <input type="text" value={msg.original_content_url || ''} disabled={(formData.status === 'sent' || formData.status === 'scheduled')} onChange={e => {
