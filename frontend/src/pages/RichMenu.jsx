@@ -441,13 +441,13 @@ function RichMenu() {
                     }
                     if (action.type === 'richmenuswitch') {
                         const targetMenuId = action.data; // Now this stores target richMenuId
-                        const targetMenu = menus.find(m => m.richMenuId === targetMenuId) || metadata.find(m => m.rich_menu_id === targetMenuId);
+                        const targetMenuMeta = metadata.find(m => m.rich_menu_id === targetMenuId);
                         
                         let targetTags = [];
                         let fallbackMsg = '';
-                        if (targetMenu) {
-                            targetTags = targetMenu.permissionTags || targetMenu.permission_tags || [];
-                            fallbackMsg = targetMenu.fallbackMessage || targetMenu.fallback_message || '';
+                        if (targetMenuMeta) {
+                            targetTags = targetMenuMeta.permissionTags || targetMenuMeta.permission_tags || [];
+                            fallbackMsg = targetMenuMeta.fallbackMessage || targetMenuMeta.fallback_message || '';
                         }
                         
                         const pyListStr = targetTags.length > 0 ? `['${targetTags.join("','")}']` : "[]";
@@ -455,6 +455,7 @@ function RichMenu() {
                         
                         action.type = 'postback';
                         action.data = postbackData;
+                        delete action.text;
                     }
                     return {
                         bounds: { x: Math.round(a.bounds.x), y: Math.round(a.bounds.y), width: Math.round(a.bounds.width), height: Math.round(a.bounds.height) },
