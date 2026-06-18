@@ -69,14 +69,16 @@ function RichMenu() {
         size: { width: 2500, height: 1686 },
         name: '未命名選單',
         chatBarText: '開啟選單',
-        alias: '',
         areas: [],
         status: 'draft',
         start_time: '',
         end_time: '',
         visibility: 'public',
         targetTags: [],
-        targetUserCount: 0
+        targetUserCount: 0,
+        permissionTags: [],
+        fallbackMessage: '',
+        alias_id: ''
     };
 
     const [allTags, setAllTags] = useState([]);
@@ -246,7 +248,6 @@ function RichMenu() {
 
             if (isMetadata) {
                 const data = typeof item.data === 'string' ? JSON.parse(item.data) : item.data;
-                const defaultAlias = (item.aliases && item.aliases.length > 0) ? item.aliases[0] : (data.alias || '');
 
                 let file = null;
                 if (data.imageBase64) {
@@ -262,11 +263,13 @@ function RichMenu() {
                     end_time: item.end_time || '',
                     name: item.name,
                     chatBarText: item.chat_bar_text,
-                    alias: defaultAlias,
                     imageFile: file,
                     visibility: ['restricted'].includes(item.status) ? 'restricted' : 'public',
                     targetTags: data.targetTags || [],
-                    targetUserCount: data.targetUserCount || 0
+                    targetUserCount: data.targetUserCount || 0,
+                    permissionTags: item.permission_tags || [],
+                    fallbackMessage: item.fallback_message || '',
+                    alias_id: item.alias_id || ''
                 });
                 setViewOnly(item.status !== 'draft');
                 setBackgroundImage(data.imageBase64 || null);
@@ -276,7 +279,6 @@ function RichMenu() {
                     });
                 }
             } else {
-                const defaultAlias = (item.aliases && item.aliases.length > 0) ? item.aliases[0] : '';
                 setCurrentMenu({
                     ...emptyMenu,
                     richMenuId: item.richMenuId,
@@ -284,8 +286,10 @@ function RichMenu() {
                     chatBarText: item.chatBarText,
                     size: item.size,
                     areas: item.areas,
-                    alias: defaultAlias,
-                    status: 'published'
+                    status: 'published',
+                    permissionTags: item.permission_tags || [],
+                    fallbackMessage: item.fallback_message || '',
+                    alias_id: item.alias_id || ''
                 });
                 setViewOnly(true);
                 fetchImageWithAuth(item.richMenuId).then(imageUrl => {
@@ -381,6 +385,7 @@ function RichMenu() {
         if (!validateMenu()) return;
         setLoading(true);
         try {
+            const newAliasId = currentMenu.alias_id || `rm_${crypto.randomUUID().replace(/-/g, '').substring(0, 20)}`;
             const payload = {
                 id: currentMenu.id,
                 name: currentMenu.name,
@@ -388,13 +393,15 @@ function RichMenu() {
                 status: 'draft',
                 start_time: currentMenu.start_time || null,
                 end_time: currentMenu.end_time || null,
+                permission_tags: currentMenu.permissionTags,
+                fallback_message: currentMenu.fallbackMessage,
+                alias_id: newAliasId,
                 data: JSON.stringify({
                     size: currentMenu.size,
                     areas: currentMenu.areas,
                     name: currentMenu.name,
                     chatBarText: currentMenu.chatBarText,
                     imageBase64: currentMenu.imageBase64,
-                    alias: currentMenu.alias,
                     visibility: currentMenu.visibility,
                     targetTags: currentMenu.targetTags,
                     targetUserCount: currentMenu.targetUserCount
@@ -443,8 +450,21 @@ function RichMenu() {
                         delete action.tags; // Remove tags before sending to LINE API
                     }
                     if (action.type === 'richmenuswitch') {
-                        action.richMenuAliasId = action.data; // use the input data as alias ID
-                        action.data = `switch=${action.data}`; // line API requires some data string
+                        const targetMenuId = action.data; // Now this stores target richMenuId
+                        const targetMenu = menus.find(m => m.richMenuId === targetMenuId) || metadata.find(m => m.rich_menu_id === targetMenuId);
+                        
+                        let targetTags = [];
+                        let fallbackMsg = '';
+                        if (targetMenu) {
+                            targetTags = targetMenu.permissionTags || targetMenu.permission_tags || [];
+                            fallbackMsg = targetMenu.fallbackMessage || targetMenu.fallback_message || '';
+                        }
+                        
+                        const pyListStr = targetTags.length > 0 ? `['${targetTags.join("','")}']` : "[]";
+                        const postbackData = `switch_rm|${targetMenuId}|${pyListStr}|${fallbackMsg}`.substring(0, 300);
+                        
+                        action.type = 'postback';
+                        action.data = postbackData;
                     }
                     return {
                         bounds: { x: Math.round(a.bounds.x), y: Math.round(a.bounds.y), width: Math.round(a.bounds.width), height: Math.round(a.bounds.height) },
@@ -464,6 +484,7 @@ function RichMenu() {
                 });
             }
 
+            const newAliasId = currentMenu.alias_id || `rm_${crypto.randomUUID().replace(/-/g, '').substring(0, 20)}`;
             const payload = {
                 id: currentMenu.id,
                 name: currentMenu.name,
@@ -472,12 +493,14 @@ function RichMenu() {
                 rich_menu_id: richMenuId,
                 start_time: currentMenu.start_time || null,
                 end_time: currentMenu.end_time || null,
+                permission_tags: currentMenu.permissionTags,
+                fallback_message: currentMenu.fallbackMessage,
+                alias_id: newAliasId,
                 data: JSON.stringify({
                     size: currentMenu.size,
                     areas: currentMenu.areas,
                     name: currentMenu.name,
                     chatBarText: currentMenu.chatBarText,
-                    alias: currentMenu.alias,
                     visibility: currentMenu.visibility,
                     targetTags: currentMenu.targetTags,
                     targetUserCount: currentMenu.targetUserCount
@@ -485,17 +508,15 @@ function RichMenu() {
             };
             await api.post('/richmenu/metadata', payload);
 
-            // Bind alias if provided
-            if (currentMenu.alias) {
-                try {
-                    await api.post('/richmenu/alias', {
-                        richMenuAliasId: currentMenu.alias,
-                        richMenuId: richMenuId
-                    });
-                } catch (aliasErr) {
-                    console.error('Alias creation failed:', aliasErr);
-                    showToast('別名設定失敗，但選單已建立', 'warning');
-                }
+            // Bind alias
+            try {
+                await api.post('/richmenu/alias', {
+                    richMenuAliasId: newAliasId,
+                    richMenuId: richMenuId
+                });
+            } catch (aliasErr) {
+                console.error('Alias creation failed:', aliasErr);
+                showToast('別名設定失敗，但選單已建立', 'warning');
             }
 
             if (shouldLink) {
@@ -769,7 +790,48 @@ function RichMenu() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
                                 <div><label className="label">選單名稱</label><input type="text" disabled={viewOnly} value={currentMenu.name} onChange={e => setCurrentMenu({ ...currentMenu, name: e.target.value })} /></div>
                                 <div><label className="label">聊天欄標題</label><input type="text" disabled={viewOnly} value={currentMenu.chatBarText} onChange={e => setCurrentMenu({ ...currentMenu, chatBarText: e.target.value })} /></div>
-                                <div><label className="label">選單別名 (Alias ID)</label><input type="text" disabled={viewOnly} value={currentMenu.alias || ''} onChange={e => setCurrentMenu({ ...currentMenu, alias: e.target.value })} placeholder="例如: menu-a (小寫英數字及連字號)" /></div>
+                            </div>
+                        </div>
+
+                        <div className="card">
+                            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Shield size={18} /> 切換權限設定</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
+                                <div>
+                                    <label className="label">切換權限標籤 (可複選)</label>
+                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
+                                        {allTags.map(t => (
+                                            <label key={`perm-${t.tag_name}`} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: currentMenu.permissionTags.includes(t.tag_name) ? 'var(--primary-yellow)' : '#333', color: currentMenu.permissionTags.includes(t.tag_name) ? '#000' : '#fff', padding: '6px 12px', borderRadius: '20px', fontSize: '13px', cursor: viewOnly ? 'default' : 'pointer', transition: 'all 0.2s' }}>
+                                                <input 
+                                                    type="checkbox" 
+                                                    style={{ display: 'none' }}
+                                                    checked={currentMenu.permissionTags.includes(t.tag_name)}
+                                                    disabled={viewOnly}
+                                                    onChange={(e) => {
+                                                        const newTags = e.target.checked 
+                                                            ? [...currentMenu.permissionTags, t.tag_name]
+                                                            : currentMenu.permissionTags.filter(tag => tag !== t.tag_name);
+                                                        setCurrentMenu({ ...currentMenu, permissionTags: newTags });
+                                                    }}
+                                                />
+                                                {t.tag_name}
+                                            </label>
+                                        ))}
+                                        {allTags.length === 0 && <span style={{ color: '#666', fontSize: '13px' }}>目前沒有任何標籤</span>}
+                                    </div>
+                                    <div style={{ fontSize: '12px', color: '#888', marginTop: '5px' }}>必須擁有上述任一標籤，才能透過其他圖文選單的按鈕切換至此選單。若未選擇任何標籤，則代表不限制。</div>
+                                </div>
+                                <div>
+                                    <label className="label">無權限提示訊息 (Fallback)</label>
+                                    <textarea 
+                                        disabled={viewOnly} 
+                                        value={currentMenu.fallbackMessage || ''} 
+                                        onChange={e => setCurrentMenu({ ...currentMenu, fallbackMessage: e.target.value })} 
+                                        placeholder="例如: 您沒有權限查看此選單" 
+                                        maxLength={150}
+                                        style={{ width: '100%', height: '80px', backgroundColor: '#111', color: '#fff', border: '1px solid #333', borderRadius: '8px', padding: '10px', marginTop: '5px', resize: 'vertical' }}
+                                    />
+                                    <div style={{ fontSize: '12px', color: '#888', marginTop: '5px', textAlign: 'right' }}>{currentMenu.fallbackMessage?.length || 0}/150 字</div>
+                                </div>
                             </div>
                         </div>
 
@@ -875,17 +937,16 @@ function RichMenu() {
                                     )}
                                     {currentMenu.areas[selectedAreaIndex].action.type === 'richmenuswitch' && (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                            <input 
-                                                list="alias-options" 
-                                                type="text" 
+                                            <select 
                                                 disabled={viewOnly} 
                                                 value={currentMenu.areas[selectedAreaIndex].action.data || ''} 
-                                                onChange={e => updateAreaAction(selectedAreaIndex, { data: e.target.value })} 
-                                                placeholder="輸入或選擇別名 (Alias ID)" 
-                                            />
-                                            <datalist id="alias-options">
-                                                {allAliases.map((alias, i) => <option key={i} value={alias} />)}
-                                            </datalist>
+                                                onChange={e => updateAreaAction(selectedAreaIndex, { data: e.target.value })}
+                                            >
+                                                <option value="">請選擇要切換的圖文選單</option>
+                                                {menus.map(menu => (
+                                                    <option key={menu.richMenuId} value={menu.richMenuId}>{menu.name}</option>
+                                                ))}
+                                            </select>
                                         </div>
                                     )}
                                 </div>
@@ -1019,10 +1080,44 @@ function RichMenu() {
                                         {isRestricted && tagsPreview.length > 0 && (
                                             <div style={{ marginBottom: '10px', display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
                                                 {tagsPreview.map(tag => (
-                                                    <span key={tag} style={{ backgroundColor: '#333', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '11px' }}>{tag}</span>
+                                                    <span key={`target-${tag}`} style={{ backgroundColor: '#333', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '11px' }}>{tag}</span>
                                                 ))}
                                             </div>
                                         )}
+                                        {(() => {
+                                            let permissionTagsPreview = item.permission_tags || [];
+                                            let fallbackMessagePreview = item.fallback_message || '';
+                                            try {
+                                                if (item.data && typeof item.data === 'string') {
+                                                    const parsed = JSON.parse(item.data);
+                                                    if (parsed.permissionTags) permissionTagsPreview = parsed.permissionTags;
+                                                    if (parsed.fallbackMessage) fallbackMessagePreview = parsed.fallbackMessage;
+                                                } else if (item.data) {
+                                                    if (item.data.permissionTags) permissionTagsPreview = item.data.permissionTags;
+                                                    if (item.data.fallbackMessage) fallbackMessagePreview = item.data.fallbackMessage;
+                                                }
+                                            } catch (e) { }
+
+                                            return (
+                                                <>
+                                                    {permissionTagsPreview.length > 0 && (
+                                                        <div style={{ marginBottom: '10px' }}>
+                                                            <div style={{ fontSize: '11px', color: '#aaa', marginBottom: '3px' }}>切換權限標籤:</div>
+                                                            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                                                                {permissionTagsPreview.map(tag => (
+                                                                    <span key={`perm-${tag}`} style={{ backgroundColor: '#FFD700', color: '#000', padding: '2px 6px', borderRadius: '4px', fontSize: '11px' }}>{tag}</span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {fallbackMessagePreview && (
+                                                        <div style={{ fontSize: '11px', color: '#888', marginBottom: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            Fallback: {fallbackMessagePreview}
+                                                        </div>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
                                         <div style={{ marginTop: 'auto' }}>
                                             <p style={{ fontSize: '12px', color: '#666', marginBottom: '15px' }}>
                                                 {item.isMetadata ? `更新於 ${new Date(item.created_at).toLocaleString()}` : `ID: ${rid?.slice(-8)}`}

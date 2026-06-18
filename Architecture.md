@@ -19,5 +19,7 @@
   - Backend (`customers.py`): 提供 `/api/customers/<user_id>/details` 與 `DELETE /api/customers/<user_id>/richmenu`。使用 LINE API 即時查詢與解除專屬圖文選單。
 
 - **動態綁定機制 (Dynamic Bindings)**:
-  - Frontend (`FlexMessageEditor.jsx`): 在進階訊息的按鈕或圖片上設定動作時，可綁定「標籤」、「自動旅程」或「圖文選單」。利用統一格式 `sys_bind|{tag}|{journey}|{menu}|{displayText}` 進行 Payload 編碼。
+  - Frontend (`FlexMessageEditor.jsx`, `RichMenu.jsx`): 在進階訊息或圖文選單的按鈕/圖片上設定動作時，可綁定「標籤」、「自動旅程」或「圖文選單」。
+    - 進階訊息利用統一格式 `sys_bind|{tag}|{journey}|{menu}|{displayText}` 進行 Payload 編碼。
+    - 圖文選單切換動作 (`richmenuswitch`) 將轉換為 Postback 格式：`switch_rm|{menuID}|{permission_tags}|{fallback_message}` 供後端進行權限檢核。
   - LIFF4tag (`index.html`): 作為中介層，解析 URL 中夾帶的 `tag`, `journey`, `menu` 參數並轉譯成 `sys_bind`，以 `postback` 型別送入後端觸發。

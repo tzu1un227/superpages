@@ -1,3 +1,15 @@
+## [2026-06-18] 圖文選單切換權限與 Fallback 訊息設定
+- **資料庫 (backend/endpoints/broadcast.py)**:
+  - `rich_menu_metadata` 資料表擴增 `permission_tags`、`fallback_message`、`alias_id` 欄位以支援權限控管機制。
+- **後端 (backend/endpoints/richmenu.py)**:
+  - 儲存與讀取圖文選單資料時支援上述三個新欄位。
+- **前端 (frontend/src/pages/RichMenu.jsx)**:
+  - 建立圖文選單時新增「切換權限設定」區塊，支援複選「切換權限標籤」與設定「無權限提示訊息 (Fallback)」。
+  - 取消手動輸入「選單別名」，改為在儲存草稿或發佈時由系統自動產生。
+  - 區塊點擊動作若為「切換選單」，改為下拉選單選擇已發佈的圖文選單。
+  - 發佈至 LINE 時，自動將「切換選單」動作轉換為 Postback 格式，夾帶預計切換的 `menuID`、該選單的 `permission_tags` (Python list 字串格式) 以及 `fallback_message`，供後端進行權限檢核。
+  - 圖文選單列表與查看畫面中新增權限標籤與 Fallback 訊息的預覽。
+
 ## [2026-06-18] 關鍵字回覆圖片訊息網址顯示
 - **前端 (frontend/src/pages/RuleDesigner.jsx)**:
   - 移除先前的「查看圖片」按鈕。

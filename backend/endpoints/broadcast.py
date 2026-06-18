@@ -114,10 +114,38 @@ def ensure_rds_tables(app_name):
                     status VARCHAR(20) DEFAULT 'draft',
                     start_time TIMESTAMP,
                     end_time TIMESTAMP,
+                    permission_tags JSONB DEFAULT '[]'::jsonb,
+                    fallback_message VARCHAR(500) DEFAULT '',
+                    alias_id VARCHAR(100) DEFAULT '',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+        else:
+            # Ensure new columns exist (Migration)
+            try:
+                cur.execute(f"SELECT permission_tags, fallback_message, alias_id FROM \"{t_rich_menu}\" LIMIT 0")
+            except psycopg2.Error:
+                conn.rollback()
+                cur = conn.cursor()
+                logger.info(f"Adding new columns to {t_rich_menu}...")
+                try:
+                    cur.execute(f"ALTER TABLE \"{t_rich_menu}\" ADD COLUMN permission_tags JSONB DEFAULT '[]'::jsonb")
+                except psycopg2.Error:
+                    conn.rollback()
+                    cur = conn.cursor()
+                try:
+                    cur.execute(f"ALTER TABLE \"{t_rich_menu}\" ADD COLUMN fallback_message VARCHAR(500) DEFAULT ''")
+                except psycopg2.Error:
+                    conn.rollback()
+                    cur = conn.cursor()
+                try:
+                    cur.execute(f"ALTER TABLE \"{t_rich_menu}\" ADD COLUMN alias_id VARCHAR(100) DEFAULT ''")
+                except psycopg2.Error:
+                    conn.rollback()
+                    cur = conn.cursor()
+                conn.commit()
+                cur = conn.cursor()
 
         conn.commit()
         _ENSURED_TABLES.add(app_name)
