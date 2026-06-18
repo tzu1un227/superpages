@@ -1,3 +1,7 @@
+## [2026-06-18] 關鍵字回覆圖片訊息上傳預覽
+- **前端 (frontend/src/pages/RuleDesigner.jsx)**:
+  - 關鍵字回覆中新增圖片訊息時，上傳成功後會顯示檔案的連結，讓使用者明確知道圖片已經成功上傳的狀態。
+
 ## [2026-06-17] 前端媒體上傳容量限制與驗證
 - **前端 (frontend/src/pages/Projects.jsx, Broadcast.jsx, RuleDesigner.jsx, RichMenu.jsx, LiffQuestionnaire.jsx, FlexMessageEditor.jsx)**:
   - 實作前端上傳檔案時的容量限制與錯誤提示，避免大檔案上傳至 GitHub 造成 Repo 肥大或因 GitHub API 限制而失敗。
