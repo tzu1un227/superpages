@@ -26,13 +26,13 @@ def upload_to_github():
     if file.filename == '':
         return jsonify({'message': 'No selected file'}), 400
     
-    # Check file size (1MB limit)
+    # Check file size (5MB limit)
     file.seek(0, os.SEEK_END)
     size = file.tell()
     file.seek(0)
     
-    if size > 1 * 1024 * 1024:
-        return jsonify({'message': 'File too large. Max size is 1MB.'}), 413
+    if size > 5 * 1024 * 1024:
+        return jsonify({'message': '這個檔案太大了！為了確保系統順暢，請將檔案縮小到 5MB 以內再試一次喔。'}), 413
 
     try:
         # Read file and encode to base64

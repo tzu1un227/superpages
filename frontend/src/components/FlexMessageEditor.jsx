@@ -785,7 +785,8 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                                                 });
                                                 updateCurrentCard('imageUrl', res.data.url);
                                             } catch (err) {
-                                                alert('上傳失敗: ' + (err.response?.data?.message || err.message));
+                                                const errorMsg = err.response?.status === 413 ? '這個檔案太大了！請將檔案縮小到 5MB 以內再試一次喔。' : '發生了一點小狀況，請稍後再試喔。';
+                                                alert('哎呀，上傳失敗了：' + errorMsg);
                                             } finally {
                                                 setIsUploading(false);
                                                 e.target.value = ''; // Reset to allow same file upload

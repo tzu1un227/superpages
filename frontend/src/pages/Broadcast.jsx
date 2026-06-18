@@ -934,7 +934,8 @@ function BroadcastContent() {
                                                     msgs[idx].preview_image_url = res.data.url;
                                                     setFormData({ ...formData, messages: msgs });
                                                 } catch (err) {
-                                                    showToast('上傳失敗', 'error');
+                                                    const errorMsg = err.response?.status === 413 ? '這個檔案太大了！請將檔案縮小到 5MB 以內再試一次喔。' : '發生了一點小狀況，請稍後再試喔。';
+                                                    showToast('哎呀，上傳失敗了：' + errorMsg, 'error');
                                                 } finally {
                                                     setIsUploadingMsg(null);
                                                     e.target.value = ''; // Reset input to allow re-uploading same file
@@ -984,7 +985,8 @@ function BroadcastContent() {
                                                         msgs[idx].original_content_url = res.data.url;
                                                         setFormData({ ...formData, messages: msgs });
                                                     } catch (err) {
-                                                        showToast('上傳失敗', 'error');
+                                                        const errorMsg = err.response?.status === 413 ? '這個檔案太大了！請將檔案縮小到 5MB 以內再試一次喔。' : '發生了一點小狀況，請稍後再試喔。';
+                                                        showToast('哎呀，上傳失敗了：' + errorMsg, 'error');
                                                     } finally {
                                                         setIsUploadingMsg(null);
                                                         e.target.value = '';
@@ -1025,7 +1027,8 @@ function BroadcastContent() {
                                                         msgs[idx].preview_image_url = res.data.url;
                                                         setFormData({ ...formData, messages: msgs });
                                                     } catch (err) {
-                                                        showToast('上傳失敗', 'error');
+                                                        const errorMsg = err.response?.status === 413 ? '這個檔案太大了！請將檔案縮小到 5MB 以內再試一次喔。' : '發生了一點小狀況，請稍後再試喔。';
+                                                        showToast('哎呀，上傳失敗了：' + errorMsg, 'error');
                                                     } finally {
                                                         setIsUploadingMsg(null);
                                                         e.target.value = '';

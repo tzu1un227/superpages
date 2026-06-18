@@ -1161,7 +1161,8 @@ function RuleDesigner() {
                                                                         handleUpdateMessage(idx, 'preview_image_url', res.data.url);
                                                                     }
                                                                 } catch (err) {
-                                                                    alert('圖片上傳失敗');
+                                                                    const errorMsg = err.response?.status === 413 ? '這個檔案太大了！請將檔案縮小到 5MB 以內再試一次喔。' : '發生了一點小狀況，請稍後再試喔。';
+                                                                    alert('哎呀，圖片上傳失敗了：' + errorMsg);
                                                                     console.error(err);
                                                                 } finally {
                                                                     setIsUploadingMsg(null);

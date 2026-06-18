@@ -1,3 +1,11 @@
+## [2026-06-18] 檔案上傳大小限制放寬與錯誤訊息改善
+- **後端 (backend/endpoints/upload.py)**:
+  - 將 GitHub 檔案上傳大小限制由 1MB 提高至 5MB。
+  - 當檔案超過 5MB 時回傳明確的 JSON 錯誤訊息及 413 狀態碼。
+- **前端 (frontend/src/pages/*.jsx)**:
+  - 改善檔案上傳發生錯誤時的處理邏輯，當捕獲到 413 (Payload Too Large) 狀態碼時，統一提示：「檔案過大，不可超過 5MB」。
+  - 避免前端僅顯示通用的「上傳失敗」而導致使用者無法理解原因。
+
 ## [2026-06-18] 圖文選單切換權限與 Fallback 訊息設定
 - **資料庫 (backend/endpoints/broadcast.py)**:
   - `rich_menu_metadata` 資料表擴增 `permission_tags`、`fallback_message`、`alias_id` 欄位以支援權限控管機制。
