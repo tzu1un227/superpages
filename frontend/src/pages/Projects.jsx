@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTask } from '../contexts/TaskContext';
 import { useLocation } from 'react-router-dom';
 import api from '../api';
-import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, User, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type, BarChart2, Download, Upload, Play, ExternalLink, TrendingUp, CheckCircle2, Circle, ChevronLeft, ChevronRight, BarChart3, RotateCcw, GripVertical } from 'lucide-react';
+import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, User, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type, BarChart2, Download, Upload, Play, ExternalLink, TrendingUp, CheckCircle2, Circle, ChevronLeft, ChevronRight, BarChart3, RotateCcw, GripVertical, HelpCircle } from 'lucide-react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, CircularProgress } from '@mui/material';
 import FlexMessageEditor from '../components/FlexMessageEditor';
 import JourneyPreview from '../components/JourneyPreview';
@@ -2187,7 +2187,10 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                 {messages[activeMsgIndex].OTYPE === 'VideoSendMessage' && (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                         <div>
-                                            <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>影片連結 (URL)</label>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#aaa', marginBottom: '5px' }}>
+                                                影片連結 (URL)
+                                                <HelpCircle size={16} style={{ cursor: 'help', color: '#888' }} title="【影片上傳建議】&#10;&#10;影片檔 5MB 限制較為嚴格，為確保系統順暢，建議您：&#10;👉 方案 A（最推薦）：將影片上傳至 YouTube 或其他雲端空間，並在此貼上影片網址。&#10;👉 方案 B：若必須直接上傳影片檔，請先使用線上壓縮工具將影片壓縮至 5MB 以內。" />
+                                            </label>
                                             <div style={{ display: 'flex', gap: '10px' }}>
                                                 <input type="text" value={messages[activeMsgIndex].original_content_url} onChange={(e) => updateMessage(activeMsgIndex, 'original_content_url', e.target.value)} style={{ flex: 1, padding: '10px', background: '#222', border: 'none', color: '#fff' }} placeholder="https://..." />
                                                 <label style={{ padding: '10px 15px', background: isUploadingMsg === `video_${activeMsgIndex}` ? '#555' : 'var(--primary-yellow)', color: isUploadingMsg === `video_${activeMsgIndex}` ? '#888' : '#000', borderRadius: '4px', cursor: isUploadingMsg === `video_${activeMsgIndex}` ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold', pointerEvents: isUploadingMsg === `video_${activeMsgIndex}` ? 'none' : 'auto' }}>
