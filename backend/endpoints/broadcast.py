@@ -116,7 +116,6 @@ def ensure_rds_tables(app_name):
                     end_time TIMESTAMP,
                     permission_tags JSONB DEFAULT '[]'::jsonb,
                     fallback_message VARCHAR(500) DEFAULT '',
-                    alias_id VARCHAR(100) DEFAULT '',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -124,7 +123,7 @@ def ensure_rds_tables(app_name):
         else:
             # Ensure new columns exist (Migration)
             try:
-                cur.execute(f"SELECT permission_tags, fallback_message, alias_id FROM \"{t_rich_menu}\" LIMIT 0")
+                cur.execute(f"SELECT permission_tags, fallback_message FROM \"{t_rich_menu}\" LIMIT 0")
             except psycopg2.Error:
                 conn.rollback()
                 cur = conn.cursor()
@@ -139,8 +138,6 @@ def ensure_rds_tables(app_name):
                 except psycopg2.Error:
                     conn.rollback()
                     cur = conn.cursor()
-                try:
-                    cur.execute(f"ALTER TABLE \"{t_rich_menu}\" ADD COLUMN alias_id VARCHAR(100) DEFAULT ''")
                 except psycopg2.Error:
                     conn.rollback()
                     cur = conn.cursor()

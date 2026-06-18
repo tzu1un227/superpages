@@ -644,7 +644,6 @@ def get_rich_menu_metadata():
                 'end_time': m['end_time'].isoformat() if m['end_time'] else None,
                 'permission_tags': m.get('permission_tags', []),
                 'fallback_message': m.get('fallback_message', ''),
-                'alias_id': m.get('alias_id', ''),
                 'created_at': m['created_at'].isoformat(),
                 'data': m['data']
             } for m in metadata])
@@ -672,7 +671,6 @@ def save_rich_menu_metadata():
     end_time = parse_local_naive(data.get('end_time'))
     permission_tags = json.dumps(data.get('permission_tags', []))
     fallback_message = data.get('fallback_message', '')
-    alias_id = data.get('alias_id', '')
     
     try:
         t_metadata = get_t('rich_menu_metadata')
@@ -688,16 +686,16 @@ def save_rich_menu_metadata():
                 
                 cur.execute(f"""
                     UPDATE {t_metadata}
-                    SET name=%s, chat_bar_text=%s, data=%s, status=%s, rich_menu_id=%s, start_time=%s, end_time=%s, permission_tags=%s, fallback_message=%s, alias_id=%s, updated_at=(NOW() AT TIME ZONE 'Asia/Taipei')
+                    SET name=%s, chat_bar_text=%s, data=%s, status=%s, rich_menu_id=%s, start_time=%s, end_time=%s, permission_tags=%s, fallback_message=%s, updated_at=(NOW() AT TIME ZONE 'Asia/Taipei')
                     WHERE id=%s
-                """, (name, chat_bar_text, data_json, status, rich_menu_id, start_time, end_time, permission_tags, fallback_message, alias_id, id))
+                """, (name, chat_bar_text, data_json, status, rich_menu_id, start_time, end_time, permission_tags, fallback_message, id))
                 conn.commit()
                 return_id = id
             else:
                 cur.execute(f"""
-                    INSERT INTO {t_metadata} (oa_id, name, chat_bar_text, data, status, rich_menu_id, start_time, end_time, permission_tags, fallback_message, alias_id, created_at, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, (NOW() AT TIME ZONE 'Asia/Taipei'), (NOW() AT TIME ZONE 'Asia/Taipei')) RETURNING id
-                """, (oa_id, name, chat_bar_text, data_json, status, rich_menu_id, start_time, end_time, permission_tags, fallback_message, alias_id))
+                    INSERT INTO {t_metadata} (oa_id, name, chat_bar_text, data, status, rich_menu_id, start_time, end_time, permission_tags, fallback_message, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, (NOW() AT TIME ZONE 'Asia/Taipei'), (NOW() AT TIME ZONE 'Asia/Taipei')) RETURNING id
+                """, (oa_id, name, chat_bar_text, data_json, status, rich_menu_id, start_time, end_time, permission_tags, fallback_message))
                 return_id = cur.fetchone()['id']
                 conn.commit()
 
