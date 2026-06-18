@@ -107,16 +107,7 @@ function RichMenu() {
 
         try {
             await Promise.all([fetchMenus(), fetchMetadata()]);
-            // 取得別名清單供下拉選單使用
-            try {
-                const aliasRes = await api.get('/richmenu/aliases');
-                if (aliasRes.data && aliasRes.data.aliases) {
-                    setAllAliases(aliasRes.data.aliases.map(a => a.richMenuAliasId));
-                }
-            } catch (err) {
-                console.error('Failed to fetch aliases:', err);
-            }
-            try {
+            // 取得標籤清單供下拉選單使用
                 const tagsRes = await api.get('/customers/tags');
                 setAllTags(tagsRes.data || []);
             } catch (err) {
@@ -385,7 +376,6 @@ function RichMenu() {
         if (!validateMenu()) return;
         setLoading(true);
         try {
-            const newAliasId = currentMenu.alias_id || `rm_${crypto.randomUUID().replace(/-/g, '').substring(0, 20)}`;
             const payload = {
                 id: currentMenu.id,
                 name: currentMenu.name,
@@ -395,7 +385,6 @@ function RichMenu() {
                 end_time: currentMenu.end_time || null,
                 permission_tags: currentMenu.permissionTags,
                 fallback_message: currentMenu.fallbackMessage,
-                alias_id: newAliasId,
                 data: JSON.stringify({
                     size: currentMenu.size,
                     areas: currentMenu.areas,
@@ -484,7 +473,6 @@ function RichMenu() {
                 });
             }
 
-            const newAliasId = currentMenu.alias_id || `rm_${crypto.randomUUID().replace(/-/g, '').substring(0, 20)}`;
             const payload = {
                 id: currentMenu.id,
                 name: currentMenu.name,
@@ -495,7 +483,6 @@ function RichMenu() {
                 end_time: currentMenu.end_time || null,
                 permission_tags: currentMenu.permissionTags,
                 fallback_message: currentMenu.fallbackMessage,
-                alias_id: newAliasId,
                 data: JSON.stringify({
                     size: currentMenu.size,
                     areas: currentMenu.areas,
@@ -507,17 +494,6 @@ function RichMenu() {
                 })
             };
             await api.post('/richmenu/metadata', payload);
-
-            // Bind alias
-            try {
-                await api.post('/richmenu/alias', {
-                    richMenuAliasId: newAliasId,
-                    richMenuId: richMenuId
-                });
-            } catch (aliasErr) {
-                console.error('Alias creation failed:', aliasErr);
-                showToast('別名設定失敗，但選單已建立', 'warning');
-            }
 
             if (shouldLink) {
                 try {
