@@ -1,7 +1,7 @@
-## [2026-06-18] 關鍵字回覆圖片訊息上傳預覽
+## [2026-06-18] 關鍵字回覆圖片訊息網址顯示
 - **前端 (frontend/src/pages/RuleDesigner.jsx)**:
-  - 關鍵字回覆中新增圖片訊息時，上傳成功後會顯示檔案的連結，讓使用者明確知道圖片已經成功上傳的狀態。
-  - 修正：未上傳圖片前（仍為預設網址時）將隱藏「查看圖片」按鈕，避免誤導。
+  - 移除先前的「查看圖片」按鈕。
+  - 調整介面為「上傳後直接在輸入框顯示圖片網址」，使其與自動旅程的排程介面保持一致，提供更直覺的操作體驗。
 
 ## [2026-06-17] 前端媒體上傳容量限制與驗證
 - **前端 (frontend/src/pages/Projects.jsx, Broadcast.jsx, RuleDesigner.jsx, RichMenu.jsx, LiffQuestionnaire.jsx, FlexMessageEditor.jsx)**:

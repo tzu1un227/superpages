@@ -1109,7 +1109,18 @@ function RuleDesigner() {
                                             
                                             {/* Editor for Image */}
                                             {(msg.OTYPE === 'ImageSendMessage' || msg.Line?.OTYPE === 'ImageSendMessage') && (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                <div style={{ display: 'flex', gap: '10px' }}>
+                                                    <input 
+                                                        type="text" 
+                                                        disabled={savingMsg}
+                                                        value={msg.original_content_url || msg.Line?.original_content_url || ''} 
+                                                        onChange={e => {
+                                                            handleUpdateMessage(idx, 'original_content_url', e.target.value);
+                                                            handleUpdateMessage(idx, 'preview_image_url', e.target.value);
+                                                        }} 
+                                                        placeholder="圖片網址 (https://...)" 
+                                                        style={{ flex: 1, fontSize: '13px', backgroundColor: '#000', border: '1px solid #333', padding: '8px 12px', borderRadius: '4px', opacity: savingMsg ? 0.6 : 1 }} 
+                                                    />
                                                     <label style={{
                                                         padding: '8px 12px',
                                                         background: isUploadingMsg === `image_${idx}` ? '#555' : 'var(--primary-yellow)',
@@ -1122,8 +1133,7 @@ function RuleDesigner() {
                                                         fontSize: '13px',
                                                         fontWeight: 'bold',
                                                         pointerEvents: isUploadingMsg === `image_${idx}` ? 'none' : 'auto',
-                                                        width: '100%',
-                                                        justifyContent: 'center'
+                                                        whiteSpace: 'nowrap'
                                                     }}>
                                                         {isUploadingMsg === `image_${idx}` ? <RefreshCw size={16} className="animate-spin" /> : <Upload size={16} />}
                                                         {isUploadingMsg === `image_${idx}` ? '上傳中...' : '上傳圖片'}
@@ -1161,14 +1171,6 @@ function RuleDesigner() {
                                                             style={{ display: 'none' }}
                                                         />
                                                     </label>
-                                                    {((msg.original_content_url && !msg.original_content_url.includes('via.placeholder.com')) || (msg.Line?.original_content_url && !msg.Line.original_content_url.includes('via.placeholder.com'))) && (
-                                                        <div style={{ marginTop: '8px', fontSize: '13px', color: '#888', wordBreak: 'break-all' }}>
-                                                            目前已上傳圖片：
-                                                            <a href={msg.original_content_url || msg.Line?.original_content_url} target="_blank" rel="noopener noreferrer" style={{ color: '#4CAF50', textDecoration: 'underline', marginLeft: '4px' }}>
-                                                                查看圖片
-                                                            </a>
-                                                        </div>
-                                                    )}
                                                 </div>
                                             )}
 
