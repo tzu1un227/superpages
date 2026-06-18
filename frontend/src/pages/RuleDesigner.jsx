@@ -1161,7 +1161,7 @@ function RuleDesigner() {
                                                             style={{ display: 'none' }}
                                                         />
                                                     </label>
-                                                    {(msg.original_content_url || msg.Line?.original_content_url) && (
+                                                    {((msg.original_content_url && !msg.original_content_url.includes('via.placeholder.com')) || (msg.Line?.original_content_url && !msg.Line.original_content_url.includes('via.placeholder.com'))) && (
                                                         <div style={{ marginTop: '8px', fontSize: '13px', color: '#888', wordBreak: 'break-all' }}>
                                                             目前已上傳圖片：
                                                             <a href={msg.original_content_url || msg.Line?.original_content_url} target="_blank" rel="noopener noreferrer" style={{ color: '#4CAF50', textDecoration: 'underline', marginLeft: '4px' }}>
