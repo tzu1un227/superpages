@@ -779,7 +779,7 @@ function RichMenu() {
                         {!viewOnly && (
                             <>
                                 <button onClick={saveAsDraft} className="secondary" disabled={loading}><Save size={18} /> 儲存草稿群組</button>
-                                <button onClick={handleOpenPublishModal} className="primary" disabled={loading}><Send size={18} /> 發佈群組至 LINE</button>
+                                <button onClick={handleOpenPublishModal} className="primary" disabled={loading}><Send size={18} /> 發佈至 LINE</button>
                             </>
                         )}
                         {!viewOnly && currentMenu.richMenuId && (
@@ -1028,7 +1028,7 @@ function RichMenu() {
                 {showPublishModal && (
                     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
                         <div className="card" style={{ width: '400px', backgroundColor: '#1E1E1E', padding: '20px' }}>
-                            <h3 style={{ marginBottom: '15px' }}>發佈圖文選單群組</h3>
+                            <h3 style={{ marginBottom: '15px' }}>發佈圖文選單</h3>
                             <div className="form-group">
                                 <label>發佈後的處理方式</label>
                                 <select value={publishDefaultTarget} onChange={(e) => setPublishDefaultTarget(e.target.value)}>
@@ -1045,7 +1045,10 @@ function RichMenu() {
                             </p>
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                                 <button onClick={() => setShowPublishModal(false)} className="secondary">取消</button>
-                                <button onClick={publishGroupToLine} className="primary">確認發佈</button>
+                                <button onClick={publishGroupToLine} className="primary" disabled={loading}>
+                                    {loading ? <RefreshCw size={16} className="spin" style={{ marginRight: '5px' }} /> : null}
+                                    {loading ? '發佈中...' : '確認發佈'}
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1084,7 +1087,7 @@ function RichMenu() {
                 {showPublishModal && (
                     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
                         <div className="card" style={{ width: '400px', backgroundColor: '#1E1E1E', padding: '20px' }}>
-                            <h3 style={{ marginBottom: '15px' }}>發佈圖文選單群組</h3>
+                            <h3 style={{ marginBottom: '15px' }}>發佈圖文選單</h3>
                             <div className="form-group">
                                 <label>發佈後的處理方式</label>
                                 <select value={publishDefaultTarget} onChange={(e) => setPublishDefaultTarget(e.target.value)}>
@@ -1101,7 +1104,10 @@ function RichMenu() {
                             </p>
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                                 <button onClick={() => setShowPublishModal(false)} className="secondary">取消</button>
-                                <button onClick={publishGroupToLine} className="primary">確認發佈</button>
+                                <button onClick={publishGroupToLine} className="primary" disabled={loading}>
+                                    {loading ? <RefreshCw size={16} className="spin" style={{ marginRight: '5px' }} /> : null}
+                                    {loading ? '發佈中...' : '確認發佈'}
+                                </button>
                             </div>
                         </div>
                     </div>
