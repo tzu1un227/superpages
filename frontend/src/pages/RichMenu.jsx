@@ -52,7 +52,20 @@ function RichMenu() {
     const [metadata, setMetadata] = useState([]);
     const [loading, setLoading] = useState(false);
     const [view, setView] = useState('list'); // 'list', 'edit', 'permissions'
-    const [currentMenu, setCurrentMenu] = useState(null);
+    const [currentGroup, setCurrentGroup] = useState([]);
+    const [currentMenuIndex, setCurrentMenuIndex] = useState(0);
+    const currentMenu = currentGroup[currentMenuIndex] || null;
+
+    const setCurrentMenu = (updater) => {
+        setCurrentGroup(prevGroup => {
+            if (!prevGroup || prevGroup.length === 0) return prevGroup;
+            const newGroup = [...prevGroup];
+            const prevMenu = newGroup[currentMenuIndex];
+            const updatedMenu = typeof updater === 'function' ? updater(prevMenu) : updater;
+            newGroup[currentMenuIndex] = updatedMenu;
+            return newGroup;
+        });
+    };
     const [selectedAreaIndex, setSelectedAreaIndex] = useState(null);
     const [backgroundImage, setBackgroundImage] = useState(null);
     const [allAliases, setAllAliases] = useState([]);
@@ -138,7 +151,10 @@ function RichMenu() {
     };
 
     const handleCreateNew = () => {
-        setCurrentMenu({ ...emptyMenu });
+        const newUuid = Date.now().toString(36) + Math.random().toString(36).substring(2);
+        const newMenu = { ...emptyMenu, ui_uuid: newUuid, group_id: newUuid };
+        setCurrentGroup([newMenu]);
+        setCurrentMenuIndex(0);
         setBackgroundImage(null);
         setViewOnly(false);
         setSelectedAreaIndex(null);
@@ -239,39 +255,53 @@ function RichMenu() {
             };
 
             if (isMetadata) {
-                const data = typeof item.data === 'string' ? JSON.parse(item.data) : item.data;
-
-                let file = null;
-                if (data.imageBase64) {
-                    file = dataURLtoFile(data.imageBase64, 'draft.png');
+                // If it has group_id, find all members in the metadata
+                let itemsToLoad = [item];
+                if (item.group_id) {
+                    itemsToLoad = metadata.filter(m => m.group_id === item.group_id);
+                    // Ensure the clicked item is first
+                    itemsToLoad = [item, ...itemsToLoad.filter(m => m.id !== item.id)];
                 }
 
-                setCurrentMenu({
-                    ...data,
-                    id: item.id,
-                    status: item.status,
-                    richMenuId: item.rich_menu_id,
-                    start_time: item.start_time || '',
-                    end_time: item.end_time || '',
-                    name: item.name,
-                    chatBarText: item.chat_bar_text,
-                    imageFile: file,
-                    visibility: ['restricted'].includes(item.status) ? 'restricted' : 'public',
-                    targetTags: data.targetTags || [],
-                    targetUserCount: data.targetUserCount || 0,
-                    permissionTags: item.permission_tags || [],
-                    fallbackMessage: item.fallback_message || '',
-                    alias_id: item.alias_id || ''
+                const loadedGroup = itemsToLoad.map(m => {
+                    const data = typeof m.data === 'string' ? JSON.parse(m.data) : m.data;
+                    let file = null;
+                    if (data.imageBase64) {
+                        file = dataURLtoFile(data.imageBase64, 'draft.png');
+                    }
+                    return {
+                        ...data,
+                        id: m.id,
+                        status: m.status,
+                        richMenuId: m.rich_menu_id,
+                        start_time: m.start_time || '',
+                        end_time: m.end_time || '',
+                        name: m.name,
+                        chatBarText: m.chat_bar_text,
+                        imageFile: file,
+                        visibility: ['restricted'].includes(m.status) ? 'restricted' : 'public',
+                        targetTags: data.targetTags || [],
+                        targetUserCount: data.targetUserCount || 0,
+                        permissionTags: m.permission_tags || [],
+                        fallbackMessage: m.fallback_message || '',
+                        alias_id: m.alias_id || '',
+                        ui_uuid: m.ui_uuid || data.ui_uuid,
+                        group_id: m.group_id || data.group_id
+                    };
                 });
-                setViewOnly(item.status !== 'draft');
-                setBackgroundImage(data.imageBase64 || null);
-                if (item.rich_menu_id && !data.imageBase64) {
-                    fetchImageWithAuth(item.rich_menu_id).then(imageUrl => {
+
+                setCurrentGroup(loadedGroup);
+                setCurrentMenuIndex(0);
+                setViewOnly(loadedGroup[0].status !== 'draft');
+                setBackgroundImage(loadedGroup[0].imageBase64 || null);
+                
+                if (loadedGroup[0].richMenuId && !loadedGroup[0].imageBase64) {
+                    fetchImageWithAuth(loadedGroup[0].richMenuId).then(imageUrl => {
                         setBackgroundImage(imageUrl);
                     });
                 }
             } else {
-                setCurrentMenu({
+                setCurrentGroup([{
                     ...emptyMenu,
                     richMenuId: item.richMenuId,
                     name: item.name,
@@ -282,7 +312,8 @@ function RichMenu() {
                     permissionTags: item.permission_tags || [],
                     fallbackMessage: item.fallback_message || '',
                     alias_id: item.alias_id || ''
-                });
+                }]);
+                setCurrentMenuIndex(0);
                 setViewOnly(true);
                 fetchImageWithAuth(item.richMenuId).then(imageUrl => {
                     setBackgroundImage(imageUrl);
@@ -374,31 +405,46 @@ function RichMenu() {
 
     const saveAsDraft = async () => {
         if (viewOnly) return;
-        if (!validateMenu()) return;
+        
+        // validate all
+        for (let i = 0; i < currentGroup.length; i++) {
+            const menu = currentGroup[i];
+            if (!menu.name || !menu.name.trim()) { showToast(`草稿 ${i+1}: 請填寫選單名稱`, 'error'); return; }
+            if (!menu.chatBarText || !menu.chatBarText.trim()) { showToast(`草稿 ${i+1}: 請填寫聊天欄標題`, 'error'); return; }
+            if (!menu.areas || menu.areas.length === 0) { showToast(`草稿 ${i+1}: 請至少設定一個點擊區域`, 'error'); return; }
+        }
+
         setLoading(true);
         try {
-            const payload = {
-                id: currentMenu.id,
-                name: currentMenu.name,
-                chat_bar_text: currentMenu.chatBarText,
-                status: 'draft',
-                start_time: currentMenu.start_time || null,
-                end_time: currentMenu.end_time || null,
-                permission_tags: currentMenu.permissionTags,
-                fallback_message: currentMenu.fallbackMessage,
-                data: JSON.stringify({
-                    size: currentMenu.size,
-                    areas: currentMenu.areas,
-                    name: currentMenu.name,
-                    chatBarText: currentMenu.chatBarText,
-                    imageBase64: currentMenu.imageBase64,
-                    visibility: currentMenu.visibility,
-                    targetTags: currentMenu.targetTags,
-                    targetUserCount: currentMenu.targetUserCount
-                })
-            };
-            await api.post('/richmenu/metadata', payload);
-            showToast('草稿已儲存', 'success');
+            for (let i = 0; i < currentGroup.length; i++) {
+                const menu = currentGroup[i];
+                const payload = {
+                    id: menu.id,
+                    name: menu.name,
+                    chat_bar_text: menu.chatBarText,
+                    status: 'draft',
+                    start_time: menu.start_time || null,
+                    end_time: menu.end_time || null,
+                    permission_tags: menu.permissionTags,
+                    fallback_message: menu.fallbackMessage,
+                    ui_uuid: menu.ui_uuid,
+                    group_id: menu.group_id,
+                    data: {
+                        size: menu.size,
+                        areas: menu.areas,
+                        name: menu.name,
+                        chatBarText: menu.chatBarText,
+                        imageBase64: menu.imageBase64,
+                        visibility: menu.visibility,
+                        targetTags: menu.targetTags,
+                        targetUserCount: menu.targetUserCount,
+                        ui_uuid: menu.ui_uuid,
+                        group_id: menu.group_id
+                    }
+                };
+                await api.post('/richmenu/metadata', payload);
+            }
+            showToast('草稿群組已儲存', 'success');
             setView('list');
         } catch (err) {
             showToast('儲存草稿失敗', 'error');
@@ -407,114 +453,113 @@ function RichMenu() {
         }
     };
 
-    const publishToLine = async (shouldLink = false) => {
+    const [showPublishModal, setShowPublishModal] = useState(false);
+    const [publishDefaultTarget, setPublishDefaultTarget] = useState('none');
+
+    const handleOpenPublishModal = () => {
         if (viewOnly) return;
-        if (!validateMenu()) return;
-        if (!backgroundImage) {
-            showToast('錯誤：同步至 LINE 必須上傳底圖', 'error');
-            return;
+        // validate all
+        for (let i = 0; i < currentGroup.length; i++) {
+            const menu = currentGroup[i];
+            if (!menu.name || !menu.name.trim()) { showToast(`草稿 ${i+1}: 請填寫選單名稱`, 'error'); return; }
+            if (!menu.chatBarText || !menu.chatBarText.trim()) { showToast(`草稿 ${i+1}: 請填寫聊天欄標題`, 'error'); return; }
+            if (!menu.areas || menu.areas.length === 0) { showToast(`草稿 ${i+1}: 請至少設定一個點擊區域`, 'error'); return; }
+            if (!menu.imageBase64 && !menu.richMenuId) {
+                showToast(`草稿 ${i+1}: 錯誤：同步至 LINE 必須上傳底圖`, 'error');
+                return;
+            }
         }
-        
+        setShowPublishModal(true);
+    };
+
+    const publishGroupToLine = async () => {
         setLoading(true);
+        setShowPublishModal(false);
         try {
             const currentOA = myOAs.find(oa => oa.id.toString() === selectedOAId.toString()) || myOAs[0];
             const appName = currentOA?.other_settings?.app_name || '';
             const liffId = "2009851813-AgTeSa4r";
 
-            const metaDataForLine = {
-                size: { width: Math.round(currentMenu.size.width), height: Math.round(currentMenu.size.height) },
-                selected: false,
-                name: currentMenu.name.substring(0, 300),
-                chatBarText: currentMenu.chatBarText.substring(0, 14),
-                areas: currentMenu.areas.map(a => {
-                    const action = { ...a.action };
-                    if (action.type === 'uri' && action.tags && action.tags.length > 0) {
-                        const targetUrl = action.uri;
-                        const tagName = action.tags.join(',');
-                        
-                        if (appName) {
-                            action.uri = `https://liff.line.me/${liffId}?bot=${appName}&tag=${encodeURIComponent(tagName)}&redirect=${encodeURIComponent(targetUrl)}`;
-                        } else {
-                            action.uri = `${API_BASE_URL}/redirect?tags=${encodeURIComponent(tagName)}&redirect=${encodeURIComponent(targetUrl)}`;
+            for (let i = 0; i < currentGroup.length; i++) {
+                const menu = currentGroup[i];
+                const metaDataForLine = {
+                    size: { width: Math.round(menu.size.width), height: Math.round(menu.size.height) },
+                    selected: false,
+                    name: menu.name.substring(0, 300),
+                    chatBarText: menu.chatBarText.substring(0, 14),
+                    areas: menu.areas.map(a => {
+                        const action = { ...a.action };
+                        if (action.type === 'uri' && action.tags && action.tags.length > 0) {
+                            const targetUrl = action.uri;
+                            const tagName = action.tags.join(',');
+                            if (appName) {
+                                action.uri = `https://liff.line.me/${liffId}?bot=${appName}&tag=${encodeURIComponent(tagName)}&redirect=${encodeURIComponent(targetUrl)}`;
+                            } else {
+                                action.uri = `${API_BASE_URL}/redirect?tags=${encodeURIComponent(tagName)}&redirect=${encodeURIComponent(targetUrl)}`;
+                            }
+                            delete action.tags;
                         }
-                        delete action.tags; // Remove tags before sending to LINE API
-                    }
-                    if (action.type === 'richmenuswitch') {
-                        const targetMenuId = action.data; // Now this stores target richMenuId
-                        const targetMenuMeta = metadata.find(m => m.rich_menu_id === targetMenuId);
-                        
-                        let targetTags = [];
-                        let fallbackMsg = '';
-                        if (targetMenuMeta) {
-                            targetTags = targetMenuMeta.permissionTags || targetMenuMeta.permission_tags || [];
-                            fallbackMsg = targetMenuMeta.fallbackMessage || targetMenuMeta.fallback_message || '';
+                        if (action.type === 'richmenuswitch') {
+                            // Find target uuid
+                            const targetUuid = action.data.replace('switch_rm|', '');
+                            const postbackData = `switch_rm|${targetUuid}`.substring(0, 300);
+                            action.type = 'postback';
+                            action.data = postbackData;
+                            delete action.text;
                         }
-                        
-                        const pyListStr = targetTags.length > 0 ? `['${targetTags.join("','")}']` : "[]";
-                        const postbackData = `switch_rm|${targetMenuId}|${pyListStr}|${fallbackMsg}`.substring(0, 300);
-                        
-                        action.type = 'postback';
-                        action.data = postbackData;
-                        delete action.text;
-                    }
-                    return {
-                        bounds: { x: Math.round(a.bounds.x), y: Math.round(a.bounds.y), width: Math.round(a.bounds.width), height: Math.round(a.bounds.height) },
-                        action: action
-                    };
-                })
-            };
+                        return {
+                            bounds: { x: Math.round(a.bounds.x), y: Math.round(a.bounds.y), width: Math.round(a.bounds.width), height: Math.round(a.bounds.height) },
+                            action: action
+                        };
+                    })
+                };
 
-            const createRes = await api.post('/richmenu/', metaDataForLine);
-            const richMenuId = createRes.data.richMenuId;
+                const createRes = await api.post('/richmenu/', metaDataForLine);
+                const richMenuId = createRes.data.richMenuId;
 
-            if (currentMenu.imageFile) {
-                const formData = new FormData();
-                formData.append('image', currentMenu.imageFile);
-                await api.post(`/richmenu/${richMenuId}/image`, formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
-            }
-
-            const payload = {
-                id: currentMenu.id,
-                name: currentMenu.name,
-                chat_bar_text: currentMenu.chatBarText,
-                status: currentMenu.visibility === 'restricted' ? 'restricted' : 'public',
-                rich_menu_id: richMenuId,
-                start_time: currentMenu.start_time || null,
-                end_time: currentMenu.end_time || null,
-                permission_tags: currentMenu.permissionTags,
-                fallback_message: currentMenu.fallbackMessage,
-                data: JSON.stringify({
-                    size: currentMenu.size,
-                    areas: currentMenu.areas,
-                    name: currentMenu.name,
-                    chatBarText: currentMenu.chatBarText,
-                    visibility: currentMenu.visibility,
-                    targetTags: currentMenu.targetTags,
-                    targetUserCount: currentMenu.targetUserCount
-                })
-            };
-            await api.post('/richmenu/metadata', payload);
-
-            if (shouldLink) {
-                try {
-                    const res = await api.post(`/richmenu/link/${richMenuId}`);
-                    if (res.data && res.data.message === 'restricted_sync') {
-                        showToast('已同步至 LINE 並觸發限定標籤用戶同步', 'success');
-                    } else {
-                        showToast('已同步至 LINE 並連結至全體用戶', 'success');
-                    }
-                } catch (linkErr) {
-                    console.error('Link failed:', linkErr);
-                    showToast('同步成功，但連結失敗', 'warning');
+                if (menu.imageFile) {
+                    const formData = new FormData();
+                    formData.append('image', menu.imageFile);
+                    await api.post(`/richmenu/${richMenuId}/image`, formData, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
                 }
-            } else {
-                showToast('選單已成功同步至 LINE！', 'success');
-            }
 
-            // 清空本地狀態以防殘影，並回到列表
-            setCurrentMenu(null);
+                // If this is the one chosen to be default, status becomes public, else published
+                let targetStatus = 'published';
+                if (publishDefaultTarget === menu.ui_uuid) {
+                    targetStatus = 'public';
+                }
+
+                const payload = {
+                    id: menu.id,
+                    name: menu.name,
+                    chat_bar_text: menu.chatBarText,
+                    status: targetStatus,
+                    rich_menu_id: richMenuId,
+                    start_time: menu.start_time || null,
+                    end_time: menu.end_time || null,
+                    permission_tags: menu.permissionTags,
+                    fallback_message: menu.fallbackMessage,
+                    ui_uuid: menu.ui_uuid,
+                    group_id: menu.group_id,
+                    data: {
+                        size: menu.size,
+                        areas: menu.areas,
+                        name: menu.name,
+                        chatBarText: menu.chatBarText,
+                        visibility: menu.visibility,
+                        targetTags: menu.targetTags,
+                        targetUserCount: menu.targetUserCount,
+                        ui_uuid: menu.ui_uuid,
+                        group_id: menu.group_id
+                    }
+                };
+                await api.post('/richmenu/metadata', payload);
+            }
+            
+            showToast('群組選單已成功同步至 LINE！', 'success');
+            setCurrentGroup([]);
             setView('list');
         } catch (err) {
             console.error(err);
@@ -525,6 +570,10 @@ function RichMenu() {
         }
     };
 
+    const dummyPublish = async (shouldLink = false) => {
+        // old function removal placeholder
+    };
+    
     const deleteMenu = async (id, isMetadata = false) => {
         if (!window.confirm('確定要刪除嗎？')) return;
         try {
@@ -617,6 +666,17 @@ function RichMenu() {
             newAreas[index].action = { ...newAreas[index].action, ...action };
             setCurrentMenu({ ...currentMenu, areas: newAreas });
         }
+    };
+
+
+    const handleAddDraftToGroup = () => {
+        const groupId = currentGroup[0]?.group_id;
+        const newUuid = Date.now().toString(36) + Math.random().toString(36).substring(2);
+        const newMenu = { ...emptyMenu, ui_uuid: newUuid, group_id: groupId };
+        setCurrentGroup([...currentGroup, newMenu]);
+        setCurrentMenuIndex(currentGroup.length);
+        setBackgroundImage(null);
+        setSelectedAreaIndex(null);
     };
 
     // Rendering Helpers
@@ -715,9 +775,8 @@ function RichMenu() {
                     <div style={{ display: 'flex', gap: '15px' }}>
                         {!viewOnly && (
                             <>
-                                <button onClick={saveAsDraft} className="secondary" disabled={loading}><Save size={18} /> 儲存草稿</button>
-                                <button onClick={() => publishToLine(false)} className="secondary" disabled={loading}><Send size={18} /> {loading ? '同步中...' : '同步至 LINE'}</button>
-                                <button onClick={() => publishToLine(true)} className="primary" disabled={loading}><Send size={18} /> {loading ? '同步中...' : '同步並 Link'}</button>
+                                <button onClick={saveAsDraft} className="secondary" disabled={loading}><Save size={18} /> 儲存草稿群組</button>
+                                <button onClick={handleOpenPublishModal} className="primary" disabled={loading}><Send size={18} /> 發佈群組至 LINE</button>
                             </>
                         )}
                         {!viewOnly && currentMenu.richMenuId && (
@@ -727,6 +786,27 @@ function RichMenu() {
                     </div>
                 </div>
 
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', overflowX: 'auto', paddingBottom: '10px' }}>
+                    {currentGroup.map((g, idx) => (
+                        <button key={idx} onClick={() => {
+                            setCurrentMenuIndex(idx);
+                            setSelectedAreaIndex(null);
+                            setBackgroundImage(g.imageBase64 || null);
+                        }} style={{
+                            padding: '8px 16px', borderRadius: '8px', 
+                            backgroundColor: idx === currentMenuIndex ? 'var(--primary-yellow)' : '#333',
+                            color: idx === currentMenuIndex ? '#000' : '#fff',
+                            border: 'none', cursor: 'pointer', whiteSpace: 'nowrap'
+                        }}>
+                            {g.name || `草稿 ${idx + 1}`}
+                        </button>
+                    ))}
+                    {!viewOnly && (
+                        <button onClick={handleAddDraftToGroup} style={{ padding: '8px 16px', borderRadius: '8px', backgroundColor: '#444', color: '#fff', border: '1px dashed #888', cursor: 'pointer' }}>
+                            + 新增選單
+                        </button>
+                    )}
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '30px', flex: 1, minHeight: 0 }}>
                     <div className="card" style={{ overflow: 'auto', padding: '40px', backgroundColor: '#000', borderRadius: '12px', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
                         <div ref={imageContainerRef} style={{
@@ -921,9 +1001,16 @@ function RichMenu() {
                                                 onChange={e => updateAreaAction(selectedAreaIndex, { data: e.target.value })}
                                             >
                                                 <option value="">請選擇要切換的圖文選單</option>
-                                                {menus.map(menu => (
-                                                    <option key={menu.richMenuId} value={menu.richMenuId}>{menu.name}</option>
-                                                ))}
+                                                <optgroup label="本次編輯群組">
+                                                    {currentGroup.map((g, i) => (
+                                                        <option key={g.ui_uuid} value={`switch_rm|${g.ui_uuid}`}>{g.name || `草稿 ${i+1}`}</option>
+                                                    ))}
+                                                </optgroup>
+                                                <optgroup label="其他圖文選單">
+                                                    {metadata.filter(m => m.ui_uuid && m.group_id !== currentGroup[0]?.group_id).map(m => (
+                                                        <option key={m.ui_uuid} value={`switch_rm|${m.ui_uuid}`}>{m.name}</option>
+                                                    ))}
+                                                </optgroup>
                                             </select>
                                         </div>
                                     )}
@@ -934,6 +1021,32 @@ function RichMenu() {
                         </div>
                     </div>
                 </div>
+
+                {showPublishModal && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                        <div className="card" style={{ width: '400px', backgroundColor: '#1E1E1E', padding: '20px' }}>
+                            <h3 style={{ marginBottom: '15px' }}>發佈圖文選單群組</h3>
+                            <div className="form-group">
+                                <label>發佈後的處理方式</label>
+                                <select value={publishDefaultTarget} onChange={(e) => setPublishDefaultTarget(e.target.value)}>
+                                    <option value="none">僅上架，暫不綁定 (做為子選單)</option>
+                                    <optgroup label="設為預設圖文選單">
+                                        {currentGroup.map((g, i) => (
+                                            <option key={g.ui_uuid} value={g.ui_uuid}>{g.name || `草稿 ${i+1}`}</option>
+                                        ))}
+                                    </optgroup>
+                                </select>
+                            </div>
+                            <p style={{ fontSize: '13px', color: '#aaa', marginBottom: '20px' }}>
+                                注意：選單發佈至 LINE 之後，內容將被鎖定無法再次編輯。如需修改只能刪除並重新建立。
+                            </p>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                                <button onClick={() => setShowPublishModal(false)} className="secondary">取消</button>
+                                <button onClick={publishGroupToLine} className="primary">確認發佈</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }
@@ -964,6 +1077,32 @@ function RichMenu() {
                     </table>
                     <button onClick={saveMappings} className="primary" style={{ marginTop: '20px' }} disabled={savingMappings}><Save size={18} /> 儲存權限</button>
                 </div>
+
+                {showPublishModal && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                        <div className="card" style={{ width: '400px', backgroundColor: '#1E1E1E', padding: '20px' }}>
+                            <h3 style={{ marginBottom: '15px' }}>發佈圖文選單群組</h3>
+                            <div className="form-group">
+                                <label>發佈後的處理方式</label>
+                                <select value={publishDefaultTarget} onChange={(e) => setPublishDefaultTarget(e.target.value)}>
+                                    <option value="none">僅上架，暫不綁定 (做為子選單)</option>
+                                    <optgroup label="設為預設圖文選單">
+                                        {currentGroup.map((g, i) => (
+                                            <option key={g.ui_uuid} value={g.ui_uuid}>{g.name || `草稿 ${i+1}`}</option>
+                                        ))}
+                                    </optgroup>
+                                </select>
+                            </div>
+                            <p style={{ fontSize: '13px', color: '#aaa', marginBottom: '20px' }}>
+                                注意：選單發佈至 LINE 之後，內容將被鎖定無法再次編輯。如需修改只能刪除並重新建立。
+                            </p>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                                <button onClick={() => setShowPublishModal(false)} className="secondary">取消</button>
+                                <button onClick={publishGroupToLine} className="primary">確認發佈</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }

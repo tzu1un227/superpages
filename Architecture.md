@@ -24,3 +24,7 @@
     - 進階訊息利用統一格式 `sys_bind|{tag}|{journey}|{menu}|{displayText}` 進行 Payload 編碼。
     - 圖文選單切換動作 (`richmenuswitch`) 將轉換為 Postback 格式：`switch_rm|{menuID}|{permission_tags}|{fallback_message}` 供後端進行權限檢核。
   - LIFF4tag (`index.html`): 作為中介層，解析 URL 中夾帶的 `tag`, `journey`, `menu` 參數並轉譯成 `sys_bind`，以 `postback` 型別送入後端觸發。
+
+## 2026-06-22 圖文選單架構更新
+- **群組化管理**：圖文選單新增 group_id 欄位。相同 group_id 的選單視為同一群組。前端使用頁籤（Tabs）切換同群組內的不同草稿。
+- **獨立識別碼**：圖文選單新增 ui_uuid 欄位（隨機生成），供發布時選擇「要連結的目標選單」（預設選單），並於跳轉動作中使用 switch_rm|{ui_uuid} 標記。
