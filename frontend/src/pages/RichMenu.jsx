@@ -501,7 +501,10 @@ function RichMenu() {
                         }
                         if (action.type === 'richmenuswitch') {
                             // Find target uuid
-                            const targetUuid = action.data.replace('switch_rm|', '');
+                            const targetUuid = (action.data || '').replace('switch_rm|', '');
+                            if (!targetUuid) {
+                                throw new Error('有切換選單區塊未選擇目標圖文選單，請選擇後再發佈。');
+                            }
                             const postbackData = `switch_rm|${targetUuid}`.substring(0, 300);
                             action.type = 'postback';
                             action.data = postbackData;
