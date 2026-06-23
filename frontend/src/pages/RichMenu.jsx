@@ -688,13 +688,41 @@ function RichMenu() {
         setLoading(true);
         try {
             // First update metadata to match selected strategy and tags
-            await api.post('/richmenu/drafts', {
-                ...linkModalState.item, // Original item
-                publishStrategy: linkModalState.publishStrategy,
-                targetTags: linkModalState.targetTags,
-                fallbackMessage: linkModalState.item.fallbackMessage,
-                permissionTags: linkModalState.item.permissionTags || []
-            });
+            const item = linkModalState.item;
+            let newStatus = 'published';
+            if (linkModalState.publishStrategy === 'restricted') newStatus = 'restricted';
+            else if (linkModalState.publishStrategy === 'default') newStatus = 'public';
+            else newStatus = 'hidden';
+
+            const payload = {
+                id: item.id,
+                name: item.name,
+                chat_bar_text: item.chat_bar_text || item.chatBarText,
+                status: newStatus,
+                rich_menu_id: linkModalState.richMenuId,
+                start_time: item.start_time || null,
+                end_time: item.end_time || null,
+                permission_tags: item.permission_tags || item.permissionTags || [],
+                fallback_message: item.fallback_message || item.fallbackMessage || '',
+                ui_uuid: item.ui_uuid,
+                group_id: item.group_id,
+                data: {
+                    ...(item.data || {}),
+                    size: item.size || (item.data && item.data.size),
+                    areas: item.areas || (item.data && item.data.areas),
+                    name: item.name,
+                    chatBarText: item.chat_bar_text || item.chatBarText,
+                    imageBase64: item.imageBase64 || (item.data && item.data.imageBase64),
+                    visibility: item.visibility || (item.data && item.data.visibility),
+                    publishStrategy: linkModalState.publishStrategy,
+                    targetTags: linkModalState.targetTags,
+                    targetUserCount: linkModalState.targetUserCount || 0,
+                    ui_uuid: item.ui_uuid,
+                    group_id: item.group_id
+                }
+            };
+            await api.post('/richmenu/metadata', payload);
+            
             // Then perform link
             const res = await api.post(`/richmenu/link/${linkModalState.richMenuId}`);
             if (res.data && res.data.message === 'restricted_sync') {
