@@ -915,7 +915,7 @@ function RuleDesigner() {
                                                     >
                                                         <option value="">-- 不切換圖文選單 --</option>
                                                         {richMenusList.map(rm => (
-                                                            <option key={rm.ui_uuid || rm.richMenuId || rm.id} value={rm.ui_uuid || rm.richMenuId || rm.id}>{rm.name}</option>
+                                                            <option key={rm.ui_uuid || rm.id} value={rm.ui_uuid}>{rm.name}</option>
                                                         ))}
                                                     </select>
                                                 </div>
