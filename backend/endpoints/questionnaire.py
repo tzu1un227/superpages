@@ -841,7 +841,7 @@ def build_questionnaire():
         conn.commit()
         cur.close()
         _trigger_sql_reload()
-        return jsonify({"status": "success", "message": f"問卷「{note}」已成功建立 (ID: {quest_id:02d})"})
+        return jsonify({"status": "success", "message": "問卷已成功建立"})
     except Exception as e:
         if conn: conn.rollback()
         return jsonify({"error": str(e)}), 500
