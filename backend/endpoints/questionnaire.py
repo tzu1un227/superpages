@@ -235,7 +235,7 @@ def _parse_time_bounds(check_str):
     return start_time, end_time
 
 
-def _build_error_msg(cond_id, cond_detail, question_text):
+def _get_error_hint(cond_id, cond_detail):
     hints = {
         "2": "請輸入純數字。",
         "3": f"請輸入指定選項之一：{cond_detail}",
@@ -244,8 +244,7 @@ def _build_error_msg(cond_id, cond_detail, question_text):
         "6": "請輸入正確 Email 格式，例如 example@mail.com。",
         "7": "請輸入正確日期格式，例如 YYYY-MM-DD。",
     }
-    hint = hints.get(str(cond_id).strip(), "輸入格式不正確，請重新作答。")
-    return f"{hint}\n{question_text}"
+    return hints.get(str(cond_id).strip(), "輸入格式不正確，請重新作答。")
 
 
 def _upsert_questionnaire_meta(conn, app_id, note, group_id):
@@ -433,6 +432,11 @@ def build_questionnaire_direct(data, app_id, conn, quest_id):
             )
 
         if check_str:
+            hint = _get_error_hint(question.get("cond", "1"), question.get("cond_detail", ""))
+            error_msgs = [
+                _text_msg_json(hint),
+                _text_msg_json(question["content"])
+            ]
             cur.execute(
                 f'''
                 INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
@@ -443,7 +447,7 @@ def build_questionnaire_direct(data, app_id, conn, quest_id):
                     "Message",
                     ["*"],
                     [""],
-                    [_text_msg_json(_build_error_msg(question.get("cond", "1"), question.get("cond_detail", ""), question["content"]))],
+                    error_msgs,
                     current_state,
                     "",
                     True,
