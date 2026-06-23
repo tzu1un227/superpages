@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Search, Filter, Download, UserPlus, Users, Tag, Clock, Phone, Mail, MoreHorizontal, ArrowUpDown, ArrowUp, ArrowDown, X, MessageSquare, Plus } from 'lucide-react';
+import { Search, Filter, Download, UserPlus, Users, Tag, Clock, Phone, Mail, MoreHorizontal, ArrowUpDown, ArrowUp, ArrowDown, X, MessageSquare, Plus, Edit2, Check } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../api';
 import { useToast } from '../contexts/ToastContext';
@@ -344,6 +344,36 @@ const CustomerCenter = () => {
     }
   };
 
+  const [editingSidebarField, setEditingSidebarField] = useState(null);
+  const [sidebarEditValue, setSidebarEditValue] = useState('');
+
+  const handleSidebarSave = async (field) => {
+    if (!selectedCustomerForSidebar) return;
+    
+    const updateData = {
+      name: field === 'name' ? sidebarEditValue : (selectedCustomerForSidebar.name || ''),
+      phone: field === 'phone' ? sidebarEditValue : (selectedCustomerForSidebar.phone === '未設定' ? '' : (selectedCustomerForSidebar.phone || '')),
+      email: field === 'email' ? sidebarEditValue : (selectedCustomerForSidebar.email === '未設定' ? '' : (selectedCustomerForSidebar.email || ''))
+    };
+
+    setIsProcessing(true);
+    try {
+      await api.put(`/customers/${selectedCustomerForSidebar.user_id}`, updateData);
+      showToast('客戶資料更新成功', 'success');
+      
+      const newValue = sidebarEditValue || (field === 'name' ? '' : '未設定');
+      setSelectedCustomerForSidebar(prev => ({ ...prev, [field]: newValue }));
+      setCustomers(prev => prev.map(c => c.user_id === selectedCustomerForSidebar.user_id ? { ...c, [field]: newValue } : c));
+      
+      setEditingSidebarField(null);
+    } catch (err) {
+      showToast('更新客戶資料失敗', 'error');
+      console.error(err);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleOpenFilter = () => {
     if (tags.length === 0) fetchTags();
     setFilterDraft(advancedFilters);
@@ -476,7 +506,9 @@ const CustomerCenter = () => {
       setSelectedCustomerForSidebar(prev => {
         const currentTags = Array.isArray(prev.tag) ? prev.tag : (prev.tag ? [prev.tag] : []);
         if (!currentTags.includes(tag)) {
-          return { ...prev, tag: [...currentTags, tag] };
+          const newTags = [...currentTags, tag];
+          setCustomers(custs => custs.map(c => c.user_id === prev.user_id ? { ...c, tag: newTags } : c));
+          return { ...prev, tag: newTags };
         }
         return prev;
       });
@@ -500,7 +532,9 @@ const CustomerCenter = () => {
       // Update local state to reflect UI change immediately
       setSelectedCustomerForSidebar(prev => {
         const currentTags = Array.isArray(prev.tag) ? prev.tag : (prev.tag ? [prev.tag] : []);
-        return { ...prev, tag: currentTags.filter(t => t !== tagName) };
+        const newTags = currentTags.filter(t => t !== tagName);
+        setCustomers(custs => custs.map(c => c.user_id === prev.user_id ? { ...c, tag: newTags } : c));
+        return { ...prev, tag: newTags };
       });
     } catch (err) {
       showToast('刪除標籤失敗', 'error');
@@ -516,7 +550,9 @@ const CustomerCenter = () => {
       showToast('已將用戶退出自動旅程', 'success');
       // Fetch details again to refresh
       const resp = await api.get(`/customers/${selectedCustomerForSidebar.user_id}/details`);
-      setSidebarDetails(prev => ({ ...prev, projects: resp.data.projects || [] }));
+      const updatedProjects = resp.data.projects || [];
+      setSidebarDetails(prev => ({ ...prev, projects: updatedProjects }));
+      setCustomers(custs => custs.map(c => c.user_id === selectedCustomerForSidebar.user_id ? { ...c, projects: updatedProjects } : c));
     } catch (err) {
       showToast('退出自動旅程失敗', 'error');
       console.error(err);
@@ -531,6 +567,7 @@ const CustomerCenter = () => {
       showToast('已解除綁定圖文選單', 'success');
       // Update local state to reflect UI change
       setSidebarDetails(prev => ({ ...prev, rich_menu: null }));
+      setCustomers(custs => custs.map(c => c.user_id === selectedCustomerForSidebar.user_id ? { ...c, rich_menu: null } : c));
     } catch (err) {
       showToast('解除圖文選單失敗', 'error');
       console.error(err);
@@ -592,23 +629,22 @@ const CustomerCenter = () => {
               <th style={{ padding: '16px', fontWeight: '500', color: '#888' }}>
                 圖文選單
               </th>
-              <th style={{ padding: '16px', fontWeight: '500', color: '#888', textAlign: 'center' }}>操作</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan="7" style={{ padding: '32px', textAlign: 'center', color: '#888' }}>載入中...</td>
+                <td colSpan="8" style={{ padding: '32px', textAlign: 'center', color: '#888' }}>載入中...</td>
               </tr>
             ) : sortedCustomers.length === 0 ? (
               <tr>
-                <td colSpan="7" style={{ padding: '32px', textAlign: 'center', color: '#888' }}>無客戶資料</td>
+                <td colSpan="8" style={{ padding: '32px', textAlign: 'center', color: '#888' }}>無客戶資料</td>
               </tr>
             ) : (
               sortedCustomers.map((c, idx) => (
                 <tr 
                   key={idx} 
-                  onClick={() => setSelectedCustomerForSidebar(c)}
+                  onClick={(e) => { e.stopPropagation(); setSelectedCustomerForSidebar(c); }}
                   style={{ cursor: 'pointer', borderBottom: '1px solid #333', transition: 'background-color 0.2s', backgroundColor: selectedUserIds.includes(c.user_id) ? 'rgba(255, 215, 0, 0.05)' : 'transparent' }} 
                   onMouseEnter={e => {if(!selectedUserIds.includes(c.user_id)) e.currentTarget.style.backgroundColor = '#2A2A2A'}} 
                   onMouseLeave={e => {if(!selectedUserIds.includes(c.user_id)) e.currentTarget.style.backgroundColor = 'transparent'}}
@@ -703,11 +739,6 @@ const CustomerCenter = () => {
                     ) : (
                       <span style={{ color: '#666', fontSize: '13px' }}>預設選單</span>
                     )}
-                  </td>
-                  <td style={{ padding: '16px', textAlign: 'center' }}>
-                    <button onClick={(e) => handleEditClick(e, c)} style={{ padding: '6px 12px', backgroundColor: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }} title="編輯客戶">
-                      編輯
-                    </button>
                   </td>
                 </tr>
               ))
@@ -816,7 +847,7 @@ const CustomerCenter = () => {
   );
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', color: '#fff' }}>
+    <div style={{ maxWidth: '1200px', margin: '0 auto', color: '#fff', minHeight: '100vh' }} onClick={() => setSelectedCustomerForSidebar(null)}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
           <Users size={28} className="text-yellow" />
@@ -1204,7 +1235,7 @@ const CustomerCenter = () => {
         position: 'fixed', top: 0, right: selectedCustomerForSidebar ? 0 : '-400px', width: '400px', height: '100vh',
         backgroundColor: '#1a1a1a', borderLeft: '1px solid #333', boxShadow: '-5px 0 25px rgba(0,0,0,0.5)',
         transition: 'right 0.3s ease-in-out', zIndex: 1050, display: 'flex', flexDirection: 'column'
-      }}>
+      }} onClick={(e) => e.stopPropagation()}>
         {selectedCustomerForSidebar && (
           <>
             <div style={{ padding: '24px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1216,7 +1247,24 @@ const CustomerCenter = () => {
                     <Users size={20} color="#888" />
                   )}
                 </div>
-                {selectedCustomerForSidebar.name || '未命名用戶'}
+                {editingSidebarField === 'name' ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, marginRight: '16px' }}>
+                    <input 
+                      autoFocus
+                      type="text" 
+                      value={sidebarEditValue} 
+                      onChange={(e) => setSidebarEditValue(e.target.value)}
+                      style={{ flex: 1, padding: '4px 8px', backgroundColor: '#111', color: '#fff', border: '1px solid #444', borderRadius: '4px', outline: 'none', fontSize: '16px' }}
+                    />
+                    <button onClick={() => handleSidebarSave('name')} style={{ padding: '4px', background: '#FFD700', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#000', display: 'flex', alignItems: 'center' }}><Check size={16} /></button>
+                    <button onClick={() => setEditingSidebarField(null)} style={{ padding: '4px', background: '#333', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center' }}><X size={16} /></button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedCustomerForSidebar.name || '未命名用戶'}</span>
+                    <Edit2 size={16} color="#888" style={{ cursor: 'pointer', flexShrink: 0 }} onClick={() => { setEditingSidebarField('name'); setSidebarEditValue(selectedCustomerForSidebar.name || ''); }} />
+                  </div>
+                )}
               </h2>
               <X size={24} color="#888" style={{ cursor: 'pointer' }} onClick={() => setSelectedCustomerForSidebar(null)} />
             </div>
@@ -1226,12 +1274,46 @@ const CustomerCenter = () => {
                 <div style={{ color: '#888', fontSize: '14px', marginBottom: '8px' }}>聯絡資訊</div>
                 <div style={{ backgroundColor: '#222', borderRadius: '8px', padding: '16px', border: '1px solid #333' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                    <Phone size={16} color="#FFD700" /> 
-                    <span>{selectedCustomerForSidebar.phone || '未設定'}</span>
+                    <Phone size={16} color="#FFD700" style={{ flexShrink: 0 }} /> 
+                    {editingSidebarField === 'phone' ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                        <input 
+                          autoFocus
+                          type="text" 
+                          value={sidebarEditValue} 
+                          onChange={(e) => setSidebarEditValue(e.target.value)}
+                          style={{ flex: 1, padding: '4px 8px', backgroundColor: '#111', color: '#fff', border: '1px solid #444', borderRadius: '4px', outline: 'none', width: '100%' }}
+                        />
+                        <button onClick={() => handleSidebarSave('phone')} style={{ padding: '4px', background: '#FFD700', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#000', display: 'flex', alignItems: 'center' }}><Check size={16} /></button>
+                        <button onClick={() => setEditingSidebarField(null)} style={{ padding: '4px', background: '#333', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center' }}><X size={16} /></button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                        <span>{selectedCustomerForSidebar.phone || '未設定'}</span>
+                        <Edit2 size={14} color="#888" style={{ cursor: 'pointer' }} onClick={() => { setEditingSidebarField('phone'); setSidebarEditValue(selectedCustomerForSidebar.phone === '未設定' ? '' : (selectedCustomerForSidebar.phone || '')); }} />
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <Mail size={16} color="#FFD700" /> 
-                    <span>{selectedCustomerForSidebar.email || '未設定'}</span>
+                    <Mail size={16} color="#FFD700" style={{ flexShrink: 0 }} /> 
+                    {editingSidebarField === 'email' ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                        <input 
+                          autoFocus
+                          type="email" 
+                          value={sidebarEditValue} 
+                          onChange={(e) => setSidebarEditValue(e.target.value)}
+                          style={{ flex: 1, padding: '4px 8px', backgroundColor: '#111', color: '#fff', border: '1px solid #444', borderRadius: '4px', outline: 'none', width: '100%' }}
+                        />
+                        <button onClick={() => handleSidebarSave('email')} style={{ padding: '4px', background: '#FFD700', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#000', display: 'flex', alignItems: 'center' }}><Check size={16} /></button>
+                        <button onClick={() => setEditingSidebarField(null)} style={{ padding: '4px', background: '#333', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center' }}><X size={16} /></button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedCustomerForSidebar.email || '未設定'}</span>
+                        <Edit2 size={14} color="#888" style={{ cursor: 'pointer', flexShrink: 0 }} onClick={() => { setEditingSidebarField('email'); setSidebarEditValue(selectedCustomerForSidebar.email === '未設定' ? '' : (selectedCustomerForSidebar.email || '')); }} />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
