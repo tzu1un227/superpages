@@ -443,16 +443,18 @@ function RuleDesigner() {
     };
 
     const handleUpdateMessage = (index, field, value) => {
-        const newList = [...msgRpyList];
-        if (newList[index].Line) {
-            newList[index] = { 
-                ...newList[index], 
-                Line: { ...newList[index].Line, [field]: value } 
-            };
-        } else {
-            newList[index] = { ...newList[index], [field]: value };
-        }
-        setMsgRpyList(newList);
+        setMsgRpyList(prevList => {
+            const newList = [...prevList];
+            if (newList[index].Line) {
+                newList[index] = { 
+                    ...newList[index], 
+                    Line: { ...newList[index].Line, [field]: value } 
+                };
+            } else {
+                newList[index] = { ...newList[index], [field]: value };
+            }
+            return newList;
+        });
     };
     // ------------------------------------
 

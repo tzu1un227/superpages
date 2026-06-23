@@ -4,6 +4,7 @@
   - 「自動上標」改為搭配下拉選單 `<datalist>`，可選取系統現有標籤或自行輸入。
   - 新增「加入自動旅程」與「連結圖文選單」的下拉選單選項，選取後會自動產生對應的 `update("iup|<id>")` 與 `update("switch_rm|<uuid>")`。
   - 修正關鍵字回覆介面中，編輯包含 `Line` 屬性的現有回覆訊息時，圖片上傳後 URL 未正確更新到對應層級的問題。
+  - 修復關鍵字回覆編輯器中，圖片上傳完成後網址輸入框未即時更新為最新 URL 的問題 (解決 React state closure 問題)。
 - **後端 (backend/app.py)**:
   - 修正 `/api/statistics` 中查詢 `get_events_count_by_category_and_tag` 時傳入的分類名稱大小寫問題，確保能正確撈取到對應的圖表數據。
 
