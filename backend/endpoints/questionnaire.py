@@ -201,12 +201,13 @@ def _extract_tags_from_fn(fn_str):
     if push_tags:
         tags.extend(push_tags)
 
-    # Support legacy format: set_tag|...
+    # Support legacy format: set_tag|... and new format: update("set_tag|...")
     if "set_tag|" in fn_str:
         parts = fn_str.split("set_tag|")
-        if len(parts) > 1:
-            tags_part = parts[1].split(";")[0]
-            tags.extend([t for t in tags_part.split("|") if t.strip()])
+        for p in parts[1:]:
+            # Strip trailing quotes, parenthesis or semicolons
+            tag_str = p.split('"')[0].split(';')[0].split(')')[0]
+            tags.extend([t for t in tag_str.split("|") if t.strip()])
             
     return list(dict.fromkeys(tags))
 
