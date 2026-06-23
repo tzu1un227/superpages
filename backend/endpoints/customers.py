@@ -719,13 +719,19 @@ def count_by_tags():
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Calculate total count of users
-        history_table = f'"history:{app_id}"'
-        cur.execute(f"""
-            SELECT COUNT(DISTINCT user_id) 
-            FROM {history_table} 
-            WHERE user_id IS NOT NULL AND length(user_id) = 33 AND user_id LIKE 'U%'
-        """)
+        # Calculate total count of active users
+        active_user_subquery = f"""
+            SELECT p.user_id FROM "Private_var:{app_id}" p
+            WHERE p.name = 'name'
+            AND (
+                SELECT h.category FROM "history:{app_id}" h
+                WHERE h.user_id = p.user_id 
+                AND h.category IN ('Follow', 'Unfollow')
+                ORDER BY h.timestamp DESC LIMIT 1
+            ) IS DISTINCT FROM 'Unfollow'
+            AND length(p.user_id) = 33 AND p.user_id LIKE 'U%'
+        """
+        cur.execute(f"SELECT COUNT(*) FROM ({active_user_subquery}) AS active_users")
         total_count = cur.fetchone()[0]
 
         if not tags:
@@ -757,7 +763,7 @@ def count_by_tags():
         query = f"""
             SELECT COUNT(DISTINCT user_id) 
             FROM {pv_table} 
-            WHERE name = 'tag' AND ({where_clause}) AND user_id IS NOT NULL AND user_id != '' AND length(user_id) = 33
+            WHERE name = 'tag' AND ({where_clause}) AND user_id IN ({active_user_subquery})
         """
         cur.execute(query, params)
         count = cur.fetchone()[0]
