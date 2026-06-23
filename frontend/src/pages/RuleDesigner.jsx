@@ -260,7 +260,7 @@ function RuleDesigner() {
                 }
                 
                 // rich menus
-                const rmRes = await api.get('/richmenu/'); 
+                const rmRes = await api.get('/richmenu/metadata'); 
                 if (rmRes.data && Array.isArray(rmRes.data.menus)) {
                     setRichMenusList(rmRes.data.menus);
                 } else if (rmRes.data && Array.isArray(rmRes.data.richmenus)) {
