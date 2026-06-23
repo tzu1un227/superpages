@@ -729,7 +729,7 @@ def count_by_tags():
                 AND h.category IN ('Follow', 'Unfollow')
                 ORDER BY h.timestamp DESC LIMIT 1
             ) IS DISTINCT FROM 'Unfollow'
-            AND length(p.user_id) = 33 AND p.user_id LIKE 'U%'
+            AND length(p.user_id) = 33 AND p.user_id LIKE 'U%%'
         """
         cur.execute(f"SELECT COUNT(*) FROM ({active_user_subquery}) AS active_users")
         total_count = cur.fetchone()[0]
