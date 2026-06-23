@@ -856,74 +856,7 @@ function RichMenu() {
                                 );
                             })}
                         </div>
-                        <div className="card" style={{ width: '400px', flexShrink: 0 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                                <h3>區塊設定 ({currentMenu.areas.length})</h3>
-                                {!viewOnly && <button onClick={addArea} className="secondary" style={{ padding: '5px 10px' }}><Plus size={16} /></button>}
-                            </div>
-                            {selectedAreaIndex !== null ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <h4 style={{ margin: 0, color: 'var(--primary-yellow)' }}>區塊 {selectedAreaIndex + 1}</h4>
-                                        {!viewOnly && (
-                                            <button onClick={() => deleteArea(selectedAreaIndex)} className="secondary" style={{ color: '#ff4d4d', padding: '4px 8px', fontSize: '12px' }}>
-                                                <Trash2 size={14} style={{ marginRight: '4px' }} /> 刪除
-                                            </button>
-                                        )}
-                                    </div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                                        <div><label className="label">X 座標</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].bounds.x} onChange={e => updateAreaBounds(selectedAreaIndex, { x: Number(e.target.value) })} style={{ width: '100%' }} /></div>
-                                        <div><label className="label">Y 座標</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].bounds.y} onChange={e => updateAreaBounds(selectedAreaIndex, { y: Number(e.target.value) })} style={{ width: '100%' }} /></div>
-                                        <div><label className="label">寬度</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].bounds.width} onChange={e => updateAreaBounds(selectedAreaIndex, { width: Number(e.target.value) })} style={{ width: '100%' }} /></div>
-                                        <div><label className="label">高度</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].bounds.height} onChange={e => updateAreaBounds(selectedAreaIndex, { height: Number(e.target.value) })} style={{ width: '100%' }} /></div>
-                                    </div>
-                                    <label className="label" style={{ marginTop: '5px' }}>點擊動作</label>
-                                    <select value={currentMenu.areas[selectedAreaIndex].action.type} disabled={viewOnly} onChange={e => updateAreaAction(selectedAreaIndex, { type: e.target.value })}>
-                                        {ACTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                                    </select>
-                                    {currentMenu.areas[selectedAreaIndex].action.type === 'message' && (
-                                        <input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.text || ''} onChange={e => updateAreaAction(selectedAreaIndex, { text: e.target.value })} placeholder="訊息內容" />
-                                    )}
-                                    {currentMenu.areas[selectedAreaIndex].action.type === 'uri' && (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                            <input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.uri || ''} onChange={e => updateAreaAction(selectedAreaIndex, { uri: e.target.value })} placeholder="https://..." />
-                                            <div>
-                                                <label className="label">附加標籤 (將轉換為追蹤連結)</label>
-                                                <TagInput
-                                                    tags={currentMenu.areas[selectedAreaIndex].action.tags || []}
-                                                    onChange={tags => updateAreaAction(selectedAreaIndex, { tags })}
-                                                    disabled={viewOnly}
-                                                    placeholder="輸入標籤後按 Enter"
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-                                    {currentMenu.areas[selectedAreaIndex].action.type === 'richmenuswitch' && (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                            <select 
-                                                disabled={viewOnly} 
-                                                value={currentMenu.areas[selectedAreaIndex].action.data || ''} 
-                                                onChange={e => updateAreaAction(selectedAreaIndex, { data: e.target.value })}
-                                            >
-                                                <option value="">請選擇要切換的圖文選單</option>
-                                                <optgroup label="本次編輯群組">
-                                                    {currentGroup.filter(g => g.ui_uuid !== currentMenu.ui_uuid).map(g => (
-                                                        <option key={g.ui_uuid} value={`switch_rm|${g.ui_uuid}`}>{g.name || `草稿 ${currentGroup.indexOf(g)+1}`}</option>
-                                                    ))}
-                                                </optgroup>
-                                                <optgroup label="其他圖文選單">
-                                                    {metadata.filter(m => m.ui_uuid && m.group_id !== currentGroup[0]?.group_id).map(m => (
-                                                        <option key={m.ui_uuid} value={`switch_rm|${m.ui_uuid}`}>{m.name}</option>
-                                                    ))}
-                                                </optgroup>
-                                            </select>
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <p style={{ color: '#666', textAlign: 'center', fontSize: '14px' }}>點擊預覽區塊進行設定</p>
-                            )}
-                        </div>
+
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto' }}>
@@ -1028,16 +961,87 @@ function RichMenu() {
                                     </div>
                                 )}
 
-                                {['default', 'restricted'].includes(currentMenu.publishStrategy) && (
-                                    <div style={{ backgroundColor: '#111', padding: '15px', borderRadius: '8px', border: '1px solid #333', marginLeft: '25px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                        <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '5px' }}><Clock size={16} /> 排程設定</h4>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                                            <div><label className="label">開始時間</label><input type="datetime-local" value={currentMenu.start_time} onChange={e => setCurrentMenu({ ...currentMenu, start_time: e.target.value })} style={{ width: '100%' }} /></div>
-                                            <div><label className="label">結束時間</label><input type="datetime-local" value={currentMenu.end_time} onChange={e => setCurrentMenu({ ...currentMenu, end_time: e.target.value })} style={{ width: '100%' }} /></div>
-                                        </div>
-                                    </div>
-                                )}
                             </div>
+                        </div>
+
+                        <div className="card">
+                            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Clock size={18} /> 排程設定</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                                    <div><label className="label">開始時間</label><input type="datetime-local" value={currentMenu.start_time} onChange={e => setCurrentMenu({ ...currentMenu, start_time: e.target.value })} style={{ width: '100%' }} /></div>
+                                    <div><label className="label">結束時間</label><input type="datetime-local" value={currentMenu.end_time} onChange={e => setCurrentMenu({ ...currentMenu, end_time: e.target.value })} style={{ width: '100%' }} /></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="card">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                                <h3>區塊設定 ({currentMenu.areas.length})</h3>
+                                {!viewOnly && <button onClick={addArea} className="secondary" style={{ padding: '5px 10px' }}><Plus size={16} /></button>}
+                            </div>
+                            {selectedAreaIndex !== null ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <h4 style={{ margin: 0, color: 'var(--primary-yellow)' }}>區塊 {selectedAreaIndex + 1}</h4>
+                                        {!viewOnly && (
+                                            <button onClick={() => deleteArea(selectedAreaIndex)} className="secondary" style={{ color: '#ff4d4d', padding: '4px 8px', fontSize: '12px' }}>
+                                                <Trash2 size={14} style={{ marginRight: '4px' }} /> 刪除
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                        <div><label className="label">X 座標</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].bounds.x} onChange={e => updateAreaBounds(selectedAreaIndex, { x: Number(e.target.value) })} style={{ width: '100%' }} /></div>
+                                        <div><label className="label">Y 座標</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].bounds.y} onChange={e => updateAreaBounds(selectedAreaIndex, { y: Number(e.target.value) })} style={{ width: '100%' }} /></div>
+                                        <div><label className="label">寬度</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].bounds.width} onChange={e => updateAreaBounds(selectedAreaIndex, { width: Number(e.target.value) })} style={{ width: '100%' }} /></div>
+                                        <div><label className="label">高度</label><input type="number" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].bounds.height} onChange={e => updateAreaBounds(selectedAreaIndex, { height: Number(e.target.value) })} style={{ width: '100%' }} /></div>
+                                    </div>
+                                    <label className="label" style={{ marginTop: '5px' }}>點擊動作</label>
+                                    <select value={currentMenu.areas[selectedAreaIndex].action.type} disabled={viewOnly} onChange={e => updateAreaAction(selectedAreaIndex, { type: e.target.value })}>
+                                        {ACTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                                    </select>
+                                    {currentMenu.areas[selectedAreaIndex].action.type === 'message' && (
+                                        <input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.text || ''} onChange={e => updateAreaAction(selectedAreaIndex, { text: e.target.value })} placeholder="訊息內容" />
+                                    )}
+                                    {currentMenu.areas[selectedAreaIndex].action.type === 'uri' && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                            <input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.uri || ''} onChange={e => updateAreaAction(selectedAreaIndex, { uri: e.target.value })} placeholder="https://..." />
+                                            <div>
+                                                <label className="label">附加標籤 (將轉換為追蹤連結)</label>
+                                                <TagInput
+                                                    tags={currentMenu.areas[selectedAreaIndex].action.tags || []}
+                                                    onChange={tags => updateAreaAction(selectedAreaIndex, { tags })}
+                                                    disabled={viewOnly}
+                                                    placeholder="輸入標籤後按 Enter"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                    {currentMenu.areas[selectedAreaIndex].action.type === 'richmenuswitch' && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                            <select 
+                                                disabled={viewOnly} 
+                                                value={currentMenu.areas[selectedAreaIndex].action.data || ''} 
+                                                onChange={e => updateAreaAction(selectedAreaIndex, { data: e.target.value })}
+                                            >
+                                                <option value="">請選擇要切換的圖文選單</option>
+                                                <optgroup label="本次編輯群組">
+                                                    {currentGroup.filter(g => g.ui_uuid !== currentMenu.ui_uuid).map(g => (
+                                                        <option key={g.ui_uuid} value={`switch_rm|${g.ui_uuid}`}>{g.name || `草稿 ${currentGroup.indexOf(g)+1}`}</option>
+                                                    ))}
+                                                </optgroup>
+                                                <optgroup label="其他圖文選單">
+                                                    {metadata.filter(m => m.ui_uuid && m.group_id !== currentGroup[0]?.group_id).map(m => (
+                                                        <option key={m.ui_uuid} value={`switch_rm|${m.ui_uuid}`}>{m.name}</option>
+                                                    ))}
+                                                </optgroup>
+                                            </select>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <p style={{ color: '#666', textAlign: 'center', fontSize: '14px' }}>點擊預覽區塊進行設定</p>
+                            )}
+
                         </div>
                     </div>
                 </div>
