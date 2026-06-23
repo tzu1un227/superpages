@@ -712,15 +712,25 @@ def delete_customer_richmenu(user_id):
 def count_by_tags():
     data = request.json
     tags = data.get('tags', [])
-    if not tags:
-        return jsonify({"count": 0})
-        
     app_id = get_current_app_id()
     from db_utils import get_db_connection
     conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+        
+        # Calculate total count of users
+        history_table = f'"history:{app_id}"'
+        cur.execute(f"""
+            SELECT COUNT(DISTINCT user_id) 
+            FROM {history_table} 
+            WHERE user_id IS NOT NULL AND length(user_id) = 33 AND "group" = 'user'
+        """)
+        total_count = cur.fetchone()[0]
+
+        if not tags:
+            return jsonify({"count": total_count, "totalCount": total_count})
+            
         pv_table = f'"Private_var:{app_id}"'
         
         conditions = []
@@ -752,7 +762,7 @@ def count_by_tags():
         cur.execute(query, params)
         count = cur.fetchone()[0]
         cur.close()
-        return jsonify({"count": count})
+        return jsonify({"count": count, "totalCount": total_count})
     except Exception as e:
         print(f"Error in count_by_tags: {e}")
         return jsonify({"error": str(e)}), 500

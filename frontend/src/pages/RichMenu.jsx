@@ -67,6 +67,7 @@ function RichMenu() {
         });
     };
     const [selectedAreaIndex, setSelectedAreaIndex] = useState(null);
+    const [linkModalState, setLinkModalState] = useState(null);
     const [backgroundImage, setBackgroundImage] = useState(null);
     const [allAliases, setAllAliases] = useState([]);
     const [viewOnly, setViewOnly] = useState(false);
@@ -210,20 +211,44 @@ function RichMenu() {
 
     useEffect(() => {
         if (!currentMenu || view !== 'edit' || viewOnly) return;
-        if (currentMenu.visibility === 'restricted' && currentMenu.targetTags?.length > 0) {
-            const fetchCount = async () => {
-                try {
-                    const res = await api.post('/customers/count-by-tags', { tags: currentMenu.targetTags });
-                    setCurrentMenu(prev => ({ ...prev, targetUserCount: res.data.count }));
-                } catch (e) {
-                    console.error('Failed to fetch target user count', e);
-                }
-            };
-            fetchCount();
+        const fetchCount = async (tags = []) => {
+            try {
+                const res = await api.post('/customers/count-by-tags', { tags });
+                setCurrentMenu(prev => ({ ...prev, targetUserCount: res.data.count, totalUserCount: res.data.totalCount || 0 }));
+            } catch (e) {
+                console.error('Failed to fetch target user count', e);
+            }
+        };
+
+        if (currentMenu.publishStrategy === 'restricted' && currentMenu.targetTags?.length > 0) {
+            fetchCount(currentMenu.targetTags);
+        } else if (currentMenu.publishStrategy === 'default') {
+            fetchCount([]);
         } else {
-            setCurrentMenu(prev => prev.targetUserCount !== 0 ? { ...prev, targetUserCount: 0 } : prev);
+            setCurrentMenu(prev => prev.targetUserCount !== 0 || prev.totalUserCount !== 0 ? { ...prev, targetUserCount: 0, totalUserCount: 0 } : prev);
         }
-    }, [currentMenu?.targetTags, currentMenu?.visibility, view, viewOnly]);
+    }, [currentMenu?.targetTags, currentMenu?.publishStrategy, view, viewOnly]);
+
+    
+    useEffect(() => {
+        if (!linkModalState) return;
+        const fetchCount = async (tags = []) => {
+            try {
+                const res = await api.post('/customers/count-by-tags', { tags });
+                setLinkModalState(prev => ({ ...prev, targetUserCount: res.data.count, totalUserCount: res.data.totalCount || 0 }));
+            } catch (e) {
+                console.error('Failed to fetch target user count', e);
+            }
+        };
+
+        if (linkModalState.publishStrategy === 'restricted' && linkModalState.targetTags?.length > 0) {
+            fetchCount(linkModalState.targetTags);
+        } else if (linkModalState.publishStrategy === 'default') {
+            fetchCount([]);
+        } else {
+            setLinkModalState(prev => prev.targetUserCount !== 0 || prev.totalUserCount !== 0 ? { ...prev, targetUserCount: 0, totalUserCount: 0 } : prev);
+        }
+    }, [linkModalState?.targetTags, linkModalState?.publishStrategy]);
 
     const fetchImageWithAuth = async (richMenuId) => {
         if (!richMenuId) return null;
@@ -635,6 +660,36 @@ function RichMenu() {
     };
 
     
+    
+    const submitLinkModal = async () => {
+        if (!linkModalState) return;
+        setLoading(true);
+        try {
+            // First update metadata to match selected strategy and tags
+            await api.post('/richmenu/drafts', {
+                ...linkModalState.item, // Original item
+                publishStrategy: linkModalState.publishStrategy,
+                targetTags: linkModalState.targetTags,
+                fallbackMessage: linkModalState.item.fallbackMessage,
+                permissionTags: linkModalState.item.permissionTags || []
+            });
+            // Then perform link
+            const res = await api.post(`/richmenu/link/${linkModalState.richMenuId}`);
+            if (res.data && res.data.message === 'restricted_sync') {
+                showToast('已觸發限定標籤用戶同步', 'success');
+            } else {
+                showToast('已完成連結作業', 'success');
+            }
+            setLinkModalState(null);
+            fetchMetadata();
+        } catch (err) {
+            console.error(err);
+            showToast('連結失敗', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleClearAll = async () => {
         if (!window.confirm('確定要清除所有的圖文選單嗎？這將會移除全域預設選單，並解除所有用戶的個別綁定。')) return;
         setLoading(true);
@@ -796,7 +851,7 @@ function RichMenu() {
                             </>
                         )}
                         {!viewOnly && currentMenu.richMenuId && (
-                            <button onClick={() => linkToAll(currentMenu.richMenuId)} className="primary" style={{ backgroundColor: '#4CAF50', color: '#fff', border: 'none' }}><LinkIcon size={18} /> 立即連結全體</button>
+                            <button onClick={() => setLinkModalState({ richMenuId: currentMenu.richMenuId, item: currentMenu, publishStrategy: currentMenu.publishStrategy !== "hidden" ? currentMenu.publishStrategy : "default", targetTags: currentMenu.targetTags || [], targetUserCount: currentMenu.targetUserCount || 0, totalUserCount: currentMenu.totalUserCount || 0 })} className="primary" style={{ backgroundColor: '#4CAF50', color: '#fff', border: 'none' }}><LinkIcon size={18} /> 立即連結全體</button>
                         )}
                         
                     </div>
@@ -956,8 +1011,15 @@ function RichMenu() {
                                         <div style={{ marginTop: '15px', fontSize: '13px', color: '#aaa', display: 'flex', alignItems: 'center', gap: '5px' }}>
                                             <Shield size={14} /> 預計套用人數：
                                             <span style={{ color: 'var(--primary-yellow)', fontWeight: 'bold', fontSize: '16px' }}>{currentMenu.targetUserCount}</span> 人
-                                            <span style={{ fontSize: '11px', color: '#666' }}>(若有用戶同時符合多個標籤，只會被算到一次)</span>
+                                            <span style={{ fontSize: '11px', color: '#666' }}>(佔好友人數 {currentMenu.totalUserCount ? ((currentMenu.targetUserCount / currentMenu.totalUserCount) * 100).toFixed(1) : 0}%)</span>
                                         </div>
+                                    </div>
+                                )}
+                                {currentMenu.publishStrategy === 'default' && (
+                                    <div style={{ backgroundColor: '#111', padding: '10px 15px', borderRadius: '8px', border: '1px solid #333', marginLeft: '25px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        <Shield size={14} style={{ color: '#aaa' }} /> <span style={{ color: '#aaa', fontSize: '13px' }}>預計套用人數：</span>
+                                        <span style={{ color: 'var(--primary-yellow)', fontWeight: 'bold', fontSize: '16px' }}>{currentMenu.totalUserCount || 0}</span> <span style={{ color: '#aaa', fontSize: '13px' }}>人</span>
+                                        <span style={{ fontSize: '11px', color: '#666' }}>(佔好友人數 100%)</span>
                                     </div>
                                 )}
 
@@ -1035,7 +1097,35 @@ function RichMenu() {
                                                     ))}
                                                 </optgroup>
                                             </select>
+                                            {(() => {
+                                                const data = currentMenu.areas[selectedAreaIndex].action.data;
+                                                if (!data || !data.startsWith('switch_rm|')) return null;
+                                                const targetUuid = data.split('|')[1];
+                                                let target = currentGroup.find(g => g.ui_uuid === targetUuid);
+                                                if (!target) {
+                                                    target = metadata.find(m => m.ui_uuid === targetUuid);
+                                                }
+                                                if (target) {
+                                                    return (
+                                                        <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#222', borderRadius: '8px', border: '1px solid #444', display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                                            <div style={{ width: '60px', height: '60px', borderRadius: '4px', overflow: 'hidden', flexShrink: 0, backgroundColor: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                                {target.image_base64 ? (
+                                                                    <img src={`data:image/jpeg;base64,${target.image_base64}`} alt={target.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                                                ) : (
+                                                                    <span style={{ fontSize: '10px', color: '#666' }}>無圖片</span>
+                                                                )}
+                                                            </div>
+                                                            <div>
+                                                                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff', marginBottom: '4px' }}>{target.name || '未命名草稿'}</div>
+                                                                <div style={{ fontSize: '11px', color: '#aaa' }}>{target.status === 'published' ? '已發佈' : '草稿'}</div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            })()}
                                         </div>
+
                                     )}
                                 </div>
                             ) : (
@@ -1219,7 +1309,7 @@ function RichMenu() {
                                                 {isPublished && rid && (
                                                     <>
                                                         <Tooltip title={isRestricted ? "立即將此限定圖文選單同步至標籤用戶 (Link)" : "立即將此圖文選單連結至全體用戶 (Link)"}>
-                                                            <button onClick={() => linkToAll(rid)} className="secondary" style={{ padding: '8px', color: '#fff', borderColor: '#4CAF50', backgroundColor: 'rgba(76, 175, 80, 0.1)' }}>
+                                                            <button onClick={() => setLinkModalState({ richMenuId: rid, item: item, publishStrategy: item.status === "restricted" ? "restricted" : "default", targetTags: item.target_tags || [], targetUserCount: 0, totalUserCount: 0 })} className="secondary" style={{ padding: '8px', color: '#fff', borderColor: '#4CAF50', backgroundColor: 'rgba(76, 175, 80, 0.1)' }}>
                                                                 <LinkIcon size={16} />
                                                             </button>
                                                         </Tooltip>
@@ -1244,7 +1334,72 @@ function RichMenu() {
                 ))}
             </div>
             </div>
-        </div>
+        
+            {linkModalState && (
+                <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+                    <div className="modal-content" style={{ backgroundColor: '#1e1e1e', padding: '20px', borderRadius: '8px', width: '400px', maxWidth: '90%' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                            <h3 style={{ margin: 0 }}>連結圖文選單</h3>
+                            <button onClick={() => setLinkModalState(null)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={20} /></button>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                                <input type="radio" name="linkPublishStrategy" value="default" checked={linkModalState.publishStrategy === 'default'} onChange={() => setLinkModalState({ ...linkModalState, publishStrategy: 'default' })} style={{ accentColor: '#FFD700', transform: 'scale(1.2)', margin: '0 5px' }} />
+                                全體對象 (預設)
+                            </label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                                <input type="radio" name="linkPublishStrategy" value="restricted" checked={linkModalState.publishStrategy === 'restricted'} onChange={() => setLinkModalState({ ...linkModalState, publishStrategy: 'restricted' })} style={{ accentColor: '#FFD700', transform: 'scale(1.2)', margin: '0 5px' }} />
+                                選定標籤
+                            </label>
+
+                            {linkModalState.publishStrategy === 'restricted' && (
+                                <div style={{ backgroundColor: '#111', padding: '15px', borderRadius: '8px', border: '1px solid #333' }}>
+                                    <label className="label">適用標籤 (可複選)</label>
+                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
+                                        {allTags.map(t => (
+                                            <label key={t.tag_name} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: linkModalState.targetTags.includes(t.tag_name) ? 'var(--primary-yellow)' : '#333', color: linkModalState.targetTags.includes(t.tag_name) ? '#000' : '#fff', padding: '6px 12px', borderRadius: '20px', fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s' }}>
+                                                <input 
+                                                    type="checkbox" 
+                                                    style={{ display: 'none' }}
+                                                    checked={linkModalState.targetTags.includes(t.tag_name)}
+                                                    onChange={(e) => {
+                                                        const newTags = e.target.checked 
+                                                            ? [...linkModalState.targetTags, t.tag_name]
+                                                            : linkModalState.targetTags.filter(tag => tag !== t.tag_name);
+                                                        setLinkModalState({ ...linkModalState, targetTags: newTags });
+                                                    }}
+                                                />
+                                                {t.tag_name}
+                                            </label>
+                                        ))}
+                                        {allTags.length === 0 && <span style={{ color: '#666', fontSize: '13px' }}>目前沒有任何標籤</span>}
+                                    </div>
+                                    <div style={{ marginTop: '15px', fontSize: '13px', color: '#aaa', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        <Shield size={14} /> 預計套用人數：
+                                        <span style={{ color: 'var(--primary-yellow)', fontWeight: 'bold', fontSize: '16px' }}>{linkModalState.targetUserCount}</span> 人
+                                        <span style={{ fontSize: '11px', color: '#666' }}>(佔好友人數 {linkModalState.totalUserCount ? ((linkModalState.targetUserCount / linkModalState.totalUserCount) * 100).toFixed(1) : 0}%)</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {linkModalState.publishStrategy === 'default' && (
+                                <div style={{ backgroundColor: '#111', padding: '10px 15px', borderRadius: '8px', border: '1px solid #333', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                    <Shield size={14} style={{ color: '#aaa' }} /> <span style={{ color: '#aaa', fontSize: '13px' }}>預計套用人數：</span>
+                                    <span style={{ color: 'var(--primary-yellow)', fontWeight: 'bold', fontSize: '16px' }}>{linkModalState.totalUserCount || 0}</span> <span style={{ color: '#aaa', fontSize: '13px' }}>人</span>
+                                    <span style={{ fontSize: '11px', color: '#666' }}>(佔好友人數 100%)</span>
+                                </div>
+                            )}
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '15px' }}>
+                                <button onClick={submitLinkModal} className="primary" disabled={loading}>
+                                    確定連結
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+</div>
     );
 }
 
