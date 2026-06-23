@@ -794,10 +794,7 @@ def build_questionnaire():
     if not note:
         return jsonify({"error": "問卷名稱不能為空"}), 400
         
-    if "工程用法則" not in note:
-        note = f"{note} - 工程用法則"
-        data["note"] = note
-        
+
     if not trigger:
         return jsonify({"error": "觸發指令不能為空"}), 400
     if not questions:
