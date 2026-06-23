@@ -888,7 +888,10 @@ function RuleDesigner() {
                                                         placeholder="請選擇或輸入標籤 (例如: 已互動)" 
                                                     />
                                                     <datalist id={`available-tags-${idx}`}>
-                                                        {tagsList.map(tag => <option key={tag} value={tag} />)}
+                                                        {tagsList.map(tag => {
+                                                            const tagVal = typeof tag === 'string' ? tag : tag.tag_name;
+                                                            return <option key={tagVal} value={tagVal} />;
+                                                        })}
                                                     </datalist>
                                                 </div>
                                                 <div>
