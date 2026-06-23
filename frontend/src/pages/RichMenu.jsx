@@ -1039,16 +1039,16 @@ function RichMenu() {
                                         <label className="label">適用標籤 (可複選)</label>
                                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
                                             {allTags.map(t => (
-                                                <label key={t.tag_name} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: currentMenu.targetTags.includes(t.tag_name) ? 'var(--primary-yellow)' : '#333', color: currentMenu.targetTags.includes(t.tag_name) ? '#000' : '#fff', padding: '6px 12px', borderRadius: '20px', fontSize: '13px', cursor: viewOnly ? 'default' : 'pointer', transition: 'all 0.2s' }}>
+                                                <label key={t.tag_name} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: (currentMenu.targetTags || []).includes(t.tag_name) ? 'var(--primary-yellow)' : '#333', color: (currentMenu.targetTags || []).includes(t.tag_name) ? '#000' : '#fff', padding: '6px 12px', borderRadius: '20px', fontSize: '13px', cursor: viewOnly ? 'default' : 'pointer', transition: 'all 0.2s' }}>
                                                     <input 
                                                         type="checkbox" 
                                                         style={{ display: 'none' }}
-                                                        checked={currentMenu.targetTags.includes(t.tag_name)}
+                                                        checked={(currentMenu.targetTags || []).includes(t.tag_name)}
                                                         disabled={viewOnly}
                                                         onChange={(e) => {
                                                             const newTags = e.target.checked 
-                                                                ? [...currentMenu.targetTags, t.tag_name]
-                                                                : currentMenu.targetTags.filter(tag => tag !== t.tag_name);
+                                                                ? [...(currentMenu.targetTags || []), t.tag_name]
+                                                                : (currentMenu.targetTags || []).filter(tag => tag !== t.tag_name);
                                                             setCurrentMenu({ ...currentMenu, targetTags: newTags });
                                                         }}
                                                     />
@@ -1427,15 +1427,15 @@ function RichMenu() {
                                     <label className="label">適用標籤 (可複選)</label>
                                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
                                         {allTags.map(t => (
-                                            <label key={t.tag_name} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: linkModalState.targetTags.includes(t.tag_name) ? 'var(--primary-yellow)' : '#333', color: linkModalState.targetTags.includes(t.tag_name) ? '#000' : '#fff', padding: '6px 12px', borderRadius: '20px', fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s' }}>
+                                            <label key={t.tag_name} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: (linkModalState.targetTags || []).includes(t.tag_name) ? 'var(--primary-yellow)' : '#333', color: (linkModalState.targetTags || []).includes(t.tag_name) ? '#000' : '#fff', padding: '6px 12px', borderRadius: '20px', fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s' }}>
                                                 <input 
                                                     type="checkbox" 
                                                     style={{ display: 'none' }}
-                                                    checked={linkModalState.targetTags.includes(t.tag_name)}
+                                                    checked={(linkModalState.targetTags || []).includes(t.tag_name)}
                                                     onChange={(e) => {
                                                         const newTags = e.target.checked 
-                                                            ? [...linkModalState.targetTags, t.tag_name]
-                                                            : linkModalState.targetTags.filter(tag => tag !== t.tag_name);
+                                                            ? [...(linkModalState.targetTags || []), t.tag_name]
+                                                            : (linkModalState.targetTags || []).filter(tag => tag !== t.tag_name);
                                                         setLinkModalState({ ...linkModalState, targetTags: newTags });
                                                     }}
                                                 />
