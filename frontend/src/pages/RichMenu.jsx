@@ -45,6 +45,28 @@ const HELP_CONTENT = {
 // 全域記憶體圖片快取，避免重複對相同的圖文選單 ID 請求慢速的二進位資料
 const frontendImageCache = {};
 
+const MenuPreviewImage = ({ target }) => {
+    const [imgUrl, setImgUrl] = React.useState(target.imageBase64 ? `data:image/jpeg;base64,${target.imageBase64}` : null);
+    
+    React.useEffect(() => {
+        if (!target.imageBase64 && (target.rich_menu_id || target.richMenuId)) {
+            const rid = target.rich_menu_id || target.richMenuId;
+            if (frontendImageCache[rid]) {
+                setImgUrl(frontendImageCache[rid]);
+            } else {
+                api.get(`/richmenu/${rid}/image`, { responseType: 'blob' }).then(res => {
+                    const url = URL.createObjectURL(res.data);
+                    frontendImageCache[rid] = url;
+                    setImgUrl(url);
+                }).catch(() => {});
+            }
+        }
+    }, [target]);
+
+    return imgUrl ? <img src={imgUrl} alt={target.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span style={{ fontSize: '10px', color: '#666' }}>無圖片</span>;
+};
+
+
 function RichMenu() {
     const { oaId } = useParams();
     const { showToast } = useToast();
@@ -740,6 +762,25 @@ function RichMenu() {
     };
 
 
+    
+    const handleDeleteDraftFromGroup = (e, idx) => {
+        e.stopPropagation();
+        if (currentGroup.length <= 1) {
+            showToast('群組中至少需保留一個選單', 'error');
+            return;
+        }
+        const group = [...currentGroup];
+        group.splice(idx, 1);
+        setCurrentGroup(group);
+        if (currentMenuIndex >= group.length) {
+            setCurrentMenuIndex(group.length - 1);
+        } else if (currentMenuIndex === idx) {
+            setCurrentMenuIndex(0);
+        } else if (currentMenuIndex > idx) {
+            setCurrentMenuIndex(currentMenuIndex - 1);
+        }
+    };
+
     const handleAddDraftToGroup = () => {
         const groupId = currentGroup[0]?.group_id;
         const newUuid = Date.now().toString(36) + Math.random().toString(36).substring(2);
@@ -870,6 +911,14 @@ function RichMenu() {
                             border: 'none', cursor: 'pointer', whiteSpace: 'nowrap'
                         }}>
                             {g.name || `草稿 ${idx + 1}`}
+                            {!viewOnly && currentGroup.length > 1 && (
+                                <button 
+                                    onClick={(e) => handleDeleteDraftFromGroup(e, idx)} 
+                                    style={{ marginLeft: '8px', background: 'none', border: 'none', color: idx === currentMenuIndex ? '#000' : '#888', cursor: 'pointer', padding: 0 }}
+                                >
+                                    <X size={12} />
+                                </button>
+                            )}
                         </button>
                     ))}
                     {!viewOnly && (
@@ -1029,7 +1078,7 @@ function RichMenu() {
                         <div className="card">
                             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Clock size={18} /> 排程設定</h3>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                     <div><label className="label">開始時間</label><input type="datetime-local" value={currentMenu.start_time} onChange={e => setCurrentMenu({ ...currentMenu, start_time: e.target.value })} style={{ width: '100%' }} /></div>
                                     <div><label className="label">結束時間</label><input type="datetime-local" value={currentMenu.end_time} onChange={e => setCurrentMenu({ ...currentMenu, end_time: e.target.value })} style={{ width: '100%' }} /></div>
                                 </div>
@@ -1083,10 +1132,35 @@ function RichMenu() {
                                             <select 
                                                 disabled={viewOnly} 
                                                 value={currentMenu.areas[selectedAreaIndex].action.data || ''} 
-                                                onChange={e => updateAreaAction(selectedAreaIndex, { data: e.target.value })}
+                                                onChange={e => {
+                                                    if (e.target.value === 'create_and_switch') {
+                                                        const newUuid = Date.now().toString(36) + Math.random().toString(36).substring(2);
+                                                        const newDraft = {
+                                                            ui_uuid: newUuid,
+                                                            name: `草稿 ${currentGroup.length + 1}`,
+                                                            size: { width: 2500, height: 1686 },
+                                                            selected: false,
+                                                            chatBarText: '選單',
+                                                            areas: [],
+                                                            status: 'draft',
+                                                            publishStrategy: 'default',
+                                                            targetTags: [],
+                                                            visibility: 'default',
+                                                            permissionTags: [],
+                                                            fallbackMessage: '',
+                                                            start_time: '',
+                                                            end_time: ''
+                                                        };
+                                                        setCurrentGroup([...currentGroup, newDraft]);
+                                                        updateAreaAction(selectedAreaIndex, { data: `switch_rm|${newUuid}` });
+                                                    } else {
+                                                        updateAreaAction(selectedAreaIndex, { data: e.target.value });
+                                                    }
+                                                }}
                                             >
                                                 <option value="">請選擇要切換的圖文選單</option>
                                                 <optgroup label="本次編輯群組">
+                                                    <option value="create_and_switch" style={{ color: '#4CAF50', fontWeight: 'bold' }}>+ 建立新選單並設定切換</option>
                                                     {currentGroup.filter(g => g.ui_uuid !== currentMenu.ui_uuid).map(g => (
                                                         <option key={g.ui_uuid} value={`switch_rm|${g.ui_uuid}`}>{g.name || `草稿 ${currentGroup.indexOf(g)+1}`}</option>
                                                     ))}
@@ -1109,11 +1183,7 @@ function RichMenu() {
                                                     return (
                                                         <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#222', borderRadius: '8px', border: '1px solid #444', display: 'flex', gap: '10px', alignItems: 'center' }}>
                                                             <div style={{ width: '60px', height: '60px', borderRadius: '4px', overflow: 'hidden', flexShrink: 0, backgroundColor: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                                {target.image_base64 ? (
-                                                                    <img src={`data:image/jpeg;base64,${target.image_base64}`} alt={target.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                                                                ) : (
-                                                                    <span style={{ fontSize: '10px', color: '#666' }}>無圖片</span>
-                                                                )}
+                                                                <MenuPreviewImage target={target} />
                                                             </div>
                                                             <div>
                                                                 <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff', marginBottom: '4px' }}>{target.name || '未命名草稿'}</div>
