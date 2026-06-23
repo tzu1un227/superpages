@@ -173,14 +173,44 @@ const stringifyCheck = ({ startDate, endDate, startTime, endTime }) => {
 };
 
 const parseFunction = (funcStr) => {
-    if (!funcStr) return { tag: '' };
-    const match = funcStr.match(/set_tag\|([^"']+)/);
-    return { tag: match ? match[1] : '' };
+    if (!funcStr) return { tag: '', journey: '', richMenu: '' };
+    
+    const result = { tag: '', journey: '', richMenu: '' };
+    
+    // Parse tag: set_tag|xxx or pri_push('tag','xxx')
+    const tagMatch1 = funcStr.match(/set_tag\|([^"']+)/);
+    const tagMatch2 = funcStr.match(/pri_push\(\s*['"]tag['"]\s*,\s*['"]([^"']+)['"]\s*\)/);
+    if (tagMatch1) result.tag = tagMatch1[1];
+    else if (tagMatch2) result.tag = tagMatch2[1];
+    
+    // Parse journey: update("iup|<id>")
+    const journeyMatch = funcStr.match(/update\(\s*f?['"]iup\|([^"']+)['"]\s*\)/);
+    if (journeyMatch) result.journey = journeyMatch[1];
+    
+    // Parse rich menu: update("switch_rm|<uuid>")
+    const rmMatch = funcStr.match(/update\(\s*f?['"]switch_rm\|([^"']+)['"]\s*\)/);
+    if (rmMatch) result.richMenu = rmMatch[1];
+    
+    return result;
 };
 
-const stringifyFunction = (tag) => {
-    if (!tag || !tag.trim()) return '';
-    return `update(f"set_tag|${tag.trim()}")`;
+const stringifyFunction = (data) => {
+    // If it's a string, we assume it's just the tag (backward compatibility)
+    const tag = typeof data === 'string' ? data : data.tag;
+    const journey = data.journey;
+    const richMenu = data.richMenu;
+    
+    const parts = [];
+    if (tag && tag.trim()) {
+        parts.push(`update(f"set_tag|${tag.trim()}")`);
+    }
+    if (journey && journey.trim()) {
+        parts.push(`update("iup|${journey.trim()}")`);
+    }
+    if (richMenu && richMenu.trim()) {
+        parts.push(`update("switch_rm|${richMenu.trim()}")`);
+    }
+    return parts.join(',');
 };
 // --------------------------------------
 
@@ -208,6 +238,42 @@ function RuleDesigner() {
     // Flex Editor State
     const [showFlexEditor, setShowFlexEditor] = useState(false);
     const [flexEditorIndex, setFlexEditorIndex] = useState(null);
+
+    // Dropdown Data State
+    const [tagsList, setTagsList] = useState([]);
+    const [projectsList, setProjectsList] = useState([]);
+    const [richMenusList, setRichMenusList] = useState([]);
+
+    useEffect(() => {
+        const fetchDropdownData = async () => {
+            try {
+                // tags
+                const tagRes = await api.get('/customers/tags');
+                if (tagRes.data) setTagsList(tagRes.data);
+                
+                // projects
+                const projRes = await api.get('/projects');
+                if (projRes.data && Array.isArray(projRes.data)) {
+                    setProjectsList(projRes.data);
+                } else if (projRes.data && Array.isArray(projRes.data.projects)) {
+                    setProjectsList(projRes.data.projects);
+                }
+                
+                // rich menus
+                const rmRes = await api.get('/richmenu/'); 
+                if (rmRes.data && Array.isArray(rmRes.data.menus)) {
+                    setRichMenusList(rmRes.data.menus);
+                } else if (rmRes.data && Array.isArray(rmRes.data.richmenus)) {
+                    setRichMenusList(rmRes.data.richmenus);
+                } else if (rmRes.data && Array.isArray(rmRes.data)) {
+                    setRichMenusList(rmRes.data);
+                }
+            } catch (err) {
+                console.error("Failed to load dropdown data", err);
+            }
+        };
+        fetchDropdownData();
+    }, [oaId]);
 
     // Initial Load
     useEffect(() => {
@@ -329,7 +395,8 @@ function RuleDesigner() {
         if (editingRowIndex === null) return;
         
         for (let i = 0; i < msgRpyList.length; i++) {
-            const msg = msgRpyList[i];
+            const rawMsg = msgRpyList[i];
+            const msg = rawMsg.Line ? rawMsg.Line : rawMsg;
             if (msg.OTYPE === 'TextSendMessage') {
                 if (!msg.text || !msg.text.trim()) {
                     showToast('文字訊息內容不能為空白', 'error');
@@ -377,7 +444,14 @@ function RuleDesigner() {
 
     const handleUpdateMessage = (index, field, value) => {
         const newList = [...msgRpyList];
-        newList[index] = { ...newList[index], [field]: value };
+        if (newList[index].Line) {
+            newList[index] = { 
+                ...newList[index], 
+                Line: { ...newList[index].Line, [field]: value } 
+            };
+        } else {
+            newList[index] = { ...newList[index], [field]: value };
+        }
         setMsgRpyList(newList);
     };
     // ------------------------------------
@@ -799,10 +873,51 @@ function RuleDesigner() {
                                         {/* 觸發後動作 */}
                                         <div className="card">
                                             <h3 style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}><Tag size={18} className="text-yellow" /> 觸發後動作</h3>
-                                            <div>
-                                                <label className="label">自動上標 (限填一個標籤)</label>
-                                                <input type="text" disabled={loading} value={funcData.tag} onChange={e => handleFieldChange(idx, 'function', stringifyFunction(e.target.value))} style={{ width: '100%', padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} placeholder="例如: 已互動" />
-                                                <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#888' }}>當用戶觸發此關鍵字時，將自動為該用戶貼上此標籤。</p>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                                <div>
+                                                    <label className="label">自動上標 (限填一個標籤)</label>
+                                                    <input 
+                                                        type="text" 
+                                                        list={`available-tags-${idx}`}
+                                                        disabled={loading} 
+                                                        value={funcData.tag || ''} 
+                                                        onChange={e => handleFieldChange(idx, 'function', stringifyFunction({ ...funcData, tag: e.target.value }))} 
+                                                        style={{ width: '100%', padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} 
+                                                        placeholder="請選擇或輸入標籤 (例如: 已互動)" 
+                                                    />
+                                                    <datalist id={`available-tags-${idx}`}>
+                                                        {tagsList.map(tag => <option key={tag} value={tag} />)}
+                                                    </datalist>
+                                                </div>
+                                                <div>
+                                                    <label className="label">加入自動旅程</label>
+                                                    <select 
+                                                        disabled={loading}
+                                                        value={funcData.journey || ''}
+                                                        onChange={e => handleFieldChange(idx, 'function', stringifyFunction({ ...funcData, journey: e.target.value }))}
+                                                        style={{ width: '100%', padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }}
+                                                    >
+                                                        <option value="">-- 不加入旅程 --</option>
+                                                        {projectsList.map(p => (
+                                                            <option key={p.project_id || p.id} value={p.project_id || p.id}>{p.project_name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="label">連結圖文選單</label>
+                                                    <select 
+                                                        disabled={loading}
+                                                        value={funcData.richMenu || ''}
+                                                        onChange={e => handleFieldChange(idx, 'function', stringifyFunction({ ...funcData, richMenu: e.target.value }))}
+                                                        style={{ width: '100%', padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }}
+                                                    >
+                                                        <option value="">-- 不切換圖文選單 --</option>
+                                                        {richMenusList.map(rm => (
+                                                            <option key={rm.ui_uuid || rm.richMenuId || rm.id} value={rm.ui_uuid || rm.richMenuId || rm.id}>{rm.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <p style={{ margin: '0', fontSize: '11px', color: '#888' }}>設定的多個動作將會同時觸發。</p>
                                             </div>
                                         </div>
                                     </div>

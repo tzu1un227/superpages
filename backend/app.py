@@ -1632,9 +1632,10 @@ def get_statistics():
         app_name = get_current_app_id()
 
         for category in ['follow', 'unfollow', 'user', 'message']:
+            db_category = category.capitalize() if category != 'user' else category
             cur.execute(
                 "SELECT * FROM get_events_count_by_category_and_tag(%s, %s, %s, %s, %s)",
-                (start_time, end_time, category, group_unit, app_name)
+                (start_time, end_time, db_category, group_unit, app_name)
             )
             results[category] = cur.fetchall()
         
