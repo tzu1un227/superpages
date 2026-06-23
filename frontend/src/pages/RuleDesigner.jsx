@@ -12,6 +12,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import JourneyPreview from '../components/JourneyPreview';
 import { useToast } from '../contexts/ToastContext';
 import FlexMessageEditor from '../components/FlexMessageEditor';
+import TagInput from '../components/TagInput';
 
 const BANK_TYPES = [
     { id: 'q_bank', label: 'Q_bank (核心規則)', color: '#FFD700' },
@@ -297,16 +298,19 @@ function RuleDesigner() {
             // Parse _updatedAt from note
             newRules = newRules.map(r => {
                 const parts = (r.note || '').split('|UPDATED:');
+                let baseNote = parts[0] || '';
+                let cleanNote = baseNote.replace(/ \- 關鍵字回覆$/, '').replace(/ \- 問卷管理$/, '').replace(/ \- 工程用法則$/, '').replace(/工程用法則$/, '');
                 return {
                     ...r,
-                    note: parts[0],
+                    note: cleanNote,
+                    _originalNote: baseNote,
                     _updatedAt: parts.length > 1 ? parts[1] : null
                 };
             });
 
             if (designMode === 'simple') {
-                // Filter out '工程用法則'
-                newRules = newRules.filter(r => !r.note.includes('工程用法則'));
+                // 簡易模式只顯示「關鍵字回覆」註記的法則
+                newRules = newRules.filter(r => r._originalNote && r._originalNote.includes('關鍵字回覆'));
                 
                 // Sort by _updatedAt descending
                 newRules.sort((a, b) => {
@@ -470,7 +474,13 @@ function RuleDesigner() {
         delete ruleToSave._isDirty;
         delete ruleToSave._isNew;
         const nowIso = new Date().toISOString();
-        ruleToSave.note = `${ruleToSave.note || ''}|UPDATED:${nowIso}`;
+        
+        let baseNote = ruleToSave.note || '';
+        baseNote = baseNote.replace(/ \- 關鍵字回覆$/, '').replace(/ \- 問卷管理$/, '').replace(/ \- 工程用法則$/, '').replace(/工程用法則$/, '');
+        baseNote += ' - 關鍵字回覆';
+
+        ruleToSave.note = `${baseNote}|UPDATED:${nowIso}`;
+        delete ruleToSave._originalNote;
         delete ruleToSave._updatedAt;
 
         try {
@@ -878,21 +888,15 @@ function RuleDesigner() {
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                                 <div>
                                                     <label className="label">自動上標 (限填一個標籤)</label>
-                                                    <input 
-                                                        type="text" 
-                                                        list={`available-tags-${idx}`}
-                                                        disabled={loading} 
-                                                        value={funcData.tag || ''} 
-                                                        onChange={e => handleFieldChange(idx, 'function', stringifyFunction({ ...funcData, tag: e.target.value }))} 
-                                                        style={{ width: '100%', padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} 
-                                                        placeholder="請選擇或輸入標籤 (例如: 已互動)" 
+                                                    <TagInput
+                                                        tags={funcData.tag ? [funcData.tag] : []}
+                                                        onChange={newTags => {
+                                                            const newTag = newTags.length > 0 ? newTags[0] : '';
+                                                            handleFieldChange(idx, 'function', stringifyFunction({ ...funcData, tag: newTag }));
+                                                        }}
+                                                        placeholder="請選擇或輸入標籤 (例如: 已互動)"
+                                                        singleSelect={true}
                                                     />
-                                                    <datalist id={`available-tags-${idx}`}>
-                                                        {tagsList.map(tag => {
-                                                            const tagVal = typeof tag === 'string' ? tag : tag.tag_name;
-                                                            return <option key={tagVal} value={tagVal} />;
-                                                        })}
-                                                    </datalist>
                                                 </div>
                                                 <div>
                                                     <label className="label">加入自動旅程</label>

@@ -188,7 +188,7 @@ function QuestionCard({ q, index, total, onChange, onDelete, onMoveUp, onMoveDow
 
 const formatDisplayName = (name) => {
     if (!name) return '';
-    return name.replace(/ \- 工程用法則$/, '').replace(/工程用法則$/, '');
+    return name.replace(/ \- 工程用法則$/, '').replace(/工程用法則$/, '').replace(/ \- 問卷管理$/, '').replace(/ \- 關鍵字回覆$/, '');
 };
 
 export default function Questionnaire() {
@@ -245,7 +245,9 @@ export default function Questionnaire() {
         setLoadingList(true);
         try {
             const res = await api.get('/questionnaire/list', authHeaders);
-            setQuestionnaires(res.data.questionnaires || []);
+            let qs = res.data.questionnaires || [];
+            qs = qs.filter(q => q.note && q.note.includes('問卷管理'));
+            setQuestionnaires(qs);
         } catch (e) {
             showToast(e.response?.data?.error || '讀取問卷失敗', 'error');
         } finally {
@@ -447,7 +449,7 @@ export default function Questionnaire() {
 
             const payload = {
                 group_id: selectedGroupId,
-                note,
+                note: formatDisplayName(note) + ' - 問卷管理',
                 trigger,
                 finish_msg: finishMsg,
                 questions: questions.map(q => ({
