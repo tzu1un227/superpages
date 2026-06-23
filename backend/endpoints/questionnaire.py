@@ -366,7 +366,7 @@ def build_questionnaire_direct(data, app_id, conn, quest_id):
             for t in tags:
                 tag = str(t).strip()
                 if tag:
-                    save_fn += f",pri_push('tag','{tag}')"
+                    save_fn += f',update("set_tag|{tag}")'
 
         if is_last:
             if enable_review:
