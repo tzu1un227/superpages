@@ -87,6 +87,7 @@ function RichMenu() {
         start_time: '',
         end_time: '',
         visibility: 'public',
+        publishStrategy: 'hidden',
         targetTags: [],
         targetUserCount: 0,
         permissionTags: [],
@@ -279,7 +280,7 @@ function RichMenu() {
                         name: m.name,
                         chatBarText: m.chat_bar_text,
                         imageFile: file,
-                        visibility: ['restricted'].includes(m.status) ? 'restricted' : 'public',
+                        publishStrategy: data.publishStrategy || (m.status === 'restricted' ? 'restricted' : (m.status === 'public' ? 'default' : 'hidden')),
                         targetTags: data.targetTags || [],
                         targetUserCount: data.targetUserCount || 0,
                         permissionTags: m.permission_tags || [],
@@ -436,6 +437,7 @@ function RichMenu() {
                         chatBarText: menu.chatBarText,
                         imageBase64: menu.imageBase64,
                         visibility: menu.visibility,
+                        publishStrategy: menu.publishStrategy,
                         targetTags: menu.targetTags,
                         targetUserCount: menu.targetUserCount,
                         ui_uuid: menu.ui_uuid,
@@ -453,9 +455,6 @@ function RichMenu() {
         }
     };
 
-    const [showPublishModal, setShowPublishModal] = useState(false);
-    const [publishDefaultTarget, setPublishDefaultTarget] = useState('none');
-
     const handleOpenPublishModal = () => {
         if (viewOnly) return;
         // validate all
@@ -469,12 +468,14 @@ function RichMenu() {
                 return;
             }
         }
-        setShowPublishModal(true);
+        
+        if (window.confirm('確定要發佈至 LINE 嗎？發佈後內容將鎖定無法再次編輯。')) {
+            publishGroupToLine();
+        }
     };
 
     const publishGroupToLine = async () => {
         setLoading(true);
-        setShowPublishModal(false);
         try {
             const currentOA = myOAs.find(oa => oa.id.toString() === selectedOAId.toString()) || myOAs[0];
             const appName = currentOA?.other_settings?.app_name || '';
@@ -530,8 +531,10 @@ function RichMenu() {
 
                 // If this is the one chosen to be default, status becomes public, else published
                 let targetStatus = 'published';
-                if (publishDefaultTarget === menu.ui_uuid) {
+                if (menu.publishStrategy === 'default') {
                     targetStatus = 'public';
+                } else if (menu.publishStrategy === 'restricted') {
+                    targetStatus = 'restricted';
                 }
 
                 const payload = {
@@ -552,6 +555,7 @@ function RichMenu() {
                         name: menu.name,
                         chatBarText: menu.chatBarText,
                         visibility: menu.visibility,
+                        publishStrategy: menu.publishStrategy,
                         targetTags: menu.targetTags,
                         targetUserCount: menu.targetUserCount,
                         ui_uuid: menu.ui_uuid,
@@ -559,6 +563,15 @@ function RichMenu() {
                     }
                 };
                 await api.post('/richmenu/metadata', payload);
+
+                // Set default via LINE API if strategy is default
+                if (menu.publishStrategy === 'default') {
+                    try {
+                        await api.post(`/richmenu/set-default/${richMenuId}`);
+                    } catch (err) {
+                        console.error('Failed to set default', err);
+                    }
+                }
             }
             
             showToast('群組選單已成功同步至 LINE！', 'success');
@@ -926,7 +939,7 @@ function RichMenu() {
                             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Shield size={18} /> 切換權限設定</h3>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
                                 <div>
-                                    <label className="label">切換權限標籤 (可複選)</label>
+                                    <label className="label">誰可切換於此圖文 (可複選)</label>
                                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
                                         {allTags.map(t => (
                                             <label key={`perm-${t.tag_name}`} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: currentMenu.permissionTags.includes(t.tag_name) ? 'var(--primary-yellow)' : '#333', color: currentMenu.permissionTags.includes(t.tag_name) ? '#000' : '#fff', padding: '6px 12px', borderRadius: '20px', fontSize: '13px', cursor: viewOnly ? 'default' : 'pointer', transition: 'all 0.2s' }}>
@@ -965,24 +978,27 @@ function RichMenu() {
                         </div>
 
                         <div className="card">
-                            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Shield size={18} /> 發佈對象</h3>
+                            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Shield size={18} /> 發布策略</h3>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
                                 <div>
-                                    <label className="label">開放狀態</label>
-                                    <div style={{ display: 'flex', gap: '15px', marginTop: '5px' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '5px' }}>
                                         <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: viewOnly ? 'default' : 'pointer', opacity: viewOnly ? 0.8 : 1 }}>
-                                            <input type="radio" name="visibility" value="public" checked={currentMenu.visibility === 'public'} readOnly={viewOnly} onClick={e => viewOnly && e.preventDefault()} onChange={() => !viewOnly && setCurrentMenu({ ...currentMenu, visibility: 'public' })} style={{ accentColor: '#FFD700', transform: 'scale(1.2)', margin: '0 5px', pointerEvents: viewOnly ? 'none' : 'auto' }} />
-                                            公開 (發給所有人看的圖文)
+                                            <input type="radio" name="publishStrategy" value="hidden" checked={currentMenu.publishStrategy === 'hidden'} readOnly={viewOnly} onClick={e => viewOnly && e.preventDefault()} onChange={() => !viewOnly && setCurrentMenu({ ...currentMenu, publishStrategy: 'hidden' })} style={{ accentColor: '#FFD700', transform: 'scale(1.2)', margin: '0 5px', pointerEvents: viewOnly ? 'none' : 'auto' }} />
+                                            只建立至 LINE，不顯示給使用者
                                         </label>
                                         <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: viewOnly ? 'default' : 'pointer', opacity: viewOnly ? 0.8 : 1 }}>
-                                            <input type="radio" name="visibility" value="restricted" checked={currentMenu.visibility === 'restricted'} readOnly={viewOnly} onClick={e => viewOnly && e.preventDefault()} onChange={() => !viewOnly && setCurrentMenu({ ...currentMenu, visibility: 'restricted' })} style={{ accentColor: '#FFD700', transform: 'scale(1.2)', margin: '0 5px', pointerEvents: viewOnly ? 'none' : 'auto' }} />
-                                            限定 (發給指定標籤看的圖文)
+                                            <input type="radio" name="publishStrategy" value="default" checked={currentMenu.publishStrategy === 'default'} readOnly={viewOnly} onClick={e => viewOnly && e.preventDefault()} onChange={() => !viewOnly && setCurrentMenu({ ...currentMenu, publishStrategy: 'default' })} style={{ accentColor: '#FFD700', transform: 'scale(1.2)', margin: '0 5px', pointerEvents: viewOnly ? 'none' : 'auto' }} />
+                                            立即設為全體預設圖文選單
+                                        </label>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: viewOnly ? 'default' : 'pointer', opacity: viewOnly ? 0.8 : 1 }}>
+                                            <input type="radio" name="publishStrategy" value="restricted" checked={currentMenu.publishStrategy === 'restricted'} readOnly={viewOnly} onClick={e => viewOnly && e.preventDefault()} onChange={() => !viewOnly && setCurrentMenu({ ...currentMenu, publishStrategy: 'restricted' })} style={{ accentColor: '#FFD700', transform: 'scale(1.2)', margin: '0 5px', pointerEvents: viewOnly ? 'none' : 'auto' }} />
+                                            指定綁定對象後套用(非預設)
                                         </label>
                                     </div>
                                 </div>
                                 
-                                {currentMenu.visibility === 'restricted' && (
-                                    <div style={{ backgroundColor: '#111', padding: '15px', borderRadius: '8px', border: '1px solid #333' }}>
+                                {currentMenu.publishStrategy === 'restricted' && (
+                                    <div style={{ backgroundColor: '#111', padding: '15px', borderRadius: '8px', border: '1px solid #333', marginLeft: '25px' }}>
                                         <label className="label">適用標籤 (可複選)</label>
                                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
                                             {allTags.map(t => (
@@ -1011,48 +1027,20 @@ function RichMenu() {
                                         </div>
                                     </div>
                                 )}
+
+                                {['default', 'restricted'].includes(currentMenu.publishStrategy) && (
+                                    <div style={{ backgroundColor: '#111', padding: '15px', borderRadius: '8px', border: '1px solid #333', marginLeft: '25px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                        <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '5px' }}><Clock size={16} /> 排程設定</h4>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                                            <div><label className="label">開始時間</label><input type="datetime-local" value={currentMenu.start_time} onChange={e => setCurrentMenu({ ...currentMenu, start_time: e.target.value })} style={{ width: '100%' }} /></div>
+                                            <div><label className="label">結束時間</label><input type="datetime-local" value={currentMenu.end_time} onChange={e => setCurrentMenu({ ...currentMenu, end_time: e.target.value })} style={{ width: '100%' }} /></div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
-
-                        <div className="card">
-                            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Clock size={18} /> 排程設定</h3>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
-                                <div><label className="label">開始時間</label><input type="datetime-local" value={currentMenu.start_time} onChange={e => setCurrentMenu({ ...currentMenu, start_time: e.target.value })} /></div>
-                                <div><label className="label">結束時間</label><input type="datetime-local" value={currentMenu.end_time} onChange={e => setCurrentMenu({ ...currentMenu, end_time: e.target.value })} /></div>
-                            </div>
-                        </div>
-
                     </div>
                 </div>
-
-                {showPublishModal && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-                        <div className="card" style={{ width: '400px', backgroundColor: '#1E1E1E', padding: '20px' }}>
-                            <h3 style={{ marginBottom: '15px' }}>發佈圖文選單</h3>
-                            <div className="form-group">
-                                <label>發佈後的處理方式</label>
-                                <select value={publishDefaultTarget} onChange={(e) => setPublishDefaultTarget(e.target.value)}>
-                                    <option value="none">僅上架，暫不綁定 (做為子選單)</option>
-                                    <optgroup label="設為預設圖文選單">
-                                        {currentGroup.map((g, i) => (
-                                            <option key={g.ui_uuid} value={g.ui_uuid}>{g.name || `草稿 ${i+1}`}</option>
-                                        ))}
-                                    </optgroup>
-                                </select>
-                            </div>
-                            <p style={{ fontSize: '13px', color: '#aaa', marginBottom: '20px' }}>
-                                注意：選單發佈至 LINE 之後，內容將被鎖定無法再次編輯。如需修改只能刪除並重新建立。
-                            </p>
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                                <button onClick={() => setShowPublishModal(false)} className="secondary">取消</button>
-                                <button onClick={publishGroupToLine} className="primary" disabled={loading}>
-                                    {loading ? <RefreshCw size={16} className="spin" style={{ marginRight: '5px' }} /> : null}
-                                    {loading ? '發佈中...' : '確認發佈'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
         );
     }
@@ -1084,34 +1072,6 @@ function RichMenu() {
                     <button onClick={saveMappings} className="primary" style={{ marginTop: '20px' }} disabled={savingMappings}><Save size={18} /> 儲存權限</button>
                 </div>
 
-                {showPublishModal && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-                        <div className="card" style={{ width: '400px', backgroundColor: '#1E1E1E', padding: '20px' }}>
-                            <h3 style={{ marginBottom: '15px' }}>發佈圖文選單</h3>
-                            <div className="form-group">
-                                <label>發佈後的處理方式</label>
-                                <select value={publishDefaultTarget} onChange={(e) => setPublishDefaultTarget(e.target.value)}>
-                                    <option value="none">僅上架，暫不綁定 (做為子選單)</option>
-                                    <optgroup label="設為預設圖文選單">
-                                        {currentGroup.map((g, i) => (
-                                            <option key={g.ui_uuid} value={g.ui_uuid}>{g.name || `草稿 ${i+1}`}</option>
-                                        ))}
-                                    </optgroup>
-                                </select>
-                            </div>
-                            <p style={{ fontSize: '13px', color: '#aaa', marginBottom: '20px' }}>
-                                注意：選單發佈至 LINE 之後，內容將被鎖定無法再次編輯。如需修改只能刪除並重新建立。
-                            </p>
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                                <button onClick={() => setShowPublishModal(false)} className="secondary">取消</button>
-                                <button onClick={publishGroupToLine} className="primary" disabled={loading}>
-                                    {loading ? <RefreshCw size={16} className="spin" style={{ marginRight: '5px' }} /> : null}
-                                    {loading ? '發佈中...' : '確認發佈'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
         );
     }
