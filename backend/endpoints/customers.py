@@ -724,7 +724,7 @@ def count_by_tags():
         cur.execute(f"""
             SELECT COUNT(DISTINCT user_id) 
             FROM {history_table} 
-            WHERE user_id IS NOT NULL AND length(user_id) = 33 AND "group" = 'user'
+            WHERE user_id IS NOT NULL AND length(user_id) = 33 AND user_id LIKE 'U%'
         """)
         total_count = cur.fetchone()[0]
 
