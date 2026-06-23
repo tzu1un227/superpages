@@ -158,3 +158,4 @@ ote\ 欄位會自動後綴 \- 工程用法則\。
  # #   [ U n r e l e a s e d ]   -   R i c h   M e n u   M i n o r   F i x e s 
  -   * * M o d i f i e d * *    r o n t e n d / s r c / p a g e s / R i c h M e n u . j s x :   A d d e d   d r a f t   d e l e t i o n   b u t t o n   i n s i d e   g r o u p   t a b s ,   i m p l e m e n t e d   c r e a t e _ a n d _ s w i t c h   q u i c k   a c t i o n   i n   a r e a   s w i t c h   d r o p d o w n ,   s t a c k e d   s c h e d u l e   t i m e   i n p u t s   v e r t i c a l l y ,   a n d   f i x e d   t a r g e t   m e n u   i m a g e   p r e v i e w   b y   f e t c h i n g   f r o m   b l o b   c a c h e .  
  
+- **Bug Fix (2026-06-23)**: 修復了在圖文選單「發布策略」中，當切換到「指定綁定對象後套用」且 targetTags 為空時導致畫面崩潰且無法顯示可用標籤的問題。
