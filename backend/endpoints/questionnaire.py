@@ -371,7 +371,8 @@ def build_questionnaire_direct(data, app_id, conn, quest_id):
         if is_last:
             if enable_review:
                 review_state = f"Q{quest_id:02d}99"
-                summary_lines = [f"【{note}】作答回顧", "----------------"]
+                display_note = note.replace(" - 問卷管理", "").replace(" - 關鍵字回覆", "").replace(" - 工程用法則", "")
+                summary_lines = [f"【{display_note}】作答回顧", "----------------"]
                 for j, q in enumerate(questions, start=1):
                     summary_lines.append(f"Q{j}. {q['content']}\n答案：<%pri('ans_{note}_Q{j}')%>")
                 summary_lines.append("----------------")
