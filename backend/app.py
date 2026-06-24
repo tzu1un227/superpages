@@ -317,12 +317,17 @@ def project_stats_processor():
                             g_var_table = f"Global_var:{logical_app_id}"
                             
                             # Ensure table exists in OA DB
-                            cur_oa.execute(f"""
-                                CREATE TABLE IF NOT EXISTS "{g_var_table}" (
-                                    name VARCHAR(255) PRIMARY KEY,
-                                    value TEXT
-                                )
-                            """)
+                            cur_oa.execute(
+                                "SELECT 1 FROM information_schema.tables WHERE table_name = %s",
+                                (g_var_table,)
+                            )
+                            if not cur_oa.fetchone():
+                                cur_oa.execute(f"""
+                                    CREATE TABLE "{g_var_table}" (
+                                        name VARCHAR(255) PRIMARY KEY,
+                                        value TEXT
+                                    )
+                                """)
 
                             cur_oa.execute(f"SELECT value FROM \"{g_var_table}\" WHERE name = 'last_stats_process_time'")
                             row = cur_oa.fetchone()

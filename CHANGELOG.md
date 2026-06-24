@@ -1,3 +1,7 @@
+## [2026-06-24] 修復資料庫日誌噪音
+- **後端 (backend/app.py)**:
+  - 修復了 `project_stats_processor` 會在每次檢查時嘗試建立 `Global_var` 資料表，導致 PostgreSQL 頻繁產生 `relation already exists` (42P07) 的 log 噪音問題。改為先檢查資料表是否存在，若不存在才執行 `CREATE TABLE`。
+
 ## [2026-06-23] 圖文選單發布策略與權限設定統一
 - **前端 (frontend/src/pages/RichMenu.jsx)**:
   - 移除了原有的「發佈對象 (公開/限定)」與「發佈 Modal」，改為整合的「發布策略」選擇區塊。
