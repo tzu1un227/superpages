@@ -380,7 +380,7 @@ function AdminPage() {
                     <Box component="ol" sx={{ pl: 3, '& li': { mb: 2, fontSize: '1.1rem' } }}>
                         <li><strong>建立管理權限</strong>：於 Superpages 後台新增該專案的專屬權限設定。</li>
                         <li><strong>設定 Webhook</strong>：至 LINE 官方帳號後台設定 Webhook 網址 (必須綁定我們的回訊系統)。</li>
-                        <li><strong>初始化資料庫結構</strong>：確認該專案對應的資料庫中，已具備所有必要的 View、Table 與 Function (可使用 AI Skill 輔助檢查與補齊)。</li>
+                        <li><strong>初始化資料庫結構</strong>：確認該專案對應的資料庫中，已具備所有必要的 View、Table 與 Function。</li>
                         <li><strong>啟用 WebSocket</strong>：確保回訊系統已開啟 WebSocket 連線，以支援即時推播功能。</li>
                         <li><strong>配置工程法則</strong>：於 Q_bank (法則庫) 中加入系統運作所需的工程用法則。</li>
                     </Box>
