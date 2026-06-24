@@ -58,6 +58,7 @@ def _table_names(app_id):
 def _ensure_questionnaire_tables(conn, app_id):
     tables = _table_names(app_id)
     cur = conn.cursor()
+    cur.execute("SET LOCAL client_min_messages = warning;")
     cur.execute(
         f'''
         CREATE TABLE IF NOT EXISTS "{tables["groups"]}" (

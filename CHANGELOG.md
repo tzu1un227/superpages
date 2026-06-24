@@ -1,6 +1,8 @@
 ## [2026-06-24] 修復資料庫日誌噪音
 - **後端 (backend/app.py)**:
   - 修復了 `project_stats_processor` 會在每次檢查時嘗試建立 `Global_var` 資料表，導致 PostgreSQL 頻繁產生 `relation already exists` (42P07) 的 log 噪音問題。改為先檢查資料表是否存在，若不存在才執行 `CREATE TABLE`。
+- **後端 (backend/endpoints/questionnaire.py, backend/endpoints/liff_questionnaire.py)**:
+  - 統一在執行 `CREATE TABLE IF NOT EXISTS` 之前加上 `SET LOCAL client_min_messages = warning;`，以抑制問卷相關資料表建立時產生的 PostgreSQL 噪音 (`relation already exists, skipping`)。
 
 ## [2026-06-23] 圖文選單發布策略與權限設定統一
 - **前端 (frontend/src/pages/RichMenu.jsx)**:
