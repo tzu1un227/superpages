@@ -1,3 +1,8 @@
+## [2026-06-24] 管理員後台新增串接流程分頁
+- **前端 (frontend/src/pages/AdminPage.jsx)**:
+  - 將「帳號管理」標題更改為「管理員後台」。
+  - 新增「串接流程」分頁，列出新帳號的五個串接步驟。
+
 ## [2026-06-24] 修復資料庫日誌噪音
 - **後端 (backend/app.py)**:
   - 修復了 `project_stats_processor` 會在每次檢查時嘗試建立 `Global_var` 資料表，導致 PostgreSQL 頻繁產生 `relation already exists` (42P07) 的 log 噪音問題。改為先檢查資料表是否存在，若不存在才執行 `CREATE TABLE`。

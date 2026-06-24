@@ -259,7 +259,7 @@ function AdminPage() {
     return (
         <Box sx={{ width: '100%' }}>
             <Typography variant="h4" gutterBottom>
-                帳號管理
+                管理員後台
             </Typography>
             <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
                 <Tabs
@@ -274,6 +274,7 @@ function AdminPage() {
                 >
                     <Tab label="用戶管理" />
                     <Tab label="權限設定" />
+                    <Tab label="串接流程" />
                 </Tabs>
             </Box>
 
@@ -368,6 +369,22 @@ function AdminPage() {
                         </TableBody>
                     </Table>
                 </TableContainer>
+            </TabPanel>
+
+            {/* Integration Flow Tab */}
+            <TabPanel value={tabValue} index={2}>
+                <Paper sx={{ p: 4, backgroundColor: 'var(--secondary-black)', color: 'white' }}>
+                    <Typography variant="h5" sx={{ color: 'var(--primary-yellow)', mb: 3, fontWeight: 'bold' }}>
+                        新帳號串接 superpages 流程
+                    </Typography>
+                    <Box component="ol" sx={{ pl: 3, '& li': { mb: 2, fontSize: '1.1rem' } }}>
+                        <li>在 superpages 新增權限</li>
+                        <li>在 line 後台填上 webhook (一定要用我們的回訊系統)</li>
+                        <li>確定資料庫中有需要的 view、table 和 function (可以用 AI skill 檢查)</li>
+                        <li>回訊系統打開 websocket</li>
+                        <li>Q_bank 裡加上工程用法則</li>
+                    </Box>
+                </Paper>
             </TabPanel>
 
             {/* User Dialog */}
