@@ -83,7 +83,7 @@ const MenuPreviewImage = ({ target }) => {
         }
     }, [target]);
 
-    return imgUrl ? <img src={imgUrl} alt={target.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span style={{ fontSize: '10px', color: '#666' }}>無圖片</span>;
+    return imgUrl ? <img src={imgUrl} alt={target.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '10px', color: '#666' }}>無圖片</span>;
 };
 
 
