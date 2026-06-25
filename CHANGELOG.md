@@ -188,3 +188,7 @@ ote\ æ¬„ä½æœƒè‡ªå‹•å¾Œç¶´ \- å·¥ç¨‹ç”¨æ³•å‰‡\ã€‚
 - ·s¼W utils/syslogger.py »P ReconnectingSSLSysLogHandler¡A±N Syslog ©ß°e©ñ¸m­I´º°õ¦æºü¡A½T«O³s½u¤£Ã­®É API ¤£¨ü¼vÅT¡C
 - ¤ä´©Àô¹ÒÅÜ¼Æ NAS_SYSLOG_APPNAME °Ï¤À Docker »P Heroku ³¡¸pÀô¹Ò¡C
 
+
+## [2026-06-25] - Keyword Reply Duplicate Validation
+### Added
+- ÃöÁä¦r¦^ÂĞ (RuleDesigner Â²©ö¼Ò¦¡): Àx¦s®É¦Û°ÊÀË¬d¬O§_»P¨ä¥LÃöÁä¦r¼ĞÃD­«½Æ¡A­Y­«½Æ«h¸õ¥X´£¥Ü«ØÄ³Á×§K¡A¤è«K«á¥xºŞ²z¡C
