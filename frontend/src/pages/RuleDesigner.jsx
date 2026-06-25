@@ -468,9 +468,26 @@ function RuleDesigner() {
         delete newErrors[index];
         setRowErrors(newErrors);
 
+        const ruleToSave = { ...draftRules[index] };
+
+        // 檢查關鍵字標題是否重複
+        if (designMode === 'simple') {
+            const currentNote = ruleToSave.note ? ruleToSave.note.trim() : '';
+            if (!currentNote) {
+                showToast('請填寫關鍵字名稱', 'error');
+                return;
+            }
+            
+            const isDuplicate = draftRules.some((r, i) => i !== index && r.note && r.note.trim() === currentNote);
+            if (isDuplicate) {
+                if (!window.confirm(`關鍵字名稱「${currentNote}」已經存在，為了方便後台管理，建議不要重複。\n是否仍要強制儲存？`)) {
+                    return;
+                }
+            }
+        }
+
         setLoading(true);
         showToast('正在儲存中...', 'info');
-        const ruleToSave = { ...draftRules[index] };
         delete ruleToSave._isDirty;
         delete ruleToSave._isNew;
         const nowIso = new Date().toISOString();
