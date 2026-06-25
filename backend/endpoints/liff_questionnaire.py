@@ -1,3 +1,4 @@
+from utils.syslogger import syslog_action
 from datetime import datetime
 import json
 import re
@@ -400,6 +401,7 @@ def list_surveys():
 
 
 @liff_questionnaire_bp.route("/", methods=["POST"], strict_slashes=False)
+@syslog_action('LIFF_CREATE_FORM')
 def create_survey():
     data = request.get_json() or {}
     title = (data.get("title") or "").strip()
@@ -497,6 +499,7 @@ def get_survey(survey_key):
 
 
 @liff_questionnaire_bp.route("/<survey_key>", methods=["DELETE"], strict_slashes=False)
+@syslog_action('LIFF_DELETE_FORM')
 def delete_survey(survey_key):
     conn = None
     try:
@@ -526,6 +529,7 @@ def delete_survey(survey_key):
 
 
 @liff_questionnaire_bp.route("/<survey_key>", methods=["PUT"], strict_slashes=False)
+@syslog_action('LIFF_UPDATE_FORM')
 def update_survey(survey_key):
     data = request.get_json() or {}
     title = (data.get("title") or "").strip()
