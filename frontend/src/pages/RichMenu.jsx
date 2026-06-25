@@ -46,10 +46,30 @@ const HELP_CONTENT = {
 const frontendImageCache = {};
 
 const MenuPreviewImage = ({ target }) => {
-    const [imgUrl, setImgUrl] = React.useState(target.imageBase64 ? `data:image/jpeg;base64,${target.imageBase64}` : null);
+    const getBase64Url = (base64) => base64 ? (base64.startsWith('data:') ? base64 : `data:image/jpeg;base64,${base64}`) : null;
+    let initialBase64 = target.imageBase64;
+    if (!initialBase64 && target.data) {
+        try {
+            const dataObj = typeof target.data === 'string' ? JSON.parse(target.data) : target.data;
+            if (Array.isArray(dataObj) && dataObj.length > 0) initialBase64 = dataObj[0].imageBase64;
+            else if (dataObj) initialBase64 = dataObj.imageBase64;
+        } catch(e) {}
+    }
+    const [imgUrl, setImgUrl] = React.useState(getBase64Url(initialBase64));
     
     React.useEffect(() => {
-        if (!target.imageBase64 && (target.rich_menu_id || target.richMenuId)) {
+        let b64 = target.imageBase64;
+        if (!b64 && target.data) {
+            try {
+                const dataObj = typeof target.data === 'string' ? JSON.parse(target.data) : target.data;
+                if (Array.isArray(dataObj) && dataObj.length > 0) b64 = dataObj[0].imageBase64;
+                else if (dataObj) b64 = dataObj.imageBase64;
+            } catch(e) {}
+        }
+        
+        if (b64) {
+            setImgUrl(getBase64Url(b64));
+        } else if (target.rich_menu_id || target.richMenuId) {
             const rid = target.rich_menu_id || target.richMenuId;
             if (frontendImageCache[rid]) {
                 setImgUrl(frontendImageCache[rid]);
@@ -1482,7 +1502,7 @@ function RichMenu() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
                                 <input type="radio" name="linkPublishStrategy" value="default" checked={linkModalState.publishStrategy === 'default'} onChange={() => setLinkModalState({ ...linkModalState, publishStrategy: 'default' })} style={{ accentColor: '#FFD700', transform: 'scale(1.2)', margin: '0 5px' }} />
-                                全體對象 (預設)
+                                全體對象
                             </label>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
                                 <input type="radio" name="linkPublishStrategy" value="restricted" checked={linkModalState.publishStrategy === 'restricted'} onChange={() => setLinkModalState({ ...linkModalState, publishStrategy: 'restricted' })} style={{ accentColor: '#FFD700', transform: 'scale(1.2)', margin: '0 5px' }} />

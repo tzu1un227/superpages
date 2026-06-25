@@ -491,7 +491,7 @@ function MessageCenter() {
                         const existingKeys = new Set(prev.map(m => m.timestamp + m.content));
                         const uniqueNew = resp.data.filter(m => {
                             if (!m || !m.timestamp || existingKeys.has(m.timestamp + m.content)) return false;
-                            if (m.content && (m.content.startsWith('QA|') || m.content.startsWith('set_tag|') || m.content.startsWith('del_tag|') || m.content.startsWith('bmcast|') || m.content.startsWith('cron|'))) return false;
+                            if (m.content && (m.content === '[text]' || m.content.startsWith('QA|') || m.content.startsWith('set_tag|') || m.content.startsWith('del_tag|') || m.content.startsWith('bmcast|') || m.content.startsWith('cron|'))) return false;
                             return true;
                         });
                         if (uniqueNew.length > 0) {
@@ -529,7 +529,7 @@ function MessageCenter() {
                 const loadedMessages = Array.isArray(resp.data) ? resp.data : [];
                 const filteredMessages = loadedMessages.filter(m => {
                     if (!m) return false;
-                    if (m.content && (m.content.startsWith('QA|') || m.content.startsWith('set_tag|') || m.content.startsWith('del_tag|') || m.content.startsWith('bmcast|') || m.content.startsWith('cron|'))) return false;
+                    if (m.content && (m.content === '[text]' || m.content.startsWith('QA|') || m.content.startsWith('set_tag|') || m.content.startsWith('del_tag|') || m.content.startsWith('bmcast|') || m.content.startsWith('cron|'))) return false;
                     return true;
                 });
                 setMessages(filteredMessages);
@@ -572,7 +572,7 @@ function MessageCenter() {
                     const existingKeys = new Set(prev.map(m => m.timestamp + m.content));
                     const uniqueNew = newMessages.filter(m => {
                         if (!m || !m.timestamp || existingKeys.has(m.timestamp + m.content)) return false;
-                        if (m.content && (m.content.startsWith('QA|') || m.content.startsWith('set_tag|') || m.content.startsWith('del_tag|') || m.content.startsWith('bmcast|') || m.content.startsWith('cron|'))) return false;
+                        if (m.content && (m.content === '[text]' || m.content.startsWith('QA|') || m.content.startsWith('set_tag|') || m.content.startsWith('del_tag|') || m.content.startsWith('bmcast|') || m.content.startsWith('cron|'))) return false;
                         return true;
                     });
                     
@@ -634,7 +634,7 @@ function MessageCenter() {
                 const fullMessages = Array.isArray(resp.data) ? resp.data : [];
                 const filteredFull = fullMessages.filter(m => {
                     if (!m) return false;
-                    if (m.content && (m.content.startsWith('QA|') || m.content.startsWith('set_tag|') || m.content.startsWith('del_tag|') || m.content.startsWith('bmcast|') || m.content.startsWith('cron|'))) return false;
+                    if (m.content && (m.content === '[text]' || m.content.startsWith('QA|') || m.content.startsWith('set_tag|') || m.content.startsWith('del_tag|') || m.content.startsWith('bmcast|') || m.content.startsWith('cron|'))) return false;
                     return true;
                 });
                 setMessages(filteredFull);
@@ -975,7 +975,7 @@ function MessageCenter() {
         // 過濾 Postback, Sensor, Follow, Unfollow, Beacon 等不需要顯示給客服看的系統訊息
         if (['sensor', 'follow', 'unfollow', 'postback', 'beacon'].includes(cat)) return false;
         if (typeof m.content === 'string') {
-            if (m.content.startsWith('QA|') || m.content.startsWith('set_tag|') || m.content.startsWith('del_tag|') || m.content.startsWith('bmcast|') || m.content.startsWith('cron|')) return false;
+            if (m.content.startsWith('QA|') || m.content === '[text]' || m.content.startsWith('set_tag|') || m.content.startsWith('del_tag|') || m.content.startsWith('bmcast|') || m.content.startsWith('cron|')) return false;
         }
         return true;
     });
