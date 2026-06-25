@@ -1393,7 +1393,7 @@ function RichMenu() {
                                 return (
                                     <div key={idx} className="card" style={{ display: 'flex', flexDirection: 'column', height: '100%', border: isDefault ? '2px solid #FFD700' : '1px solid #333' }}>
                                         <div style={{ height: '150px', backgroundColor: '#111', borderRadius: '8px', marginBottom: '15px', position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
-                                            <MenuPreviewImage target={first} />
+                                            <MenuPreviewImage target={item} />
                                             <div style={{ position: 'absolute', top: '10px', left: '10px', backgroundColor: isDraft ? '#FF9800' : isRestricted ? '#9C27B0' : '#4CAF50', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', zIndex: 2 }}>
                                                 {isDraft ? '草稿' : isRestricted ? '限定發佈' : '公開發佈'}
                                             </div>
