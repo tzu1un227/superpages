@@ -98,7 +98,8 @@ def init_syslogger():
         
     syslog_host = os.environ.get('NAS_SYSLOG_HOST')
     syslog_port = os.environ.get('NAS_SYSLOG_PORT')
-    appname = os.environ.get('NAS_SYSLOG_APPNAME', 'superpages_docker')
+    default_appname = 'superpages_heroku' if os.environ.get('DYNO') else 'superpages_docker'
+    appname = os.environ.get('NAS_SYSLOG_APPNAME', default_appname)
     
     if syslog_host and syslog_port:
         try:
@@ -115,7 +116,7 @@ def init_syslogger():
             handler.setLevel(logging.INFO)
             syslog_logger.addHandler(handler)
             _is_initialized = True
-            print(f"[*] Syslog Logger Initialized ({appname} -> {syslog_host}:{syslog_port}, TLS={use_tls})")
+            print(f"[*] Syslog Logger Initialized (App: {appname})")
         except Exception as e:
             print(f"Failed to initialize syslogger: {e}")
 
