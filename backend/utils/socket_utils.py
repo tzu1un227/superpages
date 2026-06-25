@@ -3,17 +3,32 @@ import time
 import os
 from flask import g
 from models import OAConfig
+import json
+import hmac
+import hashlib
 
 WS_URL = os.environ.get('WS_URL', "https://irl-svr.ee.yzu.edu.tw:5013")
 DEFAULT_BOT_NAME = "websoc"
 
 _global_sios = {}
 
+def generate_socket_auth():
+    secret_key = os.environ.get('SIGNATURE_KEY', '')
+    if not secret_key:
+        return None
+    
+    timestamp = time.time()
+    payload = {"timestamp": timestamp}
+    message = json.dumps(payload, sort_keys=True).encode()
+    signature = hmac.new(secret_key.encode(), message, hashlib.sha256).hexdigest()
+    payload['signature'] = signature
+    return payload
+
 def get_shared_sio(target_ws_url, namespace):
     key = f"{target_ws_url}_{namespace}"
     sio = _global_sios.get(key)
     if not sio:
-        sio = socketio.Client(reconnection=True, ssl_verify=False, request_timeout=60)
+        sio = socketio.Client(reconnection=False, ssl_verify=False, request_timeout=60)
         _global_sios[key] = sio
     return sio
 
@@ -95,7 +110,16 @@ def send_socket_event(data, namespace=None, wait_time=0.5, poll_func=None, max_p
     try:
         if not local_sio.connected:
             transports = ['polling'] 
-            local_sio.connect(target_ws_url, namespaces=[final_namespace], wait_timeout=10, transports=transports)
+            auth_data = generate_socket_auth()
+            connect_kwargs = {
+                'namespaces': [final_namespace],
+                'wait_timeout': 10,
+                'transports': transports
+            }
+            if auth_data:
+                connect_kwargs['auth'] = auth_data
+                
+            local_sio.connect(target_ws_url, **connect_kwargs)
             print(f"DEBUG: [SOCKET_CONNECTED] Active Transport: {local_sio.transport}")
     except Exception as e:
         print(f"SOCKET_ERROR: Connection failed to {target_ws_url}: {e}")
@@ -168,7 +192,16 @@ def send_socket_events_batch(events, namespace=None, socket_url=None, bot_name=N
     event_name = f'{target_bot_name}_message'
 
     try:
-        local_sio.connect(target_ws_url, namespaces=[final_namespace], wait_timeout=10, transports=['polling'])
+        auth_data = generate_socket_auth()
+        connect_kwargs = {
+            'namespaces': [final_namespace],
+            'wait_timeout': 10,
+            'transports': ['polling']
+        }
+        if auth_data:
+            connect_kwargs['auth'] = auth_data
+            
+        local_sio.connect(target_ws_url, **connect_kwargs)
         print(f"DEBUG: [BATCH_CONNECTED] URL: {target_ws_url} | NS: {final_namespace}")
         for data in events:
             local_sio.emit(event_name, data, namespace=final_namespace)
