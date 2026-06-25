@@ -907,7 +907,8 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
             if tags and menu.get('rich_menu_id'):
                 menu_tag_map.append({
                     'rich_menu_id': menu['rich_menu_id'],
-                    'tags': tags
+                    'tags': tags,
+                    'is_all': 'ALL_USERS' in tags
                 })
         print(f"DEBUG: bulk_check_and_update_rich_menu | menu_tag_map: {menu_tag_map}")
         
@@ -931,10 +932,18 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
             assigned = False
             if tags:
                 for menu in menu_tag_map:
-                    if menu['tags'].intersection(tags):
+                    if menu['is_all'] or menu['tags'].intersection(tags):
                         user_to_menu[uid] = menu['rich_menu_id']
                         assigned = True
                         break
+            if not assigned:
+                # Fallback to checking if any menu has ALL_USERS even if user has no tags
+                for menu in menu_tag_map:
+                    if menu['is_all']:
+                        user_to_menu[uid] = menu['rich_menu_id']
+                        assigned = True
+                        break
+                        
             if not assigned:
                 users_to_unlink.append(uid)
                 

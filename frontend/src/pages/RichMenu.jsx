@@ -100,6 +100,22 @@ function RichMenu() {
     const [dragState, setDragState] = useState(null);
     const imageContainerRef = useRef(null);
 
+    // Auto-fetch and set background image for currentMenu
+    useEffect(() => {
+        if (!currentMenu) return;
+        if (currentMenu.imageBase64) {
+            setBackgroundImage(currentMenu.imageBase64.startsWith('data:') ? currentMenu.imageBase64 : `data:image/jpeg;base64,${currentMenu.imageBase64}`);
+        } else if (currentMenu.richMenuId || currentMenu.rich_menu_id) {
+            const rid = currentMenu.richMenuId || currentMenu.rich_menu_id;
+            fetchImageWithAuth(rid).then(imageUrl => {
+                if (imageUrl) setBackgroundImage(imageUrl);
+                else setBackgroundImage(null);
+            });
+        } else {
+            setBackgroundImage(null);
+        }
+    }, [currentMenu?.ui_uuid, currentMenu?.richMenuId, currentMenu?.rich_menu_id, currentMenu?.imageBase64]);
+
     // Initial menu state
     const emptyMenu = {
         size: { width: 2500, height: 1686 },
@@ -112,6 +128,7 @@ function RichMenu() {
         visibility: 'public',
         publishStrategy: 'hidden',
         targetTags: [],
+        targetAll: false,
         targetUserCount: 0,
         permissionTags: [],
         fallbackMessage: '',
@@ -242,14 +259,14 @@ function RichMenu() {
             }
         };
 
-        if (currentMenu.publishStrategy === 'restricted' && currentMenu.targetTags?.length > 0) {
+        if (currentMenu.publishStrategy === 'restricted' && (!currentMenu.targetAll && currentMenu.targetTags?.length > 0)) {
             fetchCount(currentMenu.targetTags);
-        } else if (currentMenu.publishStrategy === 'default') {
+        } else if (currentMenu.publishStrategy === 'default' || (currentMenu.publishStrategy === 'restricted' && currentMenu.targetAll)) {
             fetchCount([]);
         } else {
             setCurrentMenu(prev => prev.targetUserCount !== 0 || prev.totalUserCount !== 0 ? { ...prev, targetUserCount: 0, totalUserCount: 0 } : prev);
         }
-    }, [currentMenu?.targetTags, currentMenu?.publishStrategy, view, viewOnly]);
+    }, [currentMenu?.targetTags, currentMenu?.targetAll, currentMenu?.publishStrategy, view, viewOnly]);
 
     
     useEffect(() => {
@@ -342,12 +359,6 @@ function RichMenu() {
                 setCurrentMenuIndex(0);
                 setViewOnly(loadedGroup[0].status !== 'draft');
                 setBackgroundImage(loadedGroup[0].imageBase64 || null);
-                
-                if (loadedGroup[0].richMenuId && !loadedGroup[0].imageBase64) {
-                    fetchImageWithAuth(loadedGroup[0].richMenuId).then(imageUrl => {
-                        setBackgroundImage(imageUrl);
-                    });
-                }
             } else {
                 setCurrentGroup([{
                     ...emptyMenu,
@@ -363,9 +374,6 @@ function RichMenu() {
                 }]);
                 setCurrentMenuIndex(0);
                 setViewOnly(true);
-                fetchImageWithAuth(item.richMenuId).then(imageUrl => {
-                    setBackgroundImage(imageUrl);
-                });
             }
             setView('edit');
             setSelectedAreaIndex(null);
@@ -904,6 +912,12 @@ function RichMenu() {
     if (view === 'edit') {
         return (
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                {loading && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                        <LoadingSpinner />
+                        <div style={{ marginLeft: '15px', color: 'white', fontSize: '18px' }}>處理中，請稍候...</div>
+                    </div>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
                     <div>
                         <button onClick={() => setView('list')} style={{ background: 'none', color: '#888', marginBottom: '10px', padding: 0 }}>← 返回列表</button>
@@ -966,6 +980,14 @@ function RichMenu() {
                                 <div style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: '#666' }}>
                                     <ImageIcon size={48} /><p>請上傳底圖 (2500x1686/843)</p>
                                     <input type="file" onChange={handleImageUpload} style={{ marginTop: '10px' }} accept="image/*" />
+                                </div>
+                            )}
+                            {backgroundImage && !viewOnly && (
+                                <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 20 }}>
+                                    <label style={{ cursor: 'pointer', backgroundColor: 'rgba(0,0,0,0.7)', padding: '5px 10px', borderRadius: '4px', color: 'white', fontSize: '12px' }}>
+                                        <ImageIcon size={14} style={{ marginRight: '5px', verticalAlign: 'middle' }} />重新上傳
+                                        <input type="file" onChange={handleImageUpload} style={{ display: 'none' }} accept="image/*" />
+                                    </label>
                                 </div>
                             )}
                             {currentMenu.areas.map((area, idx) => {
@@ -1064,27 +1086,42 @@ function RichMenu() {
                                 
                                 {currentMenu.publishStrategy === 'restricted' && (
                                     <div style={{ backgroundColor: '#111', padding: '15px', borderRadius: '8px', border: '1px solid #333', marginLeft: '25px' }}>
-                                        <label className="label">適用標籤 (可複選)</label>
-                                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
-                                            {allTags.map(t => (
-                                                <label key={t.tag_name} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: (currentMenu.targetTags || []).includes(t.tag_name) ? 'var(--primary-yellow)' : '#333', color: (currentMenu.targetTags || []).includes(t.tag_name) ? '#000' : '#fff', padding: '6px 12px', borderRadius: '20px', fontSize: '13px', cursor: viewOnly ? 'default' : 'pointer', transition: 'all 0.2s' }}>
-                                                    <input 
-                                                        type="checkbox" 
-                                                        style={{ display: 'none' }}
-                                                        checked={(currentMenu.targetTags || []).includes(t.tag_name)}
-                                                        disabled={viewOnly}
-                                                        onChange={(e) => {
-                                                            const newTags = e.target.checked 
-                                                                ? [...(currentMenu.targetTags || []), t.tag_name]
-                                                                : (currentMenu.targetTags || []).filter(tag => tag !== t.tag_name);
-                                                            setCurrentMenu({ ...currentMenu, targetTags: newTags });
-                                                        }}
-                                                    />
-                                                    {t.tag_name}
-                                                </label>
-                                            ))}
-                                            {allTags.length === 0 && <span style={{ color: '#666', fontSize: '13px' }}>目前沒有任何標籤</span>}
+                                        <div style={{ marginBottom: '15px', display: 'flex', gap: '20px' }}>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: viewOnly ? 'default' : 'pointer' }}>
+                                                <input type="radio" checked={currentMenu.targetAll} disabled={viewOnly} onChange={() => setCurrentMenu({...currentMenu, targetAll: true, targetTags: ['ALL_USERS']})} style={{ accentColor: '#FFD700' }} />
+                                                所有好友
+                                            </label>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: viewOnly ? 'default' : 'pointer' }}>
+                                                <input type="radio" checked={!currentMenu.targetAll} disabled={viewOnly} onChange={() => setCurrentMenu({...currentMenu, targetAll: false, targetTags: []})} style={{ accentColor: '#FFD700' }} />
+                                                指定標籤
+                                            </label>
                                         </div>
+                                        
+                                        {!currentMenu.targetAll && (
+                                            <>
+                                                <label className="label">適用標籤 (可複選)</label>
+                                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
+                                                    {allTags.map(t => (
+                                                        <label key={t.tag_name} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: (currentMenu.targetTags || []).includes(t.tag_name) ? 'var(--primary-yellow)' : '#333', color: (currentMenu.targetTags || []).includes(t.tag_name) ? '#000' : '#fff', padding: '6px 12px', borderRadius: '20px', fontSize: '13px', cursor: viewOnly ? 'default' : 'pointer', transition: 'all 0.2s' }}>
+                                                            <input 
+                                                                type="checkbox" 
+                                                                style={{ display: 'none' }}
+                                                                checked={(currentMenu.targetTags || []).includes(t.tag_name)}
+                                                                disabled={viewOnly}
+                                                                onChange={(e) => {
+                                                                    const newTags = e.target.checked 
+                                                                        ? [...(currentMenu.targetTags || []).filter(t => t !== 'ALL_USERS'), t.tag_name]
+                                                                        : (currentMenu.targetTags || []).filter(tag => tag !== t.tag_name);
+                                                                    setCurrentMenu({ ...currentMenu, targetTags: newTags });
+                                                                }}
+                                                            />
+                                                            {t.tag_name}
+                                                        </label>
+                                                    ))}
+                                                    {allTags.length === 0 && <span style={{ color: '#666', fontSize: '13px' }}>目前沒有任何標籤</span>}
+                                                </div>
+                                            </>
+                                        )}
                                         <div style={{ marginTop: '15px', fontSize: '13px', color: '#aaa', display: 'flex', alignItems: 'center', gap: '5px' }}>
                                             <Shield size={14} /> 預計套用人數：
                                             <span style={{ color: 'var(--primary-yellow)', fontWeight: 'bold', fontSize: '16px' }}>{currentMenu.targetUserCount}</span> 人
@@ -1103,15 +1140,17 @@ function RichMenu() {
                             </div>
                         </div>
 
-                        <div className="card">
-                            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Clock size={18} /> 排程設定</h3>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                    <div><label className="label">開始時間</label><input type="datetime-local" value={currentMenu.start_time} onChange={e => setCurrentMenu({ ...currentMenu, start_time: e.target.value })} style={{ width: '100%' }} /></div>
-                                    <div><label className="label">結束時間</label><input type="datetime-local" value={currentMenu.end_time} onChange={e => setCurrentMenu({ ...currentMenu, end_time: e.target.value })} style={{ width: '100%' }} /></div>
+                        {currentMenu.publishStrategy !== 'hidden' && (
+                            <div className="card">
+                                <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Clock size={18} /> 排程設定</h3>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                        <div><label className="label">開始時間</label><input type="datetime-local" value={currentMenu.start_time} onChange={e => setCurrentMenu({ ...currentMenu, start_time: e.target.value })} style={{ width: '100%' }} disabled={viewOnly} /></div>
+                                        <div><label className="label">結束時間</label><input type="datetime-local" value={currentMenu.end_time} onChange={e => setCurrentMenu({ ...currentMenu, end_time: e.target.value })} style={{ width: '100%' }} disabled={viewOnly} /></div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
 
                         <div className="card">
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
