@@ -182,3 +182,9 @@ ote\ æ¬„ä½æœƒè‡ªå‹•å¾Œç¶´ \- å·¥ç¨‹ç”¨æ³•å‰‡\ã€‚
 
 ## 2026-06-25
 - [åŠŸèƒ½] æ–°å¢ž WebSocket é€£ç·šæ™‚çš„ SIGNATURE_KEY ç°½ç« é©—è­‰ï¼Œä»¥ç›¸å®¹ Line-Bot-Main çš„æ–°ç‰ˆå®‰å…¨è¦ç¯„ã€‚
+## [2026-06-25] - Syslog Integration
+### Added
+- ¾ã¦X NAS Syslog¡A¯à°÷°O¿ý­«­nªº«áºÝ¾Þ§@¦æ¬° (·s¼W¹Ï¤å¿ï³æ¡B­×§ï±M®×³]©w¡B¶×¤J±Æµ{µ¥)¡C
+- ·s¼W utils/syslogger.py »P ReconnectingSSLSysLogHandler¡A±N Syslog ©ß°e©ñ¸m­I´º°õ¦æºü¡A½T«O³s½u¤£Ã­®É API ¤£¨ü¼vÅT¡C
+- ¤ä´©Àô¹ÒÅÜ¼Æ NAS_SYSLOG_APPNAME °Ï¤À Docker »P Heroku ³¡¸pÀô¹Ò¡C
+

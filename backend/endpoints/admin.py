@@ -1,3 +1,4 @@
+from utils.syslogger import syslog_action
 from flask import Blueprint, request, jsonify
 from models import db, User, Page, OAConfig
 from auth import token_required, admin_required
@@ -52,6 +53,7 @@ def get_users():
 @admin_bp.route('/users', methods=['POST'])
 @token_required
 @admin_required
+@syslog_action('ADMIN_CREATE_USER')
 def create_user():
     data = request.get_json()
     email = data.get('email')
@@ -80,6 +82,7 @@ def create_user():
 @admin_bp.route('/users/<int:user_id>', methods=['DELETE'])
 @token_required
 @admin_required
+@syslog_action('ADMIN_DELETE_USER')
 def delete_user(user_id):
     user = User.query.get(user_id)
     if not user:
@@ -96,6 +99,7 @@ def delete_user(user_id):
 @admin_bp.route('/users/<int:user_id>', methods=['PUT'])
 @token_required
 @admin_required
+@syslog_action('ADMIN_UPDATE_USER')
 def update_user(user_id):
     user = User.query.get(user_id)
     if not user:
@@ -153,6 +157,7 @@ def get_oa_configs():
 @admin_bp.route('/oa_configs', methods=['POST'])
 @token_required
 @admin_required
+@syslog_action('ADMIN_CREATE_OA')
 def create_oa_config():
     data = request.get_json()
     # Basic validation
@@ -195,6 +200,7 @@ def create_oa_config():
 @admin_bp.route('/oa_configs/<int:config_id>', methods=['PUT'])
 @token_required
 @admin_required
+@syslog_action('ADMIN_UPDATE_OA')
 def update_oa_config(config_id):
     config = OAConfig.query.get(config_id)
     if not config:
@@ -226,6 +232,7 @@ def update_oa_config(config_id):
 @admin_bp.route('/oa_configs/<int:config_id>', methods=['DELETE'])
 @token_required
 @admin_required
+@syslog_action('ADMIN_DELETE_OA')
 def delete_oa_config(config_id):
     config = OAConfig.query.get(config_id)
     if not config:

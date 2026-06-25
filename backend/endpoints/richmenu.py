@@ -1,3 +1,4 @@
+from utils.syslogger import syslog_action
 from flask import Blueprint, request, jsonify, g
 import requests
 import json
@@ -149,6 +150,7 @@ def list_rich_menu_aliases():
 
 @richmenu_bp.route('/', methods=['POST'], strict_slashes=False)
 @token_required
+@syslog_action('RICHMENU_CREATE')
 def create_rich_menu():
     token = get_line_token()
     if not token:
@@ -200,6 +202,7 @@ def get_rich_menu_image(richMenuId):
 
 @richmenu_bp.route('/<richMenuId>/image', methods=['POST'])
 @token_required
+@syslog_action('RICHMENU_UPLOAD_IMAGE')
 def upload_rich_menu_image(richMenuId):
     token = get_line_token()
     if not token:
@@ -242,6 +245,7 @@ def upload_rich_menu_image(richMenuId):
 
 @richmenu_bp.route('/<richMenuId>', methods=['DELETE'])
 @token_required
+@syslog_action('RICHMENU_DELETE')
 def delete_rich_menu(richMenuId):
     token = get_line_token()
     if not token:
@@ -314,6 +318,7 @@ def delete_rich_menu_alias(aliasId):
 
 @richmenu_bp.route('/set-default/<richMenuId>', methods=['POST'])
 @token_required
+@syslog_action('RICHMENU_SET_DEFAULT')
 def set_default_rich_menu(richMenuId):
     token = get_line_token()
     if not token:
@@ -375,6 +380,7 @@ def set_default_rich_menu(richMenuId):
         return jsonify({'message': 'Error', 'error': str(e)}), 500
 @richmenu_bp.route('/set-default', methods=['DELETE'])
 @token_required
+@syslog_action('RICHMENU_UNSET_DEFAULT')
 def unset_default_rich_menu():
     token = get_line_token()
     if not token:
@@ -413,6 +419,7 @@ def unset_default_rich_menu():
 
 @richmenu_bp.route('/clear-all', methods=['POST'])
 @token_required
+@syslog_action('RICHMENU_CLEAR_ALL')
 def clear_all_rich_menus():
     token = get_line_token()
     if not token:
@@ -442,6 +449,7 @@ def get_rich_menu_permissions():
 
 @richmenu_bp.route('/permissions', methods=['POST'], strict_slashes=False)
 @token_required
+@syslog_action('RICHMENU_SAVE_PERMISSION')
 def save_rich_menu_permissions():
     from models import db, OAConfig
     oa_config = getattr(g, 'current_oa_config', None)
@@ -657,6 +665,7 @@ def get_rich_menu_metadata():
 
 @richmenu_bp.route('/metadata', methods=['POST'], strict_slashes=False)
 @token_required
+@syslog_action('RICHMENU_CREATE_DRAFT')
 def save_rich_menu_metadata():
     from db_utils import get_main_db_connection
     from psycopg2.extras import RealDictCursor
@@ -740,6 +749,7 @@ def save_rich_menu_metadata():
 
 @richmenu_bp.route('/metadata/<int:id>', methods=['DELETE'])
 @token_required
+@syslog_action('RICHMENU_DELETE_DRAFT')
 def delete_rich_menu_metadata(id):
     from db_utils import get_main_db_connection
     try:
@@ -785,6 +795,7 @@ def delete_rich_menu_metadata(id):
 
 @richmenu_bp.route('/link/<richMenuId>', methods=['POST'])
 @token_required
+@syslog_action('RICHMENU_LINK_ALL')
 def link_rich_menu_to_all(richMenuId):
     """將圖文選單個別綁定至全體用戶 (Individual Bulk Link to All) 或觸發限定標籤綁定"""
     token = get_line_token()
@@ -820,6 +831,7 @@ def link_rich_menu_to_all(richMenuId):
 
 @richmenu_bp.route('/unlink/<richMenuId>', methods=['POST'])
 @token_required
+@syslog_action('RICHMENU_UNLINK_ALL')
 def unlink_rich_menu_from_all(richMenuId):
     """解除全體用戶的個別圖文選單綁定，並在預設為該選單時清除預設 (Bulk Unlink from All + Clear Default)"""
     token = get_line_token()

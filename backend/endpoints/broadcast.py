@@ -1,3 +1,4 @@
+from utils.syslogger import syslog_action
 from flask import Blueprint, request, jsonify, g
 from models import db, OAConfig
 from auth import token_required
@@ -381,6 +382,7 @@ def list_broadcasts():
 
 @broadcast_bp.route('/', methods=['POST'])
 @token_required
+@syslog_action('BROADCAST_CREATE_DRAFT')
 def create_broadcast():
     data = request.json
     oa_id = g.current_oa_id
@@ -427,6 +429,7 @@ def create_broadcast():
 
 @broadcast_bp.route('/<int:id>', methods=['PUT'])
 @token_required
+@syslog_action('BROADCAST_UPDATE')
 def update_broadcast(id):
     data = request.json
     conn = None
@@ -470,6 +473,7 @@ def update_broadcast(id):
 
 @broadcast_bp.route('/<int:id>', methods=['DELETE'])
 @token_required
+@syslog_action('BROADCAST_DELETE')
 def delete_broadcast(id):
     conn = None
     try:
@@ -501,6 +505,7 @@ def delete_broadcast(id):
 
 @broadcast_bp.route('/<int:id>/execute', methods=['POST'])
 @token_required
+@syslog_action('BROADCAST_EXECUTE')
 def execute_broadcast(id):
     conn_rds = None
     conn_oa = None

@@ -1,3 +1,4 @@
+from utils.syslogger import syslog_action
 from flask import Blueprint, request, jsonify, g
 from psycopg2.extras import RealDictCursor
 import psycopg2
@@ -179,6 +180,7 @@ def list_rules():
             conn.close()
 
 @rule_designer_bp.route('/rules', methods=['POST'])
+@syslog_action('RULE_CREATE')
 def create_rule():
     data = request.json
     bank_type = data.get('bank_type', 'q_bank')
@@ -253,6 +255,7 @@ def create_rule():
         if conn: conn.close()
 
 @rule_designer_bp.route('/rules/<int:rule_id>', methods=['PUT', 'POST']) # POST for compatibility with some clients
+@syslog_action('RULE_UPDATE')
 def update_rule(rule_id):
     data = request.json
     bank_type = data.get('bank_type', 'q_bank')
@@ -323,6 +326,7 @@ def update_rule(rule_id):
         if conn: conn.close()
 
 @rule_designer_bp.route('/rules/<int:rule_id>', methods=['DELETE'])
+@syslog_action('RULE_DELETE')
 def delete_rule(rule_id):
     bank_type = request.args.get('type', 'q_bank')
     conn = None

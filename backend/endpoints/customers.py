@@ -1,3 +1,4 @@
+from utils.syslogger import syslog_action
 from flask import Blueprint, jsonify, request, g
 from auth import token_required
 import psycopg2
@@ -201,6 +202,7 @@ def get_groups():
 
 @customers_bp.route('/groups', methods=['POST'])
 @token_required
+@syslog_action('CUSTOMER_CREATE_GROUP')
 def create_group():
     data = request.json
     group_name = data.get('group_name')
@@ -272,6 +274,7 @@ def create_group():
 
 @customers_bp.route('/groups/<group_name>', methods=['DELETE'])
 @token_required
+@syslog_action('CUSTOMER_DELETE_GROUP')
 def delete_group(group_name):
     app_id = get_current_app_id()
     conn = None
@@ -382,6 +385,7 @@ def get_tags():
 
 @customers_bp.route('/tags/<tag_name>', methods=['DELETE'])
 @token_required
+@syslog_action('CUSTOMER_DELETE_TAG')
 def delete_tag(tag_name):
     app_id = get_current_app_id()
     conn = None
@@ -463,6 +467,7 @@ def delete_tag(tag_name):
 
 @customers_bp.route('/tags/batch', methods=['POST'])
 @token_required
+@syslog_action('CUSTOMER_ADD_TAG')
 def add_tag_batch():
     app_id = get_current_app_id()
     conn = None
@@ -550,6 +555,7 @@ def add_tag_batch():
 
 @customers_bp.route('/<user_id>', methods=['PUT'])
 @token_required
+@syslog_action('CUSTOMER_UPDATE_INFO')
 def update_customer(user_id):
     data = request.json
     name = data.get('name')

@@ -100,6 +100,9 @@ def get_suffixed_table(base_name):
 
 db.init_app(app)
 
+from utils.syslogger import init_syslogger, syslog_action
+init_syslogger()
+
 # Register Admin Blueprint
 from endpoints.admin import admin_bp
 app.register_blueprint(admin_bp, url_prefix='/api/admin')
@@ -573,6 +576,7 @@ def login():
     return jsonify({"status": "error", "message": "Invalid credentials"}), 401
 
 @app.route('/api/auth/google-login', methods=['POST'])
+@syslog_action('AUTH_LOGIN')
 def google_login():
     try:
         data = request.get_json()
@@ -797,6 +801,7 @@ def get_projects():
 
 @app.route('/api/projects', methods=['POST'])
 @token_required
+@syslog_action('PROJECT_CREATE')
 def create_project():
     data = request.json
     conn = None
@@ -841,6 +846,7 @@ def create_project():
 
 @app.route('/api/projects/<int:id>', methods=['PUT'])
 @token_required
+@syslog_action('PROJECT_UPDATE')
 def update_project(id):
     data = request.json
     conn = None
@@ -883,6 +889,7 @@ def update_project(id):
 
 @app.route('/api/projects/<int:id>', methods=['DELETE'])
 @token_required
+@syslog_action('PROJECT_DELETE')
 def delete_project(id):
     conn = None
     try:
@@ -1004,6 +1011,7 @@ def get_project_stats(id):
             
 @app.route('/api/projects/<int:id>/schedules/reorder', methods=['POST'])
 @token_required
+@syslog_action('SCHEDULE_REORDER')
 def reorder_project_schedules(id):
     conn = None
     try:
@@ -1056,6 +1064,7 @@ def export_project_schedules(id):
 
 @app.route('/api/projects/<int:id>/schedules/import', methods=['POST'])
 @token_required
+@syslog_action('SCHEDULE_IMPORT')
 def import_project_schedules(id):
     data = request.json # List of schedules
     conn = None
@@ -1187,6 +1196,7 @@ def get_project_users(id):
 
 @app.route('/api/projects/<int:id>/users/<string:user_id>', methods=['DELETE'])
 @token_required
+@syslog_action('PROJECT_USER_DELETE')
 def delete_project_user(id, user_id):
     conn = None
     try:
@@ -1207,6 +1217,7 @@ def delete_project_user(id, user_id):
 
 @app.route('/api/projects/<int:id>/users/<string:user_id>/restart', methods=['POST'])
 @token_required
+@syslog_action('PROJECT_USER_RESTART')
 def restart_project_user(id, user_id):
     conn = None
     try:
@@ -1535,6 +1546,7 @@ def get_schedules():
 
 @app.route('/api/schedules', methods=['POST'])
 @token_required
+@syslog_action('SCHEDULE_CREATE')
 def create_schedule():
     data = request.json
     conn = None
@@ -1561,6 +1573,7 @@ def create_schedule():
 
 @app.route('/api/schedules/<int:id>', methods=['PUT'])
 @token_required
+@syslog_action('SCHEDULE_UPDATE')
 def update_schedule(id):
     data = request.json
     conn = None
@@ -1586,6 +1599,7 @@ def update_schedule(id):
 
 @app.route('/api/schedules/<int:id>', methods=['DELETE'])
 @token_required
+@syslog_action('SCHEDULE_DELETE')
 def delete_schedule(id):
     conn = None
     try:
@@ -2101,6 +2115,7 @@ def check_and_update_rich_menu(user_id, tag):
 
 
 @app.route('/api/trigger', methods=['POST'])
+@syslog_action('MSG_SEND_REPLY')
 def trigger_socket_event_route():
     data = request.json
     try:

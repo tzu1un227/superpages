@@ -1,3 +1,4 @@
+from utils.syslogger import syslog_action
 from datetime import datetime
 import json
 import re
@@ -543,6 +544,7 @@ def list_questionnaire_groups():
 
 
 @questionnaire_bp.route("/groups", methods=["POST"], strict_slashes=False)
+@syslog_action('QUESTIONNAIRE_GROUP_CREATE')
 def create_questionnaire_group():
     data = request.get_json() or {}
     name = (data.get("name") or "").strip()
@@ -574,6 +576,7 @@ def create_questionnaire_group():
 
 
 @questionnaire_bp.route("/groups/<int:group_id>", methods=["DELETE"], strict_slashes=False)
+@syslog_action('QUESTIONNAIRE_GROUP_DELETE')
 def delete_questionnaire_group(group_id):
     conn = None
     try:
@@ -788,6 +791,7 @@ def get_questionnaire_responses(note):
 
 
 @questionnaire_bp.route("/build", methods=["POST"], strict_slashes=False)
+@syslog_action('QUESTIONNAIRE_BUILD')
 def build_questionnaire():
     data = request.get_json()
     if not data:
@@ -854,6 +858,7 @@ def build_questionnaire():
 
 
 @questionnaire_bp.route("/<note>", methods=["DELETE"], strict_slashes=False)
+@syslog_action('QUESTIONNAIRE_DELETE')
 def delete_questionnaire(note):
     conn = None
     try:
