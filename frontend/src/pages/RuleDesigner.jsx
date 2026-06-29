@@ -487,7 +487,8 @@ function RuleDesigner() {
         }
 
         setLoading(true);
-        showToast('正在儲存中...', 'info');
+        const itemName = ruleToSave.tag || ruleToSave.note || ruleToSave.id || '規則';
+        showToast(`正在儲存「${itemName}」...`, 'info');
         delete ruleToSave._isDirty;
         delete ruleToSave._isNew;
         const nowIso = new Date().toISOString();
@@ -517,7 +518,7 @@ function RuleDesigner() {
             }
 
             if (res.data.status === 'success') {
-                showToast('規則已儲存', 'success');
+                showToast(`「${itemName}」已儲存`, 'success');
                 const newDrafts = [...draftRules];
                 newDrafts[index]._isDirty = false;
                 newDrafts[index]._isNew = false;
