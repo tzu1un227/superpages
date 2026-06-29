@@ -876,11 +876,9 @@ const ProjectsManagement = () => {
                 if (err.response && err.response.status === 409 && err.response.data.has_dependencies) {
                     resetTask();
                     const deps = err.response.data.dependencies || [];
-                    const depText = deps.length > 0 ? `\n\n影響項目：\n${deps.join('\n')}` : '';
-                    const confirmMsg = `目前有項目正在綁定此自動旅程：${depText}\n\n確定要解除所有綁定並強制刪除嗎？`;
-                    if (window.confirm(confirmMsg)) {
-                        handleDeleteProject(id, name, true, true);
-                    }
+                    const depText = deps.length > 0 ? `\n${deps.map(d => `• ${d}`).join('\n')}` : '';
+                    const alertMsg = `⚠️ 無法刪除旅程「${name}」\n\n目前仍有以下項目與此旅程綁定：${depText}\n\n為防止誤刪正在運作中的功能，請先至對應功能解除綁定後，再執行刪除操作。`;
+                    window.alert(alertMsg);
                     return;
                 }
                 showToast('刪除失敗: ' + (err.response?.data?.message || err.message), 'error');

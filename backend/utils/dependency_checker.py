@@ -100,7 +100,11 @@ def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=N
                 if not force:
                     for row in rows:
                         item_name = row[2] if row[2] else '未命名'
-                        dependent_items.append(f"【{type_name}】{item_name}")
+                        if type_name in ['標準訊息', '進階訊息'] and ' - 自動旅程' in item_name:
+                            journey_name = item_name.replace(' - 自動旅程', '').strip()
+                            dependent_items.append(f"【自動旅程】{journey_name}")
+                        else:
+                            dependent_items.append(f"【{type_name}】{item_name}")
                 else:
                     # Cascade clear
                     for row in rows:
@@ -133,7 +137,8 @@ def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=N
                 except:
                     pass
 
+    unique_deps = list(dict.fromkeys(dependent_items))
     return {
         "has_dependencies": has_dependencies,
-        "dependencies": dependent_items
+        "dependencies": unique_deps
     }
