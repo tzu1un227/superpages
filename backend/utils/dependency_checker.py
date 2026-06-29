@@ -69,10 +69,12 @@ def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=N
     sid = str(item_id)
     
     tables_to_check = [
-        {"conn": oa_conn, "table": f'"Q_bank:{app_id}"', "col": "msg_rpy", "name_col": "note", "type_name": "標準訊息"},
-        {"conn": oa_conn, "table": f'"AD_bank:{app_id}"', "col": "msg_rpy", "name_col": "note", "type_name": "進階訊息"},
-        {"conn": oa_conn, "table": f'"QA_bank:{app_id}"', "col": "msg_rpy", "name_col": "tag", "type_name": "關鍵字回覆"},
-        {"conn": oa_conn, "table": f'"QA_bank:{app_id}"', "col": "function", "name_col": "tag", "type_name": "關鍵字回覆"},
+        {"conn": main_conn, "table": f'"QA_bank:{app_id}"', "col": "msg_rpy", "name_col": "tag", "type_name": "關鍵字回覆"},
+        {"conn": main_conn, "table": f'"QA_bank:{app_id}"', "col": "function", "name_col": "tag", "type_name": "關鍵字回覆"},
+        {"conn": main_conn, "table": f'"Q_bank:{app_id}"', "col": "msg_rpy", "name_col": "note", "type_name": "標準訊息"},
+        {"conn": main_conn, "table": f'"Q_bank:{app_id}"', "col": "function", "name_col": "note", "type_name": "標準訊息"},
+        {"conn": main_conn, "table": f'"AD_bank:{app_id}"', "col": "msg_rpy", "name_col": "note", "type_name": "進階訊息"},
+        {"conn": main_conn, "table": f'"AD_bank:{app_id}"', "col": "function", "name_col": "note", "type_name": "進階訊息"},
         {"conn": oa_conn, "table": f'"project_schedules:{app_id}"', "col": "message_content", "name_col": "project_name", "type_name": "自動旅程", "pk": "schedule_id"},
     ]
     
@@ -119,11 +121,32 @@ def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=N
                 if not force:
                     for row in rows:
                         item_name = row[2] if row[2] else '未命名'
-                        if type_name in ['標準訊息', '進階訊息'] and ' - 自動旅程' in item_name:
-                            journey_name = item_name.replace(' - 自動旅程', '').strip()
+                        proj_id = None
+                        if isinstance(item_name, str) and item_name.startswith("project_"):
+                            parts = item_name.split("_")
+                            if len(parts) >= 2:
+                                proj_id = parts[1]
+                        
+                        real_name = item_name
+                        if proj_id:
+                            try:
+                                oa_cur = oa_conn.cursor()
+                                t_projects = get_t('projects')
+                                oa_cur.execute(f"SELECT name FROM {t_projects} WHERE id = %s", (proj_id,))
+                                res = oa_cur.fetchone()
+                                if res and res[0]:
+                                    real_name = res[0]
+                                oa_cur.close()
+                            except:
+                                pass
+
+                        if type_name in ['標準訊息', '進階訊息'] and ' - 自動旅程' in real_name:
+                            journey_name = real_name.replace(' - 自動旅程', '').strip()
                             dependent_items.append(f"【自動旅程】{journey_name}")
+                        elif type_name == '自動旅程':
+                            dependent_items.append(f"【自動旅程】{real_name}")
                         else:
-                            dependent_items.append(f"【{type_name}】{item_name}")
+                            dependent_items.append(f"【{type_name}】{real_name}")
                 else:
                     # Cascade clear
                     for row in rows:
