@@ -272,7 +272,7 @@ def delete_rich_menu(richMenuId):
             ui_uuid = m[0] if m else richMenuId
             main_cur.close()
 
-            dep_res = check_and_clear_dependencies('menu', ui_uuid, force, oa_conn, main_conn)
+            dep_res = check_and_clear_dependencies('menu', ui_uuid, force, oa_conn, main_conn, extra_ids=[richMenuId])
             if dep_res['has_dependencies'] and not force:
                 return jsonify({
                     'status': 'warning',
@@ -796,7 +796,7 @@ def delete_rich_menu_metadata(id):
             oa_conn = None
             try:
                 oa_conn = get_db_connection()
-                dep_result = check_and_clear_dependencies('menu', ui_uuid, force, oa_conn, conn)
+                dep_result = check_and_clear_dependencies('menu', ui_uuid, force, oa_conn, conn, extra_ids=[rich_menu_id] if rich_menu_id else None)
                 if dep_result.get('has_dependencies') and not force:
                     deps = dep_result.get('dependencies', [])
                     return jsonify({

@@ -17,56 +17,67 @@ def get_t(base):
         return f'"{base}:{app_id}"'
     return f'"{base}"'
 
-def clear_dependency_in_json_string(text, item_type, item_id):
+def clear_dependency_in_json_string(text, item_type, item_id, extra_ids=None):
     """
     Find and clear sys_bind references and URL references for item_id.
     item_type is 'journey' (index 3 in sys_bind) or 'menu' (index 4 in sys_bind).
+    extra_ids: list of additional IDs to also clear (e.g. richMenuId alongside ui_uuid).
     """
     if not text:
         return text
     
-    sid = str(item_id)
+    all_ids = [str(item_id)]
+    if extra_ids:
+        all_ids.extend([str(eid) for eid in extra_ids if eid])
+    
     # sys_bind format: sys_bind|tags|journey_id|menu_id|value
-    
-    def replace_sys_bind(match):
-        tags = match.group(1)
-        journey = match.group(2)
-        menu = match.group(3)
-        val = match.group(4)
-        
-        if item_type == 'journey' and journey == sid:
-            journey = ''
-        if item_type == 'menu' and menu == sid:
-            menu = ''
+    for sid in all_ids:
+        def replace_sys_bind(match, _sid=sid):
+            tags = match.group(1)
+            journey = match.group(2)
+            menu = match.group(3)
+            val = match.group(4)
             
-        return f"sys_bind|{tags}|{journey}|{menu}|{val}"
+            if item_type == 'journey' and journey == _sid:
+                journey = ''
+            if item_type == 'menu' and menu == _sid:
+                menu = ''
+                
+            return f"sys_bind|{tags}|{journey}|{menu}|{val}"
+            
+        text = re.sub(r'sys_bind\|([^|]*)\|([^|]*)\|([^|]*)\|(.*?(?="|\Z|\\n|\\r))', replace_sys_bind, text)
         
-    text = re.sub(r'sys_bind\|([^|]*)\|([^|]*)\|([^|]*)\|(.*?(?="|\Z|\\n|\\r))', replace_sys_bind, text)
-    
-    # URL parameters and function calls
-    if item_type == 'journey':
-        text = re.sub(rf'journey={sid}(&|")', r'journey=\1', text)
-        text = re.sub(rf'update\("iup\|{sid}"\);?', '', text)
-        text = re.sub(rf"update\('iup\|{sid}'\);?", '', text)
-    elif item_type == 'menu':
-        text = re.sub(rf'menu={sid}(&|")', r'menu=\1', text)
-        text = re.sub(rf'update\("rm\|{sid}"\);?', '', text)
-        text = re.sub(rf"update\('rm\|{sid}'\);?", '', text)
+        # URL parameters and function calls
+        if item_type == 'journey':
+            text = re.sub(rf'journey={re.escape(sid)}(&|")', r'journey=\1', text)
+            text = re.sub(rf'update\("iup\|{re.escape(sid)}"\);?', '', text)
+            text = re.sub(rf"update\('iup\|{re.escape(sid)}'\);?", '', text)
+        elif item_type == 'menu':
+            text = re.sub(rf'menu={re.escape(sid)}(&|")', r'menu=\1', text)
+            text = re.sub(rf'update\("rm\|{re.escape(sid)}"\);?', '', text)
+            text = re.sub(rf"update\('rm\|{re.escape(sid)}'\);?", '', text)
+            text = re.sub(rf'update\("switch_rm\|{re.escape(sid)}"\);?', '', text)
+            text = re.sub(rf"update\('switch_rm\|{re.escape(sid)}'\);?", '', text)
         
     return text
 
-def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=None):
+def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=None, extra_ids=None):
     """
     item_type: 'journey' or 'menu'
-    item_id: ID of the project or rich menu
+    item_id: ID of the project or rich menu (ui_uuid for menus)
     force: boolean, if True, performs cascade clear
     oa_conn: db connection to OA database
     main_conn: db connection to Main database (for rich_menu_metadata if needed)
+    extra_ids: list of additional IDs to search (e.g. LINE richMenuId)
     
     Returns: {"has_dependencies": True/False, "dependencies": list}
     """
     app_id = get_current_app_id()
     sid = str(item_id)
+    # Build all IDs to search for
+    all_ids = [sid]
+    if extra_ids:
+        all_ids.extend([str(eid) for eid in extra_ids if eid and str(eid) != sid])
     
     tables_to_check = [
         {"conn": main_conn, "table": f'"QA_bank:{app_id}"', "col": "msg_rpy", "name_col": "tag", "type_name": "關鍵字回覆"},
@@ -97,22 +108,32 @@ def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=N
         
         try:
             cur = conn.cursor()
+            # Build LIKE conditions for all IDs
+            like_conditions = []
+            like_params = []
+            for search_id in all_ids:
+                if table.startswith('"project_schedules'):
+                    col_ref = 's.message_content::text'
+                else:
+                    col_ref = f'{col}::text'
+                
+                if item_type == 'journey':
+                    like_conditions.extend([f"{col_ref} LIKE %s", f"{col_ref} LIKE %s", f"{col_ref} LIKE %s"])
+                    like_params.extend([f"%|{search_id}|%", f"%journey={search_id}%", f"%iup|{search_id}%"])
+                else:
+                    like_conditions.extend([f"{col_ref} LIKE %s", f"{col_ref} LIKE %s", f"{col_ref} LIKE %s", f"{col_ref} LIKE %s"])
+                    like_params.extend([f"%|{search_id}|%", f"%menu={search_id}%", f"%rm|{search_id}%", f"%switch_rm|{search_id}%"])
+            
+            where_clause = ' OR '.join(like_conditions)
+            
             # Find any records containing the ID
             if table.startswith('"project_schedules'):
                 t_projects = f'"projects:{app_id}"'
-                if item_type == 'journey':
-                    query = f"SELECT s.schedule_id, s.message_content, p.project_name FROM {table} s JOIN {t_projects} p ON s.project_id = p.id WHERE s.message_content::text LIKE %s OR s.message_content::text LIKE %s OR s.message_content::text LIKE %s"
-                    cur.execute(query, (f"%|{sid}|%", f"%journey={sid}%", f"%iup|{sid}%"))
-                else:
-                    query = f"SELECT s.schedule_id, s.message_content, p.project_name FROM {table} s JOIN {t_projects} p ON s.project_id = p.id WHERE s.message_content::text LIKE %s OR s.message_content::text LIKE %s OR s.message_content::text LIKE %s"
-                    cur.execute(query, (f"%|{sid}|%", f"%menu={sid}%", f"%rm|{sid}%"))
+                query = f"SELECT s.schedule_id, s.message_content, p.project_name FROM {table} s JOIN {t_projects} p ON s.project_id = p.id WHERE {where_clause}"
+                cur.execute(query, tuple(like_params))
             else:
-                if item_type == 'journey':
-                    query = f"SELECT {pk}, {col}, {name_col} FROM {table} WHERE {col}::text LIKE %s OR {col}::text LIKE %s OR {col}::text LIKE %s"
-                    cur.execute(query, (f"%|{sid}|%", f"%journey={sid}%", f"%iup|{sid}%"))
-                else:
-                    query = f"SELECT {pk}, {col}, {name_col} FROM {table} WHERE {col}::text LIKE %s OR {col}::text LIKE %s OR {col}::text LIKE %s"
-                    cur.execute(query, (f"%|{sid}|%", f"%menu={sid}%", f"%rm|{sid}%"))
+                query = f"SELECT {pk}, {col}, {name_col} FROM {table} WHERE {where_clause}"
+                cur.execute(query, tuple(like_params))
                 
             rows = cur.fetchall()
             if rows:
@@ -169,7 +190,7 @@ def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=N
                         else:
                             text_data = str(col_data)
                             
-                        new_text = clear_dependency_in_json_string(text_data, item_type, sid)
+                        new_text = clear_dependency_in_json_string(text_data, item_type, sid, extra_ids=extra_ids)
                         
                         if new_text != text_data:
                             update_query = f"UPDATE {table} SET {col} = %s::jsonb WHERE {pk} = %s"
