@@ -665,18 +665,23 @@ function RichMenu() {
         // old function removal placeholder
     };
     
-    const deleteMenu = async (id, isMetadata = false) => {
-        if (!window.confirm('確定要刪除嗎？')) return;
+    const deleteMenu = async (id, isMetadata = false, force = false) => {
+        const msg = force ? '確定要解除所有綁定並強制刪除嗎？' : '確定要刪除嗎？';
+        if (!window.confirm(msg)) return;
         try {
-            if (isMetadata) {
-                await api.delete(`/richmenu/metadata/${id}`);
-            } else {
-                await api.delete(`/richmenu/${id}`);
-            }
+            const endpoint = isMetadata 
+                ? `/richmenu/metadata/${id}${force ? '?force=true' : ''}`
+                : `/richmenu/${id}${force ? '?force=true' : ''}`;
+            await api.delete(endpoint);
             fetchData();
             showToast('已刪除', 'success');
         } catch (err) {
-            showToast('刪除失敗', 'error');
+            if (err.response && err.response.status === 409 && err.response.data.has_dependencies) {
+                // 再次呼叫自身並帶入 force=true
+                deleteMenu(id, isMetadata, true);
+                return;
+            }
+            showToast('刪除失敗: ' + (err.response?.data?.message || err.message), 'error');
         }
     };
 

@@ -863,15 +863,23 @@ const ProjectsManagement = () => {
         }
     };
 
-    const handleDeleteProject = async (id) => {
-        if (window.confirm('確定要刪除此專案嗎？相關排程也可能受到影響。')) {
+    const handleDeleteProject = async (id, force = false) => {
+        const msg = force ? '確定要解除所有綁定並強制刪除嗎？' : '確定要刪除此專案嗎？相關排程也可能受到影響。';
+        if (window.confirm(msg)) {
             try {
-                updateTask({ isProcessing: true, processingMessage: '正在刪除旅程...' });
-                await api.delete(`/projects/${id}`);
+                updateTask({ isProcessing: true, processingMessage: force ? '正在解除綁定並刪除旅程...' : '正在刪除旅程...' });
+                const endpoint = force ? `/projects/${id}?force=true` : `/projects/${id}`;
+                await api.delete(endpoint);
                 showToast('旅程已刪除', 'success');
                 fetchProjects();
             } catch (err) {
-                showToast('刪除失敗: ' + err.message, 'error');
+                if (err.response && err.response.status === 409 && err.response.data.has_dependencies) {
+                    resetTask();
+                    // 再次呼叫自身並帶入 force=true
+                    handleDeleteProject(id, true);
+                    return;
+                }
+                showToast('刪除失敗: ' + (err.response?.data?.message || err.message), 'error');
             } finally {
                 resetTask();
             }

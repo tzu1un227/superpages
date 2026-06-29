@@ -751,10 +751,23 @@ def save_rich_menu_metadata():
 @token_required
 @syslog_action('RICHMENU_DELETE_DRAFT')
 def delete_rich_menu_metadata(id):
-    from db_utils import get_main_db_connection
+    from db_utils import get_main_db_connection, get_db_connection
     try:
+        force = request.args.get('force', 'false').lower() == 'true'
+        from utils.dependency_checker import check_and_clear_dependencies
+
         t_metadata = get_t('rich_menu_metadata')
         conn = get_main_db_connection()
+        oa_conn = None
+        try:
+            oa_conn = get_db_connection()
+            dep_result = check_and_clear_dependencies('menu', id, force, oa_conn, conn)
+            if dep_result.get('has_dependencies') and not force:
+                return jsonify({"status": "warning", "message": "目前有 Flex 訊息或其他圖文選單正在綁定此選單，確定要解除所有綁定並強制刪除嗎？", "has_dependencies": True}), 409
+        finally:
+            if oa_conn:
+                oa_conn.close()
+
         cur = conn.cursor()
         try:
             cur.execute(f"SELECT rich_menu_id FROM {t_metadata} WHERE id = %s", (id,))

@@ -893,7 +893,21 @@ def update_project(id):
 def delete_project(id):
     conn = None
     try:
+        force = request.args.get('force', 'false').lower() == 'true'
+        from utils.dependency_checker import check_and_clear_dependencies
+        from db_utils import get_main_db_connection
+
         conn = get_db_connection()
+        main_conn = None
+        try:
+            main_conn = get_main_db_connection()
+            dep_result = check_and_clear_dependencies('journey', id, force, conn, main_conn)
+            if dep_result.get('has_dependencies') and not force:
+                return jsonify({"status": "warning", "message": "目前有 Flex 訊息或關鍵字正在綁定此自動旅程，確定要解除所有綁定並強制刪除嗎？", "has_dependencies": True}), 409
+        finally:
+            if main_conn:
+                main_conn.close()
+
         cur = conn.cursor()
         t_projects = get_suffixed_table('projects')
         t_schedules = get_suffixed_table('project_schedules')
