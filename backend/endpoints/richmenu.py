@@ -257,6 +257,34 @@ def delete_rich_menu(richMenuId):
     }
     
     try:
+        from db_utils import get_oa_db_connection, get_main_db_connection
+        from utils.dependency_checker import check_and_clear_dependencies
+        
+        force = request.args.get('force', 'false').lower() == 'true'
+        oa_conn = get_oa_db_connection()
+        main_conn = get_main_db_connection()
+        try:
+            main_cur = main_conn.cursor()
+            app_id = g.current_app_name if hasattr(g, 'current_app_name') and g.current_app_name else '5013'
+            t_metadata = f'"rich_menu_metadata:{app_id}"'
+            main_cur.execute(f"SELECT ui_uuid FROM {t_metadata} WHERE rich_menu_id = %s", (richMenuId,))
+            m = main_cur.fetchone()
+            ui_uuid = m[0] if m else richMenuId
+            main_cur.close()
+
+            dep_res = check_and_clear_dependencies('menu', ui_uuid, force, oa_conn, main_conn)
+            if dep_res['has_dependencies'] and not force:
+                return jsonify({
+                    'status': 'warning',
+                    'message': 'Cannot delete menu because it is currently in use.',
+                    'dependencies': dep_res['dependencies'],
+                    'needs_force': True,
+                    'has_dependencies': True
+                }), 409
+        finally:
+            if oa_conn: oa_conn.close()
+            if main_conn: main_conn.close()
+
         # First, find and delete all associated aliases
         alias_resp = requests.get('https://api.line.me/v2/bot/richmenu/alias/list', headers=headers)
         if alias_resp.status_code == 200:
@@ -758,27 +786,29 @@ def delete_rich_menu_metadata(id):
 
         t_metadata = get_t('rich_menu_metadata')
         conn = get_main_db_connection()
-        oa_conn = None
-        try:
-            oa_conn = get_db_connection()
-            dep_result = check_and_clear_dependencies('menu', id, force, oa_conn, conn)
-            if dep_result.get('has_dependencies') and not force:
-                deps = dep_result.get('dependencies', [])
-                return jsonify({
-                    "status": "warning", 
-                    "message": "目前有 Flex 訊息或其他圖文選單正在綁定此選單，確定要解除所有綁定並強制刪除嗎？", 
-                    "has_dependencies": True,
-                    "dependencies": deps
-                }), 409
-        finally:
-            if oa_conn:
-                oa_conn.close()
-
         cur = conn.cursor()
         try:
-            cur.execute(f"SELECT rich_menu_id FROM {t_metadata} WHERE id = %s", (id,))
+            cur.execute(f"SELECT rich_menu_id, ui_uuid FROM {t_metadata} WHERE id = %s", (id,))
             m = cur.fetchone()
             rich_menu_id = m[0] if m else None
+            ui_uuid = m[1] if m and m[1] else id
+
+            oa_conn = None
+            try:
+                oa_conn = get_db_connection()
+                dep_result = check_and_clear_dependencies('menu', ui_uuid, force, oa_conn, conn)
+                if dep_result.get('has_dependencies') and not force:
+                    deps = dep_result.get('dependencies', [])
+                    return jsonify({
+                        "status": "warning", 
+                        "message": "目前有 Flex 訊息或其他圖文選單正在綁定此選單，確定要解除所有綁定並強制刪除嗎？", 
+                        "has_dependencies": True,
+                        "needs_force": True,
+                        "dependencies": deps
+                    }), 409
+            finally:
+                if oa_conn:
+                    oa_conn.close()
 
             cur.execute(f"DELETE FROM {t_metadata} WHERE id = %s", (id,))
             conn.commit()

@@ -676,7 +676,7 @@ function RichMenu() {
             fetchData();
             showToast(`「${name}」已刪除`, 'success');
         } catch (err) {
-            if (err.response && err.response.status === 409 && err.response.data.has_dependencies) {
+            if (err.response && err.response.status === 409 && err.response.data.needs_force) {
                 const deps = err.response.data.dependencies || [];
                 const depText = deps.length > 0 ? `\n${deps.map(d => `• ${d}`).join('\n')}` : '';
                 const alertMsg = `⚠️ 無法刪除圖文選單「${name}」\n\n目前仍有以下項目與此選單綁定：${depText}\n\n為防止誤刪正在運作中的功能，請先至對應功能解除綁定後，再執行刪除操作。`;
