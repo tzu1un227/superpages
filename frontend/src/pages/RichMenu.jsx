@@ -668,6 +668,7 @@ function RichMenu() {
     const deleteMenu = async (id, name, isMetadata = false, force = false, skipConfirm = false) => {
         const msg = force ? '確定要解除所有綁定並強制刪除嗎？' : `確定要刪除「${name}」嗎？`;
         if (!skipConfirm && !window.confirm(msg)) return;
+        setLoading(true);
         try {
             const endpoint = isMetadata 
                 ? `/richmenu/metadata/${id}${force ? '?force=true' : ''}`
@@ -684,6 +685,8 @@ function RichMenu() {
                 return;
             }
             showToast('刪除失敗: ' + (err.response?.data?.message || err.message), 'error');
+        } finally {
+            setLoading(false);
         }
     };
 
