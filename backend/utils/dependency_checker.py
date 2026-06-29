@@ -3,10 +3,13 @@ import json
 from flask import g
 
 def get_current_app_id():
-    app_id = getattr(g, 'current_app_id', None)
-    if not app_id and hasattr(g, 'current_oa_config'):
-        app_id = g.current_oa_config.oa_name
-    return app_id
+    """Returns the current logical app name/id (e.g. 'yzulabuse')."""
+    if hasattr(g, 'current_app_name') and g.current_app_name:
+        return g.current_app_name
+    if hasattr(g, 'current_db_url') and g.current_db_url:
+        path_part = g.current_db_url.split('/')[-1]
+        return path_part.split('?')[0].strip()
+    return '5013' # Default
 
 def get_t(base):
     app_id = get_current_app_id()
@@ -70,6 +73,7 @@ def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=N
         {"conn": oa_conn, "table": f'"AD_bank:{app_id}"', "col": "msg_rpy", "name_col": "note", "type_name": "進階訊息"},
         {"conn": oa_conn, "table": f'"QA_bank:{app_id}"', "col": "msg_rpy", "name_col": "tag", "type_name": "關鍵字回覆"},
         {"conn": oa_conn, "table": f'"QA_bank:{app_id}"', "col": "function", "name_col": "tag", "type_name": "關鍵字回覆"},
+        {"conn": oa_conn, "table": f'"project_schedules:{app_id}"', "col": "message_content", "name_col": "project_name", "type_name": "自動旅程", "pk": "schedule_id"},
     ]
     
     if main_conn:
@@ -87,16 +91,26 @@ def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=N
         col = t_info['col']
         name_col = t_info['name_col']
         type_name = t_info['type_name']
+        pk = t_info.get('pk', 'id')
         
         try:
             cur = conn.cursor()
             # Find any records containing the ID
-            if item_type == 'journey':
-                query = f"SELECT id, {col}, {name_col} FROM {table} WHERE {col}::text LIKE %s OR {col}::text LIKE %s OR {col}::text LIKE %s"
-                cur.execute(query, (f"%|{sid}|%", f"%journey={sid}%", f"%iup|{sid}%"))
+            if table.startswith('"project_schedules'):
+                t_projects = f'"projects:{app_id}"'
+                if item_type == 'journey':
+                    query = f"SELECT s.schedule_id, s.message_content, p.project_name FROM {table} s JOIN {t_projects} p ON s.project_id = p.id WHERE s.message_content::text LIKE %s OR s.message_content::text LIKE %s OR s.message_content::text LIKE %s"
+                    cur.execute(query, (f"%|{sid}|%", f"%journey={sid}%", f"%iup|{sid}%"))
+                else:
+                    query = f"SELECT s.schedule_id, s.message_content, p.project_name FROM {table} s JOIN {t_projects} p ON s.project_id = p.id WHERE s.message_content::text LIKE %s OR s.message_content::text LIKE %s OR s.message_content::text LIKE %s"
+                    cur.execute(query, (f"%|{sid}|%", f"%menu={sid}%", f"%rm|{sid}%"))
             else:
-                query = f"SELECT id, {col}, {name_col} FROM {table} WHERE {col}::text LIKE %s OR {col}::text LIKE %s OR {col}::text LIKE %s"
-                cur.execute(query, (f"%|{sid}|%", f"%menu={sid}%", f"%rm|{sid}%"))
+                if item_type == 'journey':
+                    query = f"SELECT {pk}, {col}, {name_col} FROM {table} WHERE {col}::text LIKE %s OR {col}::text LIKE %s OR {col}::text LIKE %s"
+                    cur.execute(query, (f"%|{sid}|%", f"%journey={sid}%", f"%iup|{sid}%"))
+                else:
+                    query = f"SELECT {pk}, {col}, {name_col} FROM {table} WHERE {col}::text LIKE %s OR {col}::text LIKE %s OR {col}::text LIKE %s"
+                    cur.execute(query, (f"%|{sid}|%", f"%menu={sid}%", f"%rm|{sid}%"))
                 
             rows = cur.fetchall()
             if rows:
@@ -123,7 +137,7 @@ def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=N
                         new_text = clear_dependency_in_json_string(text_data, item_type, sid)
                         
                         if new_text != text_data:
-                            update_query = f"UPDATE {table} SET {col} = %s::jsonb WHERE id = %s"
+                            update_query = f"UPDATE {table} SET {col} = %s::jsonb WHERE {pk} = %s"
                             cur.execute(update_query, (new_text, row_id))
                     
                     # Use ._conn.commit() if it's PooledConnectionWrapper, else .commit()
