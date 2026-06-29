@@ -40,11 +40,15 @@ def clear_dependency_in_json_string(text, item_type, item_id):
         
     text = re.sub(r'sys_bind\|([^|]*)\|([^|]*)\|([^|]*)\|(.*?(?="|\Z|\\n|\\r))', replace_sys_bind, text)
     
-    # URL parameters
+    # URL parameters and function calls
     if item_type == 'journey':
         text = re.sub(rf'journey={sid}(&|")', r'journey=\1', text)
+        text = re.sub(rf'update\("iup\|{sid}"\);?', '', text)
+        text = re.sub(rf"update\('iup\|{sid}'\);?", '', text)
     elif item_type == 'menu':
         text = re.sub(rf'menu={sid}(&|")', r'menu=\1', text)
+        text = re.sub(rf'update\("rm\|{sid}"\);?', '', text)
+        text = re.sub(rf"update\('rm\|{sid}'\);?", '', text)
         
     return text
 
@@ -65,6 +69,7 @@ def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=N
         {"conn": oa_conn, "table": f'"Q_bank:{app_id}"', "col": "msg_rpy", "name_col": "note", "type_name": "標準訊息"},
         {"conn": oa_conn, "table": f'"AD_bank:{app_id}"', "col": "msg_rpy", "name_col": "note", "type_name": "進階訊息"},
         {"conn": oa_conn, "table": f'"QA_bank:{app_id}"', "col": "msg_rpy", "name_col": "tag", "type_name": "關鍵字回覆"},
+        {"conn": oa_conn, "table": f'"QA_bank:{app_id}"', "col": "function", "name_col": "tag", "type_name": "關鍵字回覆"},
     ]
     
     if main_conn:
@@ -87,11 +92,11 @@ def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=N
             cur = conn.cursor()
             # Find any records containing the ID
             if item_type == 'journey':
-                query = f"SELECT id, {col}, {name_col} FROM {table} WHERE {col}::text LIKE %s OR {col}::text LIKE %s"
-                cur.execute(query, (f"%|{sid}|%", f"%journey={sid}%"))
+                query = f"SELECT id, {col}, {name_col} FROM {table} WHERE {col}::text LIKE %s OR {col}::text LIKE %s OR {col}::text LIKE %s"
+                cur.execute(query, (f"%|{sid}|%", f"%journey={sid}%", f"%iup|{sid}%"))
             else:
-                query = f"SELECT id, {col}, {name_col} FROM {table} WHERE {col}::text LIKE %s OR {col}::text LIKE %s"
-                cur.execute(query, (f"%|{sid}|%", f"%menu={sid}%"))
+                query = f"SELECT id, {col}, {name_col} FROM {table} WHERE {col}::text LIKE %s OR {col}::text LIKE %s OR {col}::text LIKE %s"
+                cur.execute(query, (f"%|{sid}|%", f"%menu={sid}%", f"%rm|{sid}%"))
                 
             rows = cur.fetchall()
             if rows:
