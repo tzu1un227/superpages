@@ -417,12 +417,13 @@ function BroadcastContent() {
         }
     };
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('確定要刪除此群發記錄嗎？（若為預約中，排程也將一併移除）')) return;
+    const handleDelete = async (id, name) => {
+        if (!window.confirm(`確定要刪除群發紀錄「${name}」嗎？（若為預約中，排程也將一併移除）`)) return;
         setDeletingId(id);
         try {
             await api.delete(`/broadcast/${id}`);
             setLastActionTime(Date.now()); // Trigger active polling
+            showToast(`「${name}」已刪除`, 'success');
             fetchBroadcasts();
         } catch (err) {
             showToast('刪除失敗: ' + err.message, 'error');
@@ -1391,7 +1392,7 @@ function BroadcastContent() {
                                     ) : (
                                         <Tooltip title="查看詳情"><IconButton onClick={() => handlePreviewSent(bc)} sx={{ color: '#888' }}><Eye size={18} /></IconButton></Tooltip>
                                     )}
-                                    <Tooltip title="刪除廣播"><IconButton onClick={() => handleDelete(bc.id)} disabled={deletingId === bc.id} sx={{ color: deletingId === bc.id ? '#888' : '#ff4d4d' }}>{deletingId === bc.id ? <CircularProgress size={18} sx={{ color: '#888' }} /> : <Trash2 size={18} />}</IconButton></Tooltip>
+                                    <Tooltip title="刪除廣播"><IconButton onClick={() => handleDelete(bc.id, bc.name || '未命名任務')} disabled={deletingId === bc.id} sx={{ color: deletingId === bc.id ? '#888' : '#ff4d4d' }}>{deletingId === bc.id ? <CircularProgress size={18} sx={{ color: '#888' }} /> : <Trash2 size={18} />}</IconButton></Tooltip>
                                 </div>
                             </div>
 

@@ -665,8 +665,8 @@ function RichMenu() {
         // old function removal placeholder
     };
     
-    const deleteMenu = async (id, isMetadata = false, force = false, skipConfirm = false) => {
-        const msg = force ? '確定要解除所有綁定並強制刪除嗎？' : '確定要刪除嗎？';
+    const deleteMenu = async (id, name, isMetadata = false, force = false, skipConfirm = false) => {
+        const msg = force ? '確定要解除所有綁定並強制刪除嗎？' : `確定要刪除「${name}」嗎？`;
         if (!skipConfirm && !window.confirm(msg)) return;
         try {
             const endpoint = isMetadata 
@@ -674,14 +674,14 @@ function RichMenu() {
                 : `/richmenu/${id}${force ? '?force=true' : ''}`;
             await api.delete(endpoint);
             fetchData();
-            showToast('已刪除', 'success');
+            showToast(`「${name}」已刪除`, 'success');
         } catch (err) {
             if (err.response && err.response.status === 409 && err.response.data.has_dependencies) {
                 const deps = err.response.data.dependencies || [];
                 const depText = deps.length > 0 ? `\n\n影響項目：\n${deps.join('\n')}` : '';
                 const confirmMsg = `目前有項目正在綁定此選單：${depText}\n\n確定要解除所有綁定並強制刪除嗎？`;
                 if (window.confirm(confirmMsg)) {
-                    deleteMenu(id, isMetadata, true, true);
+                    deleteMenu(id, name, isMetadata, true, true);
                 }
                 return;
             }
@@ -1475,7 +1475,7 @@ function RichMenu() {
                                                         )}
                                                     </>
                                                 )}
-                                                <button onClick={() => deleteMenu(item.isMetadata ? item.id : item.richMenuId, item.isMetadata)} style={{ padding: '8px', color: '#ff4d4d', border: '1px solid #444', background: 'none' }}><Trash2 size={16} /></button>
+                                                <button onClick={() => deleteMenu(item.isMetadata ? item.id : item.richMenuId, item.name, item.isMetadata)} style={{ padding: '8px', color: '#ff4d4d', border: '1px solid #444', background: 'none' }}><Trash2 size={16} /></button>
                                             </div>
                                         </div>
                                     </div>

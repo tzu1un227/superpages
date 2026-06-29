@@ -863,14 +863,14 @@ const ProjectsManagement = () => {
         }
     };
 
-    const handleDeleteProject = async (id, force = false, skipConfirm = false) => {
-        const msg = force ? '確定要解除所有綁定並強制刪除嗎？' : '確定要刪除此專案嗎？相關排程也可能受到影響。';
+    const handleDeleteProject = async (id, name, force = false, skipConfirm = false) => {
+        const msg = force ? '確定要解除所有綁定並強制刪除嗎？' : `確定要刪除旅程「${name}」嗎？相關排程也可能受到影響。`;
         if (skipConfirm || window.confirm(msg)) {
             try {
-                updateTask({ isProcessing: true, processingMessage: force ? '正在解除綁定並刪除旅程...' : '正在刪除旅程...' });
+                updateTask({ isProcessing: true, processingMessage: force ? `正在解除綁定並刪除旅程「${name}」...` : `正在刪除旅程「${name}」...` });
                 const endpoint = force ? `/projects/${id}?force=true` : `/projects/${id}`;
                 await api.delete(endpoint);
-                showToast('旅程已刪除', 'success');
+                showToast(`旅程「${name}」已刪除`, 'success');
                 fetchProjects();
             } catch (err) {
                 if (err.response && err.response.status === 409 && err.response.data.has_dependencies) {
@@ -879,7 +879,7 @@ const ProjectsManagement = () => {
                     const depText = deps.length > 0 ? `\n\n影響項目：\n${deps.join('\n')}` : '';
                     const confirmMsg = `目前有項目正在綁定此自動旅程：${depText}\n\n確定要解除所有綁定並強制刪除嗎？`;
                     if (window.confirm(confirmMsg)) {
-                        handleDeleteProject(id, true, true);
+                        handleDeleteProject(id, name, true, true);
                     }
                     return;
                 }
@@ -1381,7 +1381,7 @@ const ProjectsManagement = () => {
                                                         <Download size={14} /> 匯出
                                                     </button>
                                                     <Edit2 size={18} style={{ cursor: 'pointer', color: '#B0B0B0' }} onClick={() => handleEditProjectClick(p)} title="編輯" />
-                                                    <Trash2 size={18} style={{ cursor: 'pointer', color: '#FF4D4D' }} onClick={() => handleDeleteProject(p.project_id)} title="刪除" />
+                                                    <Trash2 size={18} style={{ cursor: 'pointer', color: '#FF4D4D' }} onClick={() => handleDeleteProject(p.project_id, p.project_name)} title="刪除" />
                                                 </div>
                                             )}
                                         </td>

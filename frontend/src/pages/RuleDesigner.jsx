@@ -568,12 +568,13 @@ function RuleDesigner() {
             return;
         }
 
-        if (!window.confirm(`確定要刪除規則 ${ruleTarget.id} 嗎？`)) return;
+        const itemName = ruleTarget.tag || ruleTarget.note || ruleTarget.id;
+        if (!window.confirm(`確定要刪除「${itemName}」嗎？`)) return;
         setLoading(true);
-        showToast('正在刪除中...', 'info');
+        showToast(`正在刪除「${itemName}」...`, 'info');
         try {
             await api.delete(`/rule-designer/rules/${ruleTarget.id}?type=${bankType}`);
-            showToast('規則已刪除', 'success');
+            showToast(`「${itemName}」已刪除`, 'success');
             const newDrafts = [...draftRules];
             newDrafts.splice(index, 1);
             setDraftRules(newDrafts);
