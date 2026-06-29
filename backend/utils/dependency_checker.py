@@ -71,8 +71,8 @@ def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=N
     tables_to_check = [
         {"conn": main_conn, "table": f'"QA_bank:{app_id}"', "col": "msg_rpy", "name_col": "tag", "type_name": "關鍵字回覆"},
         {"conn": main_conn, "table": f'"QA_bank:{app_id}"', "col": "function", "name_col": "tag", "type_name": "關鍵字回覆"},
-        {"conn": main_conn, "table": f'"Q_bank:{app_id}"', "col": "msg_rpy", "name_col": "note", "type_name": "標準訊息"},
-        {"conn": main_conn, "table": f'"Q_bank:{app_id}"', "col": "function", "name_col": "note", "type_name": "標準訊息"},
+        {"conn": main_conn, "table": f'"Q_bank:{app_id}"', "col": "msg_rpy", "name_col": "note", "type_name": "關鍵字回覆"},
+        {"conn": main_conn, "table": f'"Q_bank:{app_id}"', "col": "function", "name_col": "note", "type_name": "關鍵字回覆"},
         {"conn": main_conn, "table": f'"AD_bank:{app_id}"', "col": "msg_rpy", "name_col": "id::text", "type_name": "進階訊息"},
         {"conn": main_conn, "table": f'"AD_bank:{app_id}"', "col": "function", "name_col": "id::text", "type_name": "進階訊息"},
         {"conn": oa_conn, "table": f'"project_schedules:{app_id}"', "col": "message_content", "name_col": "project_name", "type_name": "自動旅程", "pk": "schedule_id"},
@@ -130,13 +130,13 @@ def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=N
                         real_name = str(item_name)
                         if proj_id:
                             try:
-                                oa_cur = oa_conn.cursor()
-                                t_projects = get_t('projects')
-                                oa_cur.execute(f"SELECT name FROM {t_projects} WHERE id = %s", (proj_id,))
-                                res = oa_cur.fetchone()
+                                main_cur = main_conn.cursor()
+                                t_projects = f'"projects:{app_id}"'
+                                main_cur.execute(f"SELECT project_name FROM {t_projects} WHERE project_id = %s", (proj_id,))
+                                res = main_cur.fetchone()
                                 if res and res[0]:
                                     real_name = res[0]
-                                oa_cur.close()
+                                main_cur.close()
                             except:
                                 pass
                                 
