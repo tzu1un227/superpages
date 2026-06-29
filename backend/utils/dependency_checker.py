@@ -56,67 +56,72 @@ def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=N
     oa_conn: db connection to OA database
     main_conn: db connection to Main database (for rich_menu_metadata if needed)
     
-    Returns: {"has_dependencies": True/False}
+    Returns: {"has_dependencies": True/False, "dependencies": list}
     """
     app_id = get_current_app_id()
     sid = str(item_id)
     
     tables_to_check = [
-        {"conn": oa_conn, "table": f'"Q_bank:{app_id}"', "col": "answer"},
-        {"conn": oa_conn, "table": f'"AD_bank:{app_id}"', "col": "answer"},
-        {"conn": oa_conn, "table": f'"QA_bank:{app_id}"', "col": "answer"},
+        {"conn": oa_conn, "table": f'"Q_bank:{app_id}"', "col": "msg_rpy", "name_col": "note", "type_name": "標準訊息"},
+        {"conn": oa_conn, "table": f'"AD_bank:{app_id}"', "col": "msg_rpy", "name_col": "note", "type_name": "進階訊息"},
+        {"conn": oa_conn, "table": f'"QA_bank:{app_id}"', "col": "msg_rpy", "name_col": "tag", "type_name": "關鍵字回覆"},
     ]
     
     if main_conn:
         t_metadata = get_t("rich_menu_metadata")
-        tables_to_check.append({"conn": main_conn, "table": t_metadata, "col": "data"})
+        tables_to_check.append({"conn": main_conn, "table": t_metadata, "col": "data", "name_col": "name", "type_name": "圖文選單"})
     else:
-        tables_to_check.append({"conn": oa_conn, "table": get_t("rich_menu_metadata"), "col": "data"})
+        tables_to_check.append({"conn": oa_conn, "table": get_t("rich_menu_metadata"), "col": "data", "name_col": "name", "type_name": "圖文選單"})
         
     has_dependencies = False
+    dependent_items = []
     
     for t_info in tables_to_check:
         conn = t_info['conn']
         table = t_info['table']
         col = t_info['col']
+        name_col = t_info['name_col']
+        type_name = t_info['type_name']
         
         try:
             cur = conn.cursor()
             # Find any records containing the ID
             if item_type == 'journey':
-                query = f"SELECT id, {col} FROM {table} WHERE {col}::text LIKE %s OR {col}::text LIKE %s"
+                query = f"SELECT id, {col}, {name_col} FROM {table} WHERE {col}::text LIKE %s OR {col}::text LIKE %s"
                 cur.execute(query, (f"%|{sid}|%", f"%journey={sid}%"))
             else:
-                query = f"SELECT id, {col} FROM {table} WHERE {col}::text LIKE %s OR {col}::text LIKE %s"
+                query = f"SELECT id, {col}, {name_col} FROM {table} WHERE {col}::text LIKE %s OR {col}::text LIKE %s"
                 cur.execute(query, (f"%|{sid}|%", f"%menu={sid}%"))
                 
             rows = cur.fetchall()
             if rows:
                 has_dependencies = True
-                if not force:
-                    cur.close()
-                    return {"has_dependencies": True}
-                    
-                # Cascade clear
-                for row in rows:
-                    row_id = row[0]
-                    col_data = row[1] 
-                    if isinstance(col_data, dict) or isinstance(col_data, list):
-                        text_data = json.dumps(col_data, ensure_ascii=False)
-                    else:
-                        text_data = str(col_data)
-                        
-                    new_text = clear_dependency_in_json_string(text_data, item_type, sid)
-                    
-                    if new_text != text_data:
-                        update_query = f"UPDATE {table} SET {col} = %s::jsonb WHERE id = %s"
-                        cur.execute(update_query, (new_text, row_id))
                 
-                # Use ._conn.commit() if it's PooledConnectionWrapper, else .commit()
-                if hasattr(conn, '_conn'):
-                    conn._conn.commit()
+                if not force:
+                    for row in rows:
+                        item_name = row[2] if row[2] else '未命名'
+                        dependent_items.append(f"【{type_name}】{item_name}")
                 else:
-                    conn.commit()
+                    # Cascade clear
+                    for row in rows:
+                        row_id = row[0]
+                        col_data = row[1] 
+                        if isinstance(col_data, dict) or isinstance(col_data, list):
+                            text_data = json.dumps(col_data, ensure_ascii=False)
+                        else:
+                            text_data = str(col_data)
+                            
+                        new_text = clear_dependency_in_json_string(text_data, item_type, sid)
+                        
+                        if new_text != text_data:
+                            update_query = f"UPDATE {table} SET {col} = %s::jsonb WHERE id = %s"
+                            cur.execute(update_query, (new_text, row_id))
+                    
+                    # Use ._conn.commit() if it's PooledConnectionWrapper, else .commit()
+                    if hasattr(conn, '_conn'):
+                        conn._conn.commit()
+                    else:
+                        conn.commit()
             cur.close()
         except Exception as e:
             if conn:
@@ -128,4 +133,7 @@ def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=N
                 except:
                     pass
 
-    return {"has_dependencies": has_dependencies}
+    return {
+        "has_dependencies": has_dependencies,
+        "dependencies": dependent_items
+    }

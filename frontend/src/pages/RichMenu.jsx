@@ -665,9 +665,9 @@ function RichMenu() {
         // old function removal placeholder
     };
     
-    const deleteMenu = async (id, isMetadata = false, force = false) => {
+    const deleteMenu = async (id, isMetadata = false, force = false, skipConfirm = false) => {
         const msg = force ? '確定要解除所有綁定並強制刪除嗎？' : '確定要刪除嗎？';
-        if (!window.confirm(msg)) return;
+        if (!skipConfirm && !window.confirm(msg)) return;
         try {
             const endpoint = isMetadata 
                 ? `/richmenu/metadata/${id}${force ? '?force=true' : ''}`
@@ -677,8 +677,12 @@ function RichMenu() {
             showToast('已刪除', 'success');
         } catch (err) {
             if (err.response && err.response.status === 409 && err.response.data.has_dependencies) {
-                // 再次呼叫自身並帶入 force=true
-                deleteMenu(id, isMetadata, true);
+                const deps = err.response.data.dependencies || [];
+                const depText = deps.length > 0 ? `\n\n影響項目：\n${deps.join('\n')}` : '';
+                const confirmMsg = `目前有項目正在綁定此選單：${depText}\n\n確定要解除所有綁定並強制刪除嗎？`;
+                if (window.confirm(confirmMsg)) {
+                    deleteMenu(id, isMetadata, true, true);
+                }
                 return;
             }
             showToast('刪除失敗: ' + (err.response?.data?.message || err.message), 'error');

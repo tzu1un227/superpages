@@ -903,7 +903,13 @@ def delete_project(id):
             main_conn = get_main_db_connection()
             dep_result = check_and_clear_dependencies('journey', id, force, conn, main_conn)
             if dep_result.get('has_dependencies') and not force:
-                return jsonify({"status": "warning", "message": "目前有 Flex 訊息或關鍵字正在綁定此自動旅程，確定要解除所有綁定並強制刪除嗎？", "has_dependencies": True}), 409
+                deps = dep_result.get('dependencies', [])
+                return jsonify({
+                    "status": "warning", 
+                    "message": "目前有 Flex 訊息或關鍵字正在綁定此自動旅程，確定要解除所有綁定並強制刪除嗎？", 
+                    "has_dependencies": True,
+                    "dependencies": deps
+                }), 409
         finally:
             if main_conn:
                 main_conn.close()
