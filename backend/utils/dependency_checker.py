@@ -73,8 +73,8 @@ def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=N
         {"conn": main_conn, "table": f'"QA_bank:{app_id}"', "col": "function", "name_col": "tag", "type_name": "關鍵字回覆"},
         {"conn": main_conn, "table": f'"Q_bank:{app_id}"', "col": "msg_rpy", "name_col": "note", "type_name": "標準訊息"},
         {"conn": main_conn, "table": f'"Q_bank:{app_id}"', "col": "function", "name_col": "note", "type_name": "標準訊息"},
-        {"conn": main_conn, "table": f'"AD_bank:{app_id}"', "col": "msg_rpy", "name_col": "note", "type_name": "進階訊息"},
-        {"conn": main_conn, "table": f'"AD_bank:{app_id}"', "col": "function", "name_col": "note", "type_name": "進階訊息"},
+        {"conn": main_conn, "table": f'"AD_bank:{app_id}"', "col": "msg_rpy", "name_col": "id::text", "type_name": "進階訊息"},
+        {"conn": main_conn, "table": f'"AD_bank:{app_id}"', "col": "function", "name_col": "id::text", "type_name": "進階訊息"},
         {"conn": oa_conn, "table": f'"project_schedules:{app_id}"', "col": "message_content", "name_col": "project_name", "type_name": "自動旅程", "pk": "schedule_id"},
     ]
     
@@ -127,7 +127,7 @@ def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=N
                             if len(parts) >= 2:
                                 proj_id = parts[1]
                         
-                        real_name = item_name
+                        real_name = str(item_name)
                         if proj_id:
                             try:
                                 oa_cur = oa_conn.cursor()
@@ -139,10 +139,22 @@ def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=N
                                 oa_cur.close()
                             except:
                                 pass
+                                
+                        if "|UPDATED:" in real_name:
+                            real_name = real_name.split("|UPDATED:")[0]
+                        if " - 關鍵字回覆" in real_name:
+                            real_name = real_name.replace(" - 關鍵字回覆", "")
+                        if " - 標準訊息" in real_name:
+                            real_name = real_name.replace(" - 標準訊息", "")
+                        if " - 進階訊息" in real_name:
+                            real_name = real_name.replace(" - 進階訊息", "")
 
-                        if type_name in ['標準訊息', '進階訊息'] and ' - 自動旅程' in real_name:
+                        if ' - 自動旅程' in real_name:
                             journey_name = real_name.replace(' - 自動旅程', '').strip()
                             dependent_items.append(f"【自動旅程】{journey_name}")
+                        elif proj_id:
+                            # It's a project_ tag in QA_bank, meaning it's an automated journey
+                            dependent_items.append(f"【自動旅程】{real_name}")
                         elif type_name == '自動旅程':
                             dependent_items.append(f"【自動旅程】{real_name}")
                         else:
