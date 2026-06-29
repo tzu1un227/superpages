@@ -1258,6 +1258,7 @@ const ProjectsManagement = () => {
                                                 type="datetime-local"
                                                 className={formErrors.start_date ? 'error-input' : ''}
                                                 value={newProject.start_date}
+                                                max={newProject.end_date || ''}
                                                 onChange={(e) => {
                                                     setNewProject({ ...newProject, start_date: e.target.value });
                                                     if (formErrors.start_date) setFormErrors({ ...formErrors, start_date: null });
@@ -1272,6 +1273,7 @@ const ProjectsManagement = () => {
                                                 type="datetime-local"
                                                 className={formErrors.end_date ? 'error-input' : ''}
                                                 value={newProject.end_date}
+                                                min={newProject.start_date || ''}
                                                 onChange={(e) => {
                                                     setNewProject({ ...newProject, end_date: e.target.value });
                                                     if (formErrors.end_date) setFormErrors({ ...formErrors, end_date: null });
@@ -1334,8 +1336,8 @@ const ProjectsManagement = () => {
                                         <td style={{ fontSize: '14px' }}>
                                             {editingProjectId === p.project_id ? (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                                    <input type="datetime-local" value={(editProjectFormData.start_date || '').replace(' ', 'T').slice(0, 16)} onChange={e => setEditProjectFormData({ ...editProjectFormData, start_date: e.target.value })} style={{ padding: '5px' }} />
-                                                    <input type="datetime-local" value={(editProjectFormData.end_date || '').replace(' ', 'T').slice(0, 16)} onChange={e => setEditProjectFormData({ ...editProjectFormData, end_date: e.target.value })} style={{ padding: '5px' }} />
+                                                    <input type="datetime-local" value={(editProjectFormData.start_date || '').replace(' ', 'T').slice(0, 16)} max={(editProjectFormData.end_date || '').replace(' ', 'T').slice(0, 16)} onChange={e => setEditProjectFormData({ ...editProjectFormData, start_date: e.target.value })} style={{ padding: '5px' }} />
+                                                    <input type="datetime-local" value={(editProjectFormData.end_date || '').replace(' ', 'T').slice(0, 16)} min={(editProjectFormData.start_date || '').replace(' ', 'T').slice(0, 16)} onChange={e => setEditProjectFormData({ ...editProjectFormData, end_date: e.target.value })} style={{ padding: '5px' }} />
                                                 </div>
                                             ) : (
                                                 <span style={{ color: '#B0B0B0' }}>
