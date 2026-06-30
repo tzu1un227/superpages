@@ -914,8 +914,14 @@ function RichMenu() {
     };
 
     const defaultMenuIds = React.useMemo(() => {
-        return new Set(menus.filter(rm => rm.status === 'default' || rm.status === 'public').map(rm => rm.richMenuId));
-    }, [menus]);
+        const ids = new Set(menus.filter(rm => rm.status === 'default' || rm.status === 'public').map(rm => rm.richMenuId));
+        metadata.forEach(m => {
+            if (m.status === 'default' || m.status === 'public') {
+                if (m.rich_menu_id) ids.add(m.rich_menu_id);
+            }
+        });
+        return ids;
+    }, [menus, metadata]);
 
     const groupedMenus = React.useMemo(() => {
         const sorted = getSortedMenus();
