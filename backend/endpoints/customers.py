@@ -794,7 +794,7 @@ def refresh_customer_profile(user_id):
         
     headers = {'Authorization': f'Bearer {token}'}
     try:
-        resp = requests.get(f'https://api.line.me/v2/bot/user/{user_id}/profile', headers=headers)
+        resp = requests.get(f'https://api.line.me/v2/bot/profile/{user_id}', headers=headers)
         if resp.status_code != 200:
             if resp.status_code == 404:
                 return jsonify({

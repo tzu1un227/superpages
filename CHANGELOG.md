@@ -244,3 +244,5 @@ ame 與 pic。
   - UserAvatar.jsx: 修正 display: none 導致部分瀏覽器不觸發 img onLoad 事件的潛在渲染 bug，改以 opacity 與 position absolute 處理載入。
 
   - backend/endpoints/customers.py: 優化 refresh-profile 接口對 LINE API 404 Not Found (封鎖或非好友) 的處理，返回 200 配合空值，防阻前端 Console 警報。
+
+  - backend/endpoints/customers.py: 修正獲取 LINE Profile 的 API 端點路徑為 /v2/bot/profile/{userId}。
