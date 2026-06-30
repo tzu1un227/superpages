@@ -36,6 +36,12 @@ button {
   border-radius: 8px;
   font-weight: 600;
   transition: var(--transition);
+  padding: 8px 16px;
+  min-width: 72px;
+  gap: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 button.primary {

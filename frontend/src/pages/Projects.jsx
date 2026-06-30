@@ -233,6 +233,9 @@ const ProjectsManagement = () => {
     const validateProjectForm = (data) => {
         const errors = {};
         if (!data.project_name?.trim()) errors.project_name = '專案名稱不能為空';
+        else if (Array.isArray(projects) && projects.some(p => p.project_name?.trim() === data.project_name.trim())) {
+            errors.project_name = '此旅程名稱已存在，請使用不同名稱';
+        }
         if (!data.start_date) errors.start_date = '請設定開始日期';
         if (!data.end_date) errors.end_date = '請設定結束日期';
         if (data.start_date && data.end_date && new Date(data.start_date) >= new Date(data.end_date)) {
@@ -1303,94 +1306,105 @@ const ProjectsManagement = () => {
                         </div>
                     )}
 
-                    <div style={{ backgroundColor: '#222', borderRadius: '12px', overflow: 'hidden', border: '1px solid #333' }}>
-                        <div style={{ overflowX: 'auto', maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
-                            <table>
-                                <thead>
-                                    <tr>
-                                    <th>專案名稱</th>
-                                    <th>有效期間</th>
-                                    <th>狀態</th>
-                                    <th>詳細設定</th>
-                                    <th>操作</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {Array.isArray(projects) && projects.map((p) => (
-                                    <tr key={p.project_id}>
-                                        <td
-                                            onClick={() => {
-                                                if (editingProjectId !== p.project_id) {
-                                                    setActiveTab('schedules');
-                                                    setSelectedProjectId(p.project_id);
-                                                }
-                                            }}
-                                            style={{ cursor: editingProjectId !== p.project_id ? 'pointer' : 'default', textDecoration: editingProjectId !== p.project_id ? 'underline' : 'none', color: '#fff' }}
-                                        >
-                                            {editingProjectId === p.project_id ? (
-                                                <input type="text" value={editProjectFormData.project_name} onChange={e => setEditProjectFormData({ ...editProjectFormData, project_name: e.target.value })} style={{ width: '100%' }} />
-                                            ) : (
-                                                <span>{p.project_name} <span style={{ fontSize: '10px', color: '#666' }}>({p.project_id})</span></span>
-                                            )}
-                                        </td>
-                                        <td style={{ fontSize: '14px' }}>
-                                            {editingProjectId === p.project_id ? (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                                    <input type="datetime-local" value={(editProjectFormData.start_date || '').replace(' ', 'T').slice(0, 16)} max={(editProjectFormData.end_date || '').replace(' ', 'T').slice(0, 16)} onChange={e => setEditProjectFormData({ ...editProjectFormData, start_date: e.target.value })} style={{ padding: '5px' }} />
-                                                    <input type="datetime-local" value={(editProjectFormData.end_date || '').replace(' ', 'T').slice(0, 16)} min={(editProjectFormData.start_date || '').replace(' ', 'T').slice(0, 16)} onChange={e => setEditProjectFormData({ ...editProjectFormData, end_date: e.target.value })} style={{ padding: '5px' }} />
-                                                </div>
-                                            ) : (
-                                                <span style={{ color: '#B0B0B0' }}>
-                                                    {p.start_date?.slice(0, 16).replace('T', ' ') || '未設定'} <br />
-                                                    ~ {p.end_date?.slice(0, 16).replace('T', ' ') || '未設定'}
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td>
-                                            {editingProjectId === p.project_id ? (
-                                                <label>
-                                                    <input type="checkbox" checked={editProjectFormData.is_enabled} onChange={e => setEditProjectFormData({ ...editProjectFormData, is_enabled: e.target.checked })} /> 啟用
-                                                </label>
-                                            ) : (
-                                                getStatusBadge(p.status)
-                                            )}
-                                        </td>
-                                        <td style={{ fontSize: '12px', color: '#aaa', maxWidth: '200px' }}>
-                                            {editingProjectId === p.project_id ? (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                                    {renderConfigInputs(editProjectFormData, setEditProjectFormData, true)}
-                                                </div>
-                                            ) : (
-                                                <div>
-                                                    <div>⚓ {p.anchor_config?.type === 'weekly' ? `週${['日', '一', '二', '三', '四', '五', '六'][p.anchor_config.day]} ${p.anchor_config.time}` : '立即'}</div>
-                                                    {p.dormancy_config?.enabled && (
-                                                        <div>💤 {p.dormancy_config.start}~{p.dormancy_config.end}</div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </td>
-                                        <td>
-                                            {editingProjectId === p.project_id ? (
-                                                <div style={{ display: 'flex', gap: '10px' }}>
-                                                    <Check className="text-yellow" style={{ cursor: 'pointer' }} onClick={handleUpdateProject} />
-                                                    <X style={{ cursor: 'pointer' }} onClick={() => setEditingProjectId(null)} />
-                                                </div>
-                                            ) : (
-                                                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                                    <button onClick={() => !isExporting && handleExportProject(p)} disabled={isExporting} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', background: isExporting ? '#444' : 'rgba(33, 150, 243, 0.1)', color: isExporting ? '#888' : '#2196F3', border: isExporting ? '1px solid #555' : '1px solid currentColor', borderRadius: '4px', cursor: isExporting ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
-                                                        <Download size={14} /> 匯出
-                                                    </button>
-                                                    <Edit2 size={18} style={{ cursor: 'pointer', color: '#B0B0B0' }} onClick={() => handleEditProjectClick(p)} title="編輯" />
-                                                    <Trash2 size={18} style={{ cursor: 'pointer', color: '#FF4D4D' }} onClick={() => handleDeleteProject(p.project_id, p.project_name)} title="刪除" />
-                                                </div>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                    {projects.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '80px 0', border: '2px dashed #333', borderRadius: '15px', marginTop: '20px' }}>
+                            <div style={{ position: 'relative', display: 'inline-block', marginBottom: '20px' }}>
+                                <LayoutDashboard size={80} style={{ color: '#333' }} />
+                                <Plus size={24} style={{ position: 'absolute', bottom: 0, right: 0, color: 'var(--primary-yellow)' }} />
+                            </div>
+                            <h3 style={{ color: '#666', fontSize: '20px', marginBottom: '10px' }}>尚未建立自動旅程</h3>
+                            <p style={{ color: '#444' }}>點擊右上角「新增旅程」或「匯入旅程」開始設定您的自動化推播流程</p>
                         </div>
-                    </div>
+                    ) : (
+                        <div style={{ backgroundColor: '#222', borderRadius: '12px', overflow: 'hidden', border: '1px solid #333' }}>
+                            <div style={{ overflowX: 'auto', maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
+                                <table>
+                                    <thead>
+                                        <tr>
+                                        <th>專案名稱</th>
+                                        <th>有效期間</th>
+                                        <th>狀態</th>
+                                        <th>詳細設定</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {Array.isArray(projects) && projects.map((p) => (
+                                        <tr key={p.project_id}>
+                                            <td
+                                                onClick={() => {
+                                                    if (editingProjectId !== p.project_id) {
+                                                        setActiveTab('schedules');
+                                                        setSelectedProjectId(p.project_id);
+                                                    }
+                                                }}
+                                                style={{ cursor: editingProjectId !== p.project_id ? 'pointer' : 'default', textDecoration: editingProjectId !== p.project_id ? 'underline' : 'none', color: '#fff' }}
+                                            >
+                                                {editingProjectId === p.project_id ? (
+                                                    <input type="text" value={editProjectFormData.project_name} onChange={e => setEditProjectFormData({ ...editProjectFormData, project_name: e.target.value })} style={{ width: '100%' }} />
+                                                ) : (
+                                                    <span>{p.project_name} <span style={{ fontSize: '10px', color: '#666' }}>({p.project_id})</span></span>
+                                                )}
+                                            </td>
+                                            <td style={{ fontSize: '14px' }}>
+                                                {editingProjectId === p.project_id ? (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                        <input type="datetime-local" value={(editProjectFormData.start_date || '').replace(' ', 'T').slice(0, 16)} max={(editProjectFormData.end_date || '').replace(' ', 'T').slice(0, 16)} onChange={e => setEditProjectFormData({ ...editProjectFormData, start_date: e.target.value })} style={{ padding: '5px' }} />
+                                                        <input type="datetime-local" value={(editProjectFormData.end_date || '').replace(' ', 'T').slice(0, 16)} min={(editProjectFormData.start_date || '').replace(' ', 'T').slice(0, 16)} onChange={e => setEditProjectFormData({ ...editProjectFormData, end_date: e.target.value })} style={{ padding: '5px' }} />
+                                                    </div>
+                                                ) : (
+                                                    <span style={{ color: '#B0B0B0' }}>
+                                                        {p.start_date?.slice(0, 16).replace('T', ' ') || '未設定'} <br />
+                                                        ~ {p.end_date?.slice(0, 16).replace('T', ' ') || '未設定'}
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td>
+                                                {editingProjectId === p.project_id ? (
+                                                    <label>
+                                                        <input type="checkbox" checked={editProjectFormData.is_enabled} onChange={e => setEditProjectFormData({ ...editProjectFormData, is_enabled: e.target.checked })} /> 啟用
+                                                    </label>
+                                                ) : (
+                                                    getStatusBadge(p.status)
+                                                )}
+                                            </td>
+                                            <td style={{ fontSize: '12px', color: '#aaa', maxWidth: '200px' }}>
+                                                {editingProjectId === p.project_id ? (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                        {renderConfigInputs(editProjectFormData, setEditProjectFormData, true)}
+                                                    </div>
+                                                ) : (
+                                                    <div>
+                                                        <div>⚓ {p.anchor_config?.type === 'weekly' ? `週${['日', '一', '二', '三', '四', '五', '六'][p.anchor_config.day]} ${p.anchor_config.time}` : '立即'}</div>
+                                                        {p.dormancy_config?.enabled && (
+                                                            <div>💤 {p.dormancy_config.start}~{p.dormancy_config.end}</div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td>
+                                                {editingProjectId === p.project_id ? (
+                                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                                        <Check className="text-yellow" style={{ cursor: 'pointer' }} onClick={handleUpdateProject} />
+                                                        <X style={{ cursor: 'pointer' }} onClick={() => setEditingProjectId(null)} />
+                                                    </div>
+                                                ) : (
+                                                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                                        <button onClick={() => !isExporting && handleExportProject(p)} disabled={isExporting} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', background: isExporting ? '#444' : 'rgba(33, 150, 243, 0.1)', color: isExporting ? '#888' : '#2196F3', border: isExporting ? '1px solid #555' : '1px solid currentColor', borderRadius: '4px', cursor: isExporting ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
+                                                            <Download size={14} /> 匯出
+                                                        </button>
+                                                        <Edit2 size={18} style={{ cursor: 'pointer', color: '#B0B0B0' }} onClick={() => handleEditProjectClick(p)} title="編輯" />
+                                                        <Trash2 size={18} style={{ cursor: 'pointer', color: '#FF4D4D' }} onClick={() => handleDeleteProject(p.project_id, p.project_name)} title="刪除" />
+                                                    </div>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            </div>
+                        </div>
+                    )}
                 </div>
                 )
             ) : activeTab === 'schedules' ? (

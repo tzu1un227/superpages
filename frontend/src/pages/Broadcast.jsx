@@ -17,6 +17,7 @@ import {
 import FlexMessageEditor from '../components/FlexMessageEditor';
 import JourneyPreview from '../components/JourneyPreview';
 import LoadingSpinner from '../components/LoadingSpinner';
+import TagInput from '../components/TagInput';
 import { useToast } from '../contexts/ToastContext';
 
 class ErrorBoundary extends React.Component {
@@ -695,27 +696,14 @@ function BroadcastContent() {
                 </div>
 
                 {formData.target_type === 'tag' && (
-                    <Autocomplete
-                        freeSolo
-                        disabled={(formData.status === 'sent' || formData.status === 'scheduled')}
-                        options={availableTags}
-                        value={formData.target_value}
-                        onChange={(e, val) => setFormData({ ...formData, target_value: val })}
-                        onInputChange={(e, val) => setFormData({ ...formData, target_value: val })}
-                        renderInput={(params) => (
-                            <TextField
-                                {...params}
-                                placeholder="選擇或搜尋標籤..."
-                                sx={{
-                                    '& .MuiInputBase-input': { color: '#fff' },
-                                    '& .MuiOutlinedInput-root': {
-                                        '& fieldset': { borderColor: '#444' },
-                                        '&:hover fieldset': { borderColor: '#666' },
-                                    }
-                                }}
-                            />
-                        )}
-                    />
+                    <div style={{ marginTop: '10px' }}>
+                        <TagInput
+                            tags={formData.target_value ? [formData.target_value] : []}
+                            onChange={(tags) => setFormData({ ...formData, target_value: tags[0] || '' })}
+                            placeholder="選擇或搜尋標籤..."
+                            singleSelect={true}
+                        />
+                    </div>
                 )}
 
                 {formData.target_type === 'ids' && (

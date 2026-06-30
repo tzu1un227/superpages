@@ -20,6 +20,113 @@ const BANK_TYPES = [
     { id: 'qa_bank', label: 'QA_bank (回覆庫)', color: '#4CAF50' }
 ];
 
+// Custom TagInput for keywords to support Enter/comma tag creation
+const KeywordTagInput = ({ value = '', onChange, disabled }) => {
+    const [inputValue, setInputValue] = useState('');
+    const tags = Array.isArray(value) 
+        ? value 
+        : (typeof value === 'string' ? value.split(',').map(t => t.trim()).filter(Boolean) : []);
+
+    const addTag = (val) => {
+        const trimmed = val.trim();
+        if (!trimmed) return;
+        if (!tags.includes(trimmed)) {
+            const newTags = [...tags, trimmed];
+            onChange(newTags.join(','));
+        }
+        setInputValue('');
+    };
+
+    const removeTag = (indexToRemove) => {
+        const newTags = tags.filter((_, idx) => idx !== indexToRemove);
+        onChange(newTags.join(','));
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault();
+            addTag(inputValue);
+        } else if (e.key === 'Backspace' && !inputValue && tags.length > 0) {
+            removeTag(tags.length - 1);
+        }
+    };
+
+    const handleBlur = () => {
+        if (inputValue.trim()) {
+            addTag(inputValue);
+        }
+    };
+
+    return (
+        <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '8px',
+            padding: '10px 15px',
+            background: '#222',
+            border: '1px solid #333',
+            borderRadius: '6px',
+            minHeight: '48px',
+            alignItems: 'center',
+            cursor: 'text',
+            opacity: disabled ? 0.6 : 1
+        }} onClick={(e) => e.currentTarget.querySelector('input')?.focus()}>
+            {tags.map((tag, idx) => (
+                <span key={idx} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    background: 'rgba(255, 215, 0, 0.1)',
+                    color: 'var(--primary-yellow)',
+                    padding: '2px 8px',
+                    borderRadius: '15px',
+                    fontSize: '12px',
+                    border: '1px solid rgba(255, 215, 0, 0.3)'
+                }}>
+                    {tag}
+                    {!disabled && (
+                        <span 
+                            style={{ cursor: 'pointer', marginLeft: '4px', fontWeight: 'bold' }} 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                removeTag(idx);
+                            }}
+                        >
+                            ×
+                        </span>
+                    )}
+                </span>
+            ))}
+            <input
+                type="text"
+                disabled={disabled}
+                value={inputValue}
+                onChange={(e) => {
+                    const val = e.target.value;
+                    if (val.endsWith(',')) {
+                        addTag(val.slice(0, -1));
+                    } else {
+                        setInputValue(val);
+                    }
+                }}
+                onKeyDown={handleKeyDown}
+                onBlur={handleBlur}
+                placeholder={tags.length === 0 ? "輸入關鍵字後按 Enter 或逗號..." : ""}
+                style={{
+                    flex: 1,
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'white',
+                    padding: '5px 0',
+                    fontSize: '13px',
+                    minWidth: '120px',
+                    outline: 'none',
+                }}
+            />
+        </div>
+    );
+};
+
 // Moved OUTSIDE RuleDesigner to prevent re-creation on every render (fixes focus loss)
 const TableCellTextarea = ({ value, onChange }) => {
     const [focused, setFocused] = React.useState(false);
@@ -744,7 +851,7 @@ function RuleDesigner() {
                                 }} 
                                 onClick={() => setSelectedRuleIndex(idx)}
                                 onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1a1a1a'}
-                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#111'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = ''}
                             >
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -832,8 +939,8 @@ function RuleDesigner() {
                                                     <input type="text" disabled={loading} value={rule.note || ''} onChange={e => handleFieldChange(idx, 'note', e.target.value)} style={{ width: '100%', padding: '12px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '14px', opacity: loading ? 0.6 : 1 }} placeholder="請輸入名稱" />
                                                 </div>
                                                 <div>
-                                                    <label className="label">觸發關鍵字 (多個關鍵字請用逗號分隔)</label>
-                                                    <input type="text" disabled={loading} value={Array.isArray(rule.content) ? rule.content.join(', ') : (rule.content || '')} onChange={e => handleFieldChange(idx, 'content', e.target.value)} style={{ width: '100%', padding: '12px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '14px', opacity: loading ? 0.6 : 1 }} placeholder="例如: 優惠, 折扣, 促銷" />
+                                                    <label className="label">觸發關鍵字 (輸入關鍵字後按 Enter 或逗號)</label>
+                                                    <KeywordTagInput disabled={loading} value={rule.content || ''} onChange={val => handleFieldChange(idx, 'content', val)} />
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px', padding: '10px', backgroundColor: '#1a1a1a', borderRadius: '6px' }}>
                                                     <input type="checkbox" disabled={loading} id="rule-enabled" checked={isEnabled} onChange={e => handleFieldChange(idx, 'history', e.target.checked)} style={{ width: '16px', height: '16px', opacity: loading ? 0.6 : 1 }} />

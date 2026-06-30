@@ -942,15 +942,15 @@ function RichMenu() {
                             {currentMenu.status === 'published' && <span style={{ marginLeft: '10px', fontSize: '14px', backgroundColor: '#4CAF50', color: 'white', padding: '2px 8px', borderRadius: '4px' }}>已發佈</span>}
                         </h1>
                     </div>
-                    <div style={{ display: 'flex', gap: '15px' }}>
+                    <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
                         {!viewOnly && (
                             <>
-                                <button onClick={saveAsDraft} className="secondary" disabled={loading}><Save size={18} /> 儲存草稿群組</button>
-                                <button onClick={handleOpenPublishModal} className="primary" disabled={loading}><Send size={18} /> 發佈至 LINE</button>
+                                <button onClick={saveAsDraft} className="secondary" disabled={loading} style={{ whiteSpace: 'nowrap' }}><Save size={18} /> 儲存草稿群組</button>
+                                <button onClick={handleOpenPublishModal} className="primary" disabled={loading} style={{ whiteSpace: 'nowrap' }}><Send size={18} /> 發佈至 LINE</button>
                             </>
                         )}
                         {!viewOnly && currentMenu.richMenuId && (
-                            <button onClick={() => setLinkModalState({ richMenuId: currentMenu.richMenuId, item: currentMenu, publishStrategy: currentMenu.publishStrategy !== "hidden" ? currentMenu.publishStrategy : "default", targetTags: currentMenu.targetTags || [], targetUserCount: currentMenu.targetUserCount || 0, totalUserCount: currentMenu.totalUserCount || 0 })} className="primary" style={{ backgroundColor: '#4CAF50', color: '#fff', border: 'none' }}><LinkIcon size={18} /> 立即連結全體</button>
+                            <button onClick={() => setLinkModalState({ richMenuId: currentMenu.richMenuId, item: currentMenu, publishStrategy: currentMenu.publishStrategy !== "hidden" ? currentMenu.publishStrategy : "default", targetTags: currentMenu.targetTags || [], targetUserCount: currentMenu.targetUserCount || 0, totalUserCount: currentMenu.totalUserCount || 0 })} className="primary" style={{ backgroundColor: '#4CAF50', color: '#fff', border: 'none', whiteSpace: 'nowrap' }}><LinkIcon size={18} /> 立即連結全體</button>
                         )}
                         
                     </div>
@@ -1388,7 +1388,7 @@ function RichMenu() {
                                 const isPublic = item.status === 'public' || item.status === 'published'; // Fallback to 'published' for legacy
                                 const isRestricted = item.status === 'restricted';
                                 const rid = item.rich_menu_id || item.richMenuId;
-                                const isDefault = item.status === 'default';
+                                const isDefault = item.status === 'default' || item.status === 'public';
                                 
                                 let tagsPreview = [];
                                 try {

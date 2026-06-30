@@ -213,3 +213,13 @@ ote\ 甈雿芸敺蝬 \- 撌亦冽\
 ## 2026-06-29
 - **Feature**: 實作圖文選單與自動旅程的刪除防呆機制，刪除前自動檢查關聯綁定並跳出提示，同意後再連動清空相關資料 (Cascade Clear)。
 - 芸芷斗璈塚園桃摰啣嗅批捆嚗蝷箏閰望撠箸敶梢輸桃蝔(憒: 璅皞閮胯XXX)
+
+
+## [2026-06-30] 系統 UI 與小 BUG 雜項優化
+- **前端 (frontend/src/pages/Projects.jsx, RichMenu.jsx, Broadcast.jsx, RuleDesigner.jsx, components/JourneyPreview.jsx, index.css)**:
+  - 1. Projects.jsx: 旅程列表空狀態加入 LayoutDashboard 圖示提示，以及 alidateProjectForm 新增名稱重複的校驗邏輯。
+  - 2. RichMenu.jsx: 頂部操作按鈕 flex 換行修正與 whiteSpace: 'nowrap' 以免文字折行；isDefault 增加 status === 'public' 支援，以正確渲染預設狀態標記。
+  - 3. RuleDesigner.jsx: 觸發關鍵字升級為 KeywordTagInput 元件，提升使用體驗；修正 .card list item 的 onMouseLeave 背景顏色重置邏輯。
+  - 4. Broadcast.jsx: 發送對象標籤篩選替換為 TagInput 元件，保持 singleSelect={true}。
+  - 5. index.css: 調整全域 utton 基礎樣式，包括 padding、min-width 及 flex 佈局與 gap。
+  - 6. JourneyPreview.jsx: 文字氣泡樣式追加 whiteSpace: 'pre-wrap'，確保訊息換行正確預覽。

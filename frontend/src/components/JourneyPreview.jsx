@@ -51,6 +51,7 @@ const styles = {
         color: '#000',
         wordBreak: 'break-word',
         boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+        whiteSpace: 'pre-wrap',
     },
     imageBubble: {
         maxWidth: '200px',
