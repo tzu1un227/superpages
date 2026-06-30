@@ -38,7 +38,8 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 - 透過視覺化編輯器進行圖文選單的創建與修改。
 - 支援多種動作：`message`, `uri`, `postback`, `richmenuswitch`。
 - **LIFF 標籤追蹤**：支援在「開啟連結」動作中設定標籤，系統會自動生成 LIFF 代理連結 (Proxy URL)，在跳轉前先透過 WebSocket 標記用戶，以利後續客群分析。
-- **多租戶 metadata 資料表**：圖文選單的排程中繼資料 (Metadata) 以 `rich_menu_metadata:{appname}` 命名，與系統其他業務表格命名規範一致。存取由 `endpoints/richmenu.py` 的 `get_t()` 函數動態解析，並於首次呼叫時自動建立資料表（透過 `ensure_rds_tables`）。
+- **多租戶 metadata 資料表與 ui_uuid 整合**：圖文選單的排程中繼資料 (Metadata) 以 `rich_menu_metadata:{appname}` 命名，與系統其他業務表格命名規範一致。存取由 `endpoints/richmenu.py` 的 `get_t()` 函數動態解析。系統統一使用持久的 `ui_uuid` 作為圖文選單之關聯與切換依據（例如在 Flex 訊息按鈕與關鍵字回覆規則中），避免 LINE 端重置選單導致 `richMenuId` 變更而失效。後端 API 會自動在圖文選單列表中動態對照並注入 `ui_uuid`。
+- **預設選單動態對照機制**：解決資料庫中狀態可能因排程切換或手動取消而與 LINE 伺服器不同步的問題，前端不再單純依賴 metadata 中的 `'public'` 狀態，而是直接將選單 ID 與 LINE 當前實際生效的預設選單 ID 集合進行比對，從而精確顯示「預設」徽章。
 - **定時排程同步引擎（`rich_menu_scheduler_processor`）**：背景任務每 60 秒執行一次，以 OAConfig 為單位，對每個 App 執行「最佳有效選單計算」—在同一時間點找出唯一應生效的選單，與 LINE 伺服器的實際預設選單 ID 進行比對後，才做出最小化的 Link/Unlink 動作，避免競態衝突。
 - **雙記憶體快取加速 (Double Memory Caching)**：
   - **前端快取**：於 `RichMenu.jsx` 使用模組全域級別的 `frontendImageCache` 對下載的 Blob Object URL 進行永續儲存。大幅減少不必要的重複 API 查詢與瀏覽器記憶體解碼，切換視圖及渲染速度達到 0ms 的響應效率。
@@ -76,7 +77,7 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
   - **自動帶入 API Origin 參數**：當管理者點擊「複製連結」時，前端 React 應用會自動解析當前 Axios `api.defaults.baseURL` 或瀏覽器環境的 API Root Origin，並將其作為 `backend` 參數附加至 LIFF URL。這使得 LINE 客戶端能動態識別並連線至正確的後端 API 位置。
   - **LIFF 優先初始化 (LINE App Crash Prevention)**：
     - 為了解決 LINE 內置瀏覽器因過早執行慢速 API 請求而逾時秒退的問題，網頁在 `window.onload` 時優先執行 `liff.init()`，初始化完成後才進行問卷詳情的載入。
-    - 網頁具備健全的錯誤防禦，若在 LINE App 內載入或初始化失敗，會中斷流程並顯示紅叉錯誤畫面（包含詳細錯誤訊息），便於管理者除錯與使用者排查。�案切換（即監聽的依賴項變更）時，第一時間清空該頁面所有與前一專案相關的 React 狀態（如客戶名單、問卷列表、表單輸入、可用標籤等），確保載入期間不會暫時呈現舊專案的資料，徹底防範跨專案的資料污染與顯示混淆。
+    - 網頁具備健全的錯誤防禦，若在 LINE App 內載入或初始化失敗，會中斷流程並顯示紅叉錯誤畫面（包含詳細錯誤訊息），便於管理者除錯與使用者排查。案切換（即監聽的依賴項變更）時，第一時間清空該頁面所有與前一專案相關的 React 狀態（如客戶名單、問卷列表、表單輸入、可用標籤等），確保載入期間不會暫時呈現舊專案的資料，徹底防範跨專案的資料污染與顯示混淆。
 - **Request 攔截器防衛機制**：在前端 Axios 攔截器中，強制唯有在 `config.headers['X-OA-ID']` 尚未被手動設定（如背景預載所有 OA 的 API 請求）時，才從當前網址路徑匹配注入 OA ID。這確保了背景非同步發起跨 OA 查詢時，Header 不會被當前網址強行覆蓋，徹底阻斷了快取資料串線與混淆的成因。
 
 ## 5. 基礎架構與連線穩定性
