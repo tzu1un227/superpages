@@ -896,7 +896,11 @@ const ProjectsManagement = () => {
         if (Object.keys(errors).length > 0) {
             setFormErrors(errors);
             scrollToFirstError();
-            setError('請先補齊必填欄位');
+            if (errors.project_name === '此旅程名稱已存在，請使用不同名稱') {
+                setError(errors.project_name);
+            } else {
+                setError('請先補齊必填欄位');
+            }
             return;
         }
 

@@ -223,3 +223,9 @@ ote\ 甈雿芸敺蝬 \- 撌亦冽\
   - 4. Broadcast.jsx: 發送對象標籤篩選替換為 TagInput 元件，保持 singleSelect={true}。
   - 5. index.css: 調整全域 utton 基礎樣式，包括 padding、min-width 及 flex 佈局與 gap。
   - 6. JourneyPreview.jsx: 文字氣泡樣式追加 whiteSpace: 'pre-wrap'，確保訊息換行正確預覽。
+
+- **前端 (frontend/src/pages/RichMenu.jsx, Projects.jsx, RuleDesigner.jsx, MessageCenter.jsx)**:
+  - RichMenu.jsx: 修正 loading 遮罩與 LoadingSpinner 使用方式。
+  - Projects.jsx: 若旅程名稱已存在，精準顯示對應錯誤原因，不再顯示「請先補齊必填欄位」。
+  - RuleDesigner.jsx: 關鍵字元件 KeywordTagInput 增加過濾空值處理，防呆防空白。
+  - MessageCenter.jsx: 在聊天室標籤刪除按鈕 style 中強制覆蓋 minWidth: 'auto' 避免其繼承全域 button 大小。

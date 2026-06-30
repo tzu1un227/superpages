@@ -1265,6 +1265,7 @@ function MessageCenter() {
                                                     border: 'none', 
                                                     color: (pendingTagDeletionsRef.current[selectedUser]?.[t] && (Date.now() - pendingTagDeletionsRef.current[selectedUser][t] < 10000)) ? '#666' : '#ff4d4f', 
                                                     padding: '0', 
+                                                    minWidth: 'auto',
                                                     cursor: (pendingTagDeletionsRef.current[selectedUser]?.[t] && (Date.now() - pendingTagDeletionsRef.current[selectedUser][t] < 10000)) ? 'not-allowed' : 'pointer', 
                                                     fontSize: '14px', 
                                                     display: 'flex', 

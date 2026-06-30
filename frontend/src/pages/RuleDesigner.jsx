@@ -23,9 +23,15 @@ const BANK_TYPES = [
 // Custom TagInput for keywords to support Enter/comma tag creation
 const KeywordTagInput = ({ value = '', onChange, disabled }) => {
     const [inputValue, setInputValue] = useState('');
-    const tags = Array.isArray(value) 
-        ? value 
-        : (typeof value === 'string' ? value.split(',').map(t => t.trim()).filter(Boolean) : []);
+    const tags = useMemo(() => {
+        let list = [];
+        if (Array.isArray(value)) {
+            list = value;
+        } else if (typeof value === 'string') {
+            list = value.split(',');
+        }
+        return list.map(t => String(t).trim()).filter(Boolean);
+    }, [value]);
 
     const addTag = (val) => {
         const trimmed = val.trim();
