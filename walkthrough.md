@@ -27,3 +27,10 @@ ame 值。
 - **API 自癒修復**:
   - 修正了 /refresh-profile API 對 LINE API 404 Not Found (封鎖官方帳號或非好友) 的處理機制。
   - 後端改為回傳 200 並附帶空屬性值，前端將直接平穩回退至顯示灰色 User 佔位符，並完全防阻瀏覽器 Console 出現紅字 404 的報錯警報。
+
+
+## 2026-06-30 修正 LINE Profile API Endpoint URL
+- **後端 customers.py**:
+  - 修正了 `refresh_customer_profile` 函式中調用 LINE API 的網址，從錯誤的 `https://api.line.me/v2/bot/user/{user_id}/profile` 改為官方正確的 `https://api.line.me/v2/bot/profile/{user_id}`。
+  - 此修正解決了原本因為 API 網址寫錯而導致所有用戶頭像刷新時一律回傳 404，從而使已換頭貼的用戶依然停留在灰色 User 狀態的問題。
+
