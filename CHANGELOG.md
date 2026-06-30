@@ -1,4 +1,9 @@
-﻿## [2026-06-29] 系統UI - 刪除提醒優化 (名稱顯示)
+﻿## [2026-06-30] Rich Menu 預設狀態與套用人數修正
+- **前端 (`frontend/src/pages/RichMenu.jsx`)**: 查看已發布圖文選單時不再重新呼叫 `/customers/count-by-tags`，改顯示發布/連結當下寫入 metadata 的 `targetUserCount` 與 `totalUserCount`；草稿與連結流程會一併保存總好友數。
+- **後端 (`backend/endpoints/richmenu.py`)**: 儲存或手動設為全域預設時，會將同一 OA 其他 `public` 圖文選單改回 `published`，避免首頁同時出現多個預設選單。
+- **後端 (`backend/endpoints/richmenu.py`)**: 解除全域預設時會同步清除 metadata 的 `public` 狀態；已發布選單仍禁止回到草稿，但允許連結/預設狀態更新寫入 metadata。
+
+## [2026-06-29] 系統UI - 刪除提醒優化 (名稱顯示)
 - **前端 (frontend/src/pages/Projects.jsx, RichMenu.jsx, Broadcast.jsx, RuleDesigner.jsx)**:
   - 旅程與圖文選單：在刪除確認與刪除成功的提示中，顯示具體的「名稱」而非「已刪除」。
   - 群發訊息：刪除任務時，提示訊息改為顯示該任務的「名稱」。

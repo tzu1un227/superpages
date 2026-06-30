@@ -269,7 +269,8 @@ function RichMenu() {
     }, [dragState, currentMenu, scale]);
 
     useEffect(() => {
-        if (!currentMenu || view !== 'edit' || viewOnly) return;
+        if (!currentMenu || view !== 'edit') return;
+        if (currentMenu.status !== 'draft' || viewOnly) return;
         const fetchCount = async (tags = []) => {
             try {
                 const res = await api.post('/customers/count-by-tags', { tags });
@@ -367,6 +368,7 @@ function RichMenu() {
                         publishStrategy: data.publishStrategy || (m.status === 'restricted' ? 'restricted' : (m.status === 'public' ? 'default' : 'hidden')),
                         targetTags: data.targetTags || [],
                         targetUserCount: data.targetUserCount || 0,
+                        totalUserCount: data.totalUserCount || 0,
                         permissionTags: m.permission_tags || [],
                         fallbackMessage: m.fallback_message || '',
                         alias_id: m.alias_id || '',
@@ -515,6 +517,7 @@ function RichMenu() {
                         publishStrategy: menu.publishStrategy,
                         targetTags: menu.targetTags,
                         targetUserCount: menu.targetUserCount,
+                        totalUserCount: menu.totalUserCount,
                         ui_uuid: menu.ui_uuid,
                         group_id: menu.group_id
                     }
@@ -633,6 +636,7 @@ function RichMenu() {
                         publishStrategy: menu.publishStrategy,
                         targetTags: menu.targetTags,
                         targetUserCount: menu.targetUserCount,
+                        totalUserCount: menu.totalUserCount,
                         ui_uuid: menu.ui_uuid,
                         group_id: menu.group_id
                     }
@@ -755,6 +759,7 @@ function RichMenu() {
                     publishStrategy: linkModalState.publishStrategy,
                     targetTags: linkModalState.targetTags,
                     targetUserCount: linkModalState.targetUserCount || 0,
+                    totalUserCount: linkModalState.totalUserCount || 0,
                     ui_uuid: item.ui_uuid,
                     group_id: item.group_id
                 }

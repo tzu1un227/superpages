@@ -394,6 +394,12 @@ def set_default_rich_menu(richMenuId):
                     # Update global default rich menu
                     cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
                     cur.execute(f"INSERT INTO {t_global} (name, value) VALUES ('default_rich_menu', %s)", (richMenuId,))
+                    
+                    # Update rich_menu_metadata status: set other public menus to published, and this menu to public
+                    t_metadata = get_t('rich_menu_metadata')
+                    cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status = 'public'", (oa_id,))
+                    cur.execute(f"UPDATE {t_metadata} SET status = 'public' WHERE oa_id = %s AND rich_menu_id = %s", (oa_id, richMenuId))
+                    
                     conn.commit()
                     cur.close()
                 conn.close()
@@ -433,8 +439,15 @@ def unset_default_rich_menu():
                                 app_name = str(oa.other_settings['app_name'])
                     if app_name:
                         t_global = f'"Global_var:{app_name}"'
+                        t_metadata = get_t('rich_menu_metadata')
                         cur = conn.cursor()
                         cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
+                        
+                        # Set metadata status of this OA from public back to published
+                        oa_id = getattr(g, 'current_oa_id', None)
+                        if oa_id:
+                            cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status = 'public'", (oa_id,))
+                            
                         conn.commit()
                         cur.close()
                     conn.close()
@@ -722,7 +735,7 @@ def save_rich_menu_metadata():
                 cur.execute(f"SELECT * FROM {t_metadata} WHERE id = %s", (id,))
                 m = cur.fetchone()
                 if not m: return jsonify({'error': 'Not found'}), 404
-                if m['status'] == 'published' and status != 'published':
+                if m['status'] == 'published' and status == 'draft':
                     return jsonify({'error': '已發佈的選單不可編輯'}), 400
                 
                 cur.execute(f"""
@@ -730,7 +743,6 @@ def save_rich_menu_metadata():
                     SET name=%s, chat_bar_text=%s, data=%s, status=%s, rich_menu_id=%s, start_time=%s, end_time=%s, permission_tags=%s, fallback_message=%s, ui_uuid=%s, group_id=%s, updated_at=(NOW() AT TIME ZONE 'Asia/Taipei')
                     WHERE id=%s
                 """, (name, chat_bar_text, data_json, status, rich_menu_id, start_time, end_time, permission_tags, fallback_message, ui_uuid, group_id, id))
-                conn.commit()
                 return_id = id
             else:
                 cur.execute(f"""
@@ -738,7 +750,12 @@ def save_rich_menu_metadata():
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, (NOW() AT TIME ZONE 'Asia/Taipei'), (NOW() AT TIME ZONE 'Asia/Taipei')) RETURNING id
                 """, (oa_id, name, chat_bar_text, data_json, status, rich_menu_id, start_time, end_time, permission_tags, fallback_message, ui_uuid, group_id))
                 return_id = cur.fetchone()['id']
-                conn.commit()
+
+            # If setting this menu as public (default), update all other public menus of the same OA to published
+            if status == 'public':
+                cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status = 'public' AND id != %s", (oa_id, return_id))
+
+            conn.commit()
 
             # Async trigger for rich menu update
             if status in ['public', 'restricted']:
