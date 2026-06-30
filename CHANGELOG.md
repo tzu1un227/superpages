@@ -240,3 +240,5 @@ ote\ 甈雿芸敺蝬 \- 撌亦冽\
   - 新增 
 efresh-profile API 端點，透過 LINE Profile 接口拉取最新資料並主動更新 DB 中的 
 ame 與 pic。
+
+  - UserAvatar.jsx: 修正 display: none 導致部分瀏覽器不觸發 img onLoad 事件的潛在渲染 bug，改以 opacity 與 position absolute 處理載入。
