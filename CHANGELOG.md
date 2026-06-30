@@ -1,5 +1,7 @@
-## [2026-06-30] 圖文選單預設標記顯示修復
+## [2026-06-30] 圖文選單預設標記顯示修復與資料庫同步修正
 - **前端 (`frontend/src/pages/RichMenu.jsx`)**: 修正新增 hidden 策略的圖文選單後，因短時間大量請求導致快取更新異常或 LINE API 暫時未回傳預設狀態時，原有預設選單黃色標記消失的問題。將資料庫 metadata 中狀態為 `default` (或舊版 `public`) 的圖文選單 ID 也一併納入 `defaultMenuIds` 的判定，雙重確保預設標記的穩定顯示。
+- **後端 (`backend/endpoints/richmenu.py`)**: 修正了點擊列表的「設為全域預設選單」按鈕時，因 `oa_id` 變數未定義導致資料庫 (`Global_var` 和 `rich_menu_metadata`) 無法正確更新預設狀態的 Bug。
+- **後端 (`backend/endpoints/richmenu.py`)**: 修正了在圖文選單編輯頁面發布且發布策略為「default」時，只更新了 `rich_menu_metadata` 卻漏掉更新 `Global_var` 紀錄的問題。現在不論是從列表點擊按鈕，還是從編輯頁發布為預設，皆會同步更新 `Global_var` 的 `default_rich_menu` 值。
 
 ## [2026-06-30] 圖文選單改存 ui_uuid 與預設狀態顯示優化
 - **後端 (`backend/endpoints/richmenu.py`)**: 在 `/` (list_rich_menus) 與 `/all` (list_all_rich_menus) 路由中，查詢 `rich_menu_metadata` 資料表以獲取 `ui_uuid`，並將其附加於回傳的 JSON 中，以支援前端下拉選單直接使用。

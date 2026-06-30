@@ -402,8 +402,8 @@ def set_default_rich_menu(richMenuId):
             conn = get_main_db_connection()
             if conn:
                 app_name = getattr(g, 'current_app_name', None)
+                oa_id = getattr(g, 'current_oa_id', None)
                 if not app_name:
-                    oa_id = getattr(g, 'current_oa_id', None)
                     if oa_id:
                         from models import OAConfig
                         oa = OAConfig.query.get(oa_id)
@@ -790,6 +790,18 @@ def save_rich_menu_metadata():
             # If setting this menu as default, update all other default menus of the same OA to published
             if status == 'default':
                 cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status = 'default' AND id != %s", (oa_id, return_id))
+                app_name_val = getattr(g, 'current_app_name', None)
+                if not app_name_val:
+                    oa_id_val = getattr(g, 'current_oa_id', None) or oa_id
+                    if oa_id_val:
+                        from models import OAConfig
+                        oa_cfg = OAConfig.query.get(oa_id_val)
+                        if oa_cfg and oa_cfg.other_settings and oa_cfg.other_settings.get('app_name'):
+                            app_name_val = str(oa_cfg.other_settings['app_name'])
+                if app_name_val and rich_menu_id:
+                    t_global = f'"Global_var:{app_name_val}"'
+                    cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
+                    cur.execute(f"INSERT INTO {t_global} (name, value) VALUES ('default_rich_menu', %s)", (rich_menu_id,))
 
             conn.commit()
 
