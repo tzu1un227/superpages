@@ -249,3 +249,11 @@ ame 與 pic。
 
   - frontend/src/components/UserAvatar.jsx: 新增 loading_refreshed 狀態以防止頭像載入失敗時的無限自癒調用迴圈。
   - backend/endpoints/customers.py: 優化 refresh_customer_profile 的異常處理與連線回收，避免 Connection Leak。
+
+
+## [2026-06-30] 圖文選單預設狀態與套用人數管理優化
+### Added
+- 圖文選單管理：在發布或連結選單時，將當時的預計套用人數 (`targetUserCount`) 與好友總數 (`totalUserCount`) 存檔於資料庫 metadata 中。
+- 圖文選單管理：查看已發布（唯讀）選單時，直接顯示發布當下的預計套用人數，不再即時呼叫 API 重新計算人數。
+### Fixed
+- 圖文選單管理：修復當發布或設定全域預設選單後，同一個 OA 之下會同時顯示多個「預設」選單的問題。後端在設定或解除預設選單時，會自動同步變更資料庫 metadata 的 status，確保同一時間只有一個 metadata 為 `'public'`。
