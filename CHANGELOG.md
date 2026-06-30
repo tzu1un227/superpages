@@ -2,6 +2,7 @@
 - **後端 (`backend/endpoints/richmenu.py`)**: 在 `/` (list_rich_menus) 與 `/all` (list_all_rich_menus) 路由中，查詢 `rich_menu_metadata` 資料表以獲取 `ui_uuid`，並將其附加於回傳的 JSON 中，以支援前端下拉選單直接使用。
 - **前端 (`frontend/src/components/FlexMessageEditor.jsx`)**: 將 Flex 訊息按鈕與圖片的「切換圖文選單」下拉式選單選項 value 改為 `ui_uuid`（若無 `ui_uuid` 則 fallback 到 `richMenuId`）。新增 `getMenuSelectValue` 輔助函數，在綁定選取值時自動映射，確保與舊版 `richMenuId` 格式相容。
 - **前端 (`frontend/src/pages/RichMenu.jsx`)**: 修改 `isDefault` 預設選單標籤的判定邏輯，改為比對選單 ID 是否存在於 LINE 當前真實生效的預設選單 ID 集合中，解決資料庫 status 為 `'published'` 卻是 LINE 預設選單時無法顯示標章的問題。
+- **狀態欄位值更新**：將資料庫 `rich_menu_metadata` 中代表全域預設選單的 `status` 狀態值由 `'public'` 變更為 `'default'`，前端亦同步更新對應狀態判定，並保留對舊有 `'public'` 狀態的相容性。
 
 ## [2026-06-30] Rich Menu 預設狀態與套用人數修正
 - **前端 (`frontend/src/pages/RichMenu.jsx`)**: 查看已發布圖文選單時不再重新呼叫 `/customers/count-by-tags`，改顯示發布/連結當下寫入 metadata 的 `targetUserCount` 與 `totalUserCount`；草稿與連結流程會一併保存總好友數。
