@@ -735,7 +735,7 @@ def save_rich_menu_metadata():
                 cur.execute(f"SELECT * FROM {t_metadata} WHERE id = %s", (id,))
                 m = cur.fetchone()
                 if not m: return jsonify({'error': 'Not found'}), 404
-                if m['status'] == 'published' and status != 'published':
+                if m['status'] == 'published' and status == 'draft':
                     return jsonify({'error': '已發佈的選單不可編輯'}), 400
                 
                 cur.execute(f"""

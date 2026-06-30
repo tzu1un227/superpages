@@ -517,6 +517,7 @@ function RichMenu() {
                         publishStrategy: menu.publishStrategy,
                         targetTags: menu.targetTags,
                         targetUserCount: menu.targetUserCount,
+                        totalUserCount: menu.totalUserCount,
                         ui_uuid: menu.ui_uuid,
                         group_id: menu.group_id
                     }
