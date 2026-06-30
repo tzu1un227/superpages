@@ -1,4 +1,9 @@
-﻿## [2026-06-30] Rich Menu 預設狀態與套用人數修正
+## [2026-06-30] 圖文選單改存 ui_uuid 與預設狀態顯示優化
+- **後端 (`backend/endpoints/richmenu.py`)**: 在 `/` (list_rich_menus) 與 `/all` (list_all_rich_menus) 路由中，查詢 `rich_menu_metadata` 資料表以獲取 `ui_uuid`，並將其附加於回傳的 JSON 中，以支援前端下拉選單直接使用。
+- **前端 (`frontend/src/components/FlexMessageEditor.jsx`)**: 將 Flex 訊息按鈕與圖片的「切換圖文選單」下拉式選單選項 value 改為 `ui_uuid`（若無 `ui_uuid` 則 fallback 到 `richMenuId`）。新增 `getMenuSelectValue` 輔助函數，在綁定選取值時自動映射，確保與舊版 `richMenuId` 格式相容。
+- **前端 (`frontend/src/pages/RichMenu.jsx`)**: 修改 `isDefault` 預設選單標籤的判定邏輯，改為比對選單 ID 是否存在於 LINE 當前真實生效的預設選單 ID 集合中，解決資料庫 status 為 `'published'` 卻是 LINE 預設選單時無法顯示標章的問題。
+
+## [2026-06-30] Rich Menu 預設狀態與套用人數修正
 - **前端 (`frontend/src/pages/RichMenu.jsx`)**: 查看已發布圖文選單時不再重新呼叫 `/customers/count-by-tags`，改顯示發布/連結當下寫入 metadata 的 `targetUserCount` 與 `totalUserCount`；草稿與連結流程會一併保存總好友數。
 - **後端 (`backend/endpoints/richmenu.py`)**: 儲存或手動設為全域預設時，會將同一 OA 其他 `public` 圖文選單改回 `published`，避免首頁同時出現多個預設選單。
 - **後端 (`backend/endpoints/richmenu.py`)**: 解除全域預設時會同步清除 metadata 的 `public` 狀態；已發布選單仍禁止回到草稿，但允許連結/預設狀態更新寫入 metadata。
@@ -254,11 +259,3 @@ ame 與 pic。
 
   - frontend/src/components/UserAvatar.jsx: 新增 loading_refreshed 狀態以防止頭像載入失敗時的無限自癒調用迴圈。
   - backend/endpoints/customers.py: 優化 refresh_customer_profile 的異常處理與連線回收，避免 Connection Leak。
-
-
-## [2026-06-30] 圖文選單預設狀態與套用人數管理優化
-### Added
-- 圖文選單管理：在發布或連結選單時，將當時的預計套用人數 (`targetUserCount`) 與好友總數 (`totalUserCount`) 存檔於資料庫 metadata 中。
-- 圖文選單管理：查看已發布（唯讀）選單時，直接顯示發布當下的預計套用人數，不再即時呼叫 API 重新計算人數。
-### Fixed
-- 圖文選單管理：修復當發布或設定全域預設選單後，同一個 OA 之下會同時顯示多個「預設」選單的問題。後端在設定或解除預設選單時，會自動同步變更資料庫 metadata 的 status，確保同一時間只有一個 metadata 為 `'public'`。

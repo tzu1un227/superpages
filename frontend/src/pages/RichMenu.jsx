@@ -913,6 +913,10 @@ function RichMenu() {
         return filtered;
     };
 
+    const defaultMenuIds = React.useMemo(() => {
+        return new Set(menus.filter(rm => rm.status === 'default' || rm.status === 'public').map(rm => rm.richMenuId));
+    }, [menus]);
+
     const groupedMenus = React.useMemo(() => {
         const sorted = getSortedMenus();
         if (selectedOAId !== 'all') {
@@ -1390,7 +1394,7 @@ function RichMenu() {
                                 const isPublic = item.status === 'public' || item.status === 'published'; // Fallback to 'published' for legacy
                                 const isRestricted = item.status === 'restricted';
                                 const rid = item.rich_menu_id || item.richMenuId;
-                                const isDefault = item.status === 'default' || item.status === 'public';
+                                const isDefault = item.status === 'default' || item.status === 'public' || (rid && defaultMenuIds.has(rid));
                                 
                                 let tagsPreview = [];
                                 try {

@@ -70,9 +70,26 @@ def list_rich_menus():
         default_resp = requests.get('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
         default_id = default_resp.json().get('richMenuId') if default_resp.status_code == 200 else None
         
+        # Get ui_uuid mappings from metadata database
+        metadata_map = {}
+        try:
+            from db_utils import get_main_db_connection
+            m_conn = get_main_db_connection()
+            if m_conn:
+                t_metadata = get_t('rich_menu_metadata')
+                m_cur = m_conn.cursor()
+                m_cur.execute(f"SELECT rich_menu_id, ui_uuid FROM {t_metadata} WHERE oa_id = %s AND rich_menu_id IS NOT NULL", (oa_id,))
+                for r in m_cur.fetchall():
+                    metadata_map[r[0]] = r[1]
+                m_cur.close()
+                m_conn.close()
+        except Exception as e:
+            print(f"Error fetching metadata mapping in list_rich_menus: {e}")
+            
         for menu in menus:
             menu['status'] = 'default' if menu['richMenuId'] == default_id else 'none'
             menu['aliases'] = [a['richMenuAliasId'] for a in aliases if a['richMenuId'] == menu['richMenuId']]
+            menu['ui_uuid'] = metadata_map.get(menu['richMenuId'])
             
         return jsonify({
             'richmenus': menus,
@@ -117,11 +134,30 @@ def list_all_rich_menus():
             alias_resp = requests.get('https://api.line.me/v2/bot/richmenu/alias/list', headers=headers, timeout=5)
             aliases = alias_resp.json().get('aliases', []) if alias_resp.status_code == 200 else []
 
+            # Get ui_uuid mappings from metadata database for this OA
+            metadata_map = {}
+            try:
+                from db_utils import get_main_db_connection
+                m_conn = get_main_db_connection()
+                if m_conn:
+                    app_name = oa.other_settings.get('app_name')
+                    if app_name:
+                        t_metadata = f'"rich_menu_metadata:{app_name}"'
+                        m_cur = m_conn.cursor()
+                        m_cur.execute(f"SELECT rich_menu_id, ui_uuid FROM {t_metadata} WHERE oa_id = %s AND rich_menu_id IS NOT NULL", (oa.id,))
+                        for r in m_cur.fetchall():
+                            metadata_map[r[0]] = r[1]
+                        m_cur.close()
+                    m_conn.close()
+            except Exception as e:
+                print(f"Error fetching metadata mapping in list_all_rich_menus for OA {oa.id}: {e}")
+
             for menu in menus:
                 menu['status'] = 'default' if menu['richMenuId'] == default_id else 'none'
                 menu['aliases'] = [a['richMenuAliasId'] for a in aliases if a['richMenuId'] == menu['richMenuId']]
                 menu['oa_id'] = oa.id
                 menu['oa_name'] = oa.oa_name
+                menu['ui_uuid'] = metadata_map.get(menu['richMenuId'])
             
             results.extend(menus)
         except Exception as e:

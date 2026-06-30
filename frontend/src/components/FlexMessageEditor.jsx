@@ -34,6 +34,12 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
     const match = window.location.pathname.match(/\/oa\/(\d+)/);
     const oaId = match ? match[1] : null;
 
+    const getMenuSelectValue = (menuVal) => {
+        if (!menuVal) return '';
+        const matched = menus.find(m => m.ui_uuid === menuVal || m.richMenuId === menuVal);
+        return matched ? (matched.ui_uuid || matched.richMenuId) : menuVal;
+    };
+
     useEffect(() => {
         const fetchMenusAndProjects = async () => {
             try {
@@ -845,13 +851,13 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                                         <div style={{ flex: 1 }}>
                                             <label style={{ display: 'block', color: '#888', fontSize: '12px', marginBottom: '4px' }}>切換圖文選單</label>
                                             <select
-                                                value={currentCard.imageAction.menu || ''}
+                                                value={getMenuSelectValue(currentCard.imageAction.menu)}
                                                 onChange={e => updateCurrentCard('imageAction', { ...currentCard.imageAction, menu: e.target.value })}
                                                 style={{ width: '100%', padding: '8px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '4px' }}
                                             >
                                                 <option value="">不設定</option>
                                                 {menus.map(m => (
-                                                    <option key={m.richMenuId} value={m.richMenuId}>{m.name || m.richMenuId}</option>
+                                                    <option key={m.richMenuId} value={m.ui_uuid || m.richMenuId}>{m.name || m.richMenuId}</option>
                                                 ))}
                                             </select>
                                         </div>
@@ -945,13 +951,13 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                                                     <div style={{ flex: 1 }}>
                                                         <label style={{ display: 'block', color: '#888', fontSize: '11px', marginBottom: '4px' }}>切換圖文選單</label>
                                                         <select
-                                                            value={btn.menu || ''}
+                                                            value={getMenuSelectValue(btn.menu)}
                                                             onChange={e => updateCardButton(idx, 'menu', e.target.value)}
                                                             style={{ width: '100%', padding: '8px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '4px' }}
                                                         >
                                                             <option value="">不設定</option>
                                                             {menus.map(m => (
-                                                                <option key={m.richMenuId} value={m.richMenuId}>{m.name || m.richMenuId}</option>
+                                                                <option key={m.richMenuId} value={m.ui_uuid || m.richMenuId}>{m.name || m.richMenuId}</option>
                                                             ))}
                                                         </select>
                                                     </div>
