@@ -51,11 +51,11 @@ const UserAvatar = ({ userId, picUrl, size = 40, style = {} }) => {
         ...style
     };
 
-    const showImage = imgSrc && (status === 'loading' || status === 'loaded');
+    const showPlaceholder = status !== 'loaded';
 
     return (
         <div style={containerStyle}>
-            {!showImage && (
+            {showPlaceholder && (
                 <User size={size * 0.6} color="#aaa" />
             )}
             {imgSrc && (status === 'loading' || status === 'loaded') && (
@@ -66,14 +66,12 @@ const UserAvatar = ({ userId, picUrl, size = 40, style = {} }) => {
                         width: '100%',
                         height: '100%',
                         objectFit: 'cover',
-                        display: status === 'loaded' ? 'block' : 'none'
+                        position: status === 'loaded' ? 'static' : 'absolute',
+                        opacity: status === 'loaded' ? 1 : 0
                     }}
                     onLoad={() => setStatus('loaded')}
                     onError={handleError}
                 />
-            )}
-            {imgSrc && status === 'loading' && (
-                <User size={size * 0.6} color="#aaa" />
             )}
         </div>
     );
