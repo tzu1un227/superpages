@@ -1,3 +1,6 @@
+## [2026-06-30] 圖文選單預設標記顯示修復
+- **前端 (`frontend/src/pages/RichMenu.jsx`)**: 修正新增 hidden 策略的圖文選單後，因短時間大量請求導致快取更新異常或 LINE API 暫時未回傳預設狀態時，原有預設選單黃色標記消失的問題。將資料庫 metadata 中狀態為 `default` (或舊版 `public`) 的圖文選單 ID 也一併納入 `defaultMenuIds` 的判定，雙重確保預設標記的穩定顯示。
+
 ## [2026-06-30] 圖文選單改存 ui_uuid 與預設狀態顯示優化
 - **後端 (`backend/endpoints/richmenu.py`)**: 在 `/` (list_rich_menus) 與 `/all` (list_all_rich_menus) 路由中，查詢 `rich_menu_metadata` 資料表以獲取 `ui_uuid`，並將其附加於回傳的 JSON 中，以支援前端下拉選單直接使用。
 - **前端 (`frontend/src/components/FlexMessageEditor.jsx`)**: 將 Flex 訊息按鈕與圖片的「切換圖文選單」下拉式選單選項 value 改為 `ui_uuid`（若無 `ui_uuid` 則 fallback 到 `richMenuId`）。新增 `getMenuSelectValue` 輔助函數，在綁定選取值時自動映射，確保與舊版 `richMenuId` 格式相容。
