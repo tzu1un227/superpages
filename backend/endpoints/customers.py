@@ -796,6 +796,12 @@ def refresh_customer_profile(user_id):
     try:
         resp = requests.get(f'https://api.line.me/v2/bot/user/{user_id}/profile', headers=headers)
         if resp.status_code != 200:
+            if resp.status_code == 404:
+                return jsonify({
+                    "picture_url": None,
+                    "display_name": None,
+                    "status": "unfollowed"
+                }), 200
             return jsonify({"error": f"Failed to get LINE profile: {resp.text}"}), resp.status_code
             
         profile = resp.json()
