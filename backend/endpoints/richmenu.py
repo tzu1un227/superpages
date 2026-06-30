@@ -431,10 +431,10 @@ def set_default_rich_menu(richMenuId):
                     cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
                     cur.execute(f"INSERT INTO {t_global} (name, value) VALUES ('default_rich_menu', %s)", (richMenuId,))
                     
-                    # Update rich_menu_metadata status: set other public menus to published, and this menu to public
+                    # Update rich_menu_metadata status: set other default menus to published, and this menu to default
                     t_metadata = get_t('rich_menu_metadata')
-                    cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status = 'public'", (oa_id,))
-                    cur.execute(f"UPDATE {t_metadata} SET status = 'public' WHERE oa_id = %s AND rich_menu_id = %s", (oa_id, richMenuId))
+                    cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status = 'default'", (oa_id,))
+                    cur.execute(f"UPDATE {t_metadata} SET status = 'default' WHERE oa_id = %s AND rich_menu_id = %s", (oa_id, richMenuId))
                     
                     conn.commit()
                     cur.close()
@@ -482,7 +482,7 @@ def unset_default_rich_menu():
                         # Set metadata status of this OA from public back to published
                         oa_id = getattr(g, 'current_oa_id', None)
                         if oa_id:
-                            cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status = 'public'", (oa_id,))
+                            cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status = 'default'", (oa_id,))
                             
                         conn.commit()
                         cur.close()
@@ -787,14 +787,14 @@ def save_rich_menu_metadata():
                 """, (oa_id, name, chat_bar_text, data_json, status, rich_menu_id, start_time, end_time, permission_tags, fallback_message, ui_uuid, group_id))
                 return_id = cur.fetchone()['id']
 
-            # If setting this menu as public (default), update all other public menus of the same OA to published
-            if status == 'public':
-                cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status = 'public' AND id != %s", (oa_id, return_id))
+            # If setting this menu as default, update all other default menus of the same OA to published
+            if status == 'default':
+                cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status = 'default' AND id != %s", (oa_id, return_id))
 
             conn.commit()
 
             # Async trigger for rich menu update
-            if status in ['public', 'restricted']:
+            if status in ['default', 'restricted']:
                 import threading
                 app_name = getattr(g, 'current_app_name', None)
                 def trigger_update(app_name_val, stat, r_id):
@@ -809,7 +809,7 @@ def save_rich_menu_metadata():
                             from endpoints.richmenu import get_line_token, bulk_check_and_update_rich_menu
                             token = get_line_token(app_name=app_name_val)
                             g.current_line_token = token
-                            if stat == 'public':
+                            if stat == 'default':
                                 # bulk link to all users
                                 headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
                                 bulk_link_all_users(headers, r_id)

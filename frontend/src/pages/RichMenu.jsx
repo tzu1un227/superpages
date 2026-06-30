@@ -365,7 +365,7 @@ function RichMenu() {
                         name: m.name,
                         chatBarText: m.chat_bar_text,
                         imageFile: file,
-                        publishStrategy: data.publishStrategy || (m.status === 'restricted' ? 'restricted' : (m.status === 'public' ? 'default' : 'hidden')),
+                        publishStrategy: data.publishStrategy || (m.status === 'restricted' ? 'restricted' : (m.status === 'default' ? 'default' : 'hidden')),
                         targetTags: data.targetTags || [],
                         targetUserCount: data.targetUserCount || 0,
                         totalUserCount: data.totalUserCount || 0,
@@ -610,7 +610,7 @@ function RichMenu() {
                 // If this is the one chosen to be default, status becomes public, else published
                 let targetStatus = 'published';
                 if (menu.publishStrategy === 'default') {
-                    targetStatus = 'public';
+                    targetStatus = 'default';
                 } else if (menu.publishStrategy === 'restricted') {
                     targetStatus = 'restricted';
                 }
@@ -733,7 +733,7 @@ function RichMenu() {
             const item = linkModalState.item;
             let newStatus = 'published';
             if (linkModalState.publishStrategy === 'restricted') newStatus = 'restricted';
-            else if (linkModalState.publishStrategy === 'default') newStatus = 'public';
+            else if (linkModalState.publishStrategy === 'default') newStatus = 'default';
             else newStatus = 'hidden';
 
             const payload = {
@@ -1390,8 +1390,8 @@ function RichMenu() {
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
                             {oaMenus.map((item, idx) => {
                                 const isDraft = item.isMetadata && item.status === 'draft';
-                                const isPublished = (item.isMetadata && ['published', 'public', 'restricted'].includes(item.status)) || !item.isMetadata;
-                                const isPublic = item.status === 'public' || item.status === 'published'; // Fallback to 'published' for legacy
+                                const isPublished = (item.isMetadata && ['published', 'default', 'restricted', 'public'].includes(item.status)) || !item.isMetadata;
+                                const isPublic = item.status === 'default' || item.status === 'public' || item.status === 'published'; // Fallback to 'published' for legacy
                                 const isRestricted = item.status === 'restricted';
                                 const rid = item.rich_menu_id || item.richMenuId;
                                 const isDefault = item.status === 'default' || item.status === 'public' || (rid && defaultMenuIds.has(rid));
