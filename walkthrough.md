@@ -21,3 +21,9 @@
   - 當前端要求刷新時，實時調用 LINE Profile API，並以 UPDATE ... ON CONFLICT INSERT 的安全方式同步更新資料庫中 Private_var 的 pic 與 
 ame 值。
   - 前後端已在客戶中心 (CustomerCenter.jsx) 與訊息中心聊天室 (MessageCenter.jsx) 中全面替換並啟用。
+
+
+## 2026-06-30 針對封鎖用戶 API 404 進行溫和回退處理
+- **API 自癒修復**:
+  - 修正了 /refresh-profile API 對 LINE API 404 Not Found (封鎖官方帳號或非好友) 的處理機制。
+  - 後端改為回傳 200 並附帶空屬性值，前端將直接平穩回退至顯示灰色 User 佔位符，並完全防阻瀏覽器 Console 出現紅字 404 的報錯警報。
