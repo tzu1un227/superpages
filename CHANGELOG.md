@@ -229,3 +229,14 @@ ote\ 甈雿芸敺蝬 \- 撌亦冽\
   - Projects.jsx: 若旅程名稱已存在，精準顯示對應錯誤原因，不再顯示「請先補齊必填欄位」。
   - RuleDesigner.jsx: 關鍵字元件 KeywordTagInput 增加過濾空值處理，防呆防空白。
   - MessageCenter.jsx: 在聊天室標籤刪除按鈕 style 中強制覆蓋 minWidth: 'auto' 避免其繼承全域 button 大小。
+
+
+## [2026-06-30] 精準事件驅動頭貼同步與自癒機制
+- **前端 (components/UserAvatar.jsx, pages/CustomerCenter.jsx, pages/MessageCenter.jsx)**:
+  - 新增 UserAvatar.jsx 組件，以實現加載失敗背景非同步刷新頭貼與顯示灰色 Icon 的 Placeholder。
+  - 替換客戶中心（CustomerCenter.jsx）列表與側邊欄頭貼。
+  - 替換訊息中心（MessageCenter.jsx）聊天列表與聊天 Header 用戶頭貼。
+- **後端 (backend/endpoints/customers.py)**:
+  - 新增 
+efresh-profile API 端點，透過 LINE Profile 接口拉取最新資料並主動更新 DB 中的 
+ame 與 pic。

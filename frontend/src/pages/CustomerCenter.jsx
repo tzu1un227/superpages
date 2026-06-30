@@ -3,6 +3,7 @@ import { Search, Filter, Download, UserPlus, Users, Tag, Clock, Phone, Mail, Mor
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../api';
 import { useToast } from '../contexts/ToastContext';
+import UserAvatar from '../components/UserAvatar';
 
 const CustomerCenter = () => {
   const [activeTab, setActiveTab] = useState('customers');
@@ -659,13 +660,7 @@ const CustomerCenter = () => {
                   </td>
                   <td style={{ padding: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#444', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {c.pic ? (
-                          <img src={c.pic} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        ) : (
-                          <Users size={20} color="#888" />
-                        )}
-                      </div>
+                      <UserAvatar userId={c.user_id} picUrl={c.pic} size={40} />
                       <div style={{ display: 'flex', alignItems: 'center' }}>
                         <div style={{ fontWeight: '500', fontSize: '15px', whiteSpace: 'nowrap' }}>{c.name || '未命名用戶'}</div>
                       </div>
@@ -1240,13 +1235,7 @@ const CustomerCenter = () => {
           <>
             <div style={{ padding: '24px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ margin: 0, fontSize: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#333', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {selectedCustomerForSidebar.pic ? (
-                    <img src={selectedCustomerForSidebar.pic} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    <Users size={20} color="#888" />
-                  )}
-                </div>
+                <UserAvatar userId={selectedCustomerForSidebar.user_id} picUrl={selectedCustomerForSidebar.pic} size={40} />
                 {editingSidebarField === 'name' ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, marginRight: '16px' }}>
                     <input 

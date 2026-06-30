@@ -5,6 +5,7 @@ import { Send, User, Info, Search, Tag, X, Image as ImageIcon, Mic, Video, Smile
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useToast } from '../contexts/ToastContext';
 import { CircularProgress } from '@mui/material';
+import UserAvatar from '../components/UserAvatar';
 
 // 內部元件：處理帶有 Token 的圖片載入
 const AuthenticatedImage = ({ src, alt, style, onClick, onLoad }) => {
@@ -1189,13 +1190,7 @@ function MessageCenter() {
                                         </div>
                                     )}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                        {u.pic ? (
-                                            <img src={u.pic} alt="avatar" style={{ width: '34px', height: '34px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                                        ) : (
-                                            <div style={{ backgroundColor: '#333', padding: '8px', borderRadius: '50%', flexShrink: 0 }}>
-                                                <User size={18} />
-                                            </div>
-                                        )}
+                                        <UserAvatar userId={u.user_id} picUrl={u.pic} size={34} style={{ flexShrink: 0 }} />
                                         <div style={{ flex: 1, overflow: 'hidden' }}>
                                             <p style={{ fontWeight: '600', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name || u.user_id}</p>
                                             <p style={{ fontSize: '12px', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatSidebarMessage(u) || '尚無訊息'}</p>
@@ -1233,12 +1228,8 @@ function MessageCenter() {
                         {/* 聊天室 Header：用戶名 + 標籤 + 新增標籤 */}
                         <div style={{ padding: '20px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                             <div style={{ display: 'flex', gap: '15px' }}>
-                                {currentUserInfo?.pic ? (
-                                    <img src={currentUserInfo.pic} alt="avatar" style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover' }} />
-                                ) : (
-                                    <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <User size={24} color="#666" />
-                                    </div>
+                                {currentUserInfo && (
+                                    <UserAvatar userId={currentUserInfo.user_id || selectedUser} picUrl={currentUserInfo.pic} size={48} />
                                 )}
                                 <div>
                                     <h3 style={{ fontSize: '18px', marginBottom: '5px', marginTop: 0 }}>{currentUserInfo?.name || selectedUser}</h3>

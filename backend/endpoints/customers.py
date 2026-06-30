@@ -780,3 +780,50 @@ def count_by_tags():
         return jsonify({"error": str(e)}), 500
     finally:
         if conn: conn.close()
+
+@customers_bp.route('/<user_id>/refresh-profile', methods=['POST'])
+@token_required
+def refresh_customer_profile(user_id):
+    import requests
+    from endpoints.richmenu import get_line_token
+    
+    app_id = get_current_app_id()
+    token = get_line_token()
+    if not token:
+        return jsonify({"error": "LINE token not configured"}), 500
+        
+    headers = {'Authorization': f'Bearer {token}'}
+    try:
+        resp = requests.get(f'https://api.line.me/v2/bot/user/{user_id}/profile', headers=headers)
+        if resp.status_code != 200:
+            return jsonify({"error": f"Failed to get LINE profile: {resp.text}"}), resp.status_code
+            
+        profile = resp.json()
+        display_name = profile.get('displayName')
+        picture_url = profile.get('pictureUrl')
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        pv_table = f'"Private_var:{app_id}"'
+        
+        if display_name:
+            cur.execute(f"UPDATE {pv_table} SET value = %s WHERE user_id = %s AND name = 'name'", (display_name, user_id))
+            if cur.rowcount == 0:
+                cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, 'name', %s)", (user_id, display_name))
+                
+        if picture_url:
+            cur.execute(f"UPDATE {pv_table} SET value = %s WHERE user_id = %s AND name = 'pic'", (picture_url, user_id))
+            if cur.rowcount == 0:
+                cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, 'pic', %s)", (user_id, picture_url))
+                
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            "picture_url": picture_url,
+            "display_name": display_name
+        })
+    except Exception as e:
+        print(f"Error in refresh_customer_profile: {e}")
+        return jsonify({"error": str(e)}), 500
