@@ -34,3 +34,12 @@ ame 值。
   - 修正了 `refresh_customer_profile` 函式中調用 LINE API 的網址，從錯誤的 `https://api.line.me/v2/bot/user/{user_id}/profile` 改為官方正確的 `https://api.line.me/v2/bot/profile/{user_id}`。
   - 此修正解決了原本因為 API 網址寫錯而導致所有用戶頭像刷新時一律回傳 404，從而使已換頭貼的用戶依然停留在灰色 User 狀態的問題。
 
+
+## 2026-06-30 修正無限重試迴圈與後端 Connection Leak 導致的網頁卡死 (一直在轉圈) 問題
+- **前端 UserAvatar.jsx**:
+  - 引入了新的狀態 `'loading_refreshed'`，當自癒 API 返回新的網址後，元件會使用新網址重新加載一次。
+  - 如果再次加載失敗，會直接平穩回退至顯示灰色 User Icon 佔位符，並停止任何進一步的 `/refresh-profile` 請求。
+  - 此修正徹底防止了多個頭像載入失敗時，前端無休止向後端發起 API 請求導致的無限迴圈，解決了瀏覽器主執行緒卡死與 CPU 100% 的問題。
+- **後端 customers.py**:
+  - 調整 `refresh_customer_profile` 的資料庫存取區段，將 `cursor.close()` 與 `conn.close()` 放入 `finally:` 區塊中。
+  - 保證在發生任何異常時 (例如 token 找不到或資料表鎖定)，資料庫連線都能被安全關閉回收，徹底根絕 PostgreSQL Connection Leak（連線洩漏）問題，防範 Heroku 資料庫連線爆滿造成的服務當機。

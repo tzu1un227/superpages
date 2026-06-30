@@ -793,6 +793,8 @@ def refresh_customer_profile(user_id):
         return jsonify({"error": "LINE token not configured"}), 500
         
     headers = {'Authorization': f'Bearer {token}'}
+    conn = None
+    cur = None
     try:
         resp = requests.get(f'https://api.line.me/v2/bot/profile/{user_id}', headers=headers)
         if resp.status_code != 200:
@@ -823,13 +825,18 @@ def refresh_customer_profile(user_id):
                 cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, 'pic', %s)", (user_id, picture_url))
                 
         conn.commit()
-        cur.close()
-        conn.close()
         
         return jsonify({
             "picture_url": picture_url,
-            "display_name": display_name
-        })
+            "display_name": display_name,
+            "status": "active"
+        }), 200
     except Exception as e:
         print(f"Error in refresh_customer_profile: {e}")
         return jsonify({"error": str(e)}), 500
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+

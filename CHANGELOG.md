@@ -246,3 +246,6 @@ ame 與 pic。
   - backend/endpoints/customers.py: 優化 refresh-profile 接口對 LINE API 404 Not Found (封鎖或非好友) 的處理，返回 200 配合空值，防阻前端 Console 警報。
 
   - backend/endpoints/customers.py: 修正獲取 LINE Profile 的 API 端點路徑為 /v2/bot/profile/{userId}。
+
+  - frontend/src/components/UserAvatar.jsx: 新增 loading_refreshed 狀態以防止頭像載入失敗時的無限自癒調用迴圈。
+  - backend/endpoints/customers.py: 優化 refresh_customer_profile 的異常處理與連線回收，避免 Connection Leak。

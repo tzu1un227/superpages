@@ -12,7 +12,13 @@ const UserAvatar = ({ userId, picUrl, size = 40, style = {} }) => {
     }, [picUrl]);
 
     const handleError = async () => {
+        // If we already refreshed or failed, or if we are currently loading the refreshed image, stop.
         if (status === 'refreshing' || status === 'failed') return;
+        if (status === 'loading_refreshed') {
+            setStatus('failed');
+            setImgSrc(null);
+            return;
+        }
         
         setStatus('refreshing');
         setImgSrc(null);
@@ -27,7 +33,7 @@ const UserAvatar = ({ userId, picUrl, size = 40, style = {} }) => {
             const newUrl = res.data?.picture_url;
             if (newUrl) {
                 setImgSrc(newUrl);
-                setStatus('loading');
+                setStatus('loading_refreshed');
             } else {
                 setStatus('failed');
             }
@@ -58,7 +64,7 @@ const UserAvatar = ({ userId, picUrl, size = 40, style = {} }) => {
             {showPlaceholder && (
                 <User size={size * 0.6} color="#aaa" />
             )}
-            {imgSrc && (status === 'loading' || status === 'loaded') && (
+            {imgSrc && (status === 'loading' || status === 'loading_refreshed' || status === 'loaded') && (
                 <img
                     src={imgSrc}
                     alt="avatar"
@@ -78,3 +84,4 @@ const UserAvatar = ({ userId, picUrl, size = 40, style = {} }) => {
 };
 
 export default UserAvatar;
+
