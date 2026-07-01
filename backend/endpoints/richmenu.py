@@ -512,6 +512,34 @@ def clear_all_rich_menus():
         # 2. Unlink individual users
         bulk_unlink_all_users(headers)
         
+        # 3. Update database status
+        try:
+            from db_utils import get_main_db_connection
+            oa_id = getattr(g, 'current_oa_id', None)
+            if oa_id:
+                t_metadata = get_t('rich_menu_metadata')
+                conn = get_main_db_connection()
+                cur = conn.cursor()
+                cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status IN ('default', 'link', 'restricted')", (oa_id,))
+                conn.commit()
+                cur.close()
+                
+                app_name = getattr(g, 'current_app_name', None)
+                if not app_name:
+                    from models import OAConfig
+                    oa = OAConfig.query.get(oa_id)
+                    if oa and oa.other_settings and oa.other_settings.get('app_name'):
+                        app_name = str(oa.other_settings['app_name'])
+                if app_name:
+                    t_global = f'"Global_var:{app_name}"'
+                    cur = conn.cursor()
+                    cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
+                    conn.commit()
+                    cur.close()
+                conn.close()
+        except Exception as db_err:
+            print(f"Error updating DB statuses on clear-all: {db_err}")
+            
         return jsonify({'status': 'success'})
     except Exception as e:
         return jsonify({'message': 'Error', 'error': str(e)}), 500
