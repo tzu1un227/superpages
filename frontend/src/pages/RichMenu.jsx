@@ -976,6 +976,7 @@ function RichMenu() {
                             setSelectedAreaIndex(null);
                             setBackgroundImage(g.imageBase64 || null);
                         }} style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '8px',
                             padding: '8px 16px', borderRadius: '8px', 
                             backgroundColor: idx === currentMenuIndex ? 'var(--primary-yellow)' : '#333',
                             color: idx === currentMenuIndex ? '#000' : '#fff',
@@ -985,7 +986,7 @@ function RichMenu() {
                             {!viewOnly && currentGroup.length > 1 && (
                                 <button 
                                     onClick={(e) => handleDeleteDraftFromGroup(e, idx)} 
-                                    style={{ marginLeft: '8px', background: 'none', border: 'none', color: idx === currentMenuIndex ? '#000' : '#888', cursor: 'pointer', padding: 0 }}
+                                    style={{ background: 'none', border: 'none', color: idx === currentMenuIndex ? '#000' : '#888', cursor: 'pointer', padding: 0, display: 'flex' }}
                                 >
                                     <X size={12} />
                                 </button>
@@ -1231,8 +1232,10 @@ function RichMenu() {
                                                 onChange={e => {
                                                     if (e.target.value === 'create_and_switch') {
                                                         const newUuid = Date.now().toString(36) + Math.random().toString(36).substring(2);
+                                                        const groupId = currentGroup[0]?.group_id || newUuid;
                                                         const newDraft = {
                                                             ui_uuid: newUuid,
+                                                            group_id: groupId,
                                                             name: `草稿 ${currentGroup.length + 1}`,
                                                             size: { width: 2500, height: 1686 },
                                                             selected: false,
