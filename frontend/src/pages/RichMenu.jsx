@@ -1396,30 +1396,74 @@ function RichMenu() {
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
                             {oaMenus.map((item, idx) => {
                                 const isDraft = item.isMetadata && item.status === 'draft';
-                                const isPublished = (item.isMetadata && ['published', 'default', 'restricted', 'public'].includes(item.status)) || !item.isMetadata;
-                                const isPublic = item.status === 'default' || item.status === 'public' || item.status === 'published'; // Fallback to 'published' for legacy
-                                const isRestricted = item.status === 'restricted';
                                 const rid = item.rich_menu_id || item.richMenuId;
                                 const isDefault = item.status === 'default' || item.status === 'public' || (rid && defaultMenuIds.has(rid));
                                 
                                 let tagsPreview = [];
+                                let permissionTagsPreview = item.permission_tags || [];
+                                let fallbackMessagePreview = item.fallback_message || '';
+                                let areasData = [];
+
                                 try {
                                     if (item.data && typeof item.data === 'string') {
                                         const parsed = JSON.parse(item.data);
                                         if (parsed.targetTags) tagsPreview = parsed.targetTags;
-                                    } else if (item.data && item.data.targetTags) {
-                                        tagsPreview = item.data.targetTags;
+                                        if (parsed.permissionTags) permissionTagsPreview = parsed.permissionTags;
+                                        if (parsed.fallbackMessage) fallbackMessagePreview = parsed.fallbackMessage;
+                                        if (parsed.areas) areasData = parsed.areas;
+                                    } else if (item.data) {
+                                        if (item.data.targetTags) tagsPreview = item.data.targetTags;
+                                        if (item.data.permissionTags) permissionTagsPreview = item.data.permissionTags;
+                                        if (item.data.fallbackMessage) fallbackMessagePreview = item.data.fallbackMessage;
+                                        if (item.data.areas) areasData = item.data.areas;
                                     }
                                 } catch (e) { }
+
+                                // 1. LINE 資源狀態 (LINE Resource Status)
+                                let lineStatus = { text: '草稿', color: '#FF9800' };
+                                if (rid && item.status !== 'draft') {
+                                    lineStatus = { text: '已建立至 LINE', color: '#4CAF50' };
+                                }
+
+                                // 2. 套用狀態 (Application Status)
+                                let applyStatus = { text: '未套用', color: '#666666' };
+                                const now = new Date();
+                                const startTime = item.start_time ? new Date(item.start_time) : null;
+                                const endTime = item.end_time ? new Date(item.end_time) : null;
+
+                                if (isDefault) {
+                                    applyStatus = { text: '全體預設中', color: '#FFD700', textColor: '#000' };
+                                } else if (item.status === 'restricted' || item.status === 'link') {
+                                    applyStatus = { text: '指定對象套用中', color: '#2196F3' };
+                                }
+                                
+                                if (startTime && startTime > now) {
+                                    applyStatus = { text: '排程待生效', color: '#00BCD4' };
+                                } else if (endTime && endTime < now) {
+                                    applyStatus = { text: '已結束', color: '#9E9E9E' };
+                                }
+
+                                // 3. 切換權限 (Switch Permission)
+                                let switchStatus = { text: '公開切換', color: '#4CAF50' };
+                                const hasSwitchAction = areasData.some(a => a.action && a.action.type === 'richmenuswitch');
+                                
+                                if (!hasSwitchAction) {
+                                    switchStatus = { text: '不可主動切換', color: '#F44336' };
+                                } else if (permissionTagsPreview.length > 0) {
+                                    switchStatus = { text: '限制切換', color: '#9C27B0' };
+                                }
+
+                                const isRestricted = item.status === 'restricted'; // For tags display below
 
                                 return (
                                     <div key={idx} className="card" style={{ display: 'flex', flexDirection: 'column', height: '100%', border: isDefault ? '2px solid #FFD700' : '1px solid #333' }}>
                                         <div style={{ height: '150px', backgroundColor: '#111', borderRadius: '8px', marginBottom: '15px', position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
                                             <MenuPreviewImage target={item} />
-                                            <div style={{ position: 'absolute', top: '10px', left: '10px', backgroundColor: isDraft ? '#FF9800' : isRestricted ? '#9C27B0' : '#4CAF50', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', zIndex: 2 }}>
-                                                {isDraft ? '草稿' : isRestricted ? '限定發佈' : '公開發佈'}
+                                            <div style={{ position: 'absolute', top: '10px', left: '10px', display: 'flex', flexDirection: 'column', gap: '5px', zIndex: 2 }}>
+                                                <span style={{ backgroundColor: lineStatus.color, color: lineStatus.textColor || 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', alignSelf: 'flex-start', boxShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>{lineStatus.text}</span>
+                                                <span style={{ backgroundColor: applyStatus.color, color: applyStatus.textColor || 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', alignSelf: 'flex-start', boxShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>{applyStatus.text}</span>
+                                                <span style={{ backgroundColor: switchStatus.color, color: switchStatus.textColor || 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', alignSelf: 'flex-start', boxShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>{switchStatus.text}</span>
                                             </div>
-                                            {isDefault && <div style={{ position: 'absolute', top: '10px', right: '10px', backgroundColor: '#FFD700', color: 'black', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', zIndex: 2 }}>預設</div>}
                                         </div>
                                         <h4 style={{ marginBottom: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</h4>
                                         {isRestricted && tagsPreview.length > 0 && (
@@ -1430,19 +1474,6 @@ function RichMenu() {
                                             </div>
                                         )}
                                         {(() => {
-                                            let permissionTagsPreview = item.permission_tags || [];
-                                            let fallbackMessagePreview = item.fallback_message || '';
-                                            try {
-                                                if (item.data && typeof item.data === 'string') {
-                                                    const parsed = JSON.parse(item.data);
-                                                    if (parsed.permissionTags) permissionTagsPreview = parsed.permissionTags;
-                                                    if (parsed.fallbackMessage) fallbackMessagePreview = parsed.fallbackMessage;
-                                                } else if (item.data) {
-                                                    if (item.data.permissionTags) permissionTagsPreview = item.data.permissionTags;
-                                                    if (item.data.fallbackMessage) fallbackMessagePreview = item.data.fallbackMessage;
-                                                }
-                                            } catch (e) { }
-
                                             return (
                                                 <>
                                                     {permissionTagsPreview.length > 0 && (
