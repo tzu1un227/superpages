@@ -733,7 +733,7 @@ function RichMenu() {
             const item = linkModalState.item;
             let newStatus = 'published';
             if (linkModalState.publishStrategy === 'restricted') newStatus = 'restricted';
-            else if (linkModalState.publishStrategy === 'default') newStatus = 'default';
+            else if (linkModalState.publishStrategy === 'default') newStatus = 'published';
             else newStatus = 'hidden';
 
             const payload = {
@@ -1459,10 +1459,10 @@ function RichMenu() {
                                     <div key={idx} className="card" style={{ display: 'flex', flexDirection: 'column', height: '100%', border: isDefault ? '2px solid #FFD700' : '1px solid #333' }}>
                                         <div style={{ height: '150px', backgroundColor: '#111', borderRadius: '8px', marginBottom: '15px', position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
                                             <MenuPreviewImage target={item} />
-                                            <div style={{ position: 'absolute', top: '10px', left: '10px', display: 'flex', flexDirection: 'column', gap: '5px', zIndex: 2 }}>
-                                                <span style={{ backgroundColor: lineStatus.color, color: lineStatus.textColor || 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', alignSelf: 'flex-start', boxShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>{lineStatus.text}</span>
-                                                <span style={{ backgroundColor: applyStatus.color, color: applyStatus.textColor || 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', alignSelf: 'flex-start', boxShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>{applyStatus.text}</span>
-                                                <span style={{ backgroundColor: switchStatus.color, color: switchStatus.textColor || 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', alignSelf: 'flex-start', boxShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>{switchStatus.text}</span>
+                                            <div style={{ position: 'absolute', top: '10px', left: '10px', display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '5px', zIndex: 2 }}>
+                                                <span style={{ backgroundColor: lineStatus.color, color: lineStatus.textColor || 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', boxShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>{lineStatus.text}</span>
+                                                <span style={{ backgroundColor: applyStatus.color, color: applyStatus.textColor || 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', boxShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>{applyStatus.text}</span>
+                                                <span style={{ backgroundColor: switchStatus.color, color: switchStatus.textColor || 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', boxShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>{switchStatus.text}</span>
                                             </div>
                                         </div>
                                         <h4 style={{ marginBottom: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</h4>
@@ -1504,7 +1504,7 @@ function RichMenu() {
                                                 </button>
                                                 {isPublished && rid && (
                                                     <>
-                                                        <Tooltip title={isRestricted ? "立即將此限定圖文選單同步至標籤用戶 (Link)" : "立即將此圖文選單連結至全體用戶 (Link)"}>
+                                                        <Tooltip title="連結">
                                                             <button onClick={() => setLinkModalState({ richMenuId: rid, item: item, publishStrategy: item.status === "restricted" ? "restricted" : "default", targetTags: item.target_tags || [], targetUserCount: 0, totalUserCount: 0 })} className="secondary" style={{ padding: '8px', color: '#fff', borderColor: '#4CAF50', backgroundColor: 'rgba(76, 175, 80, 0.1)' }}>
                                                                 <LinkIcon size={16} />
                                                             </button>
