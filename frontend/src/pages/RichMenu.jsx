@@ -1396,6 +1396,7 @@ function RichMenu() {
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
                             {oaMenus.map((item, idx) => {
                                 const isDraft = item.isMetadata && item.status === 'draft';
+                                const isPublished = item.status === 'published' || item.status === 'restricted' || item.status === 'link' || item.status === 'default';
                                 const rid = item.rich_menu_id || item.richMenuId;
                                 const isDefault = item.status === 'default' || item.status === 'public' || (rid && defaultMenuIds.has(rid));
                                 
