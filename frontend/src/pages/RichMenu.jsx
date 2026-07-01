@@ -1462,7 +1462,7 @@ function RichMenu() {
                                 });
                                 
                                 if (!isTargetedByOthers) {
-                                    switchStatus = { text: '無法被切換', color: '#F44336' };
+                                    switchStatus = { text: '沒有被切換', color: '#F44336' };
                                 } else if (permissionTagsPreview.length > 0) {
                                     switchStatus = { text: '限制切換', color: '#9C27B0' };
                                 }
