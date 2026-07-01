@@ -36,7 +36,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
 
     const getMenuSelectValue = (menuVal) => {
         if (!menuVal) return '';
-        const matched = menus.find(m => m.ui_uuid === menuVal || m.richMenuId === menuVal);
+        const matched = menus.find(m => m.ui_uuid === menuVal || (m.richMenuId || m.rich_menu_id) === menuVal);
         return matched ? (matched.ui_uuid || '') : menuVal;
     };
 
@@ -857,7 +857,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                                             >
                                                 <option value="">不設定</option>
                                                 {menus.map(m => (
-                                                    <option key={m.richMenuId} value={m.ui_uuid || ''}>{m.name || m.richMenuId}</option>
+                                                    <option key={m.richMenuId || m.rich_menu_id || m.id} value={m.ui_uuid || ''}>{m.name || m.richMenuId || m.rich_menu_id}</option>
                                                 ))}
                                             </select>
                                         </div>
