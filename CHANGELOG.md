@@ -265,3 +265,7 @@ ame 與 pic。
 
   - frontend/src/components/UserAvatar.jsx: 新增 loading_refreshed 狀態以防止頭像載入失敗時的無限自癒調用迴圈。
   - backend/endpoints/customers.py: 優化 refresh_customer_profile 的異常處理與連線回收，避免 Connection Leak。
+ 
+  
+ -   2 0 2 6 - 0 7 - 0 1 :   U p d a t e   F l e x M e s s a g e E d i t o r   t o   p r i o r i t i z e   u i _ u u i d   o v e r   r i c h M e n u I d   w h e n   c o n f i g u r i n g   r i c h   m e n u s w i t c h   f o r   f l e x   m e s s a g e   b u t t o n s   t o   e n s u r e   w e b h o o k   r e c e i v e s   t h e   c o r r e c t   U U I D   f o r m a t .  
+ 
