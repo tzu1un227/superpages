@@ -1451,10 +1451,18 @@ function RichMenu() {
 
                                 // 3. 切換權限 (Switch Permission)
                                 let switchStatus = { text: '公開切換', color: '#4CAF50' };
-                                const hasSwitchAction = areasData.some(a => a.action && a.action.type === 'richmenuswitch');
+                                const uuid = item.ui_uuid;
+                                const isTargetedByOthers = oaMenus.some(otherItem => {
+                                    if (otherItem.ui_uuid === uuid) return false;
+                                    let otherAreas = [];
+                                    try {
+                                        otherAreas = typeof otherItem.data === 'string' ? JSON.parse(otherItem.data).areas || [] : (otherItem.data?.areas || []);
+                                    } catch(e){}
+                                    return otherAreas.some(a => a.action && a.action.type === 'richmenuswitch' && typeof a.action.data === 'string' && a.action.data.includes(uuid));
+                                });
                                 
-                                if (!hasSwitchAction) {
-                                    switchStatus = { text: '不可主動切換', color: '#F44336' };
+                                if (!isTargetedByOthers) {
+                                    switchStatus = { text: '無法被切換', color: '#F44336' };
                                 } else if (permissionTagsPreview.length > 0) {
                                     switchStatus = { text: '限制切換', color: '#9C27B0' };
                                 }
