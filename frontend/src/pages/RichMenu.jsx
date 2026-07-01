@@ -1400,24 +1400,28 @@ function RichMenu() {
                                 const isDefault = item.status === 'default' || item.status === 'public' || (rid && defaultMenuIds.has(rid));
                                 
                                 let tagsPreview = [];
-                                let permissionTagsPreview = item.permission_tags || [];
+                                let permissionTagsPreview = [];
+                                try {
+                                    if (typeof item.permission_tags === 'string') {
+                                        permissionTagsPreview = JSON.parse(item.permission_tags);
+                                    } else if (Array.isArray(item.permission_tags)) {
+                                        permissionTagsPreview = item.permission_tags;
+                                    }
+                                } catch (e) { }
                                 let fallbackMessagePreview = item.fallback_message || '';
                                 let areasData = [];
 
                                 try {
-                                    if (item.data && typeof item.data === 'string') {
-                                        const parsed = JSON.parse(item.data);
-                                        if (parsed.targetTags) tagsPreview = parsed.targetTags;
-                                        if (parsed.permissionTags) permissionTagsPreview = parsed.permissionTags;
-                                        if (parsed.fallbackMessage) fallbackMessagePreview = parsed.fallbackMessage;
-                                        if (parsed.areas) areasData = parsed.areas;
-                                    } else if (item.data) {
-                                        if (item.data.targetTags) tagsPreview = item.data.targetTags;
-                                        if (item.data.permissionTags) permissionTagsPreview = item.data.permissionTags;
-                                        if (item.data.fallbackMessage) fallbackMessagePreview = item.data.fallbackMessage;
-                                        if (item.data.areas) areasData = item.data.areas;
-                                    }
+                                    const dataObj = typeof item.data === 'string' ? JSON.parse(item.data) : (item.data || {});
+                                    if (dataObj.targetTags) tagsPreview = typeof dataObj.targetTags === 'string' ? JSON.parse(dataObj.targetTags) : dataObj.targetTags;
+                                    if (dataObj.permissionTags) permissionTagsPreview = typeof dataObj.permissionTags === 'string' ? JSON.parse(dataObj.permissionTags) : dataObj.permissionTags;
+                                    if (dataObj.fallbackMessage) fallbackMessagePreview = dataObj.fallbackMessage;
+                                    if (dataObj.areas) areasData = typeof dataObj.areas === 'string' ? JSON.parse(dataObj.areas) : dataObj.areas;
                                 } catch (e) { }
+
+                                tagsPreview = Array.isArray(tagsPreview) ? tagsPreview : [];
+                                permissionTagsPreview = Array.isArray(permissionTagsPreview) ? permissionTagsPreview : [];
+                                areasData = Array.isArray(areasData) ? areasData : [];
 
                                 // 1. LINE 資源狀態 (LINE Resource Status)
                                 let lineStatus = { text: '草稿', color: '#FF9800' };
