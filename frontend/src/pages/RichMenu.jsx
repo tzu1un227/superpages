@@ -986,7 +986,7 @@ function RichMenu() {
                             {!viewOnly && currentGroup.length > 1 && (
                                 <button 
                                     onClick={(e) => handleDeleteDraftFromGroup(e, idx)} 
-                                    style={{ background: 'none', border: 'none', color: idx === currentMenuIndex ? '#000' : '#888', cursor: 'pointer', padding: 0, display: 'flex' }}
+                                    style={{ background: 'none', border: 'none', color: idx === currentMenuIndex ? '#000' : '#888', cursor: 'pointer', padding: 0, display: 'flex', minWidth: 'auto' }}
                                 >
                                     <X size={12} />
                                 </button>
