@@ -268,4 +268,5 @@ ame 與 pic。
  
   
  -   2 0 2 6 - 0 7 - 0 1 :   U p d a t e   F l e x M e s s a g e E d i t o r   t o   p r i o r i t i z e   u i _ u u i d   o v e r   r i c h M e n u I d   w h e n   c o n f i g u r i n g   r i c h   m e n u s w i t c h   f o r   f l e x   m e s s a g e   b u t t o n s   t o   e n s u r e   w e b h o o k   r e c e i v e s   t h e   c o r r e c t   U U I D   f o r m a t .  
+ -   2 0 2 6 - 0 7 - 0 1   ( H o t f i x ) :   F i x   R e a c t   o p t i o n   r e n d e r i n g   i n   F l e x M e s s a g e E d i t o r   a n d   R u l e D e s i g n e r   b y   s e t t i n g   f a l l b a c k   \  a l u e = { m . u i _ u u i d   | |   ' ' } \   t o   p r e v e n t   t h e   b r o w s e r   f r o m   d e f a u l t i n g   t o   t h e   r i c h   m e n u   n a m e   w h e n   \ u i _ u u i d \   i s   n u l l / u n d e f i n e d .  
  
