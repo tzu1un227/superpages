@@ -89,11 +89,12 @@ def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=N
         {"conn": oa_conn, "table": f'"project_schedules:{app_id}"', "col": "message_content", "name_col": "project_name", "type_name": "自動旅程", "pk": "schedule_id"},
     ]
     
-    if main_conn:
-        t_metadata = get_t("rich_menu_metadata")
-        tables_to_check.append({"conn": main_conn, "table": t_metadata, "col": "data", "name_col": "name", "type_name": "圖文選單"})
-    else:
-        tables_to_check.append({"conn": oa_conn, "table": get_t("rich_menu_metadata"), "col": "data", "name_col": "name", "type_name": "圖文選單"})
+    if item_type != 'menu':
+        if main_conn:
+            t_metadata = get_t("rich_menu_metadata")
+            tables_to_check.append({"conn": main_conn, "table": t_metadata, "col": "data", "name_col": "name", "type_name": "圖文選單"})
+        else:
+            tables_to_check.append({"conn": oa_conn, "table": get_t("rich_menu_metadata"), "col": "data", "name_col": "name", "type_name": "圖文選單"})
         
     has_dependencies = False
     dependent_items = []
