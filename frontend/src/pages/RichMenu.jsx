@@ -788,7 +788,8 @@ function RichMenu() {
         setLoading(true);
         try {
             await api.post('/richmenu/clear-all');
-            showToast('已清除所有圖文選單', 'success');
+            showToast('已清除所有圖文選單設定', 'success');
+            await new Promise(resolve => setTimeout(resolve, 1500)); // Wait for LINE API cache to clear
             await fetchData();
         } catch (err) {
             showToast('清除失敗', 'error');

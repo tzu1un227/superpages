@@ -404,7 +404,7 @@ def clear_all_rich_menus():
                 t_metadata = get_t('rich_menu_metadata')
                 conn = get_main_db_connection()
                 cur = conn.cursor()
-                cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status IN ('default', 'link')", (oa_id,))
+                cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status IN ('default', 'link', 'restricted')", (oa_id,))
                 conn.commit()
                 cur.close()
                 
