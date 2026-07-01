@@ -55,6 +55,8 @@ def list_rich_menus():
     headers = {'Authorization': f'Bearer {token}'}
     
     try:
+        oa_id = getattr(g, 'current_oa_id', None) or session.get('oa_id')
+        user = getattr(g, 'current_user', None)
         # Get rich menus
         resp = requests.get('https://api.line.me/v2/bot/richmenu/list', headers=headers)
         if resp.status_code != 200:
