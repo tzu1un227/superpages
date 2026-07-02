@@ -256,18 +256,6 @@
     - **譁ｰ蠅樔ｼ醍悛譎る俣 (Dormancy Time)**: 蜿ｯ險ｭ螳壽ｯ乗律荳咲匸騾∬ｨ頑�逧�凾谿ｵ (螯� 23:00~08:00)縲�
     - **雉�侭蠎ｫ隶頑峩**: `projects` 雉�侭陦ｨ譁ｰ蠅� `anchor_config` 闊� `dormancy_config` 谺�ｽ� (JSONB)縲�
 
-## [2026-01-21]
-
-### Added
-- **Google 逋ｻ蜈･闊�ｬ企剞邂｡逅�**:
-    - 蠕檎ｫｯ謨ｴ蜷� `Google Sign-In` 闊� `JWT` 鬩苓ｭ峨�
-    - 蠕檎ｫｯ蟆主� `SQLAlchemy` 荳ｦ蟒ｺ遶� `User`, `Page`, `OAConfig` 讓｡蝙� (菴ｿ逕ｨ SQLite `meta_data.db` 蜆ｲ蟄�)縲�
-    - 譁ｰ蠅� `/api/admin` 逶ｸ髣懈磁蜿｣�檎畑譁ｼ邂｡逅�畑謌ｶ谺企剞闊� OA 險ｭ螳壹�
-- **蜑咲ｫｯ譁ｰ蜉溯�**:
-    - 譁ｰ蠅� `Login.jsx`: 謾ｯ謠ｴ Google 逋ｻ蜈･縲�
-    - 譁ｰ蠅� `AdminPage.jsx`: 謠蝉ｾ帷ｮ｡逅�藤蟆育畑逧�ｾ悟床莉矩擇�悟庄險ｭ螳夂畑謌ｶ谺企剞闊�｣邨� OA縲�
-    - 譁ｰ蠅� `AuthContext`: 蜈ｨ螻逋ｻ蜈･迢諷玖�谺企剞謗ｧ邂｡縲�
-    - 霍ｯ逕ｱ菫晁ｭｷ: 蟆主� `ProtectedRoute` 闊� `AdminRoute` 遒ｺ菫晞��擇蟄伜叙螳牙�縲�
 
 ## [2026-01-07]
 

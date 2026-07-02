@@ -137,3 +137,5 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 ## 網路聲量雷達 (SocialRadar) & AI 洞察助理 (AiInsight) (新增於最新更新)
 - **前端實作**: 在 App.jsx 註冊了新的路由 /oa/:oaId/social-radar 與 /oa/:oaId/ai-insight，並對應到新增的 SocialRadar 與 AiInsight React 元件。
 - **後端整合**: 兩者作為新的 Page 記錄新增於資料庫，且授權給現有的 OAConfig。目前為施工中佔位頁面。
+
+- **圖文選單圖片載入狀態 (2026-07-02 新增)**: 於圖文選單圖片尚未載入完成時顯示載入動畫，優化 UX。

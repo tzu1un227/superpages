@@ -56,6 +56,7 @@ const MenuPreviewImage = ({ target }) => {
         } catch(e) {}
     }
     const [imgUrl, setImgUrl] = React.useState(getBase64Url(initialBase64));
+    const [isLoading, setIsLoading] = React.useState(false);
     
     React.useEffect(() => {
         let b64 = target.imageBase64;
@@ -69,20 +70,29 @@ const MenuPreviewImage = ({ target }) => {
         
         if (b64) {
             setImgUrl(getBase64Url(b64));
+            setIsLoading(false);
         } else if (target.rich_menu_id || target.richMenuId) {
             const rid = target.rich_menu_id || target.richMenuId;
             if (frontendImageCache[rid]) {
                 setImgUrl(frontendImageCache[rid]);
+                setIsLoading(false);
             } else {
+                setIsLoading(true);
                 api.get(`/richmenu/${rid}/image`, { responseType: 'blob' }).then(res => {
                     const url = URL.createObjectURL(res.data);
                     frontendImageCache[rid] = url;
                     setImgUrl(url);
-                }).catch(() => {});
+                }).catch(() => {})
+                .finally(() => setIsLoading(false));
             }
+        } else {
+            setIsLoading(false);
         }
     }, [target]);
 
+    if (isLoading) {
+        return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}><LoadingSpinner /></div>;
+    }
     return imgUrl ? <img src={imgUrl} alt={target.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '10px', color: '#666' }}>無圖片</span>;
 };
 
@@ -111,6 +121,7 @@ function RichMenu() {
     const [selectedAreaIndex, setSelectedAreaIndex] = useState(null);
     const [linkModalState, setLinkModalState] = useState(null);
     const [backgroundImage, setBackgroundImage] = useState(null);
+    const [isBgLoading, setIsBgLoading] = useState(false);
     const [allAliases, setAllAliases] = useState([]);
     const [viewOnly, setViewOnly] = useState(false);
     const [menuSearch, setMenuSearch] = useState('');
@@ -125,14 +136,19 @@ function RichMenu() {
         if (!currentMenu) return;
         if (currentMenu.imageBase64) {
             setBackgroundImage(currentMenu.imageBase64.startsWith('data:') ? currentMenu.imageBase64 : `data:image/jpeg;base64,${currentMenu.imageBase64}`);
+            setIsBgLoading(false);
         } else if (currentMenu.richMenuId || currentMenu.rich_menu_id) {
             const rid = currentMenu.richMenuId || currentMenu.rich_menu_id;
+            setIsBgLoading(true);
             fetchImageWithAuth(rid).then(imageUrl => {
                 if (imageUrl) setBackgroundImage(imageUrl);
                 else setBackgroundImage(null);
+            }).finally(() => {
+                setIsBgLoading(false);
             });
         } else {
             setBackgroundImage(null);
+            setIsBgLoading(false);
         }
     }, [currentMenu?.ui_uuid, currentMenu?.richMenuId, currentMenu?.rich_menu_id, currentMenu?.imageBase64]);
 
@@ -1006,7 +1022,12 @@ function RichMenu() {
                             backgroundColor: '#222', border: '1px solid #444', backgroundSize: 'cover',
                             backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'none', flexShrink: 0
                         }} onClick={() => setSelectedAreaIndex(null)}>
-                            {!backgroundImage && !viewOnly && (
+                            {isBgLoading && (
+                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 50 }}>
+                                    <LoadingSpinner message="載入中..." />
+                                </div>
+                            )}
+                            {!backgroundImage && !isBgLoading && !viewOnly && (
                                 <div style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: '#666' }}>
                                     <ImageIcon size={48} /><p>請上傳底圖 (2500x1686/843)</p>
                                     <input type="file" onChange={handleImageUpload} style={{ marginTop: '10px' }} accept="image/*" />
