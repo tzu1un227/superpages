@@ -1075,10 +1075,12 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
             t_users = f'"users:{app_name}"'
             try:
                 cur.execute(f"SELECT user_id FROM {t_users}")
-                user_ids = [r['user_id'] for r in cur.fetchall()]
+                user_ids = [r['user_id'] for r in cur.fetchall() if r['user_id'] and isinstance(r['user_id'], str) and r['user_id'].strip()]
             except:
                 conn.rollback()
-                user_ids = list(user_tags.keys())
+                user_ids = [uid for uid in user_tags.keys() if uid and isinstance(uid, str) and uid.strip()]
+        else:
+            user_ids = [uid for uid in user_ids if uid and isinstance(uid, str) and uid.strip()]
         print(f"DEBUG: bulk_check_and_update_rich_menu | processing {len(user_ids)} users. user_tags size: {len(user_tags)}")
                 
         # 3. Determine target rich menu for each user
