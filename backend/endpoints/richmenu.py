@@ -45,6 +45,41 @@ def get_line_token(app_name=None):
         finally:
             conn.close()
     return None
+
+def get_tenant_db_url(app_name=None, oa_id=None):
+    """
+    Get the tenant-specific db_url from permission_settings.
+    """
+    if not app_name and not oa_id:
+        if hasattr(g, 'current_oa_config') and g.current_oa_config.db_url:
+            return g.current_oa_config.db_url
+        return None
+
+    from db_utils import get_main_db_connection
+    conn = get_main_db_connection()
+    if conn:
+        try:
+            cur = conn.cursor()
+            if oa_id:
+                cur.execute("SELECT db_url FROM permission_settings WHERE id = %s", (oa_id,))
+            else:
+                cur.execute("SELECT db_url FROM permission_settings WHERE oa_name = %s OR (other_settings::jsonb ->> 'app_name') = %s LIMIT 1", (app_name, app_name))
+            row = cur.fetchone()
+            if row and row[0]:
+                return row[0]
+        except Exception as e:
+            print(f"Error getting tenant db_url: {e}")
+        finally:
+            conn.close()
+    return None
+
+def get_tenant_conn(app_name=None, oa_id=None):
+    from db_utils import get_db_connection, get_main_db_connection
+    db_url = get_tenant_db_url(app_name=app_name, oa_id=oa_id)
+    if db_url:
+        return get_db_connection(db_url)
+    return get_main_db_connection()
+
 @richmenu_bp.route('/', methods=['GET'], strict_slashes=False)
 @token_required
 def list_rich_menus():
@@ -412,12 +447,15 @@ def set_default_rich_menu(richMenuId):
                         if oa and oa.other_settings and oa.other_settings.get('app_name'):
                             app_name = str(oa.other_settings['app_name'])
                             g.current_app_name = app_name
-                if app_name:
+                
+                tenant_conn = get_tenant_conn(app_name=app_name, oa_id=oa_id) if app_name else conn
+                
+                if app_name and tenant_conn:
                     t_private = f'"Private_var:{app_name}"'
                     t_global = f'"Global_var:{app_name}"'
-                    cur = conn.cursor(cursor_factory=RealDictCursor)
-                    cur.execute(f"SELECT DISTINCT user_id FROM {t_private} WHERE user_id IS NOT NULL")
-                    users = cur.fetchall()
+                    tenant_cur = tenant_conn.cursor(cursor_factory=RealDictCursor)
+                    tenant_cur.execute(f"SELECT DISTINCT user_id FROM {t_private} WHERE user_id IS NOT NULL")
+                    users = tenant_cur.fetchall()
                     user_ids = [u['user_id'] for u in users if u.get('user_id')]
                     
                     # 每次最多 500 筆，批次解除綁定
@@ -427,20 +465,27 @@ def set_default_rich_menu(richMenuId):
                     
                     # Cache synchronization: remove individual rich_menu for all users
                     if user_ids:
-                        cur.execute(f"DELETE FROM {t_private} WHERE name = 'rich_menu'")
+                        tenant_cur.execute(f"DELETE FROM {t_private} WHERE name = 'rich_menu'")
                     
                     # Update global default rich menu
-                    cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
-                    cur.execute(f"INSERT INTO {t_global} (name, value) VALUES ('default_rich_menu', %s)", (richMenuId,))
+                    tenant_cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
+                    tenant_cur.execute(f"INSERT INTO {t_global} (name, value) VALUES ('default_rich_menu', %s)", (richMenuId,))
                     
                     # Update rich_menu_metadata status: set other default menus to published, and this menu to default
                     t_metadata = get_t('rich_menu_metadata')
+                    cur = conn.cursor()
                     cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status = 'default'", (oa_id,))
                     cur.execute(f"UPDATE {t_metadata} SET status = 'default' WHERE oa_id = %s AND rich_menu_id = %s", (oa_id, richMenuId))
                     
                     conn.commit()
                     cur.close()
+                    
+                    if tenant_conn != conn:
+                        tenant_conn.commit()
+                    tenant_cur.close()
                 conn.close()
+                if tenant_conn and tenant_conn != conn:
+                    tenant_conn.close()
         except Exception as e:
             print(f"Error unlinking bulk users or caching default menu: {e}")
             
@@ -468,27 +513,36 @@ def unset_default_rich_menu():
                 conn = get_main_db_connection()
                 if conn:
                     app_name = getattr(g, 'current_app_name', None)
+                    oa_id = getattr(g, 'current_oa_id', None)
                     if not app_name:
-                        oa_id = getattr(g, 'current_oa_id', None)
                         if oa_id:
                             from models import OAConfig
                             oa = OAConfig.query.get(oa_id)
                             if oa and oa.other_settings and oa.other_settings.get('app_name'):
                                 app_name = str(oa.other_settings['app_name'])
-                    if app_name:
+                    
+                    tenant_conn = get_tenant_conn(app_name=app_name, oa_id=oa_id) if app_name else conn
+                    
+                    if app_name and tenant_conn:
                         t_global = f'"Global_var:{app_name}"'
                         t_metadata = get_t('rich_menu_metadata')
-                        cur = conn.cursor()
-                        cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
+                        tenant_cur = tenant_conn.cursor()
+                        tenant_cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
                         
+                        cur = conn.cursor()
                         # Set metadata status of this OA from public back to published
-                        oa_id = getattr(g, 'current_oa_id', None)
                         if oa_id:
                             cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status = 'default'", (oa_id,))
                             
                         conn.commit()
                         cur.close()
+                        
+                        if tenant_conn != conn:
+                            tenant_conn.commit()
+                        tenant_cur.close()
                     conn.close()
+                    if tenant_conn and tenant_conn != conn:
+                        tenant_conn.close()
             except Exception as e:
                 print(f"Error removing default rich menu cache: {e}")
             return jsonify({'status': 'success'})
@@ -1013,9 +1067,11 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
     import ast
     
     conn = get_main_db_connection()
-    if not conn: return
+    tenant_conn = get_tenant_conn(app_name=app_name) if app_name else conn
+    if not conn or not tenant_conn: return
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        tenant_cur = tenant_conn.cursor(cursor_factory=RealDictCursor)
         t_private = f'"Private_var:{app_name}"'
         
         # 1. Fetch user tags
@@ -1027,8 +1083,8 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
             params.append(user_ids)
             
         where_clause = " AND ".join(conditions)
-        cur.execute(f"SELECT user_id, value FROM {t_private} WHERE {where_clause}", params)
-        for r in cur.fetchall():
+        tenant_cur.execute(f"SELECT user_id, value FROM {t_private} WHERE {where_clause}", params)
+        for r in tenant_cur.fetchall():
             val = r['value']
             if isinstance(val, str) and val.startswith('['):
                 try:
@@ -1079,10 +1135,10 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
         if not user_ids:
             t_users = f'"users:{app_name}"'
             try:
-                cur.execute(f"SELECT user_id FROM {t_users}")
-                user_ids = [r['user_id'] for r in cur.fetchall() if is_valid_uid(r['user_id'])]
+                tenant_cur.execute(f"SELECT user_id FROM {t_users}")
+                user_ids = [r['user_id'] for r in tenant_cur.fetchall() if is_valid_uid(r['user_id'])]
             except:
-                conn.rollback()
+                tenant_conn.rollback()
                 user_ids = [uid for uid in user_tags.keys() if is_valid_uid(uid)]
         else:
             user_ids = [uid for uid in user_ids if is_valid_uid(uid)]
@@ -1144,19 +1200,28 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
                     if resp.status_code != 202:
                         print(f"Error linking menu {menu_id}: {resp.status_code} {resp.text}")
                     
-        # 5. Sync to Private_var
-        if user_ids:
-            cur.execute(f"DELETE FROM {t_private} WHERE name = 'rich_menu' AND user_id = ANY(%s)", (user_ids,))
+        # 5. Update Database cache
+        if users_to_unlink:
+            tenant_cur.execute(f"DELETE FROM {t_private} WHERE name = 'rich_menu' AND user_id = ANY(%s)", (users_to_unlink,))
+            
+        # Unlink all users to link from DB before relinking
+        if user_to_menu:
+            users_to_link = list(user_to_menu.keys())
+            tenant_cur.execute(f"DELETE FROM {t_private} WHERE name = 'rich_menu' AND user_id = ANY(%s)", (users_to_link,))
             
         values = [(uid, 'rich_menu', menu_id) for uid, menu_id in user_to_menu.items()]
         if values:
-            execute_values(cur, f"INSERT INTO {t_private} (user_id, name, value) VALUES %s", values)
+            execute_values(tenant_cur, f"INSERT INTO {t_private} (user_id, name, value) VALUES %s", values)
             
+        if tenant_conn != conn:
+            tenant_conn.commit()
         conn.commit()
     except Exception as e:
         print(f"Error in bulk_check_and_update_rich_menu: {e}")
+        if tenant_conn: tenant_conn.rollback()
         if conn: conn.rollback()
     finally:
+        if tenant_conn and tenant_conn != conn: tenant_conn.close()
         if conn: conn.close()
 
 def check_and_apply_scheduled_rich_menus(app_name):
@@ -1168,14 +1233,16 @@ def check_and_apply_scheduled_rich_menus(app_name):
     from flask import Flask, g
     
     conn = get_main_db_connection()
-    if not conn: return
+    tenant_conn = get_tenant_conn(app_name=app_name) if app_name else conn
+    if not conn or not tenant_conn: return
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        tenant_cur = tenant_conn.cursor(cursor_factory=RealDictCursor)
         
         # 1. Check Default Menu
         t_global = f'"Global_var:{app_name}"'
-        cur.execute(f"SELECT value FROM {t_global} WHERE name = 'default_rich_menu'")
-        global_var = cur.fetchone()
+        tenant_cur.execute(f"SELECT value FROM {t_global} WHERE name = 'default_rich_menu'")
+        global_var = tenant_cur.fetchone()
         current_default_id = global_var['value'] if global_var else None
         
         t_metadata = f'"rich_menu_metadata:{app_name}"'
@@ -1209,9 +1276,9 @@ def check_and_apply_scheduled_rich_menus(app_name):
                     requests.delete('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
                 
                 # Update Global_var
-                cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
+                tenant_cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
                 if new_default_id:
-                    cur.execute(f"INSERT INTO {t_global} (name, value) VALUES ('default_rich_menu', %s)", (new_default_id,))
+                    tenant_cur.execute(f"INSERT INTO {t_global} (name, value) VALUES ('default_rich_menu', %s)", (new_default_id,))
                 
         # 2. Check Restricted Menus
         # This function already filters by active time
@@ -1222,9 +1289,13 @@ def check_and_apply_scheduled_rich_menus(app_name):
             g.current_line_token = token
             bulk_check_and_update_rich_menu(app_name)
         
+        if tenant_conn != conn:
+            tenant_conn.commit()
         conn.commit()
     except Exception as e:
         print(f"Error in check_and_apply_scheduled_rich_menus for {app_name}: {e}")
+        if tenant_conn: tenant_conn.rollback()
         if conn: conn.rollback()
     finally:
+        if tenant_conn and tenant_conn != conn: tenant_conn.close()
         if conn: conn.close()
