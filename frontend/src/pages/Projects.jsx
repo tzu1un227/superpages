@@ -1715,12 +1715,15 @@ const ProjectsManagement = () => {
                                                             </div>
                                                     ) : (
                                                         (() => {
-                                                            const { days, hours, minutes } = formatInterval(s.interval_hours);
+                                                            const { years, months, days, hours, minutes } = formatInterval(s.interval_hours);
                                                             let text = '';
+                                                            if (years > 0) text += `${years}年 `;
+                                                            if (months > 0) text += `${months}月 `;
                                                             if (days > 0) text += `${days}天 `;
                                                             if (hours > 0) text += `${hours}時 `;
                                                             if (minutes > 0) text += `${minutes}分`;
-                                                            return <span>{text || '0分'}</span>
+                                                            text = text.trim();
+                                                            return <span>{text || '立即發送'}</span>
                                                         })()
                                                     )}
                                                 </td>
