@@ -2151,10 +2151,10 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                 <div>
                                     <label style={{ display: 'block', color: '#aaa', marginBottom: '5px' }}>類型</label>
                                     <select value={messages[activeMsgIndex].OTYPE} onChange={(e) => changeType(activeMsgIndex, e.target.value)} style={{ width: '100%', padding: '8px', background: '#222', border: 'none', color: '#fff' }}>
-                                        <option value="TextSendMessage">文字 (Text)</option>
-                                        <option value="ImageSendMessage">圖片 (Image)</option>
-                                        <option value="VideoSendMessage">影片 (Video)</option>
-                                        <option value="AudioSendMessage">聲音 (Audio)</option>
+                                        <option value="TextSendMessage">文字</option>
+                                        <option value="ImageSendMessage">圖片</option>
+                                        <option value="VideoSendMessage">影片</option>
+                                        <option value="AudioSendMessage">聲音</option>
                                         <option value="FlexSendMessage">Flex 訊息</option>
                                     </select>
                                 </div>
