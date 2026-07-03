@@ -426,124 +426,23 @@ def project_stats_processor():
 
 def rich_menu_scheduler_processor():
     """
-    Check rich_menu_metadata:{appname} for start/end times
-    and perform Link/Unlink actions per OA.
-    
-    Logic (per OA):
-    1. 取得目前台灣時間 (now_tw)
-    2. 查詢該 OA 的 rich_menu_metadata:{appname} 中，所有 published 且設有時間的選單
-    3. 找出「應生效」的選單：start_time <= now_tw 且 (end_time is null 或 end_time > now_tw)
-       若有多個符合，取 start_time 最新的那個 (最近才啟動的)
-    4. 從 LINE API 取得目前實際的 Default Rich Menu ID
-    5. 比對：
-       - 有應生效選單 & LINE 目前預設 != 它 → 呼叫 POST 設定
-       - 沒有應生效選單 & LINE 目前預設存在且屬於本系統已知選單 → 呼叫 DELETE 卸載
-       - 其餘情況 → 無需動作
+    Background thread to execute project steps based on rich menu schedules.
+    Calls check_and_apply_scheduled_rich_menus for each active OA.
     """
+    import time
+    from endpoints.richmenu import check_and_apply_scheduled_rich_menus
     while True:
         try:
-            # We need an app context if called outside request, but here we will mostly call it via API
+            # We need an app context if called outside request
             with app.app_context():
                 from models import OAConfig
-                from db_utils import get_main_db_connection
-                from psycopg2.extras import RealDictCursor
-                
-                now_tw = get_now_taiwan()
                 all_oas = OAConfig.query.all()
-                
                 for oa in all_oas:
                     if not oa.other_settings: continue
-                    token = oa.other_settings.get('line_token')
-                    if not token: continue
                     app_name = oa.other_settings.get('app_name')
                     if not app_name: continue
                     
-                    headers = {'Authorization': f'Bearer {token}'}
-                    t_metadata = f'"rich_menu_metadata:{app_name}"'
-                    
-                    conn = None
-                    try:
-                        conn = get_main_db_connection()
-                        cur = conn.cursor(cursor_factory=RealDictCursor)
-                        
-                        # 確認 table 是否存在，若不存在略過此 OA
-                        cur.execute(
-                            "SELECT 1 FROM information_schema.tables WHERE table_name = %s",
-                            (f"rich_menu_metadata:{app_name}",)
-                        )
-                        if not cur.fetchone():
-                            cur.close()
-                            continue
-                        
-                        # 取得所有已發布、有時間設定的選單
-                        cur.execute(f"""
-                            SELECT * FROM {t_metadata}
-                            WHERE oa_id = %s AND status = 'published'
-                            AND (start_time IS NOT NULL OR end_time IS NOT NULL)
-                        """, (oa.id,))
-                        scheduled_menus = cur.fetchall()
-                        
-                        # 所有已知的 rich_menu_id（用於判斷 LINE 上的選單是否屬於本系統管理）
-                        cur.execute(f"SELECT rich_menu_id FROM {t_metadata} WHERE oa_id = %s AND rich_menu_id IS NOT NULL", (oa.id,))
-                        known_ids = {row['rich_menu_id'] for row in cur.fetchall()}
-                        cur.close()
-                        
-                        # 找出應生效的選單（start_time <= now_tw 且 now_tw < end_time 或 end_time 為空）
-                        active_candidates = []
-                        for m in scheduled_menus:
-                            if not m['rich_menu_id']: continue
-                            start = m['start_time']
-                            end = m['end_time']
-                            if start and now_tw >= start:
-                                if end is None or now_tw < end:
-                                    active_candidates.append(m)
-                        
-                        # 若有多個符合，取 start_time 最新者（最近才啟動的優先）
-                        active_menu = None
-                        if active_candidates:
-                            active_menu = max(active_candidates, key=lambda x: x['start_time'])
-                        
-                        # 取得 LINE 目前的 Default Rich Menu
-                        try:
-                            default_resp = requests.get(
-                                'https://api.line.me/v2/bot/user/all/richmenu',
-                                headers=headers, timeout=5
-                            )
-                            current_default_id = default_resp.json().get('richMenuId') if default_resp.status_code == 200 else None
-                        except Exception as e:
-                            print(f"[RichMenuScheduler] Failed to get default menu for OA {oa.id}: {e}")
-                            continue
-                        
-                        if active_menu:
-                            target_rid = active_menu['rich_menu_id']
-                            if current_default_id != target_rid:
-                                # 設定正確的預設選單
-                                try:
-                                    resp = requests.post(
-                                        f'https://api.line.me/v2/bot/user/all/richmenu/{target_rid}',
-                                        headers=headers, timeout=5
-                                    )
-                                    print(f"[RichMenuScheduler] OA {oa.id} ({app_name}): Set default → {target_rid} (status={resp.status_code})")
-                                except Exception as e:
-                                    print(f"[RichMenuScheduler] OA {oa.id}: Failed to set default: {e}")
-                        else:
-                            # 無應生效選單；若 LINE 上的預設屬於本系統管理的選單，才執行卸載
-                            if current_default_id and current_default_id in known_ids:
-                                try:
-                                    resp = requests.delete(
-                                        'https://api.line.me/v2/bot/user/all/richmenu',
-                                        headers=headers, timeout=5
-                                    )
-                                    print(f"[RichMenuScheduler] OA {oa.id} ({app_name}): Unlinked expired default (was {current_default_id}, status={resp.status_code})")
-                                except Exception as e:
-                                    print(f"[RichMenuScheduler] OA {oa.id}: Failed to unlink: {e}")
-                    except Exception as e:
-                        print(f"[RichMenuScheduler] Error processing OA {oa.id}: {e}")
-                    finally:
-                        if conn:
-                            try: conn.close()
-                            except: pass
-                            
+                    check_and_apply_scheduled_rich_menus(app_name)
         except Exception as e:
             print(f"[RichMenuScheduler] Outer error: {e}")
         time.sleep(60)

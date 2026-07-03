@@ -839,7 +839,7 @@ def save_rich_menu_metadata():
             if status in ['default', 'restricted']:
                 import threading
                 app_name = getattr(g, 'current_app_name', None)
-                def trigger_update(app_name_val, stat, r_id):
+                def trigger_update(app_name_val, stat, r_id, s_time):
                     import time
                     time.sleep(1.5)  # Wait for LINE server to process the newly uploaded image
                     try:
@@ -852,6 +852,15 @@ def save_rich_menu_metadata():
                             token = get_line_token(app_name=app_name_val)
                             g.current_line_token = token
                             if stat == 'default':
+                                # Do not link immediately if start_time is in the future
+                                if s_time:
+                                    import pytz
+                                    from datetime import datetime
+                                    tw_tz = pytz.timezone('Asia/Taipei')
+                                    now = datetime.now(tw_tz).replace(tzinfo=None)
+                                    if s_time > now:
+                                        print(f"Skipping immediate default link for {r_id} because start_time {s_time} is in the future")
+                                        return
                                 # bulk link to all users
                                 headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
                                 bulk_link_all_users(headers, r_id)
@@ -861,7 +870,7 @@ def save_rich_menu_metadata():
                         print(f"Error in background rich menu update: {e}")
                 
                 if rich_menu_id:
-                    threading.Thread(target=trigger_update, args=(app_name, status, rich_menu_id)).start()
+                    threading.Thread(target=trigger_update, args=(app_name, status, rich_menu_id, start_time)).start()
 
             return jsonify({'status': 'success', 'id': return_id})
         finally:
@@ -1034,8 +1043,15 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
                 user_tags[r['user_id']] = set(val.split(',')) if ',' in val else {val}
                 
         # 2. Get all restricted rich menus ordered by updated_at DESC (highest priority first)
+        # Only select currently active menus
         t_metadata = f'"rich_menu_metadata:{app_name}"'
-        cur.execute(f"SELECT rich_menu_id, data FROM {t_metadata} WHERE status = 'restricted' ORDER BY updated_at DESC")
+        cur.execute(f"""
+            SELECT rich_menu_id, data FROM {t_metadata} 
+            WHERE status = 'restricted' 
+              AND (start_time IS NULL OR start_time <= (NOW() AT TIME ZONE 'Asia/Taipei'))
+              AND (end_time IS NULL OR end_time > (NOW() AT TIME ZONE 'Asia/Taipei'))
+            ORDER BY updated_at DESC
+        """)
         restricted_menus = cur.fetchall()
         
         menu_tag_map = []
@@ -1134,6 +1150,78 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
         conn.commit()
     except Exception as e:
         print(f"Error in bulk_check_and_update_rich_menu: {e}")
+        if conn: conn.rollback()
+    finally:
+        if conn: conn.close()
+
+def check_and_apply_scheduled_rich_menus(app_name):
+    from db_utils import get_main_db_connection
+    from psycopg2.extras import RealDictCursor
+    from endpoints.richmenu import get_line_token, bulk_link_all_users, bulk_check_and_update_rich_menu
+    import pytz
+    from datetime import datetime
+    import requests
+    
+    conn = get_main_db_connection()
+    if not conn: return
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # 1. Check Default Menu
+        t_global = f'"Global_var:{app_name}"'
+        cur.execute(f"SELECT value FROM {t_global} WHERE name = 'default_rich_menu'")
+        global_var = cur.fetchone()
+        current_default_id = global_var['value'] if global_var else None
+        
+        t_metadata = f'"rich_menu_metadata:{app_name}"'
+        cur.execute(f"""
+            SELECT rich_menu_id, id FROM {t_metadata}
+            WHERE status = 'default'
+              AND (start_time IS NULL OR start_time <= (NOW() AT TIME ZONE 'Asia/Taipei'))
+              AND (end_time IS NULL OR end_time > (NOW() AT TIME ZONE 'Asia/Taipei'))
+            ORDER BY start_time DESC NULLS LAST, updated_at DESC
+            LIMIT 1
+        """)
+        active_default = cur.fetchone()
+        
+        new_default_id = active_default['rich_menu_id'] if active_default else None
+        
+        if new_default_id != current_default_id:
+            # We need to change the default menu
+            from flask import g
+            from flask import Flask
+            dummy = Flask(__name__)
+            with dummy.app_context():
+                g.current_app_name = app_name
+                token = get_line_token(app_name=app_name)
+                g.current_line_token = token
+                
+                if new_default_id:
+                    # Link new default to all users
+                    headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
+                    bulk_link_all_users(headers, new_default_id)
+                else:
+                    # Unlink default from all users (if there is no active default menu)
+                    headers = {'Authorization': f'Bearer {token}'}
+                    requests.delete('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
+                
+                # Update Global_var
+                cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
+                if new_default_id:
+                    cur.execute(f"INSERT INTO {t_global} (name, value) VALUES ('default_rich_menu', %s)", (new_default_id,))
+                
+        # 2. Check Restricted Menus
+        # This function already filters by active time
+        dummy = Flask(__name__)
+        with dummy.app_context():
+            g.current_app_name = app_name
+            token = get_line_token(app_name=app_name)
+            g.current_line_token = token
+            bulk_check_and_update_rich_menu(app_name)
+        
+        conn.commit()
+    except Exception as e:
+        print(f"Error in check_and_apply_scheduled_rich_menus for {app_name}: {e}")
         if conn: conn.rollback()
     finally:
         if conn: conn.close()

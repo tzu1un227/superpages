@@ -585,7 +585,8 @@ function RuleDesigner() {
 
         // 檢查關鍵字標題是否重複
         if (designMode === 'simple') {
-            const currentNote = ruleToSave.note ? ruleToSave.note.trim() : '';
+            let currentNote = ruleToSave.note ? ruleToSave.note : '';
+            currentNote = currentNote.replace(/ \- 關鍵字回覆$/, '').replace(/ \- 問卷管理$/, '').replace(/ \- 工程用法則$/, '').replace(/工程用法則$/, '').trim();
             if (!currentNote) {
                 showToast('請填寫關鍵字名稱', 'error');
                 return;
