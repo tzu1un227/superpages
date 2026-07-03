@@ -1070,17 +1070,22 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
                 })
         print(f"DEBUG: bulk_check_and_update_rich_menu | menu_tag_map: {menu_tag_map}")
         
+        import re
+        valid_uid_pattern = re.compile(r'^U[0-9a-fA-F]{32}$')
+        def is_valid_uid(uid):
+            return uid and isinstance(uid, str) and valid_uid_pattern.match(uid)
+
         # Determine all user IDs to process (if not provided, fetch all users from `users` table)
         if not user_ids:
             t_users = f'"users:{app_name}"'
             try:
                 cur.execute(f"SELECT user_id FROM {t_users}")
-                user_ids = [r['user_id'] for r in cur.fetchall() if r['user_id'] and isinstance(r['user_id'], str) and r['user_id'].strip()]
+                user_ids = [r['user_id'] for r in cur.fetchall() if is_valid_uid(r['user_id'])]
             except:
                 conn.rollback()
-                user_ids = [uid for uid in user_tags.keys() if uid and isinstance(uid, str) and uid.strip()]
+                user_ids = [uid for uid in user_tags.keys() if is_valid_uid(uid)]
         else:
-            user_ids = [uid for uid in user_ids if uid and isinstance(uid, str) and uid.strip()]
+            user_ids = [uid for uid in user_ids if is_valid_uid(uid)]
         print(f"DEBUG: bulk_check_and_update_rich_menu | processing {len(user_ids)} users. user_tags size: {len(user_tags)}")
                 
         # 3. Determine target rich menu for each user
