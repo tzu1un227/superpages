@@ -1161,6 +1161,7 @@ def check_and_apply_scheduled_rich_menus(app_name):
     import pytz
     from datetime import datetime
     import requests
+    from flask import Flask, g
     
     conn = get_main_db_connection()
     if not conn: return
@@ -1188,8 +1189,6 @@ def check_and_apply_scheduled_rich_menus(app_name):
         
         if new_default_id != current_default_id:
             # We need to change the default menu
-            from flask import g
-            from flask import Flask
             dummy = Flask(__name__)
             with dummy.app_context():
                 g.current_app_name = app_name
