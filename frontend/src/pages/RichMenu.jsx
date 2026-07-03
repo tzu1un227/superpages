@@ -91,7 +91,7 @@ const MenuPreviewImage = ({ target }) => {
     }, [target]);
 
     if (isLoading) {
-        return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}><LoadingSpinner /></div>;
+        return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}><LoadingSpinner message="" /></div>;
     }
     return imgUrl ? <img src={imgUrl} alt={target.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '10px', color: '#666' }}>無圖片</span>;
 };
@@ -1024,7 +1024,7 @@ function RichMenu() {
                         }} onClick={() => setSelectedAreaIndex(null)}>
                             {isBgLoading && (
                                 <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 50 }}>
-                                    <LoadingSpinner message="載入中..." />
+                                    <LoadingSpinner message="" />
                                 </div>
                             )}
                             {!backgroundImage && !isBgLoading && !viewOnly && (
