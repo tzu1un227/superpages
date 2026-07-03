@@ -454,7 +454,7 @@ function RuleDesigner() {
             state_out: '00000',
             function: '',
             history: true,
-            note: isSimple ? '新規則 (簡易模式)' : '新規則',
+            note: '新規則',
             _isDirty: true,
             _isNew: true
         } : {
@@ -773,42 +773,7 @@ function RuleDesigner() {
                 </div>
             </div>
 
-            {/* Mode Switcher Tabs */}
-            <div style={{ display: 'flex', borderBottom: '1px solid #333', marginBottom: '5px' }}>
-                <button
-                    onClick={() => { setDesignMode('simple'); setSelectedRuleIndex(null); }}
-                    style={{
-                        padding: '10px 24px',
-                        backgroundColor: 'transparent',
-                        border: 'none',
-                        borderBottom: designMode === 'simple' ? '3px solid var(--primary-yellow)' : '3px solid transparent',
-                        color: designMode === 'simple' ? 'var(--primary-yellow)' : '#888',
-                        cursor: 'pointer',
-                        fontSize: '15px',
-                        fontWeight: 'bold',
-                        transition: 'all 0.3s'
-                    }}
-                >
-                    簡易模式
-                </button>
-                <button
-                    onClick={() => { setDesignMode('engineering'); setSelectedRuleIndex(null); }}
-                    style={{ display: 'none' }}
-                    style={{
-                        padding: '10px 24px',
-                        backgroundColor: 'transparent',
-                        border: 'none',
-                        borderBottom: designMode === 'engineering' ? '3px solid var(--primary-yellow)' : '3px solid transparent',
-                        color: designMode === 'engineering' ? 'var(--primary-yellow)' : '#888',
-                        cursor: 'pointer',
-                        fontSize: '15px',
-                        fontWeight: 'bold',
-                        transition: 'all 0.3s'
-                    }}
-                >
-                    工程模式
-                </button>
-            </div>
+
 
             {/* Toolbar */}
             {!(designMode === 'simple' && selectedRuleIndex !== null) && (
