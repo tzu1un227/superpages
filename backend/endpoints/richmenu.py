@@ -854,10 +854,8 @@ def save_rich_menu_metadata():
                             if stat == 'default':
                                 # Do not link immediately if start_time is in the future
                                 if s_time:
-                                    import pytz
-                                    from datetime import datetime
-                                    tw_tz = pytz.timezone('Asia/Taipei')
-                                    now = datetime.now(tw_tz).replace(tzinfo=None)
+                                    from app import get_now_taiwan
+                                    now = get_now_taiwan()
                                     if s_time > now:
                                         print(f"Skipping immediate default link for {r_id} because start_time {s_time} is in the future")
                                         return
@@ -1158,7 +1156,6 @@ def check_and_apply_scheduled_rich_menus(app_name):
     from db_utils import get_main_db_connection
     from psycopg2.extras import RealDictCursor
     from endpoints.richmenu import get_line_token, bulk_link_all_users, bulk_check_and_update_rich_menu
-    import pytz
     from datetime import datetime
     import requests
     from flask import Flask, g

@@ -337,6 +337,7 @@ function RuleDesigner() {
     const [rules, setRules] = useState([]);
     const [draftRules, setDraftRules] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [deletingIndex, setDeletingIndex] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [rowErrors, setRowErrors] = useState({}); // { rowIndex: ['error1', 'error2'] }
     const [designMode, setDesignMode] = useState('simple'); // 'simple' | 'engineering'
@@ -792,6 +793,7 @@ function RuleDesigner() {
                 </button>
                 <button
                     onClick={() => { setDesignMode('engineering'); setSelectedRuleIndex(null); }}
+                    style={{ display: 'none' }}
                     style={{
                         padding: '10px 24px',
                         backgroundColor: 'transparent',
@@ -889,8 +891,8 @@ function RuleDesigner() {
                                         />
                                         <span style={{ fontSize: '13px', color: '#ccc' }}>啟用狀態</span>
                                     </label>
-                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteRow(idx); }} className="secondary" disabled={loading} style={{ color: '#ff4d4d', padding: '6px 12px', background: 'transparent', border: '1px solid #ff4d4d', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        {loading ? <><RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> 刪除中...</> : '刪除'}
+                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteRow(idx); }} className="secondary" disabled={deletingIndex === idx} style={{ color: '#ff4d4d', padding: '6px 12px', background: 'transparent', border: '1px solid #ff4d4d', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        {deletingIndex === idx ? <><RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> 刪除中...</> : '刪除'}
                                     </button>
                                 </div>
                             </div>
@@ -925,10 +927,10 @@ function RuleDesigner() {
                                         <ArrowRight size={18} style={{ transform: 'rotate(180deg)' }} /> 返回列表
                                     </button>
                                     <div style={{ display: 'flex', gap: '10px' }}>
-                                        <button onClick={() => handleDeleteRow(idx)} className="secondary" disabled={loading} style={{ color: '#ff4d4d', background: 'transparent', border: '1px solid #ff4d4d', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <button onClick={() => handleDeleteRow(idx)} className="secondary" disabled={deletingIndex === idx} style={{ color: '#ff4d4d', background: 'transparent', border: '1px solid #ff4d4d', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                             {loading ? <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Trash2 size={16} />} 刪除此關鍵字
                                         </button>
-                                        {rule._isDirty && <button onClick={() => handleSaveRow(idx)} className="primary" disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        {rule._isDirty && <button onClick={() => handleSaveRow(idx)} className="primary" disabled={deletingIndex === idx} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                             {loading ? <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={16} />} 儲存設定
                                         </button>}
                                     </div>
@@ -943,14 +945,14 @@ function RuleDesigner() {
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                                 <div>
                                                     <label className="label">關鍵字名稱 (內部備註用途)</label>
-                                                    <input type="text" disabled={loading} value={rule.note || ''} onChange={e => handleFieldChange(idx, 'note', e.target.value)} style={{ width: '100%', padding: '12px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '14px', opacity: loading ? 0.6 : 1 }} placeholder="請輸入名稱" />
+                                                    <input type="text" disabled={deletingIndex === idx} value={rule.note || ''} onChange={e => handleFieldChange(idx, 'note', e.target.value)} style={{ width: '100%', padding: '12px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '14px', opacity: loading ? 0.6 : 1 }} placeholder="請輸入名稱" />
                                                 </div>
                                                 <div>
                                                     <label className="label">觸發關鍵字 (輸入關鍵字後按 Enter 或逗號)</label>
-                                                    <KeywordTagInput disabled={loading} value={rule.content || ''} onChange={val => handleFieldChange(idx, 'content', val)} />
+                                                    <KeywordTagInput disabled={deletingIndex === idx} value={rule.content || ''} onChange={val => handleFieldChange(idx, 'content', val)} />
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px', padding: '10px', backgroundColor: '#1a1a1a', borderRadius: '6px' }}>
-                                                    <input type="checkbox" disabled={loading} id="rule-enabled" checked={isEnabled} onChange={e => handleFieldChange(idx, 'history', e.target.checked)} style={{ width: '16px', height: '16px', opacity: loading ? 0.6 : 1 }} />
+                                                    <input type="checkbox" disabled={deletingIndex === idx} id="rule-enabled" checked={isEnabled} onChange={e => handleFieldChange(idx, 'history', e.target.checked)} style={{ width: '16px', height: '16px', opacity: loading ? 0.6 : 1 }} />
                                                     <label htmlFor="rule-enabled" style={{ cursor: 'pointer', color: '#ccc', flex: 1 }}>啟用此關鍵字回覆</label>
                                                 </div>
                                             </div>
@@ -984,7 +986,7 @@ function RuleDesigner() {
                                                 </div>
                                             )}
                                             
-                                            <button onClick={() => handleOpenMsgModal(idx)} disabled={loading} className="secondary" style={{ width: '100%', padding: '12px', borderStyle: 'dashed', backgroundColor: 'transparent', opacity: loading ? 0.6 : 1 }}>
+                                            <button onClick={() => handleOpenMsgModal(idx)} disabled={deletingIndex === idx} className="secondary" style={{ width: '100%', padding: '12px', borderStyle: 'dashed', backgroundColor: 'transparent', opacity: loading ? 0.6 : 1 }}>
                                                 <Edit2 size={16} /> {msgCount > 0 ? '編輯回覆訊息內容' : '新增回覆訊息'}
                                             </button>
                                         </div>
@@ -999,17 +1001,17 @@ function RuleDesigner() {
                                                 <div>
                                                     <label className="label">生效日期區間 (留空白為不限制)</label>
                                                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                                        <input type="date" disabled={loading} value={checkData.startDate} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, startDate: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} />
+                                                        <input type="date" disabled={deletingIndex === idx} value={checkData.startDate} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, startDate: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} />
                                                         <span style={{ color: '#666' }}>~</span>
-                                                        <input type="date" disabled={loading} value={checkData.endDate} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, endDate: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} />
+                                                        <input type="date" disabled={deletingIndex === idx} value={checkData.endDate} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, endDate: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} />
                                                     </div>
                                                 </div>
                                                 <div>
                                                     <label className="label">每日生效時段 (留空白為全天)</label>
                                                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                                        <input type="time" disabled={loading} value={checkData.startTime} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, startTime: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} />
+                                                        <input type="time" disabled={deletingIndex === idx} value={checkData.startTime} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, startTime: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} />
                                                         <span style={{ color: '#666' }}>~</span>
-                                                        <input type="time" disabled={loading} value={checkData.endTime} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, endTime: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} />
+                                                        <input type="time" disabled={deletingIndex === idx} value={checkData.endTime} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, endTime: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} />
                                                     </div>
                                                 </div>
                                             </div>
@@ -1034,7 +1036,7 @@ function RuleDesigner() {
                                                 <div>
                                                     <label className="label">加入自動旅程</label>
                                                     <select 
-                                                        disabled={loading}
+                                                        disabled={deletingIndex === idx}
                                                         value={funcData.journey || ''}
                                                         onChange={e => handleFieldChange(idx, 'function', stringifyFunction({ ...funcData, journey: e.target.value }))}
                                                         style={{ width: '100%', padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }}
@@ -1048,7 +1050,7 @@ function RuleDesigner() {
                                                 <div>
                                                     <label className="label">連結圖文選單</label>
                                                     <select 
-                                                        disabled={loading}
+                                                        disabled={deletingIndex === idx}
                                                         value={funcData.richMenu || ''}
                                                         onChange={e => handleFieldChange(idx, 'function', stringifyFunction({ ...funcData, richMenu: e.target.value }))}
                                                         style={{ width: '100%', padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }}
