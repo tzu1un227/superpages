@@ -1550,7 +1550,7 @@ function RichMenu() {
                                                         </Tooltip>
                                                         
                                                         {!isDefault && (
-                                                            <Tooltip title="設為全域預設選單 (Set Default)">
+                                                            <Tooltip title="設為全域預設選單">
                                                                 <button onClick={() => setDefault(rid)} className="secondary" style={{ padding: '8px' }}>
                                                                     <Check size={16} />
                                                                 </button>
