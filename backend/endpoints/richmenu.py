@@ -1233,49 +1233,49 @@ def check_and_apply_scheduled_rich_menus(app_name):
     import requests
     from flask import Flask, g
     
-    conn = get_main_db_connection()
-    tenant_conn = get_tenant_conn(app_name=app_name) if app_name else conn
-    if not conn or not tenant_conn: return
-    try:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        tenant_cur = tenant_conn.cursor(cursor_factory=RealDictCursor)
-        
-        t_metadata = f'"rich_menu_metadata:{app_name}"'
-        
-        # 0. Expire old scheduled defaults
-        cur.execute(f"""
-            UPDATE {t_metadata}
-            SET status = 'published'
-            WHERE status = 'default'
-              AND end_time IS NOT NULL 
-              AND end_time <= (NOW() AT TIME ZONE 'Asia/Taipei')
-        """)
-        
-        # 1. Check Default Menu
-        t_global = f'"Global_var:{app_name}"'
-        tenant_cur.execute(f"SELECT value FROM {t_global} WHERE name = 'default_rich_menu'")
-        global_var = tenant_cur.fetchone()
-        current_default_id = global_var['value'] if global_var else None
-        
-        cur.execute(f"""
-            SELECT rich_menu_id, id FROM {t_metadata}
-            WHERE status = 'default'
-              AND (start_time IS NULL OR start_time <= (NOW() AT TIME ZONE 'Asia/Taipei'))
-              AND (end_time IS NULL OR end_time > (NOW() AT TIME ZONE 'Asia/Taipei'))
-            ORDER BY start_time DESC NULLS LAST, updated_at DESC
-            LIMIT 1
-        """)
-        active_default = cur.fetchone()
-        
-        new_default_id = active_default['rich_menu_id'] if active_default else None
-        
-        if new_default_id != current_default_id:
-            # We need to change the default menu
-            dummy = Flask(__name__)
-            with dummy.app_context():
-                g.current_app_name = app_name
-                token = get_line_token(app_name=app_name)
-                g.current_line_token = token
+    dummy = Flask(__name__)
+    with dummy.app_context():
+        g.current_app_name = app_name
+        conn = get_main_db_connection()
+        tenant_conn = get_tenant_conn(app_name=app_name) if app_name else conn
+        if not conn or not tenant_conn: return
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            tenant_cur = tenant_conn.cursor(cursor_factory=RealDictCursor)
+            
+            t_metadata = f'"rich_menu_metadata:{app_name}"'
+            
+            # 0. Expire old scheduled defaults
+            cur.execute(f"""
+                UPDATE {t_metadata}
+                SET status = 'published'
+                WHERE status = 'default'
+                  AND end_time IS NOT NULL 
+                  AND end_time <= (NOW() AT TIME ZONE 'Asia/Taipei')
+            """)
+            
+            # 1. Check Default Menu
+            t_global = f'"Global_var:{app_name}"'
+            tenant_cur.execute(f"SELECT value FROM {t_global} WHERE name = 'default_rich_menu'")
+            global_var = tenant_cur.fetchone()
+            current_default_id = global_var['value'] if global_var else None
+            
+            cur.execute(f"""
+                SELECT rich_menu_id, id FROM {t_metadata}
+                WHERE status = 'default'
+                  AND (start_time IS NULL OR start_time <= (NOW() AT TIME ZONE 'Asia/Taipei'))
+                  AND (end_time IS NULL OR end_time > (NOW() AT TIME ZONE 'Asia/Taipei'))
+                ORDER BY start_time DESC NULLS LAST, updated_at DESC
+                LIMIT 1
+            """)
+            active_default = cur.fetchone()
+            
+            new_default_id = active_default['rich_menu_id'] if active_default else None
+            
+            if new_default_id != current_default_id:
+                # We need to change the default menu
+                g.current_line_token = get_line_token(app_name=app_name)
+                token = g.current_line_token
                 
                 if new_default_id:
                     # Link new default to all users
@@ -1291,23 +1291,19 @@ def check_and_apply_scheduled_rich_menus(app_name):
                 tenant_cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
                 if new_default_id:
                     tenant_cur.execute(f"INSERT INTO {t_global} (name, value) VALUES ('default_rich_menu', %s)", (new_default_id,))
-                
-        # 2. Check Restricted Menus
-        # This function already filters by active time
-        dummy = Flask(__name__)
-        with dummy.app_context():
-            g.current_app_name = app_name
-            token = get_line_token(app_name=app_name)
-            g.current_line_token = token
+                    
+            # 2. Check Restricted Menus
+            # This function already filters by active time
+            g.current_line_token = get_line_token(app_name=app_name)
             bulk_check_and_update_rich_menu(app_name)
-        
-        if tenant_conn != conn:
-            tenant_conn.commit()
-        conn.commit()
-    except Exception as e:
-        print(f"Error in check_and_apply_scheduled_rich_menus for {app_name}: {e}")
-        if tenant_conn: tenant_conn.rollback()
-        if conn: conn.rollback()
-    finally:
-        if tenant_conn and tenant_conn != conn: tenant_conn.close()
-        if conn: conn.close()
+            
+            if tenant_conn != conn:
+                tenant_conn.commit()
+            conn.commit()
+        except Exception as e:
+            print(f"Error in check_and_apply_scheduled_rich_menus for {app_name}: {e}")
+            if tenant_conn: tenant_conn.rollback()
+            if conn: conn.rollback()
+        finally:
+            if tenant_conn and tenant_conn != conn: tenant_conn.close()
+            if conn: conn.close()
