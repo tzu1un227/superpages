@@ -692,11 +692,8 @@ function RichMenu() {
                     return `• ${d}`;
                 }).join('\n')}` : '';
                 
-                const alertMsg = `⚠️ 無法直接刪除圖文選單「${name}」\n\n目前仍有以下項目與此選單綁定：${depText}\n\n為防止誤刪正在運作中的功能，建議先至對應功能解除綁定。\n\n您確定要無視這些綁定，強制刪除嗎？`;
-                if (window.confirm(alertMsg)) {
-                    // recursively call with force=true and skipConfirm=true
-                    return deleteMenu(id, name, isMetadata, true, true);
-                }
+                const alertMsg = `⚠️ 無法刪除圖文選單「${name}」\n\n目前仍有以下項目與此選單綁定：${depText}\n\n為防止誤刪正在運作中的功能，請先至對應功能解除綁定後，再執行刪除操作。`;
+                window.alert(alertMsg);
                 return;
             }
             showToast('刪除失敗: ' + (err.response?.data?.message || err.message), 'error');
