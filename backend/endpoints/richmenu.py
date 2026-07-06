@@ -488,6 +488,8 @@ def set_default_rich_menu(richMenuId):
             print(f"Error in set_default_rich_menu: {e}")
             
         return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'message': 'Error', 'error': str(e)}), 500
 @richmenu_bp.route('/set-default', methods=['DELETE'])
 @token_required
 @syslog_action('RICHMENU_UNSET_DEFAULT')
