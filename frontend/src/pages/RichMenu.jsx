@@ -659,7 +659,7 @@ function RichMenu() {
             setView('list');
         } catch (err) {
             console.error(err);
-            const detail = err.response?.data?.line_error?.message || err.response?.data?.message || err.message || '未知錯誤';
+            const detail = err.response?.data?.error || err.response?.data?.line_error?.message || err.response?.data?.message || err.message || '未知錯誤';
             showToast(`發佈失敗: ${detail}`, 'error');
         } finally {
             setLoading(false);
@@ -702,7 +702,8 @@ function RichMenu() {
             fetchData();
             showToast('已設為預設選單', 'success');
         } catch (err) {
-            showToast('設定失敗', 'error');
+            const detail = err.response?.data?.error || err.response?.data?.line_error || '設定失敗';
+            showToast(detail, 'error');
         } finally {
             setLoading(false);
         }
@@ -1404,11 +1405,26 @@ function RichMenu() {
                             {oaName} ({oaMenus.length})
                         </h2>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
-                            {oaMenus.map((item, idx) => {
-                                const isDraft = item.isMetadata && item.status === 'draft';
-                                const isPublished = item.status === 'published' || item.status === 'restricted' || item.status === 'link' || item.status === 'default';
-                                const rid = item.rich_menu_id || item.richMenuId;
-                                const isDefault = item.status === 'default' || item.status === 'public' || (rid && defaultMenuIds.has(rid));
+                            {(() => {
+                                const now = new Date();
+                                let activeDefaultId = null;
+                                const defaultMenus = oaMenus.filter(m => m.status === 'default' || m.status === 'public' || (m.rich_menu_id && defaultMenuIds.has(m.rich_menu_id)) || (m.richMenuId && defaultMenuIds.has(m.richMenuId)));
+                                const activeTimeLimited = defaultMenus.find(m => m.start_time && m.end_time && new Date(m.start_time) <= now && new Date(m.end_time) > now);
+                                if (activeTimeLimited) {
+                                    activeDefaultId = activeTimeLimited.rich_menu_id || activeTimeLimited.richMenuId || activeTimeLimited.id;
+                                } else {
+                                    const activePermanent = defaultMenus.find(m => !m.start_time && !m.end_time);
+                                    if (activePermanent) {
+                                        activeDefaultId = activePermanent.rich_menu_id || activePermanent.richMenuId || activePermanent.id;
+                                    }
+                                }
+                                
+                                return oaMenus.map((item, idx) => {
+                                    const isDraft = item.isMetadata && item.status === 'draft';
+                                    const isPublished = item.status === 'published' || item.status === 'restricted' || item.status === 'link' || item.status === 'default';
+                                    const rid = item.rich_menu_id || item.richMenuId;
+                                    const itemId = rid || item.id;
+                                    const isDefault = (item.status === 'default' || item.status === 'public' || (rid && defaultMenuIds.has(rid))) && itemId === activeDefaultId;
                                 
                                 let tagsPreview = [];
                                 let permissionTagsPreview = [];
@@ -1547,7 +1563,8 @@ function RichMenu() {
                                         </div>
                                     </div>
                                 );
-                            })}
+                            });
+                            })()}
                         </div>
                     </div>
                 ))}

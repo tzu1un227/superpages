@@ -451,50 +451,43 @@ def set_default_rich_menu(richMenuId):
                 tenant_conn = get_tenant_conn(app_name=app_name, oa_id=oa_id) if app_name else conn
                 
                 if app_name and tenant_conn:
-                    t_private = f'"Private_var:{app_name}"'
-                    t_global = f'"Global_var:{app_name}"'
-                    tenant_cur = tenant_conn.cursor(cursor_factory=RealDictCursor)
-                    tenant_cur.execute(f"SELECT DISTINCT user_id FROM {t_private} WHERE user_id IS NOT NULL")
-                    users = tenant_cur.fetchall()
-                    user_ids = [u['user_id'] for u in users if u.get('user_id')]
-                    
-                    # 每次最多 500 筆，批次解除綁定
-                    for i in range(0, len(user_ids), 500):
-                        batch = user_ids[i:i+500]
-                        requests.post('https://api.line.me/v2/bot/richmenu/bulk/unlink', headers=headers, json={'userIds': batch})
-                    
-                    # Cache synchronization: remove individual rich_menu for all users
-                    if user_ids:
-                        tenant_cur.execute(f"DELETE FROM {t_private} WHERE name = 'rich_menu'")
-                    
-                    # Update global default rich menu
-                    tenant_cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
-                    tenant_cur.execute(f"INSERT INTO {t_global} (name, value) VALUES ('default_rich_menu', %s)", (richMenuId,))
-                    
-                    # Update rich_menu_metadata status: set other default menus to published, and this menu to default
                     t_metadata = get_t('rich_menu_metadata')
                     cur = conn.cursor()
-                    cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status = 'default'", (oa_id,))
-                    cur.execute(f"UPDATE {t_metadata} SET status = 'default' WHERE oa_id = %s AND rich_menu_id = %s", (oa_id, richMenuId))
                     
+                    cur.execute(f"SELECT start_time, end_time FROM {t_metadata} WHERE oa_id = %s AND rich_menu_id = %s", (oa_id, richMenuId))
+                    m = cur.fetchone()
+                    if m:
+                        start_time, end_time = m[0], m[1]
+                        if not start_time and not end_time:
+                            cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status = 'default' AND start_time IS NULL AND end_time IS NULL", (oa_id,))
+                        else:
+                            cur.execute(f"""
+                                SELECT id FROM {t_metadata} 
+                                WHERE oa_id = %s AND status = 'default' AND rich_menu_id != %s 
+                                  AND start_time IS NOT NULL AND end_time IS NOT NULL
+                                  AND start_time < %s AND end_time > %s
+                            """, (oa_id, richMenuId, end_time, start_time))
+                            if cur.fetchone():
+                                cur.close()
+                                conn.close()
+                                if tenant_conn and tenant_conn != conn: tenant_conn.close()
+                                return jsonify({'message': 'Set default failed', 'line_error': '排程時間與現存的排程預設選單重疊。'}), 400
+
+                    cur.execute(f"UPDATE {t_metadata} SET status = 'default' WHERE oa_id = %s AND rich_menu_id = %s", (oa_id, richMenuId))
                     conn.commit()
                     cur.close()
                     
-                    if tenant_conn != conn:
-                        tenant_conn.commit()
-                    tenant_cur.close()
+                    from endpoints.richmenu import check_and_apply_scheduled_rich_menus
+                    import threading
+                    threading.Thread(target=check_and_apply_scheduled_rich_menus, args=(app_name,)).start()
+                    
                 conn.close()
                 if tenant_conn and tenant_conn != conn:
                     tenant_conn.close()
         except Exception as e:
-            print(f"Error unlinking bulk users or caching default menu: {e}")
+            print(f"Error in set_default_rich_menu: {e}")
             
-        resp = requests.post(f'https://api.line.me/v2/bot/user/all/richmenu/{richMenuId}', headers=headers)
-        if resp.status_code == 200:
-            return jsonify({'status': 'success'})
-        return jsonify({'message': 'Set default failed', 'line_error': resp.text}), resp.status_code
-    except Exception as e:
-        return jsonify({'message': 'Error', 'error': str(e)}), 500
+        return jsonify({'status': 'success'})
 @richmenu_bp.route('/set-default', methods=['DELETE'])
 @token_required
 @syslog_action('RICHMENU_UNSET_DEFAULT')
@@ -858,6 +851,16 @@ def save_rich_menu_metadata():
                 if m['status'] == 'published' and status == 'draft':
                     return jsonify({'error': '已發佈的選單不可編輯'}), 400
                 
+                if status == 'default' and start_time and end_time:
+                    cur.execute(f"""
+                        SELECT id FROM {t_metadata} 
+                        WHERE oa_id = %s AND status = 'default' AND id != %s 
+                          AND start_time IS NOT NULL AND end_time IS NOT NULL
+                          AND start_time < %s AND end_time > %s
+                    """, (oa_id, id, end_time, start_time))
+                    if cur.fetchone():
+                        return jsonify({'error': '排程時間與現存的排程預設選單重疊，請重新選擇時間。'}), 400
+
                 cur.execute(f"""
                     UPDATE {t_metadata}
                     SET name=%s, chat_bar_text=%s, data=%s, status=%s, rich_menu_id=%s, start_time=%s, end_time=%s, permission_tags=%s, fallback_message=%s, ui_uuid=%s, group_id=%s, updated_at=(NOW() AT TIME ZONE 'Asia/Taipei')
@@ -865,15 +868,30 @@ def save_rich_menu_metadata():
                 """, (name, chat_bar_text, data_json, status, rich_menu_id, start_time, end_time, permission_tags, fallback_message, ui_uuid, group_id, id))
                 return_id = id
             else:
+                if status == 'default' and start_time and end_time:
+                    cur.execute(f"""
+                        SELECT id FROM {t_metadata} 
+                        WHERE oa_id = %s AND status = 'default'
+                          AND start_time IS NOT NULL AND end_time IS NOT NULL
+                          AND start_time < %s AND end_time > %s
+                    """, (oa_id, end_time, start_time))
+                    if cur.fetchone():
+                        return jsonify({'error': '排程時間與現存的排程預設選單重疊，請重新選擇時間。'}), 400
+
                 cur.execute(f"""
                     INSERT INTO {t_metadata} (oa_id, name, chat_bar_text, data, status, rich_menu_id, start_time, end_time, permission_tags, fallback_message, ui_uuid, group_id, created_at, updated_at)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, (NOW() AT TIME ZONE 'Asia/Taipei'), (NOW() AT TIME ZONE 'Asia/Taipei')) RETURNING id
                 """, (oa_id, name, chat_bar_text, data_json, status, rich_menu_id, start_time, end_time, permission_tags, fallback_message, ui_uuid, group_id))
                 return_id = cur.fetchone()['id']
 
-            # If setting this menu as default, update all other default menus of the same OA to published
             if status == 'default':
-                cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status = 'default' AND id != %s", (oa_id, return_id))
+                if not start_time and not end_time:
+                    cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status = 'default' AND id != %s AND start_time IS NULL AND end_time IS NULL", (oa_id, return_id))
+
+            conn.commit()
+
+            if status in ['default', 'restricted']:
+                import threading
                 app_name_val = getattr(g, 'current_app_name', None)
                 if not app_name_val:
                     oa_id_val = getattr(g, 'current_oa_id', None) or oa_id
@@ -882,47 +900,28 @@ def save_rich_menu_metadata():
                         oa_cfg = OAConfig.query.get(oa_id_val)
                         if oa_cfg and oa_cfg.other_settings and oa_cfg.other_settings.get('app_name'):
                             app_name_val = str(oa_cfg.other_settings['app_name'])
-                if app_name_val and rich_menu_id:
-                    t_global = f'"Global_var:{app_name_val}"'
-                    cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
-                    cur.execute(f"INSERT INTO {t_global} (name, value) VALUES ('default_rich_menu', %s)", (rich_menu_id,))
-
-            conn.commit()
-
-            # Async trigger for rich menu update
-            if status in ['default', 'restricted']:
-                import threading
-                app_name = getattr(g, 'current_app_name', None)
-                def trigger_update(app_name_val, stat, r_id, s_time):
+                            
+                def trigger_update(app_name_val, stat):
                     import time
                     time.sleep(1.5)  # Wait for LINE server to process the newly uploaded image
                     try:
-                        # Setup fake context
-                        from flask import Flask, g
-                        dummy_app = Flask(__name__)
-                        with dummy_app.app_context():
-                            g.current_app_name = app_name_val
-                            from endpoints.richmenu import get_line_token, bulk_check_and_update_rich_menu
-                            token = get_line_token(app_name=app_name_val)
-                            g.current_line_token = token
-                            if stat == 'default':
-                                # Do not link immediately if start_time is in the future
-                                if s_time:
-                                    from app import get_now_taiwan
-                                    now = get_now_taiwan()
-                                    if s_time > now:
-                                        print(f"Skipping immediate default link for {r_id} because start_time {s_time} is in the future")
-                                        return
-                                # bulk link to all users
-                                headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
-                                bulk_link_all_users(headers, r_id)
-                            elif stat == 'restricted':
+                        if stat == 'default':
+                            from endpoints.richmenu import check_and_apply_scheduled_rich_menus
+                            check_and_apply_scheduled_rich_menus(app_name_val)
+                        elif stat == 'restricted':
+                            from flask import Flask, g
+                            dummy_app = Flask(__name__)
+                            with dummy_app.app_context():
+                                g.current_app_name = app_name_val
+                                from endpoints.richmenu import get_line_token, bulk_check_and_update_rich_menu
+                                token = get_line_token(app_name=app_name_val)
+                                g.current_line_token = token
                                 bulk_check_and_update_rich_menu(app_name_val)
                     except Exception as e:
                         print(f"Error in background rich menu update: {e}")
                 
-                if rich_menu_id:
-                    threading.Thread(target=trigger_update, args=(app_name, status, rich_menu_id, start_time)).start()
+                if app_name_val:
+                    threading.Thread(target=trigger_update, args=(app_name_val, status)).start()
 
             return jsonify({'status': 'success', 'id': return_id})
         finally:
@@ -1239,13 +1238,23 @@ def check_and_apply_scheduled_rich_menus(app_name):
         cur = conn.cursor(cursor_factory=RealDictCursor)
         tenant_cur = tenant_conn.cursor(cursor_factory=RealDictCursor)
         
+        t_metadata = f'"rich_menu_metadata:{app_name}"'
+        
+        # 0. Expire old scheduled defaults
+        cur.execute(f"""
+            UPDATE {t_metadata}
+            SET status = 'published'
+            WHERE status = 'default'
+              AND end_time IS NOT NULL 
+              AND end_time <= (NOW() AT TIME ZONE 'Asia/Taipei')
+        """)
+        
         # 1. Check Default Menu
         t_global = f'"Global_var:{app_name}"'
         tenant_cur.execute(f"SELECT value FROM {t_global} WHERE name = 'default_rich_menu'")
         global_var = tenant_cur.fetchone()
         current_default_id = global_var['value'] if global_var else None
         
-        t_metadata = f'"rich_menu_metadata:{app_name}"'
         cur.execute(f"""
             SELECT rich_menu_id, id FROM {t_metadata}
             WHERE status = 'default'
