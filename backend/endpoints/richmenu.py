@@ -473,7 +473,7 @@ def set_default_rich_menu(richMenuId):
                                 if tenant_conn and tenant_conn != conn: tenant_conn.close()
                                 return jsonify({'message': 'Set default failed', 'line_error': '排程時間與現存的排程預設選單重疊。'}), 400
 
-                    cur.execute(f"UPDATE {t_metadata} SET status = 'default' WHERE oa_id = %s AND rich_menu_id = %s", (oa_id, richMenuId))
+                    cur.execute(f"UPDATE {t_metadata} SET status = 'default', updated_at = (NOW() AT TIME ZONE 'Asia/Taipei') WHERE oa_id = %s AND rich_menu_id = %s", (oa_id, richMenuId))
                     conn.commit()
                     cur.close()
                     

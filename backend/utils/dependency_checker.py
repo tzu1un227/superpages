@@ -138,18 +138,35 @@ def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=N
                 
             rows = cur.fetchall()
             if rows:
-                has_dependencies = True
-                
-                if not force:
-                    for row in rows:
-                        item_name = row[2] if row[2] else '未命名'
+                import re
+                for row in rows:
+                    content = str(row[1] if row[1] is not None else "")
+                    found_exact = False
+                    for search_id in all_ids:
+                        sid_escaped = re.escape(str(search_id))
+                        if item_type == 'journey':
+                            patterns = [rf"\|{sid_escaped}\|", rf"journey={sid_escaped}\b", rf"iup\|{sid_escaped}\b"]
+                        else:
+                            patterns = [rf"\|{sid_escaped}\|", rf"menu={sid_escaped}\b", rf"rm\|{sid_escaped}\b", rf"switch_rm\|{sid_escaped}\b"]
+                        
+                        for p in patterns:
+                            if re.search(p, content):
+                                found_exact = True
+                                break
+                        if found_exact: break
+                    
+                    if found_exact:
+                        has_dependencies = True
+                        name = row[2] if row[2] else '未命名'
+                        
+                        item_name = str(name)
                         proj_id = None
                         if isinstance(item_name, str) and item_name.startswith("project_"):
                             parts = item_name.split("_")
                             if len(parts) >= 2:
                                 proj_id = parts[1]
                         
-                        real_name = str(item_name)
+                        real_name = item_name
                         if proj_id:
                             try:
                                 main_cur = main_conn.cursor()
