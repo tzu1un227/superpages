@@ -330,11 +330,11 @@ def delete_rich_menu(richMenuId):
     }
     
     try:
-        from db_utils import get_oa_db_connection, get_main_db_connection
+        from db_utils import get_db_connection, get_main_db_connection
         from utils.dependency_checker import check_and_clear_dependencies
         
         force = request.args.get('force', 'false').lower() == 'true'
-        oa_conn = get_oa_db_connection()
+        oa_conn = get_db_connection()
         main_conn = get_main_db_connection()
         try:
             main_cur = main_conn.cursor()
