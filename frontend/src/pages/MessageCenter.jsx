@@ -6,6 +6,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import { useToast } from '../contexts/ToastContext';
 import { CircularProgress } from '@mui/material';
 import UserAvatar from '../components/UserAvatar';
+import TagInput from '../components/TagInput';
 
 // 內部元件：處理帶有 Token 的圖片載入
 const AuthenticatedImage = ({ src, alt, style, onClick, onLoad }) => {
@@ -164,7 +165,7 @@ function MessageCenter() {
     }, []);
 
     const [input, setInput] = useState('');
-    const [tagInput, setTagInput] = useState('');
+    const [tagInput, setTagInput] = useState([]);
     const [loading, setLoading] = useState(true);
     const [loadingUsers, setLoadingUsers] = useState(false);
     const [loadingChat, setLoadingChat] = useState(false);
@@ -860,28 +861,30 @@ function MessageCenter() {
     };
 
     const handleAddTag = async () => {
-        if (!tagInput.trim() || !selectedUser) return;
+        if (!tagInput || tagInput.length === 0 || !selectedUser) return;
         
         const userId = selectedUser;
-        const tagName = tagInput.trim();
+        const tagNames = tagInput;
 
         // 將標籤加入「正在新增中」的追蹤清單，紀錄時間戳記，護欄時間為 10 秒
         if (!pendingTagAdditionsRef.current[userId]) {
             pendingTagAdditionsRef.current[userId] = {};
         }
-        pendingTagAdditionsRef.current[userId][tagName] = Date.now();
+        tagNames.forEach(tagName => {
+            pendingTagAdditionsRef.current[userId][tagName] = Date.now();
+        });
 
-        const tagToSent = tagInput; // 保存值以便清理
-        setTagInput('');
+        const tagsStr = `[${tagNames.map(t => `'${t}'`).join(', ')}]`;
+        setTagInput([]);
 
         try {
             await api.post('/trigger', {
                 user: userId,
-                message: `set_tag|${tagToSent}`,
+                message: `set_tag|${tagsStr}`,
                 type: 'Sensor',
                 api_index: 0
             });
-            showToast(`已新增標籤: ${tagToSent}`, 'success');
+            showToast(`已新增標籤: ${tagNames.join(', ')}`, 'success');
             fetchAvailableTags(); // 立即重新整理標籤篩選清單
             
             // API 成功後，等待一段時間再觸發刷新，fetchUsers 的過濾邏輯會利用時間戳記維持穩定
@@ -892,7 +895,9 @@ function MessageCenter() {
             showToast('新增標籤失敗', 'error');
             // 失敗時清理護欄紀錄
             if (pendingTagAdditionsRef.current[userId]) {
-                delete pendingTagAdditionsRef.current[userId][tagName];
+                tagNames.forEach(tagName => {
+                    delete pendingTagAdditionsRef.current[userId][tagName];
+                });
             }
             fetchUsers(searchQuery, selectedTagFilters);
         }
@@ -1269,22 +1274,18 @@ function MessageCenter() {
                                 </div>
                                 </div>
                             </div>
-                            <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                                <input
-                                    list="available-tags"
-                                    value={tagInput}
-                                    onChange={e => setTagInput(e.target.value)}
-                                    placeholder="選擇或輸入標籤..."
-                                    style={{ width: '200px', padding: '6px 12px', fontSize: '12px' }}
-                                />
-                                <datalist id="available-tags">
-                                    {availableTags.map((tag, idx) => (
-                                        <option key={idx} value={tag} />
-                                    ))}
-                                </datalist>
+                            <div style={{ display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center' }}>
+                                <div style={{ width: '250px' }}>
+                                    <TagInput
+                                        tags={tagInput}
+                                        onChange={setTagInput}
+                                        placeholder="選擇或輸入標籤後按 Enter"
+                                    />
+                                </div>
                                 <button
                                     onClick={handleAddTag}
-                                    style={{ padding: '6px 15px', fontSize: '12px', backgroundColor: 'var(--primary-yellow)', color: 'black' }}
+                                    disabled={!tagInput || tagInput.length === 0}
+                                    style={{ padding: '6px 15px', height: '36px', fontSize: '12px', backgroundColor: 'var(--primary-yellow)', color: 'black', borderRadius: '4px', cursor: (!tagInput || tagInput.length === 0) ? 'not-allowed' : 'pointer' }}
                                 >
                                     新增
                                 </button>

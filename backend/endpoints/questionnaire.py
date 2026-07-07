@@ -198,18 +198,38 @@ def _extract_tags_from_fn(fn_str):
         return []
     
     tags = []
-    # Support new format: pri_push('tag','...')
-    push_tags = re.findall(r"pri_push\('tag','(.*?)'\)", fn_str)
-    if push_tags:
-        tags.extend(push_tags)
+    # Support new format: pri_push('tag','...') or pri_push('tag', "['A', 'B']")
+    push_tags = re.findall(r"pri_push\('tag',\s*(.*?)\)", fn_str)
+    for pt in push_tags:
+        pt = pt.strip()
+        if pt.startswith('[') and pt.endswith(']'):
+            try:
+                # ast.literal_eval is safer but simple parsing works too
+                import ast
+                parsed = ast.literal_eval(pt)
+                if isinstance(parsed, list):
+                    tags.extend(parsed)
+            except Exception:
+                pass
+        else:
+            tags.append(pt.replace("'", "").replace('"', ''))
 
     # Support legacy format: set_tag|... and new format: update("set_tag|...")
     if "set_tag|" in fn_str:
         parts = fn_str.split("set_tag|")
         for p in parts[1:]:
-            # Strip trailing quotes, parenthesis or semicolons
-            tag_str = p.split('"')[0].split(';')[0].split(')')[0]
-            tags.extend([t for t in tag_str.split("|") if t.strip()])
+            # Check if it's a list format
+            tag_str = p.split('"')[0].split(';')[0].split(')')[0].strip()
+            if tag_str.startswith('[') and tag_str.endswith(']'):
+                try:
+                    import ast
+                    parsed = ast.literal_eval(tag_str)
+                    if isinstance(parsed, list):
+                        tags.extend(parsed)
+                except Exception:
+                    pass
+            else:
+                tags.extend([t for t in tag_str.split("|") if t.strip()])
             
     return list(dict.fromkeys(tags))
 
@@ -365,10 +385,10 @@ def build_questionnaire_direct(data, app_id, conn, quest_id):
         
         tags = question.get("tags")
         if tags and isinstance(tags, list):
-            for t in tags:
-                tag = str(t).strip()
-                if tag:
-                    save_fn += f',update("set_tag|{tag}")'
+            valid_tags = [str(t).strip() for t in tags if str(t).strip()]
+            if valid_tags:
+                formatted_tags = "[" + ", ".join([repr(t) for t in valid_tags]) + "]"
+                save_fn += f',update(f"set_tag|{formatted_tags}")'
 
         if is_last:
             if enable_review:

@@ -473,11 +473,13 @@ def add_tag_batch():
     conn = None
     cur = None
     data = request.json
-    tag_name = data.get('tag_name')
+    tag_names = data.get('tag_names', [])
+    if not tag_names and data.get('tag_name'):
+        tag_names = [data.get('tag_name')]
     user_ids = data.get('user_ids', [])
     
-    if not tag_name or not user_ids:
-        return jsonify({"error": "Missing tag_name or user_ids"}), 400
+    if not tag_names or not user_ids:
+        return jsonify({"error": "Missing tag_names or user_ids"}), 400
         
     try:
         conn = get_db_connection()
@@ -500,9 +502,13 @@ def add_tag_batch():
             except:
                 parsed = [val] if val else []
             
-            if tag_name not in parsed:
-                parsed.append(tag_name)
-                updates.append((uid, str(parsed)))
+            new_tags = parsed.copy()
+            for t in tag_names:
+                if t not in new_tags:
+                    new_tags.append(t)
+            
+            if new_tags != parsed:
+                updates.append((uid, str(new_tags)))
         
         if updates:
             affected_uids = [u[0] for u in updates]
@@ -517,11 +523,13 @@ def add_tag_batch():
             settings = getattr(g, 'current_oa_config', None).other_settings if getattr(g, 'current_oa_config', None) else {}
             s_url = settings.get('socket_url')
             s_name = settings.get('socket_name')
+            
+            tags_str = str(tag_names) # List to string representation like "['A', 'B']"
 
             def notify_socket():
                 events = [{
                     "user": uid, 
-                    "message": f"set_tag|{tag_name}", 
+                    "message": f"set_tag|{tags_str}", 
                     "type": "Sensor",
                     "api_index": 0
                 } for uid in affected_uids]

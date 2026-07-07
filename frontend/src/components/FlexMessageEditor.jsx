@@ -227,20 +227,36 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                 if (parts[2]) bindData.journey = parts[2];
                 if (parts[3]) bindData.menu = parts[3];
                 return bindData;
-            } else if (payload.includes('|sys_bind|')) {
+            if (payload.includes('|sys_bind|')) {
                 const parts = payload.split('|sys_bind|');
                 if (parts.length > 1) {
                     const params = parts[1].split('|');
-                    if (params[0]) bindData.tag = params[0].split(',').filter(t => t);
+                    if (params[0]) {
+                        const tagStr = params[0];
+                        if (tagStr.startsWith('[') && tagStr.endsWith(']')) {
+                            try {
+                                bindData.tag = JSON.parse(tagStr.replace(/'/g, '"'));
+                            } catch(e) {}
+                        } else {
+                            bindData.tag = tagStr.split(',').filter(t => t);
+                        }
+                    }
                     if (params[1]) bindData.journey = params[1];
                     if (params[2]) bindData.menu = params[2];
                 }
                 return bindData;
             }
             if (payload.includes('set_tag|')) {
-                const parts = payload.split('|');
-                const tagIdx = parts.indexOf('set_tag');
-                if (tagIdx !== -1) bindData.tag = parts.slice(tagIdx + 1).filter(t => t);
+                const tagPayload = payload.substring(payload.indexOf('set_tag|') + 8);
+                // split by pipe for extra params if any, but first part is tags
+                const tagPart = tagPayload.split('|')[0];
+                if (tagPart.startsWith('[') && tagPart.endsWith(']')) {
+                    try {
+                        bindData.tag = JSON.parse(tagPart.replace(/'/g, '"'));
+                    } catch(e) {}
+                } else {
+                    bindData.tag = tagPayload.split('|').filter(t => t);
+                }
                 return bindData;
             }
             
@@ -256,7 +272,15 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
             
             if (urlParams) {
                 const tagStr = urlParams.get('tag') || urlParams.get('tags');
-                if (tagStr) bindData.tag = tagStr.split(/[,|]/).map(t => t.trim()).filter(t => t);
+                if (tagStr) {
+                    if (tagStr.startsWith('[') && tagStr.endsWith(']')) {
+                        try {
+                            bindData.tag = JSON.parse(tagStr.replace(/'/g, '"'));
+                        } catch(e) {}
+                    } else {
+                        bindData.tag = tagStr.split(/[,|]/).map(t => t.trim()).filter(t => t);
+                    }
+                }
                 const journeyStr = urlParams.get('journey');
                 if (journeyStr) bindData.journey = journeyStr;
                 const menuStr = urlParams.get('menu');
@@ -265,7 +289,14 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
             
             const match = payload.match(/#tags=([^#?&]*)/);
             if (match && match[1]) {
-                bindData.tag = match[1].split(/[,|]/).map(t => t.trim()).filter(t => t);
+                const tagStr = match[1];
+                if (tagStr.startsWith('[') && tagStr.endsWith(']')) {
+                    try {
+                        bindData.tag = JSON.parse(tagStr.replace(/'/g, '"'));
+                    } catch(e) {}
+                } else {
+                    bindData.tag = tagStr.split(/[,|]/).map(t => t.trim()).filter(t => t);
+                }
             }
             return bindData;
         };
@@ -357,7 +388,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
         const buildAction = (type, val, bindData = { tag: [], journey: '', menu: '' }) => {
             if (type === 'none') return null;
 
-            const tagsStr = (bindData.tag && bindData.tag.length > 0) ? bindData.tag.join(',') : '';
+            const tagsStr = (bindData.tag && bindData.tag.length > 0) ? `[${bindData.tag.map(t => `'${t}'`).join(', ')}]` : '';
             const journeyStr = bindData.journey || '';
             const menuStr = bindData.menu || '';
             const hasBind = tagsStr || journeyStr || menuStr;
@@ -831,7 +862,6 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                                         <TagInput
                                             tags={currentCard.imageAction.tags || []}
                                             onChange={newTags => updateCurrentCard('imageAction', { ...currentCard.imageAction, tags: newTags })}
-                                            singleSelect={true}
                                         />
                                     </div>
                                     <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
@@ -937,7 +967,6 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                                                     <TagInput
                                                         tags={btn.tags || []}
                                                         onChange={newTags => updateCardButton(idx, 'tags', newTags)}
-                                                        singleSelect={true}
                                                     />
                                                 </div>
                                                 <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>

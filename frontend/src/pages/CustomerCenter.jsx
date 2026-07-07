@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import api from '../api';
 import { useToast } from '../contexts/ToastContext';
 import UserAvatar from '../components/UserAvatar';
+import TagInput from '../components/TagInput';
 
 const CustomerCenter = () => {
   const [activeTab, setActiveTab] = useState('customers');
@@ -24,14 +25,14 @@ const CustomerCenter = () => {
   const [groupForm, setGroupForm] = useState({ mode: 'existing', groupName: '', newGroupName: '', description: '' });
   
   const [isTagModalOpen, setIsTagModalOpen] = useState(false);
-  const [tagInput, setTagInput] = useState('');
+  const [tagInput, setTagInput] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
   
   const [selectedCustomerForSidebar, setSelectedCustomerForSidebar] = useState(null);
   const [sidebarDetails, setSidebarDetails] = useState({ projects: [], rich_menu: null, loading: false });
-  const [sidebarTagInput, setSidebarTagInput] = useState('');
+  const [sidebarTagInput, setSidebarTagInput] = useState([]);
 
   const navigate = useNavigate();
   const { oaId } = useParams();
@@ -470,18 +471,18 @@ const CustomerCenter = () => {
   };
 
   const handleAddTagToGroup = async () => {
-    if (!tagInput.trim() || filteredCustomers.length === 0) return;
+    if (!tagInput || tagInput.length === 0 || filteredCustomers.length === 0) return;
     const userIds = filteredCustomers.map(u => u.user_id).filter(Boolean);
     
     setIsProcessing(true);
     try {
       await api.post('/customers/tags/batch', {
-        tag_name: tagInput.trim(),
+        tag_names: tagInput,
         user_ids: userIds
       });
       setIsTagModalOpen(false);
-      showToast(`成功為 ${userIds.length} 名用戶加入標籤: ${tagInput.trim()}`, 'success');
-      setTagInput('');
+      showToast(`成功為 ${userIds.length} 名用戶加入標籤: ${tagInput.join(', ')}`, 'success');
+      setTagInput([]);
       await refreshAllData();
     } catch (err) {
       showToast('加入標籤失敗', 'error');
@@ -492,26 +493,24 @@ const CustomerCenter = () => {
   };
 
   const handleSidebarAddTag = async () => {
-    if (!sidebarTagInput.trim() || !selectedCustomerForSidebar) return;
-    const tag = sidebarTagInput.trim();
-    setSidebarTagInput('');
+    if (!sidebarTagInput || sidebarTagInput.length === 0 || !selectedCustomerForSidebar) return;
+    const tagsStr = `[${sidebarTagInput.map(t => `'${t}'`).join(', ')}]`;
+    const addedTags = [...sidebarTagInput];
+    setSidebarTagInput([]);
     try {
       await api.post('/trigger', {
         user: selectedCustomerForSidebar.user_id,
-        message: `set_tag|${tag}`,
+        message: `set_tag|${tagsStr}`,
         type: 'Sensor',
         api_index: 0
       });
-      showToast(`已新增標籤: ${tag}`, 'success');
+      showToast(`已新增標籤: ${addedTags.join(', ')}`, 'success');
       // Update local state to reflect UI change immediately
       setSelectedCustomerForSidebar(prev => {
-        const currentTags = Array.isArray(prev.tag) ? prev.tag : (prev.tag ? [prev.tag] : []);
-        if (!currentTags.includes(tag)) {
-          const newTags = [...currentTags, tag];
-          setCustomers(custs => custs.map(c => c.user_id === prev.user_id ? { ...c, tag: newTags } : c));
-          return { ...prev, tag: newTags };
-        }
-        return prev;
+        let currentTags = Array.isArray(prev.tag) ? prev.tag : (prev.tag ? prev.tag.split(/[,|]/) : []);
+        const newTags = [...new Set([...currentTags, ...addedTags])];
+        setCustomers(custs => custs.map(c => c.user_id === prev.user_id ? { ...c, tag: newTags } : c));
+        return { ...prev, tag: newTags };
       });
     } catch (err) {
       showToast('新增標籤失敗', 'error');
@@ -1136,22 +1135,16 @@ const CustomerCenter = () => {
             <p style={{ color: '#ccc', fontSize: '14px', marginBottom: '16px' }}>將為客群「{filterContext.value}」中的 {filteredCustomers.length} 名用戶統一加上標籤：</p>
 
             <div style={{ marginBottom: '24px' }}>
-              <input 
-                type="text" 
-                value={tagInput} 
-                onChange={(e) => setTagInput(e.target.value)}
-                placeholder="輸入要新增的標籤名稱..."
-                list="tag-options"
-                style={{ width: '100%', padding: '10px', backgroundColor: '#111', color: '#fff', border: '1px solid #444', borderRadius: '6px', outline: 'none', boxSizing: 'border-box' }}
+              <TagInput
+                tags={tagInput}
+                onChange={setTagInput}
+                placeholder="選擇或輸入標籤後按 Enter"
               />
-              <datalist id="tag-options">
-                {tags.map(t => <option key={t.tag_name} value={t.tag_name} />)}
-              </datalist>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <button onClick={() => setIsTagModalOpen(false)} style={{ padding: '8px 16px', backgroundColor: 'transparent', color: '#ccc', border: '1px solid #555', borderRadius: '6px', cursor: 'pointer' }}>取消</button>
-              <button onClick={handleAddTagToGroup} disabled={isProcessing || !tagInput.trim()} style={{ padding: '8px 16px', backgroundColor: '#FFD700', color: '#000', border: 'none', borderRadius: '6px', cursor: (isProcessing || !tagInput.trim()) ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+              <button onClick={handleAddTagToGroup} disabled={isProcessing || !tagInput || tagInput.length === 0} style={{ padding: '8px 16px', backgroundColor: '#FFD700', color: '#000', border: 'none', borderRadius: '6px', cursor: (isProcessing || !tagInput || tagInput.length === 0) ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
                 {isProcessing ? '處理中...' : '確定新增'}
               </button>
             </div>
@@ -1311,19 +1304,19 @@ const CustomerCenter = () => {
                 <div style={{ color: '#888', fontSize: '14px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>標籤</span>
                 </div>
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-                  <input
-                    type="text"
-                    value={sidebarTagInput}
-                    onChange={(e) => setSidebarTagInput(e.target.value)}
-                    placeholder="輸入新標籤..."
-                    onKeyPress={(e) => e.key === 'Enter' && handleSidebarAddTag()}
-                    style={{ flex: 1, padding: '8px 12px', backgroundColor: '#111', color: '#fff', border: '1px solid #444', borderRadius: '6px', outline: 'none' }}
+                <div style={{ marginBottom: '12px' }}>
+                  <TagInput
+                    tags={sidebarTagInput}
+                    onChange={setSidebarTagInput}
+                    placeholder="輸入新標籤後按 Enter"
                   />
-                  <button 
-                    onClick={handleSidebarAddTag}
-                    style={{ padding: '8px 12px', backgroundColor: '#333', color: '#fff', border: '1px solid #444', borderRadius: '6px', cursor: 'pointer' }}
-                  >新增</button>
+                  <div style={{ marginTop: '8px', textAlign: 'right' }}>
+                    <button 
+                      onClick={handleSidebarAddTag}
+                      disabled={!sidebarTagInput || sidebarTagInput.length === 0}
+                      style={{ padding: '6px 12px', backgroundColor: '#333', color: '#fff', border: '1px solid #444', borderRadius: '6px', cursor: (!sidebarTagInput || sidebarTagInput.length === 0) ? 'not-allowed' : 'pointer' }}
+                    >確定新增</button>
+                  </div>
                 </div>
                 <div style={{ backgroundColor: '#222', borderRadius: '8px', padding: '16px', border: '1px solid #333', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                   {Array.isArray(selectedCustomerForSidebar.tag) && selectedCustomerForSidebar.tag.length > 0 ? (

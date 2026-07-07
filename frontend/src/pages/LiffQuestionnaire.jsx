@@ -482,7 +482,6 @@ export default function Questionnaire() {
                   tags={q.tags || []}
                   onChange={tags => updateQuestion(index, { tags })}
                   placeholder="選擇或輸入標籤..."
-                  singleSelect
                 />
                 <Typography sx={{ color: '#888', fontSize: '0.75rem', mt: 0.5 }}>使用者有填寫此題時會加入標籤</Typography>
               </Box>

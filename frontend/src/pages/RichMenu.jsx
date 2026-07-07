@@ -571,7 +571,7 @@ function RichMenu() {
                         const action = { ...a.action };
                         if (action.type === 'uri' && action.tags && action.tags.length > 0) {
                             const targetUrl = action.uri;
-                            const tagName = action.tags.join(',');
+                            const tagName = `[${action.tags.map(t => `'${t}'`).join(', ')}]`;
                             if (appName) {
                                 action.uri = `https://liff.line.me/${liffId}?bot=${appName}&tag=${encodeURIComponent(tagName)}&redirect=${encodeURIComponent(targetUrl)}`;
                             } else {

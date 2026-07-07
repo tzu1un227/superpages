@@ -287,15 +287,33 @@ const stringifyCheck = ({ startDate, endDate, startTime, endTime }) => {
 };
 
 const parseFunction = (funcStr) => {
-    if (!funcStr) return { tag: '', journey: '', richMenu: '' };
+    if (!funcStr) return { tags: [], journey: '', richMenu: '' };
     
-    const result = { tag: '', journey: '', richMenu: '' };
+    const result = { tags: [], journey: '', richMenu: '' };
     
-    // Parse tag: set_tag|xxx or pri_push('tag','xxx')
-    const tagMatch1 = funcStr.match(/set_tag\|([^"']+)/);
-    const tagMatch2 = funcStr.match(/pri_push\(\s*['"]tag['"]\s*,\s*['"]([^"']+)['"]\s*\)/);
-    if (tagMatch1) result.tag = tagMatch1[1];
-    else if (tagMatch2) result.tag = tagMatch2[1];
+    // Parse tag: set_tag|['A','B'] or pri_push('tag',['A','B']) or set_tag|xxx
+    // Since tags can be formatted as Python lists string like ['A', 'B'], we need a robust regex
+    const tagMatch1 = funcStr.match(/set_tag\|(\[.*?\]|[^,)]+)/);
+    const tagMatch2 = funcStr.match(/pri_push\(\s*['"]tag['"]\s*,\s*(\[.*?\]|['"][^'"]+['"])\s*\)/);
+    
+    let tagStr = '';
+    if (tagMatch1) tagStr = tagMatch1[1];
+    else if (tagMatch2) tagStr = tagMatch2[1];
+    
+    if (tagStr) {
+        // Check if it's a list format ['A', 'B']
+        if (tagStr.startsWith('[') && tagStr.endsWith(']')) {
+            try {
+                // Convert python list string to JSON parseable string by replacing single quotes to double quotes
+                result.tags = JSON.parse(tagStr.replace(/'/g, '"'));
+            } catch (e) {
+                result.tags = [];
+            }
+        } else {
+            // It's a single string tag
+            result.tags = [tagStr.replace(/['"]/g, '').trim()].filter(t => t);
+        }
+    }
     
     // Parse journey: update("iup|<id>")
     const journeyMatch = funcStr.match(/update\(\s*f?['"]iup\|([^"']+)['"]\s*\)/);
@@ -310,13 +328,15 @@ const parseFunction = (funcStr) => {
 
 const stringifyFunction = (data) => {
     // If it's a string, we assume it's just the tag (backward compatibility)
-    const tag = typeof data === 'string' ? data : data.tag;
+    const tags = typeof data === 'string' ? [data] : (data.tags || []);
     const journey = data.journey;
     const richMenu = data.richMenu;
     
     const parts = [];
-    if (tag && tag.trim()) {
-        parts.push(`update(f"set_tag|${tag.trim()}")`);
+    if (tags && tags.length > 0) {
+        // Output format: ['A', 'B'] (Python list format)
+        const formattedTags = `[${tags.map(t => `'${t}'`).join(', ')}]`;
+        parts.push(`update(f"set_tag|${formattedTags}")`);
     }
     if (journey && journey.trim()) {
         parts.push(`update("iup|${journey.trim()}")`);
@@ -987,15 +1007,13 @@ function RuleDesigner() {
                                             <h3 style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}><Tag size={18} className="text-yellow" /> 觸發後動作</h3>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                                 <div>
-                                                    <label className="label">自動上標 (限填一個標籤)</label>
+                                                    <label className="label">自動上標</label>
                                                     <TagInput
-                                                        tags={funcData.tag ? [funcData.tag] : []}
+                                                        tags={funcData.tags || []}
                                                         onChange={newTags => {
-                                                            const newTag = newTags.length > 0 ? newTags[0] : '';
-                                                            handleFieldChange(idx, 'function', stringifyFunction({ ...funcData, tag: newTag }));
+                                                            handleFieldChange(idx, 'function', stringifyFunction({ ...funcData, tags: newTags }));
                                                         }}
                                                         placeholder="請選擇或輸入標籤 (例如: 已互動)"
-                                                        singleSelect={true}
                                                     />
                                                 </div>
                                                 <div>
