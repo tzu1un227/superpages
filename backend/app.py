@@ -1442,7 +1442,7 @@ def get_schedules():
                                 if otype == 'TextSendMessage':
                                     s['message_preview'] = first_msg_obj.get('text', '')
                                 elif otype == 'FlexSendMessage':
-                                    s['message_preview'] = f"[圖文] {first_msg_obj.get('alt_text', '圖文訊息')}"
+                                    s['message_preview'] = "[圖文]"
                                 elif otype == 'ImageSendMessage':
                                     s['message_preview'] = "[圖片]"
                                 elif otype == 'VideoSendMessage':
