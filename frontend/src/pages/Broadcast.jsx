@@ -459,7 +459,7 @@ function BroadcastContent() {
                     }
                 } else if (msg.OTYPE === 'FlexSendMessage') {
                     if (!msg.contents || (typeof msg.contents === 'object' && Object.keys(msg.contents).length === 0)) {
-                        alert(`第 ${i + 1} 則 Flex 訊息內容未設定`);
+                        alert(`第 ${i + 1} 則圖文訊息內容未設定`);
                         setLoading(false);
                         return;
                     }
@@ -472,7 +472,7 @@ function BroadcastContent() {
                         if (bubble.hero?.action) {
                             const val = bubble.hero.action.uri || bubble.hero.action.data || bubble.hero.action.text || '';
                             if (!val.trim()) {
-                                alert(`第 ${i + 1} 則 Flex 訊息 ${bubbleNum}圖片點擊內容不能為空`);
+                                alert(`第 ${i + 1} 則圖文訊息 ${bubbleNum}圖片點擊內容不能為空`);
                                 setLoading(false);
                                 return;
                             }
@@ -483,7 +483,7 @@ function BroadcastContent() {
                             const btn = buttons[k];
                             const val = btn.action?.uri || btn.action?.data || btn.action?.text || '';
                             if (!val.trim()) {
-                                alert(`第 ${i + 1} 則 Flex 訊息 ${bubbleNum}按鈕 #${k + 1} 文字或連結不能為空`);
+                                alert(`第 ${i + 1} 則圖文訊息 ${bubbleNum}按鈕 #${k + 1} 文字或連結不能為空`);
                                 setLoading(false);
                                 return;
                             }
@@ -804,7 +804,7 @@ function BroadcastContent() {
                                 <span style={{ fontWeight: 'bold' }}>
                                     {msg.OTYPE === 'TextSendMessage' ? '文字訊息' :
                                         msg.OTYPE === 'ImageSendMessage' ? '圖片訊息' :
-                                            msg.OTYPE === 'VideoSendMessage' ? '影片訊息' : 'Flex 訊息'}
+                                            msg.OTYPE === 'VideoSendMessage' ? '影片訊息' : '圖文訊息'}
                                 </span>
                             </div>
                             {formData.messages.length > 1 && !(formData.status === 'sent' || formData.status === 'scheduled') && (
@@ -824,7 +824,7 @@ function BroadcastContent() {
                                 { id: 'TextSendMessage', label: '文字', icon: <Type size={14} /> },
                                 { id: 'ImageSendMessage', label: '圖片', icon: <ImageIcon size={14} /> },
                                 { id: 'VideoSendMessage', label: '影片', icon: <Video size={14} /> },
-                                { id: 'FlexSendMessage', label: 'Flex', icon: <Layout size={14} /> }
+                                { id: 'FlexSendMessage', label: '圖文訊息', icon: <Layout size={14} /> }
                             ].map(type => (
                                 <button key={type.id}
                                     className={msg.OTYPE === type.id ? 'primary' : 'secondary'}
