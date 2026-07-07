@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import Swal from 'sweetalert2';
 import { useTask } from '../contexts/TaskContext';
 import { useLocation } from 'react-router-dom';
 import api from '../api';
@@ -734,8 +735,20 @@ const ProjectsManagement = () => {
         }
     };
 
-    const handleRemoveUser = async (userId) => {
-        if (!window.confirm(`確定要將用戶 ${userId} 從此專案移除嗎？`)) return;
+    const handleRemoveUser = async (userId, userName) => {
+        const confirmResult = await Swal.fire({
+            title: '確定移除',
+            text: `確定要將用戶「${userName || '未命名'}」從此專案移除嗎？`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ff4d4d',
+            cancelButtonColor: '#555',
+            confirmButtonText: '確定移除',
+            cancelButtonText: '取消',
+            background: '#1E1E1E',
+            color: '#fff'
+        });
+        if (!confirmResult.isConfirmed) return;
         try {
             await api.delete(`/projects/${selectedProjectId}/users/${userId}`);
             // Invalidate cache
@@ -746,8 +759,20 @@ const ProjectsManagement = () => {
         }
     };
 
-    const handleRestartUser = async (userId) => {
-        if (!window.confirm(`確定要重新啟動用戶 ${userId} 的專案進度嗎？(將重置回第一步)`)) return;
+    const handleRestartUser = async (userId, userName) => {
+        const confirmResult = await Swal.fire({
+            title: '確定重啟',
+            text: `確定要重新啟動用戶「${userName || '未命名'}」的專案進度嗎？(將重置回第一步)`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#F3B32A',
+            cancelButtonColor: '#555',
+            confirmButtonText: '確定重啟',
+            cancelButtonText: '取消',
+            background: '#1E1E1E',
+            color: '#fff'
+        });
+        if (!confirmResult.isConfirmed) return;
         try {
             await api.post(`/projects/${selectedProjectId}/users/${userId}/restart`);
             // Invalidate cache
@@ -1894,8 +1919,8 @@ const ProjectsManagement = () => {
                                             </td>
                                             <td>
                                                 <div style={{ display: 'flex', gap: '10px' }}>
-                                                    <button onClick={() => handleRestartUser(u.user_id)} style={{ padding: '4px 8px', background: '#333', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', color: 'var(--primary-yellow)' }}><RotateCcw size={14} /> 重啟</button>
-                                                    <button onClick={() => handleRemoveUser(u.user_id)} style={{ padding: '4px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#FF4D4D' }}><Trash2 size={16} /></button>
+                                                    <button onClick={() => handleRestartUser(u.user_id, u.user_name)} style={{ padding: '4px 8px', background: '#333', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', color: 'var(--primary-yellow)' }}><RotateCcw size={14} /> 重啟</button>
+                                                    <button onClick={() => handleRemoveUser(u.user_id, u.user_name)} style={{ padding: '4px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#FF4D4D' }}><Trash2 size={16} /></button>
                                                 </div>
                                             </td>
                                         </tr>
