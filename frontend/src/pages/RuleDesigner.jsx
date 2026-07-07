@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Swal from 'sweetalert2';
 import { useParams } from 'react-router-dom';
 import api from '../api';
@@ -617,7 +617,7 @@ function RuleDesigner() {
             const isDuplicate = draftRules.some((r, i) => i !== index && r.note && r.note.trim() === currentNote);
             if (isDuplicate) {
                 const confirmResult = await Swal.fire({
-                    title: '重複名稱',
+                    title: '名稱重複',
                     text: `關鍵字名稱「${currentNote}」已經存在，為了方便後台管理，建議不要重複。\n是否仍要強制儲存？`,
                     icon: 'warning',
                     showCancelButton: true,

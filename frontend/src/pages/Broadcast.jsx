@@ -848,7 +848,7 @@ function BroadcastContent() {
                                         const hasContent = currentMsg.text || currentMsg.original_content_url || (currentMsg.contents && currentMsg.contents.type);
                                         if (hasContent && currentMsg.OTYPE !== type.id) {
                                             const confirmResult = await Swal.fire({
-                                                title: '確定切換',
+                                                title: '切換類別',
                                                 text: '確定要切換訊息類別嗎？目前輸入的內容將會遺失。',
                                                 icon: 'warning',
                                                 showCancelButton: true,

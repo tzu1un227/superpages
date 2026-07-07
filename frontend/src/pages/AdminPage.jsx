@@ -162,13 +162,13 @@ function AdminPage() {
 
     const handleDeleteUser = async (id) => {
         const confirmResult = await Swal.fire({
-            title: '確定刪除',
+            title: '確認刪除',
             text: '確認刪除用戶?',
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#ff4d4d',
             cancelButtonColor: '#555',
-            confirmButtonText: '確定刪除',
+            confirmButtonText: '確認',
             cancelButtonText: '取消',
             background: '#1E1E1E',
             color: '#fff'
@@ -254,13 +254,13 @@ function AdminPage() {
 
     const handleDeleteOA = async (id) => {
         const confirmResult = await Swal.fire({
-            title: '確定刪除',
+            title: '確認刪除',
             text: '確認刪除 OA 設定?',
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#ff4d4d',
             cancelButtonColor: '#555',
-            confirmButtonText: '確定刪除',
+            confirmButtonText: '確認',
             cancelButtonText: '取消',
             background: '#1E1E1E',
             color: '#fff'
