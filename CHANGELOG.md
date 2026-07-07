@@ -280,3 +280,6 @@ ame èˆ‡ picã€‚
 - ­×¥¿ CustomerCenter.jsx ¥k°¼¸ê°TÄæÃö³¬®É¡A¦]¼ÐÅÒ°}¦C³Q»~³]¬°ªÅ¦r¦ê¦Ó¾É­P«eºÝµe­±±Y¼ì (¶Âµe­±) ªº°ÝÃD¡C
 - ¬° CustomerCenter.jsx ªº«È¤á¦W³æ¦Cªí¹ê§@ onScroll ¨Æ¥ó¡A·í¨Ï¥ÎªÌºu°Ê¨ì©³³¡®É¦Û°ÊÄ²µo«ùÄò¸ü¤J³Ñ¾lªº¦W³æ (Infinite Scroll)¡C
 - ­×¥¿ liff_questionnaire.py ¼g¤J°Ý¨÷¼ÐÅÒ¦Ü Private_var ¸ê®Æªí®É¡A¿ù»~¨Ï¥Î str() ¾É­P¥D¨t²ÎµLªk¥Î json.loads ¥¿½T¸ÑªRªº Bug¡F¤w§ï¬°²Î¤@¨Ï¥Î json.dumps(..., ensure_ascii=False) ¶i¦æÀx¦s¡C
+
+## [2026-07-07] Customer Center Background Loading Fix
+- ­×¥¿¡G±N CustomerCenter.jsx ªº Infinite Scroll §ï¦^**­I´º¤À§å«ùÄò¸ü¤J (Chunked Background Fetch)**¡C¦]¬°«eºÝ·j´M¬O°ò©ó¤w¸g¸ü¤J¦b°O¾ÐÅé¤¤ªº°}¦C¡A¦pªG¬O»Ý­n©¹¤Uºu°Ê¤~¸ü¤J¡]Infinite Scroll¡^¡A·|¾É­P©|¥¼¸ü¤Jªº¨Ï¥ÎªÌ¦b·j´M®ÉµLªk³Q§ä¨ì¡C²{¦b·|¦bªì¦¸¶i¤J®É¦Û°Ê¤À§å¸ü¤J©Ò¦³¸ê®Æª½¨ì§¹²¦¡A½T«O·j´M¥\¯à¥i¥H§ä¨ì¥þ³¡ªº¥Î¤á¡C
