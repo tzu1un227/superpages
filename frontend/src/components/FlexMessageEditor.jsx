@@ -227,7 +227,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                 if (parts[2]) bindData.journey = parts[2];
                 if (parts[3]) bindData.menu = parts[3];
                 return bindData;
-            if (payload.includes('|sys_bind|')) {
+            } else if (payload.includes('|sys_bind|')) {
                 const parts = payload.split('|sys_bind|');
                 if (parts.length > 1) {
                     const params = parts[1].split('|');
