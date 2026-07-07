@@ -221,9 +221,14 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
             let bindData = { tag: [], journey: '', menu: '' };
             if (!payload || typeof payload !== 'string') return bindData;
             
+            const parseTagsStr = (tagStr) => {
+                if (!tagStr) return [];
+                return tagStr.split(/[,|]/).map(t => t.replace(/^[\[\]'"]+|[\[\]'"]+$/g, '').trim()).filter(t => t);
+            };
+            
             if (payload.startsWith('sys_bind|')) {
                 const parts = payload.split('|');
-                if (parts[1]) bindData.tag = parts[1].split(',').filter(t => t);
+                if (parts[1]) bindData.tag = parseTagsStr(parts[1]);
                 if (parts[2]) bindData.journey = parts[2];
                 if (parts[3]) bindData.menu = parts[3];
                 return bindData;
@@ -231,16 +236,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                 const parts = payload.split('|sys_bind|');
                 if (parts.length > 1) {
                     const params = parts[1].split('|');
-                    if (params[0]) {
-                        const tagStr = params[0];
-                        if (tagStr.startsWith('[') && tagStr.endsWith(']')) {
-                            try {
-                                bindData.tag = JSON.parse(tagStr.replace(/'/g, '"'));
-                            } catch(e) {}
-                        } else {
-                            bindData.tag = tagStr.split(',').filter(t => t);
-                        }
-                    }
+                    if (params[0]) bindData.tag = parseTagsStr(params[0]);
                     if (params[1]) bindData.journey = params[1];
                     if (params[2]) bindData.menu = params[2];
                 }
@@ -250,13 +246,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                 const tagPayload = payload.substring(payload.indexOf('set_tag|') + 8);
                 // split by pipe for extra params if any, but first part is tags
                 const tagPart = tagPayload.split('|')[0];
-                if (tagPart.startsWith('[') && tagPart.endsWith(']')) {
-                    try {
-                        bindData.tag = JSON.parse(tagPart.replace(/'/g, '"'));
-                    } catch(e) {}
-                } else {
-                    bindData.tag = tagPayload.split('|').filter(t => t);
-                }
+                if (tagPart) bindData.tag = parseTagsStr(tagPart);
                 return bindData;
             }
             
@@ -272,15 +262,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
             
             if (urlParams) {
                 const tagStr = urlParams.get('tag') || urlParams.get('tags');
-                if (tagStr) {
-                    if (tagStr.startsWith('[') && tagStr.endsWith(']')) {
-                        try {
-                            bindData.tag = JSON.parse(tagStr.replace(/'/g, '"'));
-                        } catch(e) {}
-                    } else {
-                        bindData.tag = tagStr.split(/[,|]/).map(t => t.trim()).filter(t => t);
-                    }
-                }
+                if (tagStr) bindData.tag = parseTagsStr(tagStr);
                 const journeyStr = urlParams.get('journey');
                 if (journeyStr) bindData.journey = journeyStr;
                 const menuStr = urlParams.get('menu');
@@ -288,16 +270,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
             }
             
             const match = payload.match(/#tags=([^#?&]*)/);
-            if (match && match[1]) {
-                const tagStr = match[1];
-                if (tagStr.startsWith('[') && tagStr.endsWith(']')) {
-                    try {
-                        bindData.tag = JSON.parse(tagStr.replace(/'/g, '"'));
-                    } catch(e) {}
-                } else {
-                    bindData.tag = tagStr.split(/[,|]/).map(t => t.trim()).filter(t => t);
-                }
-            }
+            if (match && match[1]) bindData.tag = parseTagsStr(match[1]);
             return bindData;
         };
 
