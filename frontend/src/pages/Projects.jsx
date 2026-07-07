@@ -644,7 +644,19 @@ const ProjectsManagement = () => {
             return;
         }
 
-        if (!window.confirm('警告：匯入將會覆蓋此專案現有的所有步驟。確定要繼續嗎？')) {
+        const confirmResult = await Swal.fire({
+            title: '確定匯入',
+            text: '警告：匯入將會覆蓋此專案現有的所有步驟。確定要繼續嗎？',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#F3B32A',
+            cancelButtonColor: '#555',
+            confirmButtonText: '確定',
+            cancelButtonText: '取消',
+            background: '#1E1E1E',
+            color: '#fff'
+        });
+        if (!confirmResult.isConfirmed) {
             e.target.value = '';
             return;
         }
@@ -893,7 +905,26 @@ const ProjectsManagement = () => {
 
     const handleDeleteProject = async (id, name, force = false, skipConfirm = false) => {
         const msg = force ? '確定要解除所有綁定並強制刪除嗎？' : `確定要刪除旅程「${name}」嗎？相關排程也可能受到影響。`;
-        if (skipConfirm || window.confirm(msg)) {
+        let isConfirmed = false;
+        if (skipConfirm) {
+            isConfirmed = true;
+        } else {
+            const confirmResult = await Swal.fire({
+                title: '確定刪除',
+                text: msg,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ff4d4d',
+                cancelButtonColor: '#555',
+                confirmButtonText: '確定刪除',
+                cancelButtonText: '取消',
+                background: '#1E1E1E',
+                color: '#fff'
+            });
+            isConfirmed = confirmResult.isConfirmed;
+        }
+
+        if (isConfirmed) {
             try {
                 updateTask({ isProcessing: true, processingMessage: force ? `正在解除綁定並刪除旅程「${name}」...` : `正在刪除旅程「${name}」...` });
                 const endpoint = force ? `/projects/${id}?force=true` : `/projects/${id}`;
@@ -906,7 +937,14 @@ const ProjectsManagement = () => {
                     const deps = err.response.data.dependencies || [];
                     const depText = deps.length > 0 ? `\n${deps.map(d => `• ${d}`).join('\n')}` : '';
                     const alertMsg = `⚠️ 無法刪除旅程「${name}」\n\n目前仍有以下項目與此旅程綁定：${depText}\n\n為防止誤刪正在運作中的功能，請先至對應功能解除綁定後，再執行刪除操作。`;
-                    window.alert(alertMsg);
+                    Swal.fire({
+                        title: '無法刪除',
+                        text: alertMsg,
+                        icon: 'error',
+                        confirmButtonColor: '#F3B32A',
+                        background: '#1E1E1E',
+                        color: '#fff'
+                    });
                     return;
                 }
                 showToast('刪除失敗: ' + (err.response?.data?.message || err.message), 'error');
@@ -1020,7 +1058,19 @@ const ProjectsManagement = () => {
     };
 
     const handleDeleteSchedule = async (id) => {
-        if (window.confirm('確定要刪除此排程嗎？')) {
+        const confirmResult = await Swal.fire({
+            title: '確定刪除',
+            text: '確定要刪除此排程嗎？',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ff4d4d',
+            cancelButtonColor: '#555',
+            confirmButtonText: '確定刪除',
+            cancelButtonText: '取消',
+            background: '#1E1E1E',
+            color: '#fff'
+        });
+        if (confirmResult.isConfirmed) {
             await api.delete(`/schedules/${id}`);
             // Invalidate cache for current project
             delete schedulesCacheRef.current[selectedProjectId];

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Swal from 'sweetalert2';
 import { useParams, useNavigate } from 'react-router-dom';
 import api, { hasCachedApiResponse } from '../api';
 import {
@@ -544,11 +545,23 @@ function RichMenu() {
         }
     };
 
-    const handleOpenPublishModal = () => {
+    const handleOpenPublishModal = async () => {
         if (viewOnly) return;
         if (!validateCurrentGroup(true)) return;
         
-        if (window.confirm('確定要發佈至 LINE 嗎？發佈後內容將鎖定無法再次編輯。')) {
+        const confirmResult = await Swal.fire({
+            title: '確定發佈',
+            text: '確定要發佈至 LINE 嗎？發佈後內容將鎖定無法再次編輯。',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#F3B32A',
+            cancelButtonColor: '#555',
+            confirmButtonText: '確定發佈',
+            cancelButtonText: '取消',
+            background: '#1E1E1E',
+            color: '#fff'
+        });
+        if (confirmResult.isConfirmed) {
             publishGroupToLine();
         }
     };
@@ -672,7 +685,21 @@ function RichMenu() {
     
     const deleteMenu = async (id, name, isMetadata = false, force = false, skipConfirm = false) => {
         const msg = force ? '確定要解除所有綁定並強制刪除嗎？' : `確定要刪除「${name}」嗎？`;
-        if (!skipConfirm && !window.confirm(msg)) return;
+        if (!skipConfirm) {
+            const confirmResult = await Swal.fire({
+                title: '確定刪除',
+                text: msg,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ff4d4d',
+                cancelButtonColor: '#555',
+                confirmButtonText: '確定刪除',
+                cancelButtonText: '取消',
+                background: '#1E1E1E',
+                color: '#fff'
+            });
+            if (!confirmResult.isConfirmed) return;
+        }
         setLoading(true);
         try {
             const endpoint = isMetadata 
@@ -793,7 +820,19 @@ function RichMenu() {
     };
 
     const handleClearAll = async () => {
-        if (!window.confirm('確定要清除所有的圖文選單嗎？這將會移除全域預設選單，並解除所有用戶的個別綁定。')) return;
+        const confirmResult = await Swal.fire({
+            title: '確定清除',
+            text: '確定要清除所有的圖文選單嗎？這將會移除全域預設選單，並解除所有用戶的個別綁定。',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ff4d4d',
+            cancelButtonColor: '#555',
+            confirmButtonText: '確定清除',
+            cancelButtonText: '取消',
+            background: '#1E1E1E',
+            color: '#fff'
+        });
+        if (!confirmResult.isConfirmed) return;
         setLoading(true);
         try {
             await api.post('/richmenu/clear-all');

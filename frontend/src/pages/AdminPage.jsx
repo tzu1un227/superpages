@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Swal from 'sweetalert2';
 import {
     Box,
     Typography,
@@ -160,7 +161,19 @@ function AdminPage() {
     };
 
     const handleDeleteUser = async (id) => {
-        if (window.confirm("確認刪除用戶?")) {
+        const confirmResult = await Swal.fire({
+            title: '確定刪除',
+            text: '確認刪除用戶?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ff4d4d',
+            cancelButtonColor: '#555',
+            confirmButtonText: '確定刪除',
+            cancelButtonText: '取消',
+            background: '#1E1E1E',
+            color: '#fff'
+        });
+        if (confirmResult.isConfirmed) {
             try {
                 await api.delete(`/admin/users/${id}`, { headers: { Authorization: `Bearer ${token}` } });
                 fetchData();
@@ -240,7 +253,19 @@ function AdminPage() {
     };
 
     const handleDeleteOA = async (id) => {
-        if (window.confirm("確認刪除 OA 設定?")) {
+        const confirmResult = await Swal.fire({
+            title: '確定刪除',
+            text: '確認刪除 OA 設定?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ff4d4d',
+            cancelButtonColor: '#555',
+            confirmButtonText: '確定刪除',
+            cancelButtonText: '取消',
+            background: '#1E1E1E',
+            color: '#fff'
+        });
+        if (confirmResult.isConfirmed) {
             try {
                 await api.delete(`/admin/oa_configs/${id}`, { headers: { Authorization: `Bearer ${token}` } });
                 fetchData();

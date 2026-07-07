@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import Swal from 'sweetalert2';
 import { useParams } from 'react-router-dom';
 import api from '../api';
 import { 
@@ -615,7 +616,19 @@ function RuleDesigner() {
             
             const isDuplicate = draftRules.some((r, i) => i !== index && r.note && r.note.trim() === currentNote);
             if (isDuplicate) {
-                if (!window.confirm(`關鍵字名稱「${currentNote}」已經存在，為了方便後台管理，建議不要重複。\n是否仍要強制儲存？`)) {
+                const confirmResult = await Swal.fire({
+                    title: '重複名稱',
+                    text: `關鍵字名稱「${currentNote}」已經存在，為了方便後台管理，建議不要重複。\n是否仍要強制儲存？`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#F3B32A',
+                    cancelButtonColor: '#555',
+                    confirmButtonText: '強制儲存',
+                    cancelButtonText: '取消',
+                    background: '#1E1E1E',
+                    color: '#fff'
+                });
+                if (!confirmResult.isConfirmed) {
                     return;
                 }
             }
@@ -705,7 +718,19 @@ function RuleDesigner() {
         }
 
         const itemName = ruleTarget.tag || ruleTarget.note || ruleTarget.id;
-        if (!window.confirm(`確定要刪除「${itemName}」嗎？`)) return;
+        const confirmResult = await Swal.fire({
+            title: '確定刪除',
+            text: `確定要刪除「${itemName}」嗎？`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ff4d4d',
+            cancelButtonColor: '#555',
+            confirmButtonText: '確定刪除',
+            cancelButtonText: '取消',
+            background: '#1E1E1E',
+            color: '#fff'
+        });
+        if (!confirmResult.isConfirmed) return;
         setLoading(true);
         showToast(`正在刪除「${itemName}」...`, 'info');
         try {

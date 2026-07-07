@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import Swal from 'sweetalert2';
 import {
   Alert,
   Box,
@@ -344,7 +345,19 @@ export default function Questionnaire() {
   };
 
   const handleDelete = async (survey) => {
-    if (!window.confirm(`確定刪除「${survey.title}」？作答資料也會一起刪除。`)) return;
+    const confirmResult = await Swal.fire({
+        title: '確定刪除',
+        text: `確定刪除「${survey.title}」？作答資料也會一起刪除。`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ff4d4d',
+        cancelButtonColor: '#555',
+        confirmButtonText: '確定刪除',
+        cancelButtonText: '取消',
+        background: '#1E1E1E',
+        color: '#fff'
+    });
+    if (!confirmResult.isConfirmed) return;
     try {
       await api.delete(`/liff-questionnaires/${survey.survey_key}`, authHeaders);
       showToast('問卷已刪除', 'success');

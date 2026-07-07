@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Swal from 'sweetalert2';
 import { useLocation, useParams } from 'react-router-dom';
 import api from '../api';
 import {
@@ -419,7 +420,19 @@ function BroadcastContent() {
     };
 
     const handleDelete = async (id, name) => {
-        if (!window.confirm(`確定要刪除群發紀錄「${name}」嗎？（若為預約中，排程也將一併移除）`)) return;
+        const confirmResult = await Swal.fire({
+            title: '確定刪除',
+            text: `確定要刪除群發紀錄「${name}」嗎？（若為預約中，排程也將一併移除）`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ff4d4d',
+            cancelButtonColor: '#555',
+            confirmButtonText: '確定刪除',
+            cancelButtonText: '取消',
+            background: '#1E1E1E',
+            color: '#fff'
+        });
+        if (!confirmResult.isConfirmed) return;
         setDeletingId(id);
         try {
             await api.delete(`/broadcast/${id}`);
@@ -830,11 +843,23 @@ function BroadcastContent() {
                                     className={msg.OTYPE === type.id ? 'primary' : 'secondary'}
                                     disabled={(formData.status === 'sent' || formData.status === 'scheduled')}
                                     style={{ flex: 1, padding: '8px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', opacity: (formData.status === 'sent' || formData.status === 'scheduled') ? 0.7 : 1 }}
-                                    onClick={() => {
+                                    onClick={async () => {
                                         const currentMsg = formData.messages[idx];
                                         const hasContent = currentMsg.text || currentMsg.original_content_url || (currentMsg.contents && currentMsg.contents.type);
                                         if (hasContent && currentMsg.OTYPE !== type.id) {
-                                            if (!window.confirm("確定要切換訊息類別嗎？目前輸入的內容將會遺失。")) {
+                                            const confirmResult = await Swal.fire({
+                                                title: '確定切換',
+                                                text: '確定要切換訊息類別嗎？目前輸入的內容將會遺失。',
+                                                icon: 'warning',
+                                                showCancelButton: true,
+                                                confirmButtonColor: '#ff4d4d',
+                                                cancelButtonColor: '#555',
+                                                confirmButtonText: '確定',
+                                                cancelButtonText: '取消',
+                                                background: '#1E1E1E',
+                                                color: '#fff'
+                                            });
+                                            if (!confirmResult.isConfirmed) {
                                                 return;
                                             }
                                         }

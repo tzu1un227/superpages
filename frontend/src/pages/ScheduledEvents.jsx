@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Swal from 'sweetalert2';
 import { useLocation } from 'react-router-dom';
 import api from '../api';
 import { Clock, Plus, Trash2, Send, Calendar } from 'lucide-react';
@@ -54,7 +55,19 @@ function ScheduledEvents() {
     };
 
     const handleDeleteEvent = async (id) => {
-        if (!window.confirm('確定要刪除此定時事件嗎？')) return;
+        const confirmResult = await Swal.fire({
+            title: '確定刪除',
+            text: '確定要刪除此定時事件嗎？',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ff4d4d',
+            cancelButtonColor: '#555',
+            confirmButtonText: '確定刪除',
+            cancelButtonText: '取消',
+            background: '#1E1E1E',
+            color: '#fff'
+        });
+        if (!confirmResult.isConfirmed) return;
         try {
             await api.delete(`/scheduled-events/${id}`);
             fetchEvents();
