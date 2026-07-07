@@ -2091,7 +2091,7 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                     AudioSendMessage: '聲音'
                 };
                 if (firstMsg.OTYPE === 'TextSendMessage') previewText = firstMsg.text;
-                else if (firstMsg.OTYPE === 'FlexSendMessage') previewText = (firstMsg.alt_text === 'Flex Message' || !firstMsg.alt_text) ? '[圖文]' : `[圖文] ${firstMsg.alt_text}`;
+                else if (firstMsg.OTYPE === 'FlexSendMessage') previewText = '[圖文]';
                 else previewText = `[${typeLabels[firstMsg.OTYPE] || firstMsg.OTYPE.replace('SendMessage', '')}]`;
             }
             onSave(tag, previewText, payloadMessages.length > 1);
