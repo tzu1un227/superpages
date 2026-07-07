@@ -1144,12 +1144,25 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
         else:
             user_ids = [uid for uid in user_ids if is_valid_uid(uid)]
         print(f"DEBUG: bulk_check_and_update_rich_menu | processing {len(user_ids)} users. user_tags size: {len(user_tags)}")
+        # Fetch current user rich_menu
+        user_current_menu = {}
+        if user_ids:
+            tenant_cur.execute(f"SELECT user_id, value FROM {t_private} WHERE name = 'rich_menu' AND user_id = ANY(%s)", (user_ids,))
+            for r in tenant_cur.fetchall():
+                user_current_menu[r['user_id']] = r['value']
+        
+        restricted_menu_ids = {m['rich_menu_id'] for m in menu_tag_map}
                 
         # 3. Determine target rich menu for each user
         user_to_menu = {}
         users_to_unlink = []
         
         for uid in user_ids:
+            curr = user_current_menu.get(uid)
+            if curr and curr not in restricted_menu_ids:
+                # User has a manual link to a non-restricted menu. Skip tag logic and do not unlink.
+                continue
+                
             tags = user_tags.get(uid, set())
             assigned = False
             if tags:

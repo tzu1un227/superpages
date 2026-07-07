@@ -859,7 +859,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                                                 style={{ width: '100%', padding: '8px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '4px' }}
                                             >
                                                 <option value="">不設定</option>
-                                                {menus.map(m => (
+                                                {menus.filter(m => !m.end_time || new Date(m.end_time) > new Date()).map(m => (
                                                     <option 
                                                         key={m.richMenuId || m.rich_menu_id || m.id} 
                                                         value={m.ui_uuid || ''}
@@ -964,7 +964,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                                                             style={{ width: '100%', padding: '8px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '4px' }}
                                                         >
                                                             <option value="">不設定</option>
-                                                            {menus.map(m => (
+                                                            {menus.filter(m => !m.end_time || new Date(m.end_time) > new Date()).map(m => (
                                                                 <option 
                                                                     key={m.richMenuId || m.rich_menu_id || m.id} 
                                                                     value={m.ui_uuid || ''}

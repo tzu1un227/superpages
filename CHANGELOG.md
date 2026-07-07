@@ -1,3 +1,8 @@
+## [2026-07-07] 圖文選單錯誤修復 (Issue #19) - Part 2
+- **前端 (rontend/src/components/FlexMessageEditor.jsx)**: 在 Flex 訊息編輯器的圖片點擊與按鈕點擊下拉選單中，加上過濾已過期圖文選單的邏輯。
+- **後端 (ackend/endpoints/richmenu.py)**: 修正 ulk_check_and_update_rich_menu 在定期檢查時，會強制解除「手動切換至非受限選單」用戶綁定的 Bug，藉由比對用戶當前的 
+ich_menu 狀態來跳過手動設定的用戶。
+
 ## [2026-07-07] 圖文選單錯誤修復 (Issue #19)
 - **前端 (rontend/src/pages/RichMenu.jsx)**: 修正排程圖文選單預設黃框提早顯示的問題；在觸發後動作的下拉選單中過濾已過期的圖文選單。
 - **前端 (rontend/src/pages/RuleDesigner.jsx)**: 過濾已過期的圖文選單，確保規則編輯時無法選擇已過期的選單作為觸發目標。
