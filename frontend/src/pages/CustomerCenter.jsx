@@ -34,6 +34,9 @@ const CustomerCenter = () => {
   const [sidebarDetails, setSidebarDetails] = useState({ projects: [], rich_menu: null, loading: false });
   const [sidebarTagInput, setSidebarTagInput] = useState([]);
 
+  const [hasMoreCustomers, setHasMoreCustomers] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
   const navigate = useNavigate();
   const { oaId } = useParams();
   const { showToast } = useToast();
@@ -43,20 +46,39 @@ const CustomerCenter = () => {
     try {
       const response = await api.get('/customers?limit=100&offset=0');
       setCustomers(response.data);
-      
-      // 若數量滿 100 筆，表示可能還有更多資料，在背景繼續載入剩餘的
-      if (response.data.length === 100) {
-        api.get('/customers?offset=100').then(res => {
-          if (res.data && res.data.length > 0) {
-            setCustomers(prev => [...prev, ...res.data]);
-          }
-        }).catch(e => console.error('Background fetch failed:', e));
-      }
+      setHasMoreCustomers(response.data.length === 100);
     } catch (error) {
       console.error('Error fetching customers:', error);
       showToast('無法取得客戶名單', 'error');
     } finally {
       if (!silent) setIsLoading(false);
+    }
+  };
+
+  const loadMoreCustomers = async () => {
+    if (isLoadingMore || !hasMoreCustomers) return;
+    setIsLoadingMore(true);
+    try {
+      const currentOffset = customers.length;
+      const response = await api.get(`/customers?limit=100&offset=${currentOffset}`);
+      if (response.data && response.data.length > 0) {
+        setCustomers(prev => {
+          const newCustomers = response.data.filter(c => !prev.some(p => p.user_id === c.user_id));
+          return [...prev, ...newCustomers];
+        });
+      }
+      setHasMoreCustomers(response.data.length === 100);
+    } catch (error) {
+      console.error('Error loading more customers:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  const handleTableScroll = (e) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.target;
+    if (scrollHeight - scrollTop - clientHeight < 100) {
+      loadMoreCustomers();
     }
   };
 
@@ -137,7 +159,7 @@ const CustomerCenter = () => {
       fetchDetails();
     } else {
       setSidebarDetails({ projects: [], rich_menu: null, loading: false });
-      setSidebarTagInput('');
+      setSidebarTagInput([]);
     }
   }, [selectedCustomerForSidebar]);
 
@@ -596,7 +618,7 @@ const CustomerCenter = () => {
 
   const renderCustomersTable = () => (
     <div style={{ backgroundColor: '#222', borderRadius: '12px', overflow: 'hidden', border: '1px solid #333' }}>
-      <div style={{ overflowX: 'auto', maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
+      <div style={{ overflowX: 'auto', maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }} onScroll={handleTableScroll}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#fff' }}>
           <thead>
             <tr style={{ backgroundColor: '#2A2A2A', borderBottom: '1px solid #444' }}>

@@ -315,7 +315,7 @@ def _merge_user_tags(conn, app_id, user_id, tags):
             existing = [item.strip() for item in str(row[0]).strip("[]").replace("'", "").split(",") if item.strip()]
     merged = list(dict.fromkeys(existing + tags))
     cur.execute(f'DELETE FROM "{table}" WHERE user_id = %s AND name = %s', (user_id, "tag"))
-    cur.execute(f'INSERT INTO "{table}" (user_id, name, value) VALUES (%s, %s, %s)', (user_id, "tag", str(merged)))
+    cur.execute(f'INSERT INTO "{table}" (user_id, name, value) VALUES (%s, %s, %s)', (user_id, "tag", json.dumps(merged, ensure_ascii=False)))
     cur.close()
 
 

@@ -275,3 +275,8 @@ ame èˆ‡ picã€‚
 - æ–°å¢: \save_rich_menu_metadata\ èˆ‡ \set_default_rich_menu\ ä¸­åŠ å…¥æ™‚é–“é‡ç–Šé˜²å‘†æª¢æŸ¥ï¼Œç•¶è¨­å®šæ’ç¨‹é è¨­æ™‚è‹¥æ™‚é–“èˆ‡å…¶ä»–é è¨­æ’ç¨‹é‡ç–Šï¼Œå°‡å›å‚³ 400 éŒ¯èª¤ã€‚
 - è®Šæ›´: \check_and_apply_scheduled_rich_menus\ åŠ å…¥äº†éæœŸè‡ªå‹•é™ç´šæ©Ÿåˆ¶ï¼Œæ™‚é–“éæœŸçš„é è¨­é¸å–®æœƒè‡ªå‹•æ›´æ–°ç‚º \published\ã€‚
 - è®Šæ›´: \rontend/src/pages/RichMenu.jsx\ å‹•æ…‹åˆ¤æ–· UI ä¸Šå“ªä¸€å¼µé¸å–®æ‡‰è©²è¢«æ¨™ç¤ºç‚ºã€Œé è¨­ã€ã€‚ç¾åœ¨æœƒæ¯”å°æ’ç¨‹æ™‚é–“èˆ‡ç›®å‰æ™‚é–“ï¼Œæœªåˆ°é”æ™‚é–“çš„é¡¯ç¤ºç‚ºã€Œæ’ç¨‹å¾…ç”Ÿæ•ˆã€ã€‚
+
+## [2026-07-07] Customer Center UI Fixes & LIFF Tag Format
+- ­×¥¿ CustomerCenter.jsx ¥k°¼¸ê°TÄæÃö³¬®É¡A¦]¼ĞÅÒ°}¦C³Q»~³]¬°ªÅ¦r¦ê¦Ó¾É­P«eºİµe­±±Y¼ì (¶Âµe­±) ªº°İÃD¡C
+- ¬° CustomerCenter.jsx ªº«È¤á¦W³æ¦Cªí¹ê§@ onScroll ¨Æ¥ó¡A·í¨Ï¥ÎªÌºu°Ê¨ì©³³¡®É¦Û°ÊÄ²µo«ùÄò¸ü¤J³Ñ¾lªº¦W³æ (Infinite Scroll)¡C
+- ­×¥¿ liff_questionnaire.py ¼g¤J°İ¨÷¼ĞÅÒ¦Ü Private_var ¸ê®Æªí®É¡A¿ù»~¨Ï¥Î str() ¾É­P¥D¨t²ÎµLªk¥Î json.loads ¥¿½T¸ÑªRªº Bug¡F¤w§ï¬°²Î¤@¨Ï¥Î json.dumps(..., ensure_ascii=False) ¶i¦æÀx¦s¡C
