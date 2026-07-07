@@ -2085,9 +2085,14 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
             const firstMsg = payloadMessages[0];
             let previewText = '';
             if (firstMsg) {
+                const typeLabels = {
+                    ImageSendMessage: '圖片',
+                    VideoSendMessage: '影片',
+                    AudioSendMessage: '聲音'
+                };
                 if (firstMsg.OTYPE === 'TextSendMessage') previewText = firstMsg.text;
-                else if (firstMsg.OTYPE === 'FlexSendMessage') previewText = firstMsg.alt_text || 'Flex Message';
-                else previewText = `[${firstMsg.OTYPE.replace('SendMessage', '')}]`;
+                else if (firstMsg.OTYPE === 'FlexSendMessage') previewText = (firstMsg.alt_text === 'Flex Message' || !firstMsg.alt_text) ? '[圖文]' : `[圖文] ${firstMsg.alt_text}`;
+                else previewText = `[${typeLabels[firstMsg.OTYPE] || firstMsg.OTYPE.replace('SendMessage', '')}]`;
             }
             onSave(tag, previewText, payloadMessages.length > 1);
             onClose();
@@ -2115,7 +2120,7 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
             newMsg.original_content_url = '';
             newMsg.duration = 1000;
         } else if (newType === 'FlexSendMessage') {
-            newMsg.alt_text = 'Flex Message';
+            newMsg.alt_text = '圖文';
             newMsg.contents = '{}';
         }
         newMsgs[index] = newMsg;
