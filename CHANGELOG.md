@@ -1,3 +1,8 @@
+## [2026-07-07] åœ–æ–‡é¸å–®éŒ¯èª¤ä¿®å¾© (Issue #19)
+- **å‰ç«¯ (rontend/src/pages/RichMenu.jsx)**: ä¿®æ­£æ’ç¨‹åœ–æ–‡é¸å–®é è¨­é»ƒæ¡†ææ—©é¡¯ç¤ºçš„å•é¡Œï¼›åœ¨è§¸ç™¼å¾Œå‹•ä½œçš„ä¸‹æ‹‰é¸å–®ä¸­éæ¿¾å·²éæœŸçš„åœ–æ–‡é¸å–®ã€‚
+- **å‰ç«¯ (rontend/src/pages/RuleDesigner.jsx)**: éæ¿¾å·²éæœŸçš„åœ–æ–‡é¸å–®ï¼Œç¢ºä¿è¦å‰‡ç·¨è¼¯æ™‚ç„¡æ³•é¸æ“‡å·²éæœŸçš„é¸å–®ä½œç‚ºè§¸ç™¼ç›®æ¨™ã€‚
+- **å¾Œç«¯ (ackend/endpoints/richmenu.py)**: ä¿®æ­£å®šæœŸåˆ·æ–°é è¨­åœ–æ–‡é¸å–®æ™‚ï¼Œä½¿ç”¨ ulk_link_all_users å°è‡´è¦†è“‹å€‹äººè¨­å®šçš„ Bugã€‚
+
 ## [2026-06-30] åœ–æ–‡é¸å–®é è¨­æ¨™è¨˜é¡¯ç¤ºä¿®å¾©èˆ‡è³‡æ–™åº«åŒæ­¥ä¿®æ­£
 - **å‰ç«¯ (`frontend/src/pages/RichMenu.jsx`)**: ä¿®æ­£æ–°å¢ hidden ç­–ç•¥çš„åœ–æ–‡é¸å–®å¾Œï¼Œå› çŸ­æ™‚é–“å¤§é‡è«‹æ±‚å°è‡´å¿«å–æ›´æ–°ç•°å¸¸æˆ– LINE API æš«æ™‚æœªå›å‚³é è¨­ç‹€æ…‹æ™‚ï¼ŒåŸæœ‰é è¨­é¸å–®é»ƒè‰²æ¨™è¨˜æ¶ˆå¤±çš„å•é¡Œã€‚å°‡è³‡æ–™åº« metadata ä¸­ç‹€æ…‹ç‚º `default` (æˆ–èˆŠç‰ˆ `public`) çš„åœ–æ–‡é¸å–® ID ä¹Ÿä¸€ä½µç´å…¥ `defaultMenuIds` çš„åˆ¤å®šï¼Œé›™é‡ç¢ºä¿é è¨­æ¨™è¨˜çš„ç©©å®šé¡¯ç¤ºã€‚
 - **å¾Œç«¯ (`backend/endpoints/richmenu.py`)**: ä¿®æ­£äº†é»æ“Šåˆ—è¡¨çš„ã€Œè¨­ç‚ºå…¨åŸŸé è¨­é¸å–®ã€æŒ‰éˆ•æ™‚ï¼Œå›  `oa_id` è®Šæ•¸æœªå®šç¾©å°è‡´è³‡æ–™åº« (`Global_var` å’Œ `rich_menu_metadata`) ç„¡æ³•æ­£ç¢ºæ›´æ–°é è¨­ç‹€æ…‹çš„ Bugã€‚
@@ -277,9 +282,9 @@ ame èˆ‡ picã€‚
 - è®Šæ›´: \rontend/src/pages/RichMenu.jsx\ å‹•æ…‹åˆ¤æ–· UI ä¸Šå“ªä¸€å¼µé¸å–®æ‡‰è©²è¢«æ¨™ç¤ºç‚ºã€Œé è¨­ã€ã€‚ç¾åœ¨æœƒæ¯”å°æ’ç¨‹æ™‚é–“èˆ‡ç›®å‰æ™‚é–“ï¼Œæœªåˆ°é”æ™‚é–“çš„é¡¯ç¤ºç‚ºã€Œæ’ç¨‹å¾…ç”Ÿæ•ˆã€ã€‚
 
 ## [2026-07-07] Customer Center UI Fixes & LIFF Tag Format
-- ­×¥¿ CustomerCenter.jsx ¥k°¼¸ê°TÄæÃö³¬®É¡A¦]¼ĞÅÒ°}¦C³Q»~³]¬°ªÅ¦r¦ê¦Ó¾É­P«eºİµe­±±Y¼ì (¶Âµe­±) ªº°İÃD¡C
-- ¬° CustomerCenter.jsx ªº«È¤á¦W³æ¦Cªí¹ê§@ onScroll ¨Æ¥ó¡A·í¨Ï¥ÎªÌºu°Ê¨ì©³³¡®É¦Û°ÊÄ²µo«ùÄò¸ü¤J³Ñ¾lªº¦W³æ (Infinite Scroll)¡C
-- ­×¥¿ liff_questionnaire.py ¼g¤J°İ¨÷¼ĞÅÒ¦Ü Private_var ¸ê®Æªí®É¡A¿ù»~¨Ï¥Î str() ¾É­P¥D¨t²ÎµLªk¥Î json.loads ¥¿½T¸ÑªRªº Bug¡F¤w§ï¬°²Î¤@¨Ï¥Î json.dumps(..., ensure_ascii=False) ¶i¦æÀx¦s¡C
+- ×¥ CustomerCenter.jsx kTÉ¡A]Ò°}CQ~]Å¦rÓ¾É­PeİµeY (Âµe) DC
+-  CustomerCenter.jsx È¤WC@ onScroll Æ¥AÏ¥ÎªÌºuÊ¨ì©³É¦Û°Ä²oJÑ¾lW (Infinite Scroll)C
+- ×¥ liff_questionnaire.py gJİ¨Ò¦ Private_var ÆªÉ¡A~Ï¥ str() É­PDtÎµLk json.loads TÑªR BugFwï¬°Î¤@Ï¥ json.dumps(..., ensure_ascii=False) ixsC
 
 ## [2026-07-07] Customer Center Background Loading Fix
-- ­×¥¿¡G±N CustomerCenter.jsx ªº Infinite Scroll §ï¦^**­I´º¤À§å«ùÄò¸ü¤J (Chunked Background Fetch)**¡C¦]¬°«eºİ·j´M¬O°ò©ó¤w¸g¸ü¤J¦b°O¾ĞÅé¤¤ªº°}¦C¡A¦pªG¬O»İ­n©¹¤Uºu°Ê¤~¸ü¤J¡]Infinite Scroll¡^¡A·|¾É­P©|¥¼¸ü¤Jªº¨Ï¥ÎªÌ¦b·j´M®ÉµLªk³Q§ä¨ì¡C²{¦b·|¦bªì¦¸¶i¤J®É¦Û°Ê¤À§å¸ü¤J©Ò¦³¸ê®Æª½¨ì§¹²¦¡A½T«O·j´M¥\¯à¥i¥H§ä¨ì¥ş³¡ªº¥Î¤á¡C
+- ×¥GN CustomerCenter.jsx  Infinite Scroll ^**IJ (Chunked Background Fetch)**C]eİ·jMOwgJbOé¤¤}CApGOİ­nUuÊ¤~J]Infinite Scroll^A|É­P|JÏ¥ÎªÌ¦bjMÉµLkQC{b|bì¦¸iJÉ¦Û°Ê¤JÒ¦Æªì§¹ATOjM\iHÎ¤C

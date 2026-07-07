@@ -1274,12 +1274,12 @@ function RichMenu() {
                                                 <option value="">請選擇要切換的圖文選單</option>
                                                 <optgroup label="本次編輯群組">
                                                     <option value="create_and_switch" style={{ color: '#4CAF50', fontWeight: 'bold' }}>+ 建立新選單並設定切換</option>
-                                                    {currentGroup.filter(g => g.ui_uuid !== currentMenu.ui_uuid).map(g => (
+                                                    {currentGroup.filter(g => g.ui_uuid !== currentMenu.ui_uuid && (!g.end_time || new Date(g.end_time) > new Date())).map(g => (
                                                         <option key={g.ui_uuid} value={`switch_rm|${g.ui_uuid}`}>{g.name || `草稿 ${currentGroup.indexOf(g)+1}`}</option>
                                                     ))}
                                                 </optgroup>
                                                 <optgroup label="其他圖文選單">
-                                                    {metadata.filter(m => m.ui_uuid && m.group_id !== currentGroup[0]?.group_id).map(m => (
+                                                    {metadata.filter(m => m.ui_uuid && m.group_id !== currentGroup[0]?.group_id && (!m.end_time || new Date(m.end_time) > new Date())).map(m => (
                                                         <option key={m.ui_uuid} value={`switch_rm|${m.ui_uuid}`}>{m.name}</option>
                                                     ))}
                                                 </optgroup>
@@ -1416,11 +1416,16 @@ function RichMenu() {
                                 const now = new Date();
                                 let activeDefaultId = null;
                                 const defaultMenus = oaMenus.filter(m => m.status === 'default' || m.status === 'public' || (m.rich_menu_id && defaultMenuIds.has(m.rich_menu_id)) || (m.richMenuId && defaultMenuIds.has(m.richMenuId)));
-                                const activeTimeLimited = defaultMenus.find(m => m.start_time && m.end_time && new Date(m.start_time) <= now && new Date(m.end_time) > now);
+                                const activeTimeLimited = defaultMenus.find(m => {
+                                    if (!m.start_time) return false;
+                                    const start = new Date(m.start_time);
+                                    const end = m.end_time ? new Date(m.end_time) : null;
+                                    return start <= now && (!end || end > now);
+                                });
                                 if (activeTimeLimited) {
                                     activeDefaultId = activeTimeLimited.rich_menu_id || activeTimeLimited.richMenuId || activeTimeLimited.id;
                                 } else {
-                                    const activePermanent = defaultMenus.find(m => !m.start_time && !m.end_time);
+                                    const activePermanent = defaultMenus.find(m => !m.start_time);
                                     if (activePermanent) {
                                         activeDefaultId = activePermanent.rich_menu_id || activePermanent.richMenuId || activePermanent.id;
                                     }

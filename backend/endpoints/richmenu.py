@@ -1278,10 +1278,9 @@ def check_and_apply_scheduled_rich_menus(app_name):
                 token = g.current_line_token
                 
                 if new_default_id:
-                    # Link new default to all users
+                    # Link new default to all users using LINE Set default API only (no bulk link to avoid overwriting individual links)
                     headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
                     requests.post(f'https://api.line.me/v2/bot/user/all/richmenu/{new_default_id}', headers=headers)
-                    bulk_link_all_users(headers, new_default_id)
                 else:
                     # Unlink default from all users (if there is no active default menu)
                     headers = {'Authorization': f'Bearer {token}'}

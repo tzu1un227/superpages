@@ -1039,7 +1039,7 @@ function RuleDesigner() {
                                                         style={{ width: '100%', padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }}
                                                     >
                                                         <option value="">-- 不切換圖文選單 --</option>
-                                                        {richMenusList.map(rm => (
+                                                        {richMenusList.filter(rm => !rm.end_time || new Date(rm.end_time) > new Date()).map(rm => (
                                                             <option 
                                                                 key={rm.ui_uuid || rm.richMenuId || rm.rich_menu_id || rm.id} 
                                                                 value={rm.ui_uuid || ''}
