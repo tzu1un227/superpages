@@ -2133,9 +2133,17 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                 </div>
                 <div style={{ flex: 1, display: 'flex', gap: '20px', overflow: 'hidden' }}>
                     <div style={{ width: '200px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
-                        {messages.map((m, i) => (
+                        {messages.map((m, i) => {
+                            const typeLabels = {
+                                TextSendMessage: '文字',
+                                ImageSendMessage: '圖片',
+                                VideoSendMessage: '影片',
+                                AudioSendMessage: '聲音',
+                                FlexSendMessage: '圖文訊息'
+                            };
+                            return (
                             <div key={i} onClick={() => setActiveMsgIndex(i)} style={{ padding: '10px', backgroundColor: activeMsgIndex === i ? '#444' : '#333', borderRadius: '8px', cursor: 'pointer', border: activeMsgIndex === i ? '1px solid var(--primary-yellow)' : '1px solid transparent', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '14px' }}>#{i + 1} {m.OTYPE.replace('SendMessage', '')}</span>
+                                <span style={{ fontSize: '14px' }}>#{i + 1} {typeLabels[m.OTYPE] || m.OTYPE.replace('SendMessage', '')}</span>
                                 {messages.length > 1 && (
                                     <Trash2 size={14} color="#FF4D4D" onClick={(e) => {
                                         e.stopPropagation();
@@ -2145,7 +2153,7 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                     }} />
                                 )}
                             </div>
-                        ))}
+                        )})}
                         {messages.length < 5 && <button onClick={() => { setMessages([...messages, createEmptyMsg()]); setActiveMsgIndex(messages.length); }} style={{ border: '1px dashed #666', background: 'transparent', padding: '10px', color: '#888' }}>+ 新增訊息</button>}
                     </div>
                     <div style={{ flex: 1, backgroundColor: '#333', borderRadius: '8px', padding: '20px', overflowY: 'auto' }}>
@@ -2158,7 +2166,7 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                         <option value="ImageSendMessage">圖片</option>
                                         <option value="VideoSendMessage">影片</option>
                                         <option value="AudioSendMessage">聲音</option>
-                                        <option value="FlexSendMessage">Flex 訊息</option>
+                                        <option value="FlexSendMessage">圖文訊息</option>
                                     </select>
                                 </div>
                                 {messages[activeMsgIndex].OTYPE === 'TextSendMessage' && (
