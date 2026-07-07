@@ -1,3 +1,6 @@
+## [2026-07-07] 圖文選單錯誤修復 (Issue #19) - Part 3
+- **後端 (ackend/endpoints/richmenu.py)**: 修正 /richmenu 與 /richmenu/all API 未包含 end_time 的問題，這導致前端 FlexMessageEditor (如自動旅程設定) 在嘗試過濾已結束的圖文選單時因缺少時間資料而失效。現在 API 已會同步回傳 end_time。
+
 ## [2026-07-07] 圖文選單錯誤修復 (Issue #19) - Part 2
 - **前端 (rontend/src/components/FlexMessageEditor.jsx)**: 在 Flex 訊息編輯器的圖片點擊與按鈕點擊下拉選單中，加上過濾已過期圖文選單的邏輯。
 - **後端 (ackend/endpoints/richmenu.py)**: 修正 ulk_check_and_update_rich_menu 在定期檢查時，會強制解除「手動切換至非受限選單」用戶綁定的 Bug，藉由比對用戶當前的 

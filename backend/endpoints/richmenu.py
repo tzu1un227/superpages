@@ -115,9 +115,12 @@ def list_rich_menus():
             if m_conn:
                 t_metadata = get_t('rich_menu_metadata')
                 m_cur = m_conn.cursor()
-                m_cur.execute(f"SELECT rich_menu_id, ui_uuid FROM {t_metadata} WHERE oa_id = %s AND rich_menu_id IS NOT NULL", (oa_id,))
+                m_cur.execute(f"SELECT rich_menu_id, ui_uuid, end_time FROM {t_metadata} WHERE oa_id = %s AND rich_menu_id IS NOT NULL", (oa_id,))
                 for r in m_cur.fetchall():
-                    metadata_map[r[0]] = r[1]
+                    metadata_map[r[0]] = {
+                        'ui_uuid': r[1],
+                        'end_time': r[2].isoformat() if r[2] else None
+                    }
                 m_cur.close()
                 m_conn.close()
         except Exception as e:
@@ -126,7 +129,9 @@ def list_rich_menus():
         for menu in menus:
             menu['status'] = 'default' if menu['richMenuId'] == default_id else 'none'
             menu['aliases'] = [a['richMenuAliasId'] for a in aliases if a['richMenuId'] == menu['richMenuId']]
-            menu['ui_uuid'] = metadata_map.get(menu['richMenuId'])
+            meta_info = metadata_map.get(menu['richMenuId'], {})
+            menu['ui_uuid'] = meta_info.get('ui_uuid')
+            menu['end_time'] = meta_info.get('end_time')
             
         return jsonify({
             'richmenus': menus,
@@ -181,9 +186,12 @@ def list_all_rich_menus():
                     if app_name:
                         t_metadata = f'"rich_menu_metadata:{app_name}"'
                         m_cur = m_conn.cursor()
-                        m_cur.execute(f"SELECT rich_menu_id, ui_uuid FROM {t_metadata} WHERE oa_id = %s AND rich_menu_id IS NOT NULL", (oa.id,))
+                        m_cur.execute(f"SELECT rich_menu_id, ui_uuid, end_time FROM {t_metadata} WHERE oa_id = %s AND rich_menu_id IS NOT NULL", (oa.id,))
                         for r in m_cur.fetchall():
-                            metadata_map[r[0]] = r[1]
+                            metadata_map[r[0]] = {
+                                'ui_uuid': r[1],
+                                'end_time': r[2].isoformat() if r[2] else None
+                            }
                         m_cur.close()
                     m_conn.close()
             except Exception as e:
@@ -194,7 +202,9 @@ def list_all_rich_menus():
                 menu['aliases'] = [a['richMenuAliasId'] for a in aliases if a['richMenuId'] == menu['richMenuId']]
                 menu['oa_id'] = oa.id
                 menu['oa_name'] = oa.oa_name
-                menu['ui_uuid'] = metadata_map.get(menu['richMenuId'])
+                meta_info = metadata_map.get(menu['richMenuId'], {})
+                menu['ui_uuid'] = meta_info.get('ui_uuid')
+                menu['end_time'] = meta_info.get('end_time')
             
             results.extend(menus)
         except Exception as e:
