@@ -616,7 +616,7 @@ const CustomerCenter = () => {
     <div style={{ backgroundColor: '#222', borderRadius: '12px', overflow: 'hidden', border: '1px solid #333' }}>
       <div style={{ overflowX: 'auto', maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#fff' }}>
-          <thead>
+          <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
             <tr style={{ backgroundColor: '#2A2A2A', borderBottom: '1px solid #444' }}>
               <th style={{ padding: '16px', width: '40px' }}>
                 <input 
@@ -765,7 +765,7 @@ const CustomerCenter = () => {
     <div style={{ backgroundColor: '#222', borderRadius: '12px', overflow: 'hidden', border: '1px solid #333' }}>
       <div style={{ overflowX: 'auto', maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#fff' }}>
-        <thead>
+        <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
           <tr style={{ backgroundColor: '#2A2A2A', borderBottom: '1px solid #444' }}>
             <th style={{ padding: '16px', fontWeight: '500', color: '#888' }}>客群名稱</th>
             <th style={{ padding: '16px', fontWeight: '500', color: '#888' }}>人數</th>
@@ -814,7 +814,7 @@ const CustomerCenter = () => {
   const renderTagsTable = () => (
     <div style={{ overflowX: 'auto', maxHeight: 'calc(100vh - 280px)', overflowY: 'auto', backgroundColor: '#222', borderRadius: '12px', border: '1px solid #333' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#fff' }}>
-        <thead>
+        <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
           <tr style={{ backgroundColor: '#2A2A2A', borderBottom: '1px solid #444' }}>
             <th style={{ padding: '16px', fontWeight: '500', color: '#888' }}>標籤名稱</th>
             <th style={{ padding: '16px', fontWeight: '500', color: '#888' }}>標記人數</th>
