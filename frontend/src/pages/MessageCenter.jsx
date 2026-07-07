@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import Swal from 'sweetalert2';
 import { useLocation } from 'react-router-dom';
 import api from '../api';
 import { Send, User, Info, Search, Tag, X, Image as ImageIcon, Mic, Video, Smile, ArrowDown, RefreshCw, MousePointerClick } from 'lucide-react';
@@ -905,7 +906,19 @@ function MessageCenter() {
 
     const handleDeleteTag = async (tagName) => {
         if (!selectedUser) return;
-        if (!window.confirm(`確定要刪除標籤「${tagName}」嗎？`)) return;
+        const confirmResult = await Swal.fire({
+            title: '確定刪除',
+            text: `確定要刪除標籤「${tagName}」嗎？`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ff4d4d',
+            cancelButtonColor: '#555',
+            confirmButtonText: '確定刪除',
+            cancelButtonText: '取消',
+            background: '#1E1E1E',
+            color: '#fff'
+        });
+        if (!confirmResult.isConfirmed) return;
 
         const userId = selectedUser;
 

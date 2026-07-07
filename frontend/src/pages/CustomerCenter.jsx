@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import Swal from 'sweetalert2';
 import { Search, Filter, Download, UserPlus, Users, Tag, Clock, Phone, Mail, MoreHorizontal, ArrowUpDown, ArrowUp, ArrowDown, X, MessageSquare, Plus, Edit2, Check } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../api';
@@ -286,7 +287,19 @@ const CustomerCenter = () => {
 
   const handleActionClick = async (action, item) => {
     if (action === '刪除客群') {
-      if (window.confirm(`確定要刪除客群「${item}」嗎？\n此操作將移除該客群的所有資訊，並解除所有使用者的客群綁定。`)) {
+      const confirmResult = await Swal.fire({
+        title: '確定刪除',
+        text: `確定要刪除客群「${item}」嗎？\n此操作將移除該客群的所有資訊，並解除所有使用者的客群綁定。`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ff4d4d',
+        cancelButtonColor: '#555',
+        confirmButtonText: '確定刪除',
+        cancelButtonText: '取消',
+        background: '#1E1E1E',
+        color: '#fff'
+      });
+      if (confirmResult.isConfirmed) {
         setIsProcessing(true);
         try {
           await api.delete(`/customers/groups/${encodeURIComponent(item)}`);
@@ -308,7 +321,19 @@ const CustomerCenter = () => {
       return;
     }
     if (action === '刪除標籤') {
-      if (window.confirm(`確定要刪除標籤「${item}」嗎？\n此操作將解除所有使用者的該標籤綁定。`)) {
+      const confirmResult = await Swal.fire({
+        title: '確定刪除',
+        text: `確定要刪除標籤「${item}」嗎？\n此操作將解除所有使用者的該標籤綁定。`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ff4d4d',
+        cancelButtonColor: '#555',
+        confirmButtonText: '確定刪除',
+        cancelButtonText: '取消',
+        background: '#1E1E1E',
+        color: '#fff'
+      });
+      if (confirmResult.isConfirmed) {
         setIsProcessing(true);
         try {
           await api.delete(`/customers/tags/${encodeURIComponent(item)}`);
@@ -538,7 +563,19 @@ const CustomerCenter = () => {
 
   const handleSidebarDeleteTag = async (tagName) => {
     if (!selectedCustomerForSidebar) return;
-    if (!window.confirm(`確定要刪除標籤「${tagName}」嗎？`)) return;
+    const confirmResult = await Swal.fire({
+      title: '確定刪除',
+      text: `確定要刪除標籤「${tagName}」嗎？`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ff4d4d',
+      cancelButtonColor: '#555',
+      confirmButtonText: '確定刪除',
+      cancelButtonText: '取消',
+      background: '#1E1E1E',
+      color: '#fff'
+    });
+    if (!confirmResult.isConfirmed) return;
     try {
       await api.post('/trigger', {
         user: selectedCustomerForSidebar.user_id,
@@ -562,7 +599,19 @@ const CustomerCenter = () => {
 
   const handleSidebarDeleteProject = async (projectId, projectName) => {
     if (!selectedCustomerForSidebar) return;
-    if (!window.confirm(`確定要將此用戶退出自動旅程「${projectName}」嗎？`)) return;
+    const confirmResult = await Swal.fire({
+      title: '確定退出',
+      text: `確定要將此用戶退出自動旅程「${projectName}」嗎？`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ff4d4d',
+      cancelButtonColor: '#555',
+      confirmButtonText: '確定退出',
+      cancelButtonText: '取消',
+      background: '#1E1E1E',
+      color: '#fff'
+    });
+    if (!confirmResult.isConfirmed) return;
     try {
       await api.delete(`/projects/${projectId}/users/${selectedCustomerForSidebar.user_id}`);
       showToast('已將用戶退出自動旅程', 'success');
@@ -579,7 +628,19 @@ const CustomerCenter = () => {
 
   const handleSidebarDeleteRichMenu = async () => {
     if (!selectedCustomerForSidebar) return;
-    if (!window.confirm(`確定要解除用戶的專屬圖文選單嗎？（將恢復為預設圖文選單）`)) return;
+    const confirmResult = await Swal.fire({
+      title: '確定解除',
+      text: '確定要解除用戶的專屬圖文選單嗎？（將恢復為預設圖文選單）',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ff4d4d',
+      cancelButtonColor: '#555',
+      confirmButtonText: '確定解除',
+      cancelButtonText: '取消',
+      background: '#1E1E1E',
+      color: '#fff'
+    });
+    if (!confirmResult.isConfirmed) return;
     try {
       await api.delete(`/customers/${selectedCustomerForSidebar.user_id}/richmenu`);
       showToast('已解除綁定圖文選單', 'success');
