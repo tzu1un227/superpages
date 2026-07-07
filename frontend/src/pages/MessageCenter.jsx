@@ -905,7 +905,7 @@ function MessageCenter() {
 
     const handleDeleteTag = async (tagName) => {
         if (!selectedUser) return;
-        if (!window.confirm(`確定要刪除標籤 [${tagName}] 嗎？`)) return;
+        if (!window.confirm(`確定要刪除標籤「${tagName}」嗎？`)) return;
 
         const userId = selectedUser;
 
@@ -928,7 +928,7 @@ function MessageCenter() {
                 type: 'Sensor',
                 api_index: 0
             });
-            showToast(`標籤 [${tagName}] 正在刪除中...`, 'success');
+            showToast(`標籤「${tagName}」正在刪除中...`, 'success');
             fetchAvailableTags(); // 立即重新整理標籤篩選清單
             
             // API 成功後，由 fetchUsers 根據護欄邏輯獲取最新狀態

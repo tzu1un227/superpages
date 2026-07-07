@@ -538,7 +538,7 @@ const CustomerCenter = () => {
 
   const handleSidebarDeleteTag = async (tagName) => {
     if (!selectedCustomerForSidebar) return;
-    if (!window.confirm(`確定要刪除標籤 [${tagName}] 嗎？`)) return;
+    if (!window.confirm(`確定要刪除標籤「${tagName}」嗎？`)) return;
     try {
       await api.post('/trigger', {
         user: selectedCustomerForSidebar.user_id,
@@ -546,7 +546,7 @@ const CustomerCenter = () => {
         type: 'Sensor',
         api_index: 0
       });
-      showToast(`標籤 [${tagName}] 正在刪除中...`, 'success');
+      showToast(`標籤「${tagName}」正在刪除中...`, 'success');
       // Update local state to reflect UI change immediately
       setSelectedCustomerForSidebar(prev => {
         const currentTags = Array.isArray(prev.tag) ? prev.tag : (prev.tag ? [prev.tag] : []);
@@ -562,7 +562,7 @@ const CustomerCenter = () => {
 
   const handleSidebarDeleteProject = async (projectId, projectName) => {
     if (!selectedCustomerForSidebar) return;
-    if (!window.confirm(`確定要將此用戶退出自動旅程 [${projectName}] 嗎？`)) return;
+    if (!window.confirm(`確定要將此用戶退出自動旅程「${projectName}」嗎？`)) return;
     try {
       await api.delete(`/projects/${projectId}/users/${selectedCustomerForSidebar.user_id}`);
       showToast('已將用戶退出自動旅程', 'success');

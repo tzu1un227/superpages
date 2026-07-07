@@ -1129,7 +1129,7 @@ function BroadcastContent() {
                         <span style={{ color: '#666', fontSize: '13px' }}>發送受眾</span>
                         <span style={{ fontWeight: 'bold' }}>
                             {formData.target_type === 'all' ? '全體好友' :
-                                formData.target_type === 'tag' ? `標籤 [${formData.target_value}]` :
+                                formData.target_type === 'tag' ? `標籤「${formData.target_value}」` :
                                     `${formData.selectedUsers.length} 位指定用戶`}
                         </span>
                     </div>
