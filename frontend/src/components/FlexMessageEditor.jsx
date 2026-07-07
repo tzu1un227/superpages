@@ -223,7 +223,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
             
             const parseTagsStr = (tagStr) => {
                 if (!tagStr) return [];
-                return tagStr.split(/[,|]/).map(t => t.replace(/^[\[\]'"]+|[\[\]'"]+$/g, '').trim()).filter(t => t);
+                return tagStr.split(/[,|]/).map(t => t.trim().replace(/^[\[\]'"]+|[\[\]'"]+$/g, '').trim()).filter(t => t);
             };
             
             if (payload.startsWith('sys_bind|')) {
