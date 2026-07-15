@@ -241,9 +241,9 @@ def create_rule():
         new_id = cur.fetchone()['id']
         
         # Dual-rule logic: create a corresponding 'sensor' rule for 'message' rules
-        if rule_data.get('category') == 'message':
+        if rule_data.get('type') == 'Message':
             sensor_rule_data = rule_data.copy()
-            sensor_rule_data['category'] = 'sensor'
+            sensor_rule_data['type'] = 'Sensor'
             sensor_fields = []
             sensor_placeholders = []
             sensor_values = []
@@ -332,7 +332,7 @@ def update_rule(rule_id):
                 values.append(value)
         
         # Fetch old rule to find corresponding sensor rule
-        cur.execute(f'SELECT category, msg_in, state_in FROM "{table_name}" WHERE id = %s', (rule_id,))
+        cur.execute(f'SELECT type, content, state_in FROM "{table_name}" WHERE id = %s', (rule_id,))
         old_rule = cur.fetchone()
 
         values.append(rule_id)
@@ -340,13 +340,13 @@ def update_rule(rule_id):
         cur.execute(sql, values)
         
         # Dual-rule logic: sync update to the corresponding 'sensor' rule
-        if old_rule and old_rule['category'] == 'message':
+        if old_rule and old_rule['type'] == 'Message':
             sensor_updates = []
             sensor_values = []
             for key, value in rule_data.items():
                 if key == 'id': continue
                 if key not in existing_cols: continue
-                if key == 'category': continue # Keep 'sensor'
+                if key == 'type': continue # Keep 'Sensor'
                 
                 if isinstance(value, list):
                     if key == 'msg_rpy':
@@ -359,11 +359,11 @@ def update_rule(rule_id):
                     sensor_updates.append(f"\"{key}\" = %s")
                     sensor_values.append(value)
                     
-            sensor_values.append('sensor')
-            sensor_values.append(old_rule['msg_in'])
+            sensor_values.append('Sensor')
+            sensor_values.append(old_rule['content'])
             sensor_values.append(old_rule['state_in'])
             
-            sensor_sql = f"UPDATE \"{table_name}\" SET {', '.join(sensor_updates)} WHERE category = %s AND msg_in = %s AND state_in = %s"
+            sensor_sql = f"UPDATE \"{table_name}\" SET {', '.join(sensor_updates)} WHERE type = %s AND content = %s AND state_in = %s"
             cur.execute(sensor_sql, sensor_values)
 
         conn.commit()
@@ -397,14 +397,14 @@ def delete_rule(rule_id):
             table_name = f"QA_bank:{app_id}"
         
         # Dual-rule logic: sync delete the corresponding 'sensor' rule
-        cur.execute(f'SELECT category, msg_in, state_in FROM "{table_name}" WHERE id = %s', (rule_id,))
+        cur.execute(f'SELECT type, content, state_in FROM "{table_name}" WHERE id = %s', (rule_id,))
         old_rule = cur.fetchone()
         
         cur.execute(f'DELETE FROM "{table_name}" WHERE id = %s', (rule_id,))
         
-        if old_rule and old_rule['category'] == 'message':
-            cur.execute(f'DELETE FROM "{table_name}" WHERE category = %s AND msg_in = %s AND state_in = %s', 
-                       ('sensor', old_rule['msg_in'], old_rule['state_in']))
+        if old_rule and old_rule['type'] == 'Message':
+            cur.execute(f'DELETE FROM "{table_name}" WHERE type = %s AND content = %s AND state_in = %s', 
+                       ('Sensor', old_rule['content'], old_rule['state_in']))
                        
         conn.commit()
         cur.close()

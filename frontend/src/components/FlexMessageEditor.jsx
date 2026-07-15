@@ -361,10 +361,10 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
         const buildAction = (type, val, bindData = { tag: [], journey: '', menu: '' }) => {
             if (type === 'none') return null;
 
-            const tagsStr = (bindData.tag && bindData.tag.length > 0) ? `[${bindData.tag.map(t => `'${t}'`).join(', ')}]` : '';
+            const tagsStr = (bindData.tag && bindData.tag.length > 0) ? `[${bindData.tag.map(t => `'${t}'`).join(', ')}]` : '[]';
             const journeyStr = bindData.journey || '';
             const menuStr = bindData.menu || '';
-            const hasBind = tagsStr || journeyStr || menuStr;
+            const hasBind = tagsStr !== '[]' || journeyStr || menuStr;
 
             if (type === 'uri') {
                 if (!val || !val.trim()) return { type: 'uri', label: 'action', uri: '' };

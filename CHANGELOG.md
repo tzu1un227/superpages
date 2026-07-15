@@ -1,3 +1,7 @@
+## [2026-07-15] 雙軌法則機制 Bug 修復 (Issue #31)
+- **修正 (backend/endpoints/rule_designer.py)**: 修正建立、刪除法則時，無法正確同步 Sensor 法則的問題 (原本誤用 category 與 msg_in 欄位，現已修正為 type 與 content 欄位)。
+- **修正 (frontend/src/components/FlexMessageEditor.jsx)**: 修正當按鈕未綁定標籤時產生的 sys_bind 格式會導致 Webhook 解析發生 SyntaxError 的問題，將空的標籤字串改為 []。
+
 ## [2026-07-15] 圖文訊息預覽與按鈕觸發機制修正 (Issue #31)
 - **修正 (frontend/src/components/FlexMessageEditor.jsx)**: 修正圖文訊息標題無法換行 (wrap: true) 與標題/說明文字間距過小的排版問題。
 - **修改 (frontend/src/components/FlexMessageEditor.jsx)**: 統一所有訊息按鈕的 Postback 格式為 sys_bind|...|實際文字，讓後端能有一致的解析格式。
