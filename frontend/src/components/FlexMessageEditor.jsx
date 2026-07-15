@@ -406,18 +406,10 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                 return { type: 'postback', label: 'action', data: '', displayText: '' };
             }
 
-            if (hasBind) {
-                return {
-                    type: 'postback',
-                    label: 'action',
-                    data: `sys_bind|${tagsStr}|${journeyStr}|${menuStr}|${val}`,
-                    displayText: val
-                };
-            }
             return {
                 type: 'postback',
                 label: 'action',
-                data: val,
+                data: `sys_bind|${tagsStr}|${journeyStr}|${menuStr}|${val}`,
                 displayText: val
             };
         };
@@ -451,8 +443,8 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                     type: 'box',
                     layout: 'vertical',
                     contents: [
-                        { type: 'text', text: card.title || '標題', weight: 'bold', size: 'xl' },
-                        { type: 'text', text: card.description || '內容描述...', size: 'sm', color: '#666666', wrap: true }
+                        { type: 'text', text: card.title || '標題', weight: 'bold', size: 'xl', wrap: true },
+                        { type: 'text', text: card.description || '內容描述...', size: 'sm', color: '#666666', wrap: true, margin: 'md' }
                     ]
                 };
                 if (card.buttons && card.buttons.length > 0) {

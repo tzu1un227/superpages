@@ -240,6 +240,30 @@ def create_rule():
         cur.execute(sql, values)
         new_id = cur.fetchone()['id']
         
+        # Dual-rule logic: create a corresponding 'sensor' rule for 'message' rules
+        if rule_data.get('category') == 'message':
+            sensor_rule_data = rule_data.copy()
+            sensor_rule_data['category'] = 'sensor'
+            sensor_fields = []
+            sensor_placeholders = []
+            sensor_values = []
+            for key, value in sensor_rule_data.items():
+                if key == 'id': continue
+                if key not in existing_cols: continue
+                sensor_fields.append(f"\"{key}\"")
+                if isinstance(value, list):
+                    if key == 'msg_rpy':
+                        sensor_placeholders.append("%s::json[]")
+                        sensor_values.append([json.dumps(m, ensure_ascii=False) if not isinstance(m, str) else m for m in value])
+                    else:
+                        sensor_placeholders.append("%s")
+                        sensor_values.append(value)
+                else:
+                    sensor_placeholders.append("%s")
+                    sensor_values.append(value)
+            sensor_sql = f"INSERT INTO \"{table_name}\" ({', '.join(sensor_fields)}) VALUES ({', '.join(sensor_placeholders)})"
+            cur.execute(sensor_sql, sensor_values)
+            
         conn.commit()
         cur.close()
 
@@ -307,10 +331,41 @@ def update_rule(rule_id):
                 updates.append(f"\"{key}\" = %s")
                 values.append(value)
         
+        # Fetch old rule to find corresponding sensor rule
+        cur.execute(f'SELECT category, msg_in, state_in FROM "{table_name}" WHERE id = %s', (rule_id,))
+        old_rule = cur.fetchone()
+
         values.append(rule_id)
         sql = f"UPDATE \"{table_name}\" SET {', '.join(updates)} WHERE id = %s"
         cur.execute(sql, values)
         
+        # Dual-rule logic: sync update to the corresponding 'sensor' rule
+        if old_rule and old_rule['category'] == 'message':
+            sensor_updates = []
+            sensor_values = []
+            for key, value in rule_data.items():
+                if key == 'id': continue
+                if key not in existing_cols: continue
+                if key == 'category': continue # Keep 'sensor'
+                
+                if isinstance(value, list):
+                    if key == 'msg_rpy':
+                        sensor_updates.append(f"\"{key}\" = %s::json[]")
+                        sensor_values.append([json.dumps(m, ensure_ascii=False) if not isinstance(m, str) else m for m in value])
+                    else:
+                        sensor_updates.append(f"\"{key}\" = %s")
+                        sensor_values.append(value)
+                else:
+                    sensor_updates.append(f"\"{key}\" = %s")
+                    sensor_values.append(value)
+                    
+            sensor_values.append('sensor')
+            sensor_values.append(old_rule['msg_in'])
+            sensor_values.append(old_rule['state_in'])
+            
+            sensor_sql = f"UPDATE \"{table_name}\" SET {', '.join(sensor_updates)} WHERE category = %s AND msg_in = %s AND state_in = %s"
+            cur.execute(sensor_sql, sensor_values)
+
         conn.commit()
         cur.close()
 
@@ -341,8 +396,16 @@ def delete_rule(rule_id):
         else:
             table_name = f"QA_bank:{app_id}"
         
+        # Dual-rule logic: sync delete the corresponding 'sensor' rule
+        cur.execute(f'SELECT category, msg_in, state_in FROM "{table_name}" WHERE id = %s', (rule_id,))
+        old_rule = cur.fetchone()
+        
         cur.execute(f'DELETE FROM "{table_name}" WHERE id = %s', (rule_id,))
         
+        if old_rule and old_rule['category'] == 'message':
+            cur.execute(f'DELETE FROM "{table_name}" WHERE category = %s AND msg_in = %s AND state_in = %s', 
+                       ('sensor', old_rule['msg_in'], old_rule['state_in']))
+                       
         conn.commit()
         cur.close()
 
