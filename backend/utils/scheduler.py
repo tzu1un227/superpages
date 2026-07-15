@@ -204,11 +204,24 @@ def cron_table_checker(app):
         
         time.sleep(60)
 
+import socket
+
+_scheduler_lock_socket = None
+
 def start_all_schedulers(app):
     """
     Starts all the background scheduler threads for the superpages application.
     """
+    global _scheduler_lock_socket
+    try:
+        # 嘗試綁定本地 Port，只有第一個啟動的 Worker 能夠成功
+        _scheduler_lock_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        _scheduler_lock_socket.bind(('127.0.0.1', 47200))
+    except socket.error:
+        print("[SCHEDULER] Already running in another worker. Skipping.")
+        return
+
     threading.Thread(target=project_stats_processor, args=(app,), daemon=True).start()
     threading.Thread(target=rich_menu_scheduler_processor, args=(app,), daemon=True).start()
     threading.Thread(target=cron_table_checker, args=(app,), daemon=True).start()
-    print("[SCHEDULER] All background schedulers started.")
+    print("[SCHEDULER] All background schedulers started in this worker.")
