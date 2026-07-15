@@ -182,20 +182,23 @@ def cron_table_checker(app):
         try:
             with app.app_context():
                 oas = OAConfig.query.all()
+                unique_urls = set()
                 for oa in oas:
                     if oa.other_settings and oa.other_settings.get('socket_url'):
-                        socket_url = oa.other_settings.get('socket_url')
-                        data = {
-                            'user': 'yzuadmin',
-                            'type': 'Sensor',
-                            'message': 'check_cron_table',
-                            'target_ws_url': socket_url
-                        }
-                        try:
-                            send_socket_event(data, namespace='/websoc')
-                            # print(f"[CRON TIMER] Sent check_cron_table to {socket_url}")
-                        except Exception as inner_e:
-                            print(f"[CRON TIMER] Failed to send to {socket_url}: {inner_e}")
+                        unique_urls.add(oa.other_settings.get('socket_url'))
+                
+                for socket_url in unique_urls:
+                    data = {
+                        'user': 'yzuadmin',
+                        'type': 'Sensor',
+                        'message': 'check_cron_table',
+                        'target_ws_url': socket_url
+                    }
+                    try:
+                        send_socket_event(data, namespace='/websoc')
+                        # print(f"[CRON TIMER] Sent check_cron_table to {socket_url}")
+                    except Exception as inner_e:
+                        print(f"[CRON TIMER] Failed to send to {socket_url}: {inner_e}")
         except Exception as e:
             print(f"[CRON TIMER] Error in check loop: {e}")
         
