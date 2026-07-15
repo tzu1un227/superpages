@@ -145,10 +145,10 @@ export const AuthProvider = ({ children }) => {
     setCurrentAccount(null);
   };
 
-  // Auto-logout mechanism (30 minutes inactivity)
+  // Auto-logout mechanism (1 day inactivity)
   useEffect(() => {
     let timeoutId;
-    const AUTO_LOGOUT_TIME = 30 * 60 * 1000; // 30 minutes
+    const AUTO_LOGOUT_TIME = 24 * 60 * 60 * 1000; // 1 day
 
     const resetTimer = () => {
       if (timeoutId) clearTimeout(timeoutId);

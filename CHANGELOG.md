@@ -326,3 +326,6 @@ kP:OghV|v  c h e c k _ c r o n _ t a b l e   w e b s o c k e t   N�N0
  -   �x�O!q  G u n i c o r n   _U�RY\P  W o r k e r T N�S_jhV
 N�S	g NP  W o r k e r   g�WLofczMQ�wBfgQ|vQ  t i m e r   Bl0 
  
+
+## [2026-07-15] 更新登出時長
+- 將前端自動登出機制由閒置 30 分鐘改為 1 天 (24小時)
