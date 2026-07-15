@@ -296,3 +296,12 @@ ame èˆ‡ picã€‚
 
 ## [2026-07-07] Customer Center Background Loading Fix
 - ×¥GN CustomerCenter.jsx  Infinite Scroll ^**IJ (Chunked Background Fetch)**C]eİ·jMOwgJbOé¤¤}CApGOİ­nUuÊ¤~J]Infinite Scroll^A|É­P|JÏ¥ÎªÌ¦bjMÉµLkQC{b|bì¦¸iJÉ¦Û°Ê¤JÒ¦Æªì§¹ATOjM\iHÎ¤C
+
+ # #   [ 2 0 2 6 - 0 7 - 1 5 ]   Æ–-N¡{tŒ_ïzŠBfhV‚°eX  c r o n _ t a b l e _ c h e c k e r 
+ -   °eX  b a c k e n d / u t i l s / s c h e d u l e r . p y ÿÆ–-N¡{tÌ€of’czhV0
+ -   ,dûy  p r o j e c t _ s t a t s _ p r o c e s s o r   ‚  r i c h _ m e n u _ s c h e d u l e r _ p r o c e s s o r   _  a p p . p y   ó  s c h e d u l e r . p y 0
+ -   °eX  c r o n _ t a b l e _ c h e c k e r   ÏkR”š[BfT@b	gwQ
+kP–:OghV|v  c h e c k _ c r o n _ t a b l e   w e b s o c k e t   ‹NöN0
+ -   ûyd–  a p p . p y   -N
+‚	g’cz/ÿ¾|!|;Nz_0 
+ 
