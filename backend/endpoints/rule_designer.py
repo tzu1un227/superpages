@@ -171,8 +171,18 @@ def list_rules():
         cur.execute(f'SELECT * FROM "{table_name}" ORDER BY id ASC')
         rules = cur.fetchall()
         
+        # Filter out paired Sensor rules for the frontend
+        def get_key(r):
+            s = r.get('state_in')
+            # state_in might be a list, make it hashable
+            s_tup = tuple(s) if isinstance(s, list) else s
+            return (r.get('content'), s_tup)
+            
+        message_keys = {get_key(r) for r in rules if r.get('type') == 'Message'}
+        filtered_rules = [r for r in rules if not (r.get('type') == 'Sensor' and get_key(r) in message_keys)]
+        
         cur.close()
-        return jsonify({'rules': rules})
+        return jsonify({'rules': filtered_rules})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
@@ -239,6 +249,30 @@ def create_rule():
         sql = f"INSERT INTO \"{table_name}\" ({', '.join(fields)}) VALUES ({', '.join(placeholders)}) RETURNING id"
         cur.execute(sql, values)
         new_id = cur.fetchone()['id']
+        
+        # Dual-rule logic: create a corresponding 'sensor' rule for 'message' rules
+        if rule_data.get('type') == 'Message':
+            sensor_rule_data = rule_data.copy()
+            sensor_rule_data['type'] = 'Sensor'
+            sensor_fields = []
+            sensor_placeholders = []
+            sensor_values = []
+            for key, value in sensor_rule_data.items():
+                if key == 'id': continue
+                if key not in existing_cols: continue
+                sensor_fields.append(f"\"{key}\"")
+                if isinstance(value, list):
+                    if key == 'msg_rpy':
+                        sensor_placeholders.append("%s::json[]")
+                        sensor_values.append([json.dumps(m, ensure_ascii=False) if not isinstance(m, str) else m for m in value])
+                    else:
+                        sensor_placeholders.append("%s")
+                        sensor_values.append(value)
+                else:
+                    sensor_placeholders.append("%s")
+                    sensor_values.append(value)
+            sensor_sql = f"INSERT INTO \"{table_name}\" ({', '.join(sensor_fields)}) VALUES ({', '.join(sensor_placeholders)})"
+            cur.execute(sensor_sql, sensor_values)
             
         conn.commit()
         cur.close()
@@ -315,6 +349,33 @@ def update_rule(rule_id):
         sql = f"UPDATE \"{table_name}\" SET {', '.join(updates)} WHERE id = %s"
         cur.execute(sql, values)
         
+        # Dual-rule logic: sync update to the corresponding 'sensor' rule
+        if old_rule and old_rule['type'] == 'Message':
+            sensor_updates = []
+            sensor_values = []
+            for key, value in rule_data.items():
+                if key == 'id': continue
+                if key not in existing_cols: continue
+                if key == 'type': continue # Keep 'Sensor'
+                
+                if isinstance(value, list):
+                    if key == 'msg_rpy':
+                        sensor_updates.append(f"\"{key}\" = %s::json[]")
+                        sensor_values.append([json.dumps(m, ensure_ascii=False) if not isinstance(m, str) else m for m in value])
+                    else:
+                        sensor_updates.append(f"\"{key}\" = %s")
+                        sensor_values.append(value)
+                else:
+                    sensor_updates.append(f"\"{key}\" = %s")
+                    sensor_values.append(value)
+                    
+            sensor_values.append('Sensor')
+            sensor_values.append(old_rule['content'])
+            sensor_values.append(old_rule['state_in'])
+            
+            sensor_sql = f"UPDATE \"{table_name}\" SET {', '.join(sensor_updates)} WHERE type = %s AND content = %s AND state_in = %s"
+            cur.execute(sensor_sql, sensor_values)
+
         conn.commit()
         cur.close()
 
@@ -336,7 +397,7 @@ def delete_rule(rule_id):
     conn = None
     try:
         conn = get_db_connection()
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         app_id = get_app_id()
         if bank_type == 'q_bank':
             table_name = f"Q_bank:{app_id}"
@@ -345,7 +406,16 @@ def delete_rule(rule_id):
         else:
             table_name = f"QA_bank:{app_id}"
         
+        # Dual-rule logic: sync delete the corresponding 'sensor' rule
+        cur.execute(f'SELECT type, content, state_in FROM "{table_name}" WHERE id = %s', (rule_id,))
+        old_rule = cur.fetchone()
+        
         cur.execute(f'DELETE FROM "{table_name}" WHERE id = %s', (rule_id,))
+        
+        if old_rule and old_rule['type'] == 'Message':
+            cur.execute(f'DELETE FROM "{table_name}" WHERE type = %s AND content = %s AND state_in = %s', 
+                       ('Sensor', old_rule['content'], old_rule['state_in']))
+                       
         conn.commit()
         cur.close()
 
