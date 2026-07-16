@@ -1,214 +1,221 @@
-## [2026-07-15] Âù­yªk«h¾÷¨î Bug ­×´_ (Issue #31)
-- **­×¥¿ (backend/endpoints/rule_designer.py)**: ­×¥¿«Ø¥ß¡B§R°£ªk«h®É¡AµLªk¥¿½T¦P¨B Sensor ªk«hªº°İÃD (­ì¥»»~¥Î category »P msg_in Äæ¦ì¡A²{¤w­×¥¿¬° type »P content Äæ¦ì)¡C
-- **­×¥¿ (frontend/src/components/FlexMessageEditor.jsx)**: ­×¥¿·í«ö¶s¥¼¸j©w¼ĞÅÒ®É²£¥Íªº sys_bind ®æ¦¡·|¾É­P Webhook ¸ÑªRµo¥Í SyntaxError ªº°İÃD¡A±NªÅªº¼ĞÅÒ¦r¦ê§ï¬° []¡C
+## [2026-07-16] æ•ˆèƒ½å„ªåŒ–ï¼šåœ–æ–‡é¸å–®æ’ç¨‹èˆ‡ä¼ºæœå™¨è² è¼‰
+- **å„ªåŒ– (backend/endpoints/richmenu.py)**: åœ¨ `check_and_apply_scheduled_rich_menus` ä¸­åŠ å…¥ `_LAST_ACTIVE_RESTRICTED_MENUS` å¿«å–æ©Ÿåˆ¶ï¼Œåªåœ¨ã€Œæœ‰æ’ç¨‹é¸å–®ç”Ÿæ•ˆæˆ–éæœŸã€æ™‚æ‰è§¸ç™¼è€—æ™‚çš„ `bulk_check_and_update_rich_menu` å…¨é«”æ¯”å°ï¼Œä»¥è§£æ±ºæ¯ 60 ç§’é »ç¹æƒæå…¨é«”ç”¨æˆ¶å°è‡´è³‡æ–™åº«é€£ç·šéè¼‰èˆ‡ Error 503 çš„å•é¡Œã€‚
 
-## [2026-07-15] ¹Ï¤å°T®§¹wÄı»P«ö¶sÄ²µo¾÷¨î­×¥¿ (Issue #31)
-- **­×¥¿ (frontend/src/components/FlexMessageEditor.jsx)**: ­×¥¿¹Ï¤å°T®§¼ĞÃDµLªk´«¦æ (wrap: true) »P¼ĞÃD/»¡©ú¤å¦r¶¡¶Z¹L¤pªº±Æª©°İÃD¡C
-- **­×§ï (frontend/src/components/FlexMessageEditor.jsx)**: ²Î¤@©Ò¦³°T®§«ö¶sªº Postback ®æ¦¡¬° sys_bind|...|¹ê»Ú¤å¦r¡AÅı«áºİ¯à¦³¤@­Pªº¸ÑªR®æ¦¡¡C
-- **­×§ï (backend/endpoints/rule_designer.py)**: ¦b«Ø¥ß¡B§ó·s¡B§R°£ÃöÁä¦r¦^ÂĞ (Message) ªk«h®É¡A¦P¨B³B²z¹ïÀ³ªº Sensor ªk«h (Âù­yªk«h¾÷¨î)¡A¥H¸Ñ¨M¹Ï¤å°T®§ÁôÂÃ«ö¶sµLªkÄ²µoÃöÁä¦rªº°İÃD¡C
+## [2026-07-16] æ³•å‰‡ç·¨è¼¯å™¨ Bug ä¿®å¾©
+- **ä¿®æ­£ (backend/endpoints/rule_designer.py)**: ä¿®æ­£å»ºç«‹æ³•å‰‡æ™‚ç™¼ç”Ÿé›™é‡å»ºç«‹çš„å•é¡Œã€‚
+- **ä¿®æ­£ (backend/endpoints/rule_designer.py)**: ä¿®æ­£å–å¾—æ³•å‰‡åˆ—è¡¨æ™‚å›  dictionary key æœªå­—ä¸²åŒ–å°è‡´ Unhashable type çš„å•é¡Œã€‚
 
-## [2026-07-07] ¸å®é¯èª¤ä¿®å¾© (Issue #19) - Part 3
-- **å¾ç« (ackend/endpoints/richmenu.py)**: ä¿®æ­£ /richmenu  /richmenu/all API ªå end_time é¡ï¼å°´åç« FlexMessageEditor (å¦ªåç¨è¨­å) ¨åè©¦éæ¿¾å·²çµ¸å®æç¼ºåè³å¤±æ¾å API å·²ææ­¥å end_time
+## [2026-07-15] é›™è»Œæ³•å‰‡æ©Ÿåˆ¶ Bug ä¿®å¾© (Issue #31)
+- **ä¿®æ­£ (backend/endpoints/rule_designer.py)**: ä¿®æ­£å»ºç«‹ã€åˆªé™¤æ³•å‰‡æ™‚ï¼Œç„¡æ³•æ­£ç¢ºåŒæ­¥ Sensor æ³•å‰‡çš„å•é¡Œ (åŸæœ¬èª¤ç”¨ category èˆ‡ msg_in æ¬„ä½ï¼Œç¾å·²ä¿®æ­£ç‚º type èˆ‡ content æ¬„ä½)ã€‚
+- **ä¿®æ­£ (frontend/src/components/FlexMessageEditor.jsx)**: ä¿®æ­£ç•¶æŒ‰éˆ•æœªç¶å®šæ¨™ç±¤æ™‚ç”¢ç”Ÿçš„ sys_bind æ ¼å¼æœƒå°è‡´ Webhook è§£æç™¼ç”Ÿ SyntaxError çš„å•é¡Œï¼Œå°‡ç©ºçš„æ¨™ç±¤å­—ä¸²æ”¹ç‚º []ã€‚
 
-## [2026-07-07] ¸å®é¯èª¤ä¿®å¾© (Issue #19) - Part 2
-- **ç« (rontend/src/components/FlexMessageEditor.jsx)**:  Flex è¨¯ç·¨è¼¯å¨çé»é»ä¸¸å®ä¸­ï¼ä¸æ¿¾å·²¸å®çè¼¯ã
-- **å¾ç« (ackend/endpoints/richmenu.py)**: ä¿®æ­£ ulk_check_and_update_rich_menu ¨åæª¢æ¥æï¼å¼·å¶è§£¤ã³é¸å®ã¨æ¶çå® Bugï¼±æå°¨æ¶ç¶å 
-ich_menu ä¾è·³éè¨­å¨æ¶ã
+## [2026-07-15] åœ–æ–‡è¨Šæ¯é è¦½èˆ‡æŒ‰éˆ•è§¸ç™¼æ©Ÿåˆ¶ä¿®æ­£ (Issue #31)
+- **ä¿®æ­£ (frontend/src/components/FlexMessageEditor.jsx)**: ä¿®æ­£åœ–æ–‡è¨Šæ¯æ¨™é¡Œç„¡æ³•æ›è¡Œ (wrap: true) èˆ‡æ¨™é¡Œ/èªªæ˜æ–‡å­—é–“è·éå°çš„æ’ç‰ˆå•é¡Œã€‚
+- **ä¿®æ”¹ (frontend/src/components/FlexMessageEditor.jsx)**: çµ±ä¸€æ‰€æœ‰è¨Šæ¯æŒ‰éˆ•çš„ Postback æ ¼å¼ç‚º sys_bind|...|å¯¦éš›æ–‡å­—ï¼Œè®“å¾Œç«¯èƒ½æœ‰ä¸€è‡´çš„è§£ææ ¼å¼ã€‚
+- **ä¿®æ”¹ (backend/endpoints/rule_designer.py)**: åœ¨å»ºç«‹ã€æ›´æ–°ã€åˆªé™¤é—œéµå­—å›è¦† (Message) æ³•å‰‡æ™‚ï¼ŒåŒæ­¥è™•ç†å°æ‡‰çš„ Sensor æ³•å‰‡ (é›™è»Œæ³•å‰‡æ©Ÿåˆ¶)ï¼Œä»¥è§£æ±ºåœ–æ–‡è¨Šæ¯éš±è—æŒ‰éˆ•ç„¡æ³•è§¸ç™¼é—œéµå­—çš„å•é¡Œã€‚
 
-## [2026-07-07] ¸å®é¯èª¤ä¿®å¾© (Issue #19)
-- **ç« (rontend/src/pages/RichMenu.jsx)**: ä¿®æ­£ç¨¸å®éè¨­éæ¡©é¡¯ç¤ºçé¡ï¼¨è§¸¼åä½ä¸¸å®ä¸­æ¿¾å·²¸å®ã
-- **ç« (rontend/src/pages/RuleDesigner.jsx)**: æ¿¾å·²¸å®ïç¢ºäè¦ç·¨è¼¯¡æ¸æå·²é¸å®äºè§¸¼ç®æ
-- **å¾ç« (ackend/endpoints/richmenu.py)**: ä¿®æ­£å®·æ°éè¨­å¸å®æï¼ä½¿ç ulk_link_all_users å°´èäººè¨­å® Bug
+## [2026-07-07] è©¨æ¡…èˆªç‚Šé½æ¡€å„” (Issue #19) - Part 3
+- **æ•ºè¡ (ackend/endpoints/richmenu.py)**: é½æ ¼è¿¤ /richmenu  /richmenu/all API èŠ¸ end_time æ†¿åš—æ’ æ¸¸è¡ FlexMessageEditor (æ†’èŠ¸è”é–®å‰–) å…¸é–°é˜¡çˆæ›‰æ­‡è¯è©¨æ ¼è»ç®éˆæ†­æœ›æ›‰ API æ’Œè„«ç”‡äº™ end_time
 
-## [2026-06-30] ¸å®éè¨­æè¨é¡¯ç¤ºä¿®å¾©è³åº«åæ­¥ä¿®æ­
-- **ç« (`frontend/src/pages/RichMenu.jsx`)**: ä¿®æ­£°å hidden ç­¥ç¸å®åï¼­æå¤§éè«æ±å°´å¿«´æ°ç°å¸¸ LINE API «æªå³éè¨­çï¼è¨­é¸å®é²æè¨æ¶å¤±çé¡å°è³åº metadata ä¸­ç `default` ( `public`) ¸å ID ä¹ä¸ä½µç `defaultMenuIds` ¤åï¼ç¢ºäè¨­æè¨ç©©åé¡¯ç¤º
-- **å¾ç« (`backend/endpoints/richmenu.py`)**: ä¿®æ­£äºé»è¡¨çè¨­çºå¨åè¨­é¸å®ãï¼ `oa_id` è®¸æªåç¾©å´èåº (`Global_var`  `rich_menu_metadata`) ¡ææ­ç¢ºæ´æ°éè¨­ç Bug
-- **å¾ç« (`backend/endpoints/richmenu.py`)**: ä¿®æ­£äº¨å¸å®ç·¨è¼¯é¢ç¼åä¸¼åç­¥çºãdefaultï¼ªæ´æ°ä `rich_menu_metadata` »æ´æ `Global_var` ç´é¡¾å¨äè«¯åè¡¨éï¼¯åç·¨è¼¯¼åºéè¨­ïæ­¥æ´æ `Global_var`  `default_rich_menu` ¼ã
+## [2026-07-07] è©¨æ¡…èˆªç‚Šé½æ¡€å„” (Issue #19) - Part 2
+- **è¡ (rontend/src/components/FlexMessageEditor.jsx)**:  Flex é–®èˆæ¥Šé ›è‡¬å‡½æšºæšºéŠè©¨æ¡è‘‰åš—éŠçˆæ›‰æ­‡è©¨æ¡ƒé ›èƒ¯
+- **æ•ºè¡ (ackend/endpoints/richmenu.py)**: é½æ ¼è¿¤ ulk_check_and_update_rich_menu å…¸ç‘¼ï¼¸äº¤åš—æ’˜ç‘•å—‰åœ¾æ‰å–²è©¨æŸ´å†½å—¥æ‘° Bugåš—æœ›æ’ å†½å—¥å—… 
+ich_menu é˜é å–²é–®å‰–å†½å—š
 
-## [2026-06-30] ¸å®æ¹å ui_uuid è¨­çé¡¯ç¤ºªå
-- **å¾ç« (`backend/endpoints/richmenu.py`)**:  `/` (list_rich_menus)  `/all` (list_all_rich_menus) è·¯ç±ä¸­ï¼¥è©¢ `rich_menu_metadata` è³è¡¨ä»¥²å `ui_uuid`ï¼ä¸¦å¶é¼å³ç JSON ä¸­ïä»¥æ¯æ´åç«¯ä¸å®ç´æ¥ä½¿¨ã
-- **ç« (`frontend/src/components/FlexMessageEditor.jsx`)**: å° Flex è¨¯æ¸å®ãä¸å¼¸å®é¸é value ¹ç `ui_uuid`ï¼¥ç `ui_uuid`  fallback  `richMenuId`ï¼°å `getMenuSelectValue` è¼©å½æ¸ï¨çå®¸å¼æªåå°ï¼ç¢ºä `richMenuId` ¼å¸å®¹
-- **ç« (`frontend/src/pages/RichMenu.jsx`)**: ä¿®æ `isDefault` è¨­é¸å®æç±¤ç¤åè¼¯ï¹çºæå°¸å ID ¯å¦å¨æ LINE ¶åå¯¦çè¨­é¸å ID ä¸­ïè§æ±ºèåº status  `'published'` »æ LINE è¨­é¸å®æ¡æé¡¯ç¤ºæ¨ç«é¡
-- **æ¬ä½¼æ´æ**ï¼å°è³åº `rich_menu_metadata` ä¸­ä»£è¡¨å¨åè¨­é¸å®ç `status` ¼ç `'public'` è®´ç `'default'`ï¼ç«¯äº¦æ­¥æ´æ°å¤åï¼ä¸¦äå° `'public'` ¸å®¹§ã
+## [2026-07-07] è©¨æ¡…èˆªç‚Šé½æ¡€å„” (Issue #19)
+- **è¡ (rontend/src/pages/RichMenu.jsx)**: é½æ ¼è¿¤è”è©¨æ¡…é–®å‰ç¢æ‹šï¼Šè·ç®‡æ†¿åš—åˆ»å­›æ¾†é›¿éŠè©¨æ¡è‘‰çˆæ›‰æ­‡è©¨æŸ´
+- **è¡ (rontend/src/pages/RuleDesigner.jsx)**: çˆæ›‰æ­‡è©¨æ®·è£ç®”é–¬èºåˆ»æ‘©âŠ¥è±¢æ’Œè„¤è©¨æ¡ç®„å­›æ½›æ ¼
+- **æ•ºè¡ (ackend/endpoints/richmenu.py)**: é½æ ¼è¿¤æ‘°ç‘Ÿåœˆé–®å‰–è©¨æ ¼åš—é›¿è¼» ulk_link_all_users æ’ æ¸²éˆ­ç®„èº«æ‘° Bug
 
-## [2026-06-30] Rich Menu è¨­çå¥¨äºº¸ä¿®æ­
-- **ç« (`frontend/src/pages/RichMenu.jsx`)**: ¥çå·²ç¼å¸å®æä¸°å¼å `/customers/count-by-tags`ï¼¹é¡¯ç¤ºç¼å/çµ¶äå¯«å metadata  `targetUserCount`  `totalUserCount`ï¼ç¨¿èçµæµç¨ä¸ä½µäå­ç¸½å¥½¸ã
-- **å¾ç« (`backend/endpoints/richmenu.py`)**: ²åè¨­çºå¨åè¨­æï¼å°ä¸ OA ¶ä `public` ¸å®æ¹å `published`ï¼¿åé¦ºç¾åè¨­é¸å®ã
-- **å¾ç« (`backend/endpoints/richmenu.py`)**: è§¤å¨åè¨­ææ­¥æ metadata  `public` ï¼å·²ç¼å¸å®äç¦æ­¢å°èç¨¿ïä½è¨±éçµ/è¨­ç´æ°å¯« metadata
+## [2026-06-30] è©¨æ¡…é–®å‰œé–®æ†¿èˆå…§é½æ¡€å„”éˆæ‘¨æ€ ç”‡ä¹©è€¨ç”‡
+- **è¡ (`frontend/src/pages/RichMenu.jsx`)**: é½æ ¼è¿¤å•£ hidden è‘äº¦è©¨æ¡€åš—å‰œæ†­æŠ˜éš¢ç˜™æ’ æ¸¸ç¿°æ¹”å•å•£è™œ LINE API æ€¥èŠ¸å–²é–®å‰”åš—é–®å‰è©¨æ¡…è„«é–®ç˜¨æ†­æ¢æ†¿æ’ éˆæ‘¨ metadata éŠå‰” `default` ( `public`) è©¨ ID éŠ‹éŠé›¿è‡ `defaultMenuIds` æ–‡åš—è£ç®”é–®å‰œé–®è›æ‹™æ†¿èˆå…§
+- **æ•ºè¡ (`backend/endpoints/richmenu.py`)**: é½æ ¼è¿¤éˆ­æšºéŠµå‡½é–®å‰”ç®å…¸é–®å‰è©¨æŸ´åš— `oa_id` éœˆè±¢èŠ¸è¢æ‹™æ¸²æ‘¨ (`Global_var`  `rich_menu_metadata`) âŠ¥ç”‡è£ç®¸æ¹”åœˆé–®å‰” Bug
+- **æ•ºè¡ (`backend/endpoints/richmenu.py`)**: é½æ ¼è¿¤éˆ­å…¸è©¨æ¡ƒæ¥Šé ›èˆ«ï¼¹æ¾†éŠæ¾†è‘äº¦ç®defaultåš—èŠ£æ¹”å”¬ `rich_menu_metadata` é¤…æ¹” `Global_var` èæ†¿æ›‰å…¶éš¢è‡¬éŠµåˆ¸åš—è‡¬èºåˆ»æ‘©æ¾†ç²¹é–®å“¨ç”‡äº¤æ¹” `Global_var`  `default_rich_menu` æ½¦
 
-## [2026-06-29] ç³»çµ±UI - ªé¤æªå (ç¨±é¡¯ç¤)
-- **ç« (frontend/src/pages/Projects.jsx, RichMenu.jsx, Broadcast.jsx, RuleDesigner.jsx)**:
-  - ç¨¸å®ï¨åªé¤ç¢ºèªªé¤æç¤ºä¸­ï¼é¡¯ç¤º·éç¨±ãå·²åªé¤ã
-  - ç¾¤ç¼è¯ïªé¤ä»»ï¼ç¤ºè¯æ¹çºé¡¯ç¤ºè©²ä»»åç¨±ã
-  - µåè¦è¦ï¼ªé¤ç¢ºèªç¤ºè¯ä»¥å»ºç/²åï¼ä¸é¡¯ç¤ºç¡¬çè¦ {ID}ï¼¹çºé¡¯ç¤ºä½¿¨èè¨­åç¨/æ¨é¡/µå
+## [2026-06-30] è©¨æ ¼å­µ ui_uuid é–®å‰”æ†¿èˆå…§èŠ¸
+- **æ•ºè¡ (`backend/endpoints/richmenu.py`)**:  `/` (list_rich_menus)  `/all` (list_all_rich_menus) é èˆæ›¹è‘‰åš—äº¥å²· `rich_menu_metadata` éˆéŠµå…¶èª‘è„£ `ui_uuid`åš—éŠè¡€åœ’æ¾†å–Ÿ JSON éŠå“¨éšäº¤èˆ€æ¸¸è¡è‡­è©¨æ¡ƒæ¹”ä¹©è™å…·
+- **è¡ (`frontend/src/components/FlexMessageEditor.jsx`)**: æ’  Flex é–®èˆ€è©¨æŸ´éŠæ’˜è©¨æ¡…è³Š value å¯§ `ui_uuid`åš—äº¦ `ui_uuid`  fallback  `richMenuId`åš—å•£ `getMenuSelectValue` é ›æ‹™è³£è³‚å‡½æ‘°è©¨æ½­èŠ¸æ’ åš—è£ç®” `richMenuId` æ¾†è©¨æ†
+- **è¡ (`frontend/src/pages/RichMenu.jsx`)**: é½æ ¼ `isDefault` é–®å‰è©¨æ ¼èæ–¤æ–‡é ›è”å¯§ç®¸æ’ è©¨ ID è‡¬è¡€å†½ LINE å—…æ’–è¡£é–®å‰è©¨ ID éŠå“¨é–«ç˜™ç®„æ‘¨ status  `'published'` é¤… LINE é–®å‰è©¨æ ¼âŠ¥æ†¿èˆå…§ç’…è¡æ†¿
+- **ç”ˆé›¿æ½­æ¹”**åš—æ’ éˆæ‘¨ `rich_menu_metadata` éŠå‡‹èª¨éŠµå…¸å…¸é–®å‰è©¨æ¡ƒ `status` æ½› `'public'` éœˆæ¸¡ `'default'`åš—è¡è‡­æ¼²ç”‡äº¤æ¹”å•£æ–‡åš—éŠè™«æ’  `'public'` è©¨æ†æ‰¼
 
-## [2026-06-24] ¸é«äº¤
+## [2026-06-30] Rich Menu é–®å‰”æ†Ÿå…¶çŠ–è¨¾è€¨ç”‡
+- **è¡ (`frontend/src/pages/RichMenu.jsx`)**: äº¦æ’Œè„©æ¾†è©¨æ ¼éŠå•£æ¾† `/customers/count-by-tags`åš—å¯¥ï¼Šè·ç®‡æ¾†/è¯å—¡æ’–æ€  metadata  `targetUserCount`  `totalUserCount`åš—è”è¼¯è¯ç˜šè”éŠé›¿èæ‘®è®è³¢æœ«è©»
+- **æ•ºè¡ (`backend/endpoints/richmenu.py`)**: è„£é–®å‰”ç®å…¸é–®å‰œåš—æ’ éŠ OA å—¡ `public` è©¨æ ¼å­µ `published`åš—è¸¹æ“ç®‡æ›‰é–®å‰è©¨æŸ´
+- **æ•ºè¡ (`backend/endpoints/richmenu.py`)**: é–«æ–‡å…¸é–®å‰œç”‡äº¤ metadata  `public` åš—æ’Œè„©æ¾†è©¨æ¡è³ç”‡ï¼·å•—è”é¸é›¿é–®æ¢¢è¯/é–®å‰”æ¹”å•£ç¥ metadata
+
+## [2026-06-29] èŸé¤ŒçµUI - èŠ·æ–—èŠ¸ (è”æ¢¢ï¼Šè·)
+- **è¡ (frontend/src/pages/Projects.jsx, RichMenu.jsx, Broadcast.jsx, RuleDesigner.jsx)**:
+  - è”è©¨æ®·å…¸èŠ·æ–¤â…¡éš¤èŠ·æ–—è·ç®”è‘‰åš—æ†¿èˆå…§ç¿è”æ™æ’Œè„£èŠ·æ‰
+  - è¢æ–¤æ½¸è”èŠ·æ”¯é™åš—è·ç®„èˆ€å¯§ç²¹ï¼Šè·ç®„åºœéšé¤ƒè”æ™
+  - è„é–¬é–¬åš—èŠ·æ–¤â…¡éš¤è·ç®„è‡­èª‘æ’±ç®‡/è„£åš—éŠæ†¿èˆå…§è–ç¥‰é–¬ {ID}åš—å¯§ç²¹ï¼Šè·ç®”è™åˆ»é–®å‰–è”/ç’…æ†¿/è„
+
+## [2026-06-24] è³Šæ€æ¼±
 - ** (frontend/src/pages/AdminPage.jsx)**:
-  - ¥Ë«äº¤­çä»¿ç¢å¿è¸¹æ¸¡ç°å
+  - ç“¦æ€æ¼±å‰”éšè¼»ï¼·è¼¯è™Ÿçšœâˆ å•£
 
-## [2026-06-24] ªå³å«äº¤
+## [2026-06-24] èŠ¸å–³æ€æ¼±
 - ** (frontend/src/pages/AdminPage.jsx)**:
-  - ¾è¿æå¯§çªå
-  - «äº¤ç®¸å­é«äº¤
+  - æ›‡è¸µæ’–æŠ’èŠ¸
+  - æ€æ¼±èè©¨å‰æ€æ¼±
 
-## [2026-06-24] ½æ¨æ¥äº¥
-- **ºè (backend/app.py)**:
-  - ½æ `project_stats_processor` ½ç¥çäº¤é°è `Global_var` µå PostgreSQL é¤ï¼ `relation already exists` (42P07)  log ·å³æ¿å¯§ç®¼ï¼¸äº¥éµå½è¬èä¹©æ®å½ç `CREATE TABLE`
-- **ºè (backend/endpoints/questionnaire.py, backend/endpoints/liff_questionnaire.py)**:
-  - ¯æ¹å¸ç `CREATE TABLE IF NOT EXISTS`  `SET LOCAL client_min_messages = warning;`äº¤åè³µå¸é¡ï¼¹ PostgreSQL  (`relation already exists, skipping`)
+## [2026-06-24] è³£å†½ä¹©æ¼¸
+- **ç®„ (backend/app.py)**:
+  - è³£ `project_stats_processor` è³œäº¦éˆ­æ—¥å•— `Global_var` è„ PostgreSQL æ“—åš— `relation already exists` (42P07)  log ç‘•å–®è¸¹ç¥èæ½˜æ’“éˆ­ä»¿è„è³ªç¥ˆéŠ‹æ‹‡æ¡€è³œ `CREATE TABLE`
+- **ç®„ (backend/endpoints/questionnaire.py, backend/endpoints/liff_questionnaire.py)**:
+  - èˆ€å­µè²Š `CREATE TABLE IF NOT EXISTS`  `SET LOCAL client_min_messages = warning;`éˆ­æ–‡éˆè„è³Šâˆ´æ’• PostgreSQL  (`relation already exists, skipping`)
 
-## [2026-06-23] è©¨ææ¾äº¥ç®å¯æ
+## [2026-06-23] é–°å†½ç‰éˆ­äº¦æ¡€èˆ€
 - ** (frontend/src/pages/RichMenu.jsx)**:
-  - é§¯æ (ç¥/)æ½ Modalå¯§ç®¸æ¸¸æä¹è±¢æ
-  - è¼¯æ½è `publishStrategy` `hidden` (¡æ¿è)`default` (¡å¾èº«ç®¸é)  `restricted` (°è¬æ°æªæ)
-  - ³æ¸²èº«æ°ï¼¸è¼¸ç½ç½æç®¸çèº«æ°ç®åæ¾ä¹®å®å¿èï¼¸æ¬æ°¬
-  - ®åç¥¬è³£é¤³å³æ¸²èº«æ°çå«
-  - æ¹®å¢ç¤å¬æ½­è¿¨åªâªé¿è¼»¸æ
-  - æ½ LINE é¤çµæ¹ä¹©èè¼¯èº«°èä»¿è°é¿ç¨äº¦ `default` ¸æ API ®åç®¸é®åè©¨æ
+  - æ“èˆ€ (èŸ¡/)ç Modalæ’–æŠ’æ‚çšœè±¢éŠ‹éŠï¼¸
+  - é ›èˆ€è³ª `publishStrategy` `hidden` (âŠ¥è¼¯)`default` (âˆªæ›‡æ¾ˆèè³Š)  `restricted` (å•—ç¥†å”³èŠ£)
+  - å–®è‘¡é ¨æ€¥å †æ’“é ›è²Šè³œè³£èè²Šé ¨æ€¥å•æ¡€ç‰éŠ‹æ¡€æ¡€è¼¯åš—è±¢ç¥†é¬²
+  - æ¡€èŸ¡ç¥ˆéƒ½æ“—å–³å–®è‘¡é ¨æ€¥å•æ†³
+  - çšæ¡€ï¼¹æ–‡ç¥†è”¬é¤ˆå…¸èŠ¬èŠ·è¼¯æ’’è±¢
+  - ç LINE æ“—è¯çšéŠ‹æŠµé ›èˆªæ¾ˆå•—éšè¼¯åœˆè¼»å…¶æ¼² `default` è±¢ API æ¡€èè³Šæ¡€é–°å†½
 
-## [2026-06-23] °ï¼¸¡è¹éï¼·è¸å®çäºç¥
+## [2026-06-23] å †æ’“âˆŸå¯¥åš—ç‘è©¨æ¡ƒéˆ­èŸ¡
 - ** (frontend/src/pages/CustomerCenter.jsx)**:
-  - é§¯æ°ï¼¸¡è¹éµå½èºå»æ©åºå»æ©è³£æ¸¸å³å³æ¸²åº®æ¹§
-  - ¸æ¹§é¤½â³äº¦æ¥¬è·ç¶½ºèæ¹ä¹¯èæ¥ (Inline Edit)è¡¬è
-  - ¸æ¹§ºéé¤ï¼·æ¹ææ¹§ç¸åºæè¡æ¸¸èæ¹§ç¸é¶æ¢¢è¸
-  - ®çäº¤å¸æ¹§æ¥¬è/é¤åº/Email/·æç®¸è«æè©¨æï¼¶æ°ï¼¸µå»å®çäº¤æ¿å³æ¸¡ï¼
+  - æ“èˆ€å †æ’“âˆŸå¯¥è„è³ªç®é¤…æ‹™ç®é¤…æŠµéƒ½çšœè©¨å–³å–®è‘¡æ‘¨æ ¼é³©
+  - è±¢é³©æ“—è³¤å–ƒæ¼²ç’†ç¥ˆç‘é£­ç®„çšéŠ‹èˆªç’† (Inline Edit)éŠµç¥ˆ
+  - è±¢é³©ç²¹æ“—åš—ç‘Ÿå¯çšæŠ’è©¨ç®¸éŠµçšœè²‰çšæŠ’è³Šå—†â•°é ¦
+  - æ¡ƒéˆ­æ–‡è±¢é³©ç’†ç¥ˆ/æ“—æ‘¨/Email/ç‘Ÿèè²‰æ€¥é–°å†½åš—å—†å †æ’“è„é¤ƒæ¡ƒéˆ­æ–—è¸¹å–®è…¹åš—
 
-## [2026-06-23] ¬é«èæ¾¿æ¸¸ Bug ½æ
+## [2026-06-23] ç¥‡æ€¨ç‰è¸µè™œ Bug è³£
 - ** (frontend/src/pages/RuleDesigner.jsx)**:
-  - æ¸¸è¬æ±ç«èæ¾¿åæ¸¸é¿ç (ä»)
-  - ¸éè©¨æ¼å¯§ç®¸å `<TagInput singleSelect={true}>` å¡è©¨æºç¢ç¢ç®é¬é¬çè¡æ¡è³
-  - ¬è note ¿é- ¬æºè¬æè¡½æï¼¶è¸æ¢¯ç®ªâ¥çªé·ï·ç®¸¬é®éäº¦çªéï¼·ç¸å
-  - äº¥è¸è¯è©¨´éè©¨æè³è©¨æºè¸ï¼¹ `update("iup|<id>")`  `update("switch_rm|<uuid>")`
-  - ½æ¼è¿¤¬éï¼¶èºå»æ `Line` ç¥¹é¬é®è URL è¿¤èç®¸æ¤æ
-  - ½æ¬èºå»æ©å¶è³æºè¬èè©¨äº¤¸å®æç® URL  («ç React state closure )
-  - ½æ¼è¿¤¯è©¨´èæ½ç®ç®èª `ui_uuid`  `rich_menu_id` äº¦æ³µºè¡è
-    - è©¨æ API ¡è `/richmenu/` ( LINE ªé) ½æ¼è¿¤ `/richmenu/metadata` ( `ui_uuid` ¨æ¨å)ºå­µ«çç® `ui_uuid` ¡æ®åç¥ä»¿è©¨æ¡æ¢ Bug
+  - çšœè²‰ç¥†æ¢æ€¨ç‰è¸¹çšœè³Šè¼» (éš)
+  - è³Šé–°å†½æ¾†ç¥èè©¨ `<TagInput singleSelect={true}>` æ†›é–°å†½ç®‡ï¼¹ï¼¹æ¡…ç¥‡ç¥‰éŠµç¢éˆ
+  - ç¥ˆ note è¼¸- ç¥†ç®„ç¥†éŠµè³£åš—å—‰è±¢ï¼èèŠ¬äº¦èŠ·ç˜€ç‘æ‚ç¥‡æ¡…éˆ­è¡£èŠ·åš—ç‘è©¨
+  - éˆ­äº¥è²‰èˆªå²³æ¹§é–°å†½éˆé–°å†½ç®„è³‚æ’• `update("iup|<id>")`  `update("switch_rm|<uuid>")`
+  - è³£æ½¸ç¸£ç¥‡åš—å—‰ç®é¤… `Line` èŸ¡å¯¥ç¥‡æ ª URL é¤ˆæ–¹èè±¢æ–—
+  - è³£ç¥ˆç®é¤…æ‹™å—‰å–®ç®„ç¥ˆé–°å…¶æ¼±è©¨æ ¼è URL  (æ€ React state closure )
+  - è³£æ½¸ç¸£èˆªå²³æ¸²çèèéš¤ `ui_uuid`  `rich_menu_id` éˆ­è¡Œé™¬ç®„âˆŸ
+    - é–°å†½ API âˆŸ `/richmenu/` ( LINE èŠ·) è³£æ½¸ç¸£ `/richmenu/metadata` ( `ui_uuid` å†½å…¸)ç®éŸ³æ€è `ui_uuid` âŠ¥æ¡€èŸ¡éšè¼¯å²³ç¢ç’‡ Bug
 - ** (frontend/src/pages/Questionnaire.jsx)**:
-  -  note ¿é- ºè¬æ¸¯èªµå«çµå¸ï¼¹½ææ½®çæ©·ï·ç®¸- ®éï¼¶ç¸æ¢¯¬æ¸¸
-- **ºè (backend/app.py)**:
-  - ½æ¼è¿¤ `/api/statistics` äº¥å²· `get_events_count_by_category_and_tag` ³äº¦¿èä¹¿åç®è³è¿¤èç®¸åµå½è±¢
-- **ºè (backend/endpoints/questionnaire.py)**:
-  - ½æ¼è¿¤¹ç `update("set_tag|")` æ¾æ¹¤æ `")`  Bugç®¡è¥ï·ç®¸è¿¤æè©
-  - ¸ç/æ¾ªç·ç¶½ªç·ç³é¿è¸é®ç©è½å¯§ç®¸æ½æ°æ¨ç©æ¨æ½®
-  - ±çäº¤å®è­ææ¢ ID·ï·çæ­±çä¹©éï¼¹é
-  - é§¯é¡ç `note` ºè¬æ¸¸- äº¦å½é½ç¿è¼»- 
-  - ½æ¼è¿¤­ç¿æ¿æ¢è³£¿æ¯è¿é¿èï¼·ç- ®éºè¬æ¸¡¿åç®ç­¿è¼»»ç¿è¹å¾ç½âªæ
-  - ½æ¼è¿¤¸éå¡äº¥æ¨æè³¢æ `pri_push('tag', '')` å¯ `update("set_tag|")` äº¦æ³µæ½
-- **ºè (backend/migrate_rule_notes.py)**:
-  - ç¥è¡¥æ¨æå®®ç©¿¸èé¤çµºè¬æ¸¡¸é- ¬æºè¬æç®½éªé­æ
+  -  note è¼¸- ç®„ç¥†è‘›éš¤è„æ€è„è³‚æ’•è³£çæ¡ƒç’ˆç˜€ç‘æ‚- æ¡…åš—å—¥è±¢ï¼ç¥†è™œ
+- **ç®„ (backend/app.py)**:
+  - è³£æ½¸ç¸£ `/api/statistics` éˆ­äº™çœº `get_events_count_by_category_and_tag` å–ƒæ¼²è¼¯éŠ‹è¸¹èéˆé¤ˆæ–¹èè©¨è„è³ªæ‚»
+- **ç®„ (backend/endpoints/questionnaire.py)**:
+  - è³£æ½¸ç¸£å¯§ `update("set_tag|")` ç‰çšæ–— `")`  BugèâˆŸä¼ç‘æ‚é¤ˆæ–—é–°
+  - è²Š/ç‰èŠ°ç‘é£­èŠ°ç‘å–²è¼¯è³Šæ¡ƒæŠµè³¢ç¥èè±¢è³£å”³å‡½æ‹‡å†½è”­
+  - æ¢éˆ­æ–‡æ ªå‰œç’‡ IDç˜€ç‘ç”‡æ¢éŠ‹æ‹šåš—å¯¥
+  - æ“èˆ«âˆ  `note` ç®„ç¥†è™œ- éˆ­è¡€è³¡è³œè¼¯æ’’- 
+  - è³£æ½¸ç¸£å‰”è¸µè¸µï¼ºéƒ½è¸µèˆªè¼¸è¼¯åš—ç‘- æ¡…ç®„ç¥†è…¹è¸¹èè‘è¼¯æ’’é¤Œè¼¯å­µæ›„è³¤èŠ£
+  - è³£æ½¸ç¸£è³Šæ†›éˆ­äº¤å†½éˆï¼¸ `pri_push('tag', '')` æ’– `update("set_tag|")` éˆ­è¡Œé™¬ç
+- **ç®„ (backend/migrate_rule_notes.py)**:
+  - èŸ¡éŠµäº¤å†½æ‘°æ¡ƒå¿½è²‰æ“—è¯ç®„ç¥†è…¹è³Š- ç¥†ç®„ç¥†èè³¡èŠ·å‰œ
 
-## [2026-06-22] è©¨æï¼ºè
+## [2026-06-22] é–°å†½åš—ç®„
 - ** (frontend/src/pages/RichMenu.jsx)**:
-  - è©¨ææ¥«ï¼¶®åé¤æ¥¬å (¿è¼»½å)¿è¼»»å»èº«°æï¼·å³è¬å¶ï¼º®å
-  - è©¨æ¿éè©¨æ¸ç¹è¸æ(æ¡½æè©)è¸¹é®å¸æ¾è¸æ¿éæ¸
+  - é–°å†½ç’†æ¬æ’°æ¡€æ“—ç’†ç  (è¼¯æ’’è³¢)è¼¯æ’’é¤ƒé¤‰æ¾ˆå”³åš—ç‘•å”¾ç å¡šæ’©æ¡€
+  - é–°å†½è¼¸é–°å†½è²Šå¯¡è±¢(ç¢è³£é–°)é ¦å¯¥æ¡€è±¢æ›‡è±¢è¼¸çšœ
 
-## [2026-06-18] ¬è±¢½æ
-- **ºè (backend/app.py)**:
-  - ½æ¼è¿¤ /api/statistics è³¢èè³¢èç®¯æ¢¯è¡ U æ¼ 33  LINE User ID
+## [2026-06-18] ç¥ˆæ‚»è³£
+- **ç®„ (backend/app.py)**:
+  - è³£æ½¸ç¸£ /api/statistics éˆï¼ºéˆï¼ºèèˆ€ï¼éŠµ U ç 33  LINE User ID
 - ** (RDS & 5014)**:
-  - äº¤æ get_events_count_by_category_and_tag Functionè© LINE User ID ¹é¡è½é¡è¬éµå»è¡â
+  - éˆ­æ–— get_events_count_by_category_and_tag Functioné–° LINE User ID å¯¥âˆŸè³¡âˆŸç¥‡è„é¤‰ï¹¦
 
-## [2026-06-18] ¼ç¢é³äç¥ªç®èå­
-- **ºè (backend/endpoints/upload.py)**:
-  -  GitHub ¼ç¢é³ä 1MB  5MB
-  - ¢é 5MB ®èç® JSON ªç®è 413 æ½
+## [2026-06-18] æ½›ï½å–ƒèŸ¡èŠ°æ ªæ‘®
+- **ç®„ (backend/endpoints/upload.py)**:
+  -  GitHub æ½›ï½å–ƒ 1MB  5MB
+  - ï½ 5MB æ ªè JSON èŠ°æ ª 413 ç
 - ** (frontend/src/pages/*.jsx)**:
-  - å­µç¼ç¢éæ½ªç 413 (Payload Too Large) æ½­å¯æ¹è·ç¶½¼ç¢æ­æ¹é 5MB
-  - è¸¹è¡è¬æ¿è§å½é³äæ¸¯è»â¥é
+  - æ‘®è‡æ½›ï½çèŠ° 413 (Payload Too Large) çå‰–èˆ€å¯¡ç‘é£­æ½›ï¼¸å‰œå¯¥ 5MB
+  - é ¦å¯¡âˆŸç¥†è¼¯æ‰¹è³¡å–ƒçšœèˆªé ˜ä»¿
 
-## [2026-06-18] è©¨æ Fallback ®èªèº«
+## [2026-06-18] é–°å†½ Fallback æ ªèŠ¾æ¾ˆ
 - ** (backend/endpoints/broadcast.py)**:
-  - `rich_menu_metadata` µå½æ¸¸ `permission_tags``fallback_message``alias_id` ¿éäº¤èæ¹
-- **ºè (backend/endpoints/richmenu.py)**:
-  - è©¨æªèæ¸¯é¬å³é
+  - `rich_menu_metadata` è„è³£è™œ `permission_tags``fallback_message``alias_id` è¼¸éˆ­æ–¹çš
+- **ç®„ (backend/endpoints/richmenu.py)**:
+  - é–°å†½èŠ¾çšœèˆ«ç å–²
 - ** (frontend/src/pages/RichMenu.jsx)**:
-  - ±çè©¨æ¼å®åæ¸²è©»®å¥è·ç (Fallback)
-  - ¨éè©¨äè©¨æäºå¯§ç¸èè¸µææ¢¯æ¢¯¸ï¼¹
-  - ºé¿äº¦ç®è©¨æ´åå¯§çè©¨æè±¢æ©æè©¨æ
-  - æ½ LINE ¸æè©¨æ´é¿é Postback æ¾­æ `menuID`°è¤è©¨æ¡ `permission_tags` (Python list ®é«æ) äº `fallback_message`ºè¡è«è°ç¼ï¼¸è©
-  - è©¨æµå»äº¦ï¼¶è Fallback ®è¬è³¬
+  - æ¢é–°å†½æ¾†æ¡€çšœè„°å½¿æ¡€äº¥ç‘ (Fallback)
+  - åˆ¸é–°å…¶é–°å†½éˆ­æ’–æŠ’è²‰é ¦èœç’‡èˆ€ï¼è³‚æ’•
+  - ç²¹è¹‚æ¼²èé–°å†½æ¸¸æ’–æŠ’é–°å†½éŠï¼¸æ‹‡é–°å†½
+  - ç LINE è±¢é–°å†½æ¹§è¼¸ Postback ç‰å‰œ `menuID`å•—æ–¹å²³ç¢ `permission_tags` (Python list æ¡…æ€¥) éˆ­ `fallback_message`ç®„âˆŸæ€¨å•æ½˜æ’“é–°
+  - é–°å†½è„é¢±æ¼²åš—å—‰ Fallback æ ªç¥ˆé–‰
 
-## [2026-06-18] ¬é®è¯æ¿è
+## [2026-06-18] ç¥‡æ ªèˆ€è¼¯
 - ** (frontend/src/pages/RuleDesigner.jsx)**:
-  - é§äº
-  - ¤è¸µæ¸¯ï¼¹ç®³æäº»æäº¤æ¿è§è¬è¿è¸¹¸èï¼¶éæ¹æ¸¡æ¸²æ­»é¿æ
+  - æ“éˆ­
+  - æ–¹è‘­çšœè”æ’•èå–®éˆ­é¤…éˆ­æ–—è¼¯æ‰¯ç¥ˆè¼¯è™Ÿè²‰åš—åœ’çšçšœâŠ¥è‘¡ç”‡é§è¸µ
 
-## [2026-06-17] ¡è¬æ³æ½é
+## [2026-06-17] âˆŸç¥†å–®è³¡
 - ** (frontend/src/pages/Projects.jsx, Broadcast.jsx, RuleDesigner.jsx, RichMenu.jsx, LiffQuestionnaire.jsx, FlexMessageEditor.jsx)**:
-  - «è¡è­å®ç¢æ°å¯¥ªç·ç¶½è¸¹æ­æ³ç¢é GitHub  Repo äºä¹ GitHub API ­æ
-  - ¿æ¦æå¡ (5 MB)¶æ (50 MB) (30 MB)¬è³¢ (1 MB)è©¨æ (1 MB) (1 MB)
+  - æ€¨âˆŸå‰–æ¡ƒï¼¸å•£ç ²èŠ°ç‘é£­é ¦å¯å‰œå–Ÿï½ GitHub  Repo éˆ­éŠ‹ GitHub API å‰œ
+  - è¸µè¡Œæ†› (5 MB)å—† (50 MB) (30 MB)ç¥ˆéƒ­ (1 MB)é–°å†½ (1 MB) (1 MB)
 
-## [2026-06-17] è©¨æäº Link 
+## [2026-06-17] é–°å†½éˆ­ Link 
 - ** (frontend/src/pages/RichMenu.jsx)**:
-  - æ½¸èº«®è©¨¼åäº LINEç®äº LINEä¹©è Linkè³äº¤æ¹å¥æ¬è¥¿¡å¾åæ½¸ç¸å½å¥è¬æ
+  - çè²‰æ¾ˆæ ªå²³æ¾†éˆ­ LINEèéˆ­ LINEéŠ‹æŠµ Linkéˆéˆ­æ–—å­µäº¤ç¥ˆæ­£âˆªæ›‰çè²Šè©¨è³¢äº¥ç¥†
 
-## [2026-06-17] è©¨æ¼è¹è¸è¬æ°æ
-- **ºè (backend/endpoints/richmenu.py, backend/endpoints/customers.py)**:
-  - «ç®¸æ½­è¤è¸è©¨æ¡°ç (`bulk_check_and_update_rich_menu`)
-  -  `/api/customers/count-by-tags` ½æ½¸è¡¤å½å¡çè©
-  - ºé¿è¼»»é®å (/·æ) æ½è©¨æ¼å¸æ½¸ªåæ½»è©¨æ¡
+## [2026-06-17] é–°å†½æ½¸å¯¡è²‰ç¥†å”³
+- **ç®„ (backend/endpoints/richmenu.py, backend/endpoints/customers.py)**:
+  - æ€æ‚çå‰›æ–¹è²‰å²³ç¢å• (`bulk_check_and_update_rich_menu`)
+  -  `/api/customers/count-by-tags` è³£è‚éŠµæ–‡è³¢âˆ é–°
+  - ç²¹è¼¯æ’’é§æ¡€ (/ç‘Ÿ) çé–°å†½æ¾†è±¢è‚èŠ¸çé¤‰å²³ç¢
 - ** (frontend/src/pages/RichMenu.jsx)**:
-  - é§¹ç®åï¼
-  - ºå»æ©è©¨¼åç¥ (°ç)
-  - æ¸¸é´è±¢æ­¹éè¡®é¬è³¡®æ¶çè©
-  - µå¶ï¼¸æ¹³è¹æ¿è
+  - æ“å¯§æ¡€åš—
+  - ç®é¤…æŠµå²³æ¾†èŸ¡ (å•)
+  - çšœè³Šæ¸²æ‚»ç”‡å¯¥éŠµæ¡…ç¥ˆéƒ¨æ ¼å—¥é–°
+  - è„å¡šæ’“çšå”¾å¯è¼¯
 
-## [2026-06-16] Flex ¬æ°çæ¹
+## [2026-06-16] Flex ç¥†å•çš
 - ** (frontend/src/components/FlexMessageEditor.jsx)**:
-  - æ¸¸å¸éµç®åäº¥è¸èè©¨æ
-  -  payload «çå¡ `sys_bind|{tag}|{journey}|{menu}|{displayText}` ¯æ¹æ
+  - çšœè©¨è³Šè‡æ¡€éˆ­äº¥è²‰é–°å†½
+  -  payload æ€æ†› `sys_bind|{tag}|{journey}|{menu}|{displayText}` èˆ€å¯
 
-## [2026-06-16] æ¢¢èªç®èæ¹
-- **ºè (backend/endpoints/questionnaire.py)**:
-  - ±çäºæ¢¢é´åªç·ç«æ¢¯¿è§ç
+## [2026-06-16] ç’‡ï¼ºèŠ°æ ªçš
+- **ç®„ (backend/endpoints/questionnaire.py)**:
+  - æ¢éˆ­ç’‡ï½æ¸¸èŠ°ç‘æ€¥ï¼è¼¯æŠ’
 
 ## [2026-06-12] superpages UI/UX Improvements
-- **¡è¬å (App.jsx)**:
-  - è¡æ¹§ç OA°å­µ½åè³
-- **¸è (Projects.jsx)**:
-  - ¶æ®èæ¥¶æ¬è³¢½çç® `preview_image_url` ¿è§çï¼ (poster)
-  - ¤å¾èæ¥æ¢¯æ­æ duration æ¼²æ¿è§åå¯§ç¸éºè¡èªå«æ¬ç
+- **âˆŸç  (App.jsx)**:
+  - éŠµçšæŠ’ OAå•£éŸ³è³¢éˆ
+- **è²‰ (Projects.jsx)**:
+  - å—†æ ªç’†å—†ç¥ˆéƒ­è³œè `preview_image_url` è¼¯æŠ’åš— (poster)
+  - æ–‡æ›‡ç’†ç’‡èˆ€å‰œ duration çè„«è¼¯æ‰¹æ’–æŠ’è³Šç®„âˆŸèŠ¸æ€¥ç¥‰
 - ** (RuleDesigner.jsx)**:
-  - ½æ¼è¿¤ªâ¥çªé·æ¥èºâªå½åè³æ¥«ï¼¹¿å¸è·æ¸é¾èµå
-  - ½éªæ±ç¬è·æ¥èäº¤é®èæ¥ç®è¡äº¤é (Loading Spinner) ³å½å¸é¿è¼»»æ
-- **¢æ¤æ½¸ (Broadcast.jsx)**:
-  - ½æ¼è¿¤¶æ®è¬è³¡ï¼·ç¶½¸è¹çç²¹ï·ç®¸®å¬è³¢ (poster)
+  - è³£æ½¸ç¸£èŠ¬äº¦èŠ·ç‘Ÿäº¥ç®—èŠ¸è³¢éˆç’†æ¬æ’•è¸¹è²‰ç‘Ÿè³Šæ›‡è„
+  - è³¡èŠ£æ¢ç¥ˆç‘Ÿäº¥éˆ­æ—¥æ ªç’†èéŠµéˆ­æ—¥ (Loading Spinner) å–³è³¢è³Šè¼¯æ’’é¤…
+- **ï¼¸æ–—è‚ (Broadcast.jsx)**:
+  - è³£æ½¸ç¸£å—†æ ªç¥ˆéƒ¨åš—ç‘é£­è²‰å¯§èå°ç‘æ‚æ¡€ç¥ˆéƒ­ (poster)
 
 ## [2026-06-10] superpages dev-and-deploy-docker Update
-  - ¤é®èæ¥¬å½å¤å¾èªè¸è«çæ¼²è¡æ°éè©¨äº¤
-  - ¤é®èæ¥¬å½å¶æ³å®é¬è³¢è³
-  -  unfollow ½å¥æ¿è§å ctive ½å®ç¯å½åæ¼
-- **¢æ¤æ½¸ (Broadcast.jsx)**:
-  - ¶æ®è¾å®é¬è³¢è³
-  - ®è«äº¤äº¤æ°æäº¹æ³ç®è
-- **®è­è (MessageCenter.jsx)**:
-  - «çç®æ¤°æ¹§/ UI Bug
-  - ½åå­ unfollow ­é¸é®èªæäº¤é¡ï·çæ¡½åæ­ follow ºè¸é«æ
-- **ºè (backend/app.py)**:
-  - æ¹ get_users_list  get_project_users API äº is_following ¡è¬æ½å­é©æ
+  - æ—¥æ ªç’†ç è³¢æ–‡æ›‡èŠ¾è²‰æ€çè„°âŠ¥åœˆé–°å…¶æ¼±
+  - æ—¥æ ªç’†ç è³¢å—†å–³æ¡…ç¥ˆéƒ­éˆ
+  -  unfollow è³¢äº¤è¼¯æ‰¹ ctive è³¢æ¡ƒè‡¬è³¢ç
+- **ï¼¸æ–—è‚ (Broadcast.jsx)**:
+  - å—†æ ªæ›‰æ¡…ç¥ˆéƒ­éˆ
+  - æ ªæ€æ¼±éˆ­æ–—å”³éˆ­å¯å–Ÿæ ª
+- **æ ªå‰› (MessageCenter.jsx)**:
+  - æ€èç’Šå”³é³©/ UI Bug
+  - è³¢æ‘® unfollow å‰è³Šæ ªèŠ£éˆ­æ—¥âˆ´ç‘ç¢è³¢ç”‡ follow ç®„è³Šæ€¥
+- **ç®„ (backend/app.py)**:
+  - çš get_users_list  get_project_users API éˆ­ is_following âˆŸç¥†è³¢å‰æ‹‡
 
 
 
 ### 2026-06-10
-- **Feature**: ±ç\
-ote\ ¿è¸æºè \- äº¦å½\
-- **Feature**: ¡è (\Questionnaire.jsx\) æ¢ \äº¦å½\ ®ææ©¿è§è¯è«è
-- **Feature**: \RuleDesigner.jsx\ ªâ¥çªæ¸è¸æ¢¯ \äº¦å½\ 
+- **Feature**: æ¢\
+ote\ è¼¯è±¢ç®„ \- éˆ­è¡€ç©€
+- **Feature**: âˆŸ (\Questionnaire.jsx\) ç’‡ \éˆ­è¡€ç©€ æ ¼ç’ˆè¼¯æ‰¯èˆªæ€¨
+- **Feature**: \RuleDesigner.jsx\ èŠ¬äº¦èŠ£è²‰è±¢ï¼ \éˆ­è¡€ç©€ 
 
 ### 2026-06-10 Customer Center Updates
-- **Feature**: °ï¼¸¡è¹å³æ¤æ (/)¸è¿è§é¯è©¨æ¡¿è§é«æ¤æ
-- **Feature**: ºè customers.py  /api/customers/<user_id>/details  DELETE /api/customers/<user_id>/richmenu
+- **Feature**: å †æ’“âˆŸå­µå–®æ–— (/)è²‰è¼¯æŠ˜èˆªå²³ç¢è¼¯æŠ˜æ€¥æ–—
+- **Feature**: ç®„ customers.py  /api/customers/<user_id>/details  DELETE /api/customers/<user_id>/richmenu
 
-- **BugFix**: ½æ¼è¿¤°ï¼¸¡è¹å³æ¸è SQL ¿èæ¢¢èªç (projects µå project_id  project_name)
+- **BugFix**: è³£æ½¸ç¸£å †æ’“âˆŸå­µå–®è²‰ SQL è¼¯ç’‡ï¼ºèŠ° (projects è„ project_id  project_name)
 
-- **Feature**: é¤çµ­æ¤éé¤¬è³¢®æ¼æ¹å¬æ¹§äº¤æä¹é¤æ¥µé
+- **Feature**: æ“—è¯å‰œæ—¥æ“—ç¥ˆéƒ­æ ¼æ½­å­µç¥†é³©éˆ­æ–—éŠ‹æ“—ç’†èŸ
 
-## [2026-06-22] ¢æ¤è©¨ªè¸è
+## [2026-06-22] ï¼¸æ–¹å²³èŠ¾è²‰
 ### Added
-- µå½ç½å ui_uuid  group_id ¿éäº¤èæ¸¸è©¨æ¡¢æ
-- ¡è¬ç¿è©¨æ¡é» UIæ¸¯èè¼
-- «æè±¢é®åè©¨æ´è³¬
-- «å¸éµå½ç½æ
+- è„è³œè³¢ ui_uuid  group_id è¼¸éˆ­æ–¹çšœè²‰å²³ç¢ï¼¸
+- âˆŸç¥‰è¼¯å²³ç¢æšº UIçšœèˆªé ›
+- æ€¥éŠï½æ¡€é–°å†½æ¸²é–‰
+- æ€ è³Šè„è³œè³£
 
  # #   [ U n r e l e a s e d ]   -   R i c h   M e n u   U I / U X   U p d a t e s 
  -   * * M o d i f i e d * *    a c k e n d / e n d p o i n t s / c u s t o m e r s . p y :   U p d a t e d   / c o u n t - b y - t a g s   e n d p o i n t   t o   r e t u r n   	 o t a l C o u n t   a l o n g   w i t h   m a t c h e d   u s e r   c o u n t . 
@@ -220,119 +227,119 @@ ote\ ¿è¸æºè \- äº¦å½\
  -   * * M o d i f i e d * *    r o n t e n d / s r c / p a g e s / R i c h M e n u . j s x :   A d d e d   d r a f t   d e l e t i o n   b u t t o n   i n s i d e   g r o u p   t a b s ,   i m p l e m e n t e d   c r e a t e _ a n d _ s w i t c h   q u i c k   a c t i o n   i n   a r e a   s w i t c h   d r o p d o w n ,   s t a c k e d   s c h e d u l e   t i m e   i n p u t s   v e r t i c a l l y ,   a n d   f i x e d   t a r g e t   m e n u   i m a g e   p r e v i e w   b y   f e t c h i n g   f r o m   b l o b   c a c h e . 
  
  
-- **Bug Fix (2026-06-23)**: ½æ­å¸è©¨´æä¹¨å°è¬æ°æªæ·é targetTags ç®å¾æ¸¡æï¼·æ´ç¬â¥æ¿è§è½è¤æ
+- **Bug Fix (2026-06-23)**: è³£å‰–è²‰å²³æ¹”éŠ‹å…¸å•—ç¥†å”³èŠ£ç¿ targetTags èæ•ºçšœâŠ¥åš—ç‘Ÿæ¸¡ç ‚äº¤è¼¯æ‰¯è³ªæ–—
 
-*   **customers API**: ½æè© /count-by-tags ¯æ¢¯­éæ¸¸æ¿åå¯§ç¬è±¢è©¨æè¡¨æè³ ()¿ç­ç®¸è²ç®
+*   **customers API**: è³£é–° /count-by-tags èˆ€ï¼å‰çšœè±¢è¸¹æ’–æŠ’ç¥ˆæ‚»é–°å†½éŠµå†½éˆ ()è¼»å‰”æ‚éè
 
 ## 2026-06-25
-- [ç¨  WebSocket  SIGNATURE_KEY ªè½éäº¦è©¨ Line-Bot-Main °å»è
+- [è”  WebSocket  SIGNATURE_KEY èŠ¾è³¡éˆ­è¥¿å²³ Line-Bot-Main å•£é¤‰
 ## [2026-06-25] - Syslog Integration
 ### Added
-- ´å NAS Syslogï¼½åè¨è¦å¾ç«¯æä½è¡ (°å¸å®ãä¿®æ¹åæ¡è¨­å¯å¥æç¨ç­)
-- °å utils/syslogger.py  ReconnectingSSLSysLogHandlerï¼å° Syslog ¾ç½®¯å·èç·ï¼ç¢ºäç·ä¸ç©©æ API ä¸å½±é¿ã
-- ¯æ´ç°åè® NAS_SYSLOG_APPNAME  Docker  Heroku ¨ç½²°å
+- æ¸¸ NAS Syslogåš—è³¢é–®é–¬æ•ºè¡èˆ€é›¿éŠµ (å•£è©¨æŸ´é½æ ¼å­µç¢é–®å‰–è‡¬äº¤è”è‘)
+- å•£ utils/syslogger.py  ReconnectingSSLSysLogHandleråš—æ’  Syslog æ›„è”­è‡¬ç‘èºåš—è£ç®”èºéŠè›æ‹‡ API éŠæ•¶æ¢¢è¸´
+- èˆ€æ¸¡å•£éœˆ NAS_SYSLOG_APPNAME  Docker  Heroku å‡½è”¡å•£
 
 
 ## [2026-06-25] - Keyword Reply Duplicate Validation
 ### Added
-- µåè¦ (RuleDesigner ç°¡ææ¨¡å): ²åªåæª¢æ¥æ¯å¦è¶äµåæ¨é¡è¤ï¼¥éè¤è·³åºæç¤ºå»ºè­°é¿åï¼¹ä¾¿å¾°ç®¡
+- è„é–¬ (RuleDesigner èªâŠ¥ç’…âˆª): è„£èŠ¸ç‘¼ï¼¸äº¤è‡¬è¥¿å—¡è„ç’…æ†¿éŠ´åš—ä»¿éŠ´é å–³ç®¸è·ç®é£éœ…åœˆè¸¹åš—å«£å™¶æ•ºå•æ£
 
 ## [Unreleased] - 2026-06-25
 ### Added
-- ¸å®ç®¡ï¼°å°ä³ã½ã
-- ¸å®ç®¡ï¼å»ºçæ®µå¥ä/ä¸­çè¼¥å«é²å
-- ¸å®ç®¡ï¼å°å®ç¶å®å°è±¡åå¥(è¨)ç­¥ï¥å¨éå¥½åå¥(ALL_USERS)å®æ¨ç±¤ç¸ææ©¶ã
+- è©¨æ¡ƒæ£åš—å•£å”¬å–‹è³¬
+- è©¨æ¡ƒæ£åš—æ’±ç®‡ç•¾è„ä¹©/éŠå‰”é ›äº™æè„£
+- è©¨æ¡ƒæ£åš—æ’ æ‘°è¬æ‘°æ’ éŠâˆªæ†Ÿ(é–®)è‘ä¼äº™åˆ¸æ†Ÿè³¢æ†Ÿ(ALL_USERS)æ‘°ç’…èæ–¤è±¢ç’ˆå—š
 ### Fixed
-- ¸å®ç®¡ï¼ä¿®æ­£¸æªå»ºç«³lineä¸ºç¾æç¨è¨­åUIè¼¯ã
-- ¸å®ç®¡ï¼ä¿®å¾©ä¸¶å¥ç¡æé¡¯ç¤ºé¡ï¼¹ç¨å¨å useEffect ªåæª¢æ¥åå½±å
-- µåè¨¯ä¸­å¿ï¼æ¿¾æ¨æªè¨­å® fallback message ¢ç [text] å­ä¸²ï¿å¶å¹²¾è¯ä¸­å¿±éµåçµ±è
+- è©¨æ¡ƒæ£åš—é½æ ¼è¿¤è±¢èŠ¸é£è¡è¶ºineéŠç®‡æš¹è”é–®å‰–UIé ›èƒ¯
+- è©¨æ¡ƒæ£åš—é½æ¡€å„”éŠå—…äº¦âŠ¥æ†¿èˆå…§æ†¿åš—å¯§å…¸å…¸ useEffect èŠ¸ç‘¼ï¼¸äº™æ•¶å‹—
+- è„é–®è‡­è‘‰æ•¹åš—çˆæš¹å†½èŠ¾èº«æ‘° fallback message ï¼¹ [text] æ‘®éŠèè¸¹å—…åƒ•æ›‡è‡­è‘‰æ•¹æ¢¢è„è¯æ¢¯
 
 
 ## 2026-06-29
-- **Feature**: å¯¦ä¸å®èªåç¨ªé¤é²åæ©¶ïªé¤åªåæª¢æ¥é¯çå®ä¸¦è·³ºæç¤ºïå¾æ¸ç©ºç¸éè³ (Cascade Clear)
-- ¸è·æå¡æ¡°å¹æ·ç°æç®¸æ¶æ¢¢è¼¸æ(: ®è¯XXX)
+- **Feature**: æ’–è™«è©¨æ ªèŠ¸è”èŠ·æ—¥è„£ç’ˆå¡šèŠ·æ–‡èŠ¸ç‘¼ï¼¸ä»¿èˆæ‘°éŠè¥¿æ­²ç®¸è·ç¶½æ•ºçšœè›ç®‡è³Šéˆ (Cascade Clear)
+- è²‰ç‘Ÿæ†›ç¢å•£å¯ç‘å”³èè±¢å—†â•°é ›è±¢(: æ ªç‹·XX)
 
 
-## [2026-06-30] ç³»çµ± UI å° BUG ªå
-- **ç« (frontend/src/pages/Projects.jsx, RichMenu.jsx, Broadcast.jsx, RuleDesigner.jsx, components/JourneyPreview.jsx, index.css)**:
-  - 1. Projects.jsx: ç¨è¡¨ç©º LayoutDashboard ç¤ºæç¤ºïä»¥å alidateProjectForm °åç¨±éè¤¡éè¼¯ã
-  - 2. RichMenu.jsx: ¨æä½ flex è¡ä¿®æ­£ whiteSpace: 'nowrap' ä»¥åå­è¡ï¼isDefault å¢ status === 'public' ¯æ´ïä»¥æ­£ç¢ºæ¸²è¨­çæ¨è¨
-  - 3. RuleDesigner.jsx: è§¸ç¼éµåç´ KeywordTagInput ä»¶ïä½¿ç¨éé©ï¼ä¿®æ­£ .card list item  onMouseLeave ¯é²éç½®éè¼¯ã
-  - 4. Broadcast.jsx: ¼éå°è±¡æç±¤ç¯©¸æ¿æ TagInput ä»¶ïä¿ singleSelect={true}
-  - 5. index.css: èª¿æ´å¨å utton ºçæ¨å¼ï¼ paddingmin-width  flex ä½å± gap
-  - 6. JourneyPreview.jsx: å­æ°æ³¡æ¨£å¼è¿½å whiteSpace: 'pre-wrap'ï¼ç¢ºäè¨¯æè¡æ­ç¢ºéè¦½ã
+## [2026-06-30] èŸé¤Œçµ UI æ’  BUG èŠ¸
+- **è¡ (frontend/src/pages/Projects.jsx, RichMenu.jsx, Broadcast.jsx, RuleDesigner.jsx, components/JourneyPreview.jsx, index.css)**:
+  - 1. Projects.jsx: è”éŠµå‡½å¾ LayoutDashboard è·ç®¸è·ç¶½éšäº™ alidateProjectForm å•£è”æ¢¢éŠ´âŠ¿é ›èƒ¯
+  - 2. RichMenu.jsx: å†½é›¿ flex éŠµé½æ ¼è¿¤ whiteSpace: 'nowrap' éšäº™æ‘®éŠµåš—isDefault æ†“ status === 'public' èˆ€æ¹›éšäº¤è¿¤è£ç®¸è‘¡é–®å‰”ç’…é–®
+  - 3. RuleDesigner.jsx: é–«è²Šæ½®è„è KeywordTagInput éšå¡šé›¿è¼»åˆ¸æ’½åš—é½æ ¼è¿¤ .card list item  onMouseLeave èˆ«è„¤èµæ¡…é ›èƒ¯
+  - 4. Broadcast.jsx: æ½®æ’ éŠâŠ¥èæ–¤ç¥Ÿè±¢è¸µ TagInput éšå¡šé½ singleSelect={true}
+  - 5. index.css: éš¤è¸µæ¸¸å…¸ utton ç®‡ç’…æ’˜åš— paddingmin-width  flex é›¿æ’… gap
+  - 6. JourneyPreview.jsx: æ‘®ç˜ç˜œâŠ¥è¦‹æ’˜é¤ˆè³¢ whiteSpace: 'pre-wrap'åš—è£ç®”é–®èˆ€éŠµç”‡è£ç²¹é–¬è³¬
 
-- **ç« (frontend/src/pages/RichMenu.jsx, Projects.jsx, RuleDesigner.jsx, MessageCenter.jsx)**:
-  - RichMenu.jsx: ä¿®æ­£ loading ®ç½© LoadingSpinner ä½¿ç¨æ¹å
-  - Projects.jsx: ¥æç¨ç¨±å·²å­¨ïç²¾æé¡¯ç¤ºå°¯èª¤ï¼ä¸é¡¯ç¤ºè«è£é½å¿å¡«æä½
-  - RuleDesigner.jsx: µåä» KeywordTagInput å¢æ¿¾ç©º¼èï¼²å²ç©º½ã
-  - MessageCenter.jsx: ¨èå¤©å®¤æ¨ç±¤åªé¤æ style ä¸­å¼·¶è minWidth: 'auto' ¿å¶ç¹¼¿å¨å button å¤§å
+- **è¡ (frontend/src/pages/RichMenu.jsx, Projects.jsx, RuleDesigner.jsx, MessageCenter.jsx)**:
+  - RichMenu.jsx: é½æ ¼è¿¤ loading æ¡ƒè”— LoadingSpinner é›¿è¼»å†½å­µ
+  - Projects.jsx: äº¤è”è”å‹—æ­‡æ‘®å‰èæš¹æ†¿èˆå…§æ’ èˆªç‚Šåš—éŠæ†¿èˆå…§éš¢é‹†æœ£æ•¹æ†›æ€¥é›¿
+  - RuleDesigner.jsx: è„éš KeywordTagInput æ†“çˆæ›„å¾æ½¸åš—è„£è„©å¾è³¬
+  - MessageCenter.jsx: åˆ»æ†­æ‹™æ•ç’…èæ–‡èŠ·æ–— style éŠå‰–æ’¥å—‰ minWidth: 'auto' è¸¹å—¥åŒ±è¸¹å…¸ button æ†­æ‰¹
 
 
-## [2026-06-30] ç²¾æäºä»¶é­è²¼æ­¥èªçæ©
-- **ç« (components/UserAvatar.jsx, pages/CustomerCenter.jsx, pages/MessageCenter.jsx)**:
-  - °å UserAvatar.jsx çµä»¶ïä»¥å¯¦¾åè¼å¤±æ¯éæ­¥å·æ°é­è²¼é¡¯ç¤º°è Icon  Placeholder
-  - ¿æå®¢æ¶ä¸­å¿ï¼CustomerCenter.jsxï¼è¡¨è´éæ¬­è²¼
-  - ¿æè¨¯ä¸­å¿ï¼MessageCenter.jsxï¼å¤©åè¡¨èå¤ Header ¨æ¶é­è²¼
-- **å¾ç« (backend/endpoints/customers.py)**:
-  - °å 
-efresh-profile API ç«¯éï¼ LINE Profile ¥å°èä¸¦ä¸»´æ DB ä¸­ç 
+## [2026-06-30] èæš¹éˆ­éšåœ’å‰›ç¥¨ç”‡äº¥èŠ°ç’ˆ
+- **è¡ (components/UserAvatar.jsx, pages/CustomerCenter.jsx, pages/MessageCenter.jsx)**:
+  - å•£ UserAvatar.jsx è¯éšå¡šéšäº™ç¥•æ›‰é ›æ†­æœ›èˆ«ç”‡äº™ç‘Ÿåœˆå‰›ç¥¨æ†¿èˆå…§å•— Icon  Placeholder
+  - è¸µæ‘°ï¼¸å—¡è‘‰æ•¹åš—CustomerCenter.jsxåš—éŠµåˆ»æ¹§ç”ˆå‰›ç¥¨
+  - è¸µé–®è‡­è‘‰æ•¹åš—MessageCenter.jsxåš—æ†­æ‹™éŠµåˆ»æ†­ Header å†½åœ’å‰›ç¥¨
+- **æ•ºè¡ (backend/endpoints/customers.py)**:
+  - å•£ 
+efresh-profile API è¡èˆ«åš— LINE Profile äº™å•—éŠè™«èœ“æ¹” DB éŠå‰” 
 ame  pic
 
-  - UserAvatar.jsx: ä¿®æ­£ display: none å°´é¨åè¦½å¨äè§¸ç img onLoad äºä»¶çæ½¨æ¸² bugï¼¹ä»¥ opacity  position absolute è¼¥ã
+  - UserAvatar.jsx: é½æ ¼è¿¤ display: none æ’ æ¹§å…¸é–¬è³¢å…¶é–«è²Š img onLoad éˆ­éšå—¥çå†½è‘¡ bugåš—å«£èª‘ opacity  position absolute é ›ä¹“
 
-  - backend/endpoints/customers.py: ªå refresh-profile ¥åå° LINE API 404 Not Found (å°å¥½å) ï¼è¿ 200 ç©ºå¼ï²é»åç« Console è­¦å±ã
+  - backend/endpoints/customers.py: èŠ¸ refresh-profile äº™æ’  LINE API 404 Not Found (æ’ æ†Ÿè³¢) åš—é¤ˆ 200 è›ç®æ½˜è„¤é¤ƒè¡ Console éœ…è¡€æ™
 
-  - backend/endpoints/customers.py: ä¿®æ­£²å LINE Profile  API ç«¯éè·¯å /v2/bot/profile/{userId}
+  - backend/endpoints/customers.py: é½æ ¼è¿¤è„£ LINE Profile  API è¡èˆ«é è‡¬ /v2/bot/profile/{userId}
 
-  - frontend/src/components/UserAvatar.jsx: °å loading_refreshed ä»¥é²æ­¢­åè¼¥å¤±¡éªçèª¿ç¨è¿´
-  - backend/endpoints/customers.py: ªå refresh_customer_profile °å¸¸ç·¶ï¿å Connection Leak
+  - frontend/src/components/UserAvatar.jsx: å•£ loading_refreshed éšä»¿è„«è¿«å‰–é ›äº™ä»ƒâŠ¿èŠ°éš¤è¼»åˆ»è‰˜
+  - backend/endpoints/customers.py: èŠ¸ refresh_customer_profile å•£è™œèºå¡šè¸¹ Connection Leak
  
   
  -   2 0 2 6 - 0 7 - 0 1 :   U p d a t e   F l e x M e s s a g e E d i t o r   t o   p r i o r i t i z e   u i _ u u i d   o v e r   r i c h M e n u I d   w h e n   c o n f i g u r i n g   r i c h   m e n u s w i t c h   f o r   f l e x   m e s s a g e   b u t t o n s   t o   e n s u r e   w e b h o o k   r e c e i v e s   t h e   c o r r e c t   U U I D   f o r m a t .  
  -   2 0 2 6 - 0 7 - 0 1   ( H o t f i x ) :   F i x   R e a c t   o p t i o n   r e n d e r i n g   i n   F l e x M e s s a g e E d i t o r   a n d   R u l e D e s i g n e r   b y   s e t t i n g   f a l l b a c k   \  a l u e = { m . u i _ u u i d   | |   ' ' } \   t o   p r e v e n t   t h e   b r o w s e r   f r o m   d e f a u l t i n g   t o   t h e   r i c h   m e n u   n a m e   w h e n   \ u i _ u u i d \   i s   n u l l / u n d e f i n e d .  
  
-## [2026-07-06] ¸å®éè¨­çç¨è¼¯éæ§
-- ä¿®æ­£: \ackend/endpoints/richmenu.py\ ç§»é¤ä \save_rich_menu_metadata\  \set_default_rich_menu\ ²åå¼·å¶å¶äè¨­é¸å®éç´ \published\ è¼¯ã
-- °å: \save_rich_menu_metadata\  \set_default_rich_menu\ ä¸­å¥æ²åæª¢æ¥ï¶è¨­å®ç¨è¨­æ¥æ¶äè¨­æç¨ï¼å° 400 ¯èª¤
-- è®: \check_and_apply_scheduled_rich_menus\ ¥äªåç´æ©¶ïè¨­é¸å®æªå´æ°ç \published\
-- è®: \rontend/src/pages/RichMenu.jsx\ ¤æ UI ä¸ªäå¼µé¸å®æè©²è¢«æ¨ç¤ºçºãè¨­ã¾å¨ææ¯å°ç¨®åï¼ªå°éé¡¯ç¤ººãç¨å¾
+## [2026-07-06] è©¨æ¡…é–®å‰”è”é ›èˆ«ç‘½
+- é½æ ¼è¿¤: \ackend/endpoints/richmenu.py\ è˜é§æ”¯ \save_rich_menu_metadata\  \set_default_rich_menu\ è„£æ’˜ç‘•å—…å—¡é–®å‰è©¨æ¡…è \published\ é ›èƒ¯
+- å•£: \save_rich_menu_metadata\  \set_default_rich_menu\ éŠå‰–äº¤è„£ç‘¼ï¼¸ä¼å—‰èº«æ‘°è”é–®å‰œäº¤å—¡é–®å‰œè”åš—æ’  400 èˆªç‚Š
+- éœˆ: \check_and_apply_scheduled_rich_menus\ ä¹©èŠ¸èç’ˆå¡šé–®å‰è©¨æ ¼èŠ¸æ¹”å• \published\
+- éœˆ: \rontend/src/pages/RichMenu.jsx\ æ–— UI éŠèŠ¯æ’˜èŸè©¨æ ¼é–°è„°â—¤ç’…è·ç®‡ç®é–®å‡†æ›‰å†½ç˜¥æ’ è”æ¡€åš—èŠ¸åœˆæ†¿èˆå…§ç®è”æ•º
 
 ## [2026-07-07] Customer Center UI Fixes & LIFF Tag Format
-- ×¥ CustomerCenter.jsx kTÉ¡A]Ò°}CQ~]Å¦rÓ¾É­PeİµeY (Âµe) DC
--  CustomerCenter.jsx ¤WC@ onScroll Æ¥AÏ¥ÎªÌºuÊ¨ì©³É¦Û°Ä²oJÑ¾lW (Infinite Scroll)C
-- ×¥ liff_questionnaire.py gJİ¨Ò¦ Private_var ÆªÉ¡A~Ï¥ str() É­PDtÎµLk json.loads TÑªR BugFwï¬°Î¤@Ï¥ json.dumps(..., ensure_ascii=False) ixsC
+- èš° CustomerCenter.jsx kTæ°¶A]ç§}CQ~]è‡Ÿrèšä¼¬Peæ§eY (ç¹•e) DC
+-  CustomerCenter.jsx ä¸ŠC@ onScroll â‘¤Aæ´å³ˆæŠ®uå›§é´å‚–è‡ªå‡°ç‰½JæŒ©lW (Infinite Scroll)C
+- èš° liff_questionnaire.py gJæ¢ç‹¾ Private_var â‘©æ°¶A~æ´ str() ä¼¬PDtåº°Lk json.loads Tæ‚›R BugFwéºåŒ¿ä¸€æ´ json.dumps(..., ensure_ascii=False) ixsC
 
 ## [2026-07-07] Customer Center Background Loading Fix
-- ×¥GN CustomerCenter.jsx  Infinite Scroll ^**IJ (Chunked Background Fetch)**C]eİ·jMOwgJbOé¤¤}CApGOİ­nUuÊ¤~J]Infinite Scroll^A|É­P|JÏ¥ÎªÌ¦bjMÉµLkQC{b|bì¦¸iJÉ¦Û°Ê¤JÒ¦Æªì§¹ATOjM\iHÎ¤C
+- èš°GN CustomerCenter.jsx  Infinite Scroll ^**IJ (Chunked Background Fetch)**C]eæ§jMOwgJbOæ“—å¼“CApGOæ¨nUuå¨~J]Infinite Scroll^A|ä¼¬P|Jæ´å³ˆæ€bjMä¼‚LkQC{b|bé´ç¶‘JçŠ°è¾å¨Jç‹¾â‘©é´”è¾²TOjM\iHå³‡C
 
- # #   [ 2 0 2 6 - 0 7 - 1 5 ]   -N¡{t_ïzBfhV°eX  c r o n _ t a b l e _ c h e c k e r 
- -   °eX  b a c k e n d / u t i l s / s c h e d u l e r . p y -N¡{tofczhV0
+ # #   [ 2 0 2 6 - 0 7 - 1 5 ]   -Nï¹ƒt_é´®BfhVé€X  c r o n _ t a b l e _ c h e c k e r 
+ -   é€X  b a c k e n d / u t i l s / s c h e d u l e r . p y -Nï¹ƒtofczhV0
  -   ,dy  p r o j e c t _ s t a t s _ p r o c e s s o r     r i c h _ m e n u _ s c h e d u l e r _ p r o c e s s o r   _  a p p . p y     s c h e d u l e r . p y 0
- -   °eX  c r o n _ t a b l e _ c h e c k e r   ÏkR[BfT@b	gwQ
-kP:OghV|v  c h e c k _ c r o n _ t a b l e   w e b s o c k e t   NöN0
+ -   é€X  c r o n _ t a b l e _ c h e c k e r   æ° R[BfT@b	gwQ
+kP:OghV|v  c h e c k _ c r o n _ t a b l e   w e b s o c k e t   Nè­¸0
  -   yd  a p p . p y   -N
-	gcz/¾|!|;Nz_0 
+	gcz/é­¯!|;Nz_0 
  
- # #   [ 2 0 2 6 - 0 7 - 1 5 ]   îOck²}rTA I mß[©RtbU I 
- -   yd0*gOR[b_MbËYÕRå]0eW[0
- -   \Hrb9eºp  f i x e d   [MOºxİOæ]tPkTBfNg b;NgQ¹[@SJXOPy0 
+ # #   [ 2 0 2 6 - 0 7 - 1 5 ]   è–‚ckç“ rTA I mçµ¿å‘½tbU I 
+ -   yd0*gOR[b_Mbæ±¦æ‚å¬0eW[0
+ -   \Hrb9eæ­‰  f i x e d   [MOæ¼©åµŠæ¾•tPkTBfNg b;NgQé‰€@SJXOPy0 
  
- # #   [ 2 0 2 6 - 0 7 - 1 5 ]   îOck  c r o n _ t a b l e _ c h e c k e r   |vOUL
- -   îOck(WwQ	gYP  O A   qQ(uøvT  s o c k e t _ u r l   :OghVvÅ`ÁlNg|v  W e b S o c k e t   NöNvOUL9eåN  s e t ( )    }&N\ÏkPhsËz:OghVÅP|v N!k0 
+ # #   [ 2 0 2 6 - 0 7 - 1 5 ]   è–‚ck  c r o n _ t a b l e _ c h e c k e r   |vOUL
+ -   è–‚ck(WwQ	gYP  O A   qQ(ué»²T  s o c k e t _ u r l   :OghVvé°¥ç¿¼Ng|v  W e b S o c k e t   Nè­¸vOUL9eå¢£  s e t ( )    }&N\æ° PhsèŠ:OghVé—¢|v N!k0 
  
- # #   [ 2 0 2 6 - 0 7 - 1 5 ]   îOck  G u n i c o r n   Y  W o r k e r   ÷WL  S c h e d u l e r   OUL
- -   N  U D P   S o c k e t   }[,g0W  P o r t   ( 4 7 2 0 0 )   æ[\OLz  ( C r o s s - p r o c e s s   L o c k ) 0
- -   ºxİO!q  G u n i c o r n   _UÕRY\P  W o r k e r T NğS_jhV
-NêS	g NP  W o r k e r   g÷WLofczMQíwBfgQ|vQ  t i m e r   Bl0 
+ # #   [ 2 0 2 6 - 0 7 - 1 5 ]   è–‚ck  G u n i c o r n   Y  W o r k e r   è®„L  S c h e d u l e r   OUL
+ -   N  U D P   S o c k e t   }[,g0W  P o r t   ( 4 7 2 0 0 )   æ½©\OLz  ( C r o s s - p r o c e s s   L o c k ) 0
+ -   æ¼©åµŠ!q  G u n i c o r n   _Uæ‚Y\P  W o r k e r T Nç›¬_jhV
+Nç†½	g NP  W o r k e r   gè®„LofczMQç™‡BfgQ|vQ  t i m e r   Bl0 
  
 
-## [2026-07-15] æ›´æ–°ç™»å‡ºæ™‚é•·
-- å°‡å‰ç«¯è‡ªå‹•ç™»å‡ºæ©Ÿåˆ¶ç”±é–’ç½® 30 åˆ†é˜æ”¹ç‚º 1 å¤© (24å°æ™‚)
+## [2026-07-15] ï¿½æ¹”é°µï¿½é¤ƒæ‚ï¿½ï¿½ğ©‘ˆ
+- æ’ ï¿½ï¿½è¡èˆªäŒŠï¿½é–§è’ˆï¿½ç®¸ï¿½ï¿½å—¥çœï¿½åè”­ 30 ï¿½ï¿½ï¿½ï¿½å¯§ï¿½ 1 æ†­ï¿½ (24æ’ ğ¤©ºï¿½)
 # #   [ 2 0 2 6 - 0 7 - 1 6 ] 
  # # #   F i x e d 
- -   îOck’czW‡ex®U( R i c h   M e n u ) „vÌ€of÷WLˆ/ÿã‰zl  A P I   'YÏ‘ËŠBl\ô:OghV  5 0 3   N	„vOUL˜0
- -   îOck×SP–W‡ex®U0RgŒ_!qÕlckºxN¶g„vOUL˜0
- -   îOckÜ•u“W[ŞV†‰  ( R u l e   D e s i g n e r )   ú^ËzBfgÍ‘‰"uu  S e n s o r   ‚  M e s s a g e   ‹NöN„vOUL˜ÿûyd–Ù–Í‘‰GR/0
- -   îOck*Rd–Ü•u“W[ŞV†‰BfàV  t u p l e   p a r s i n g    b„v  5 0 0   /“¤Š0 
+ -   è–‚ckğ ¸zWå›»xğ¨¯¿U( R i c h   M e n u ) ï¿½ï¿½ofè®„Lï¿½ï¿½/ï¿½ï¿½ï¿½zl  A P I   'Yï¿½ï¿½Bl\ï¿½:OghV  5 0 3   Nï¿½	ï¿½vOULï¿½0
+ -   è–‚ckèˆ¸Pï¿½Wå›»xğ¨¯¿U0RgğªŠº!qæckæ¼©Né€±ï¿½OULï¿½0
+ -   è–‚ckï¿½uãœ[æ»ï¿½  ( R u l e   D e s i g n e r )   ğ¢”“èŠBfgï¿½ï¿½"uu  S e n s o r   ï¿½  M e s s a g e   ğ¨¶™è­¸ï¿½OULï¿½ï¿½é“déˆè—®ï¿½æ»Rï¿½/ï¿½0
+ -   è–‚ck*Rdé‰·å¬«ãœ[æ»ï¿½Bfè±¤  t u p l e   p a r s i n g    ï¿½bï¿½  5 0 0   /ã¨©ï¿½0 
  

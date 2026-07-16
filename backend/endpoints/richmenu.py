@@ -1155,7 +1155,13 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
                 user_ids = [r['user_id'] for r in tenant_cur.fetchall() if is_valid_uid(r['user_id'])]
             except:
                 tenant_conn.rollback()
-                user_ids = [uid for uid in user_tags.keys() if is_valid_uid(uid)]
+                # Fallback to Private_var to get all known users in the app
+                try:
+                    tenant_cur.execute(f"SELECT DISTINCT user_id FROM {t_private}")
+                    user_ids = [r['user_id'] for r in tenant_cur.fetchall() if is_valid_uid(r['user_id'])]
+                except:
+                    tenant_conn.rollback()
+                    user_ids = [uid for uid in user_tags.keys() if is_valid_uid(uid)]
         else:
             user_ids = [uid for uid in user_ids if is_valid_uid(uid)]
 
