@@ -171,8 +171,18 @@ def list_rules():
         cur.execute(f'SELECT * FROM "{table_name}" ORDER BY id ASC')
         rules = cur.fetchall()
         
+        # Filter out paired Sensor rules for the frontend
+        def get_key(r):
+            s = r.get('state_in')
+            # state_in might be a list, make it hashable
+            s_tup = tuple(s) if isinstance(s, list) else s
+            return (r.get('content'), s_tup)
+            
+        message_keys = {get_key(r) for r in rules if r.get('type') == 'Message'}
+        filtered_rules = [r for r in rules if not (r.get('type') == 'Sensor' and get_key(r) in message_keys)]
+        
         cur.close()
-        return jsonify({'rules': rules})
+        return jsonify({'rules': filtered_rules})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
@@ -336,7 +346,7 @@ def delete_rule(rule_id):
     conn = None
     try:
         conn = get_db_connection()
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         app_id = get_app_id()
         if bank_type == 'q_bank':
             table_name = f"Q_bank:{app_id}"
