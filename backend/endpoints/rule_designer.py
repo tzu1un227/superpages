@@ -173,10 +173,7 @@ def list_rules():
         
         # Filter out paired Sensor rules for the frontend
         def get_key(r):
-            s = r.get('state_in')
-            # state_in might be a list, make it hashable
-            s_tup = tuple(s) if isinstance(s, list) else s
-            return (r.get('content'), s_tup)
+            return f"{r.get('content')}|{r.get('state_in')}"
             
         message_keys = {get_key(r) for r in rules if r.get('type') == 'Message'}
         filtered_rules = [r for r in rules if not (r.get('type') == 'Sensor' and get_key(r) in message_keys)]
