@@ -1088,35 +1088,15 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
         tenant_cur = tenant_conn.cursor(cursor_factory=RealDictCursor)
         t_private = f'"Private_var:{app_name}"'
         
-        # 1. Fetch user tags
-        user_tags = {}
-        conditions = ["name = 'tag'"]
-        params = []
-        if user_ids:
-            conditions.append("user_id = ANY(%s)")
-            params.append(user_ids)
-            
-        where_clause = " AND ".join(conditions)
-        tenant_cur.execute(f"SELECT user_id, value FROM {t_private} WHERE {where_clause}", params)
-        for r in tenant_cur.fetchall():
-            val = r['value']
-            if isinstance(val, str) and val.startswith('['):
-                try:
-                    parsed = ast.literal_eval(val)
-                    user_tags[r['user_id']] = set(parsed) if isinstance(parsed, list) else {str(parsed)}
-                except:
-                    user_tags[r['user_id']] = {val}
-            else:
-                user_tags[r['user_id']] = set(val.split(',')) if ',' in val else {val}
-                
-        # 2. Get restricted menus
+        # 1. First get ACTIVE restricted menus to know which tags to look for
         t_metadata = f'"rich_menu_metadata:{app_name}"'
         
-        # Get ALL restricted menu IDs (to correctly identify expired ones)
         cur.execute(f"SELECT rich_menu_id FROM {t_metadata} WHERE status = 'restricted'")
         all_restricted_menu_ids = {r['rich_menu_id'] for r in cur.fetchall()}
         
-        # Get ACTIVE restricted menus
+        cur.execute(f"SELECT rich_menu_id FROM {t_metadata} WHERE rich_menu_id IS NOT NULL")
+        all_existing_menu_ids = {r['rich_menu_id'] for r in cur.fetchall()}
+        
         cur.execute(f"""
             SELECT rich_menu_id, data FROM {t_metadata} 
             WHERE status = 'restricted' 
@@ -1127,14 +1107,13 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
         active_restricted_menus = cur.fetchall()
         
         menu_tag_map = []
+        all_target_tags = set()
         for menu in active_restricted_menus:
             data = menu['data'] or {}
             if isinstance(data, str):
                 import json
-                try:
-                    data = json.loads(data)
-                except Exception:
-                    data = {}
+                try: data = json.loads(data)
+                except: data = {}
             tags = set(data.get('targetTags', []))
             if tags and menu.get('rich_menu_id'):
                 menu_tag_map.append({
@@ -1142,6 +1121,50 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
                     'tags': tags,
                     'is_all': 'ALL_USERS' in tags
                 })
+                all_target_tags.update(tags)
+
+        # 2. Fetch user tags
+        user_tags = {}
+        tag_hex_to_str = {t.encode('utf-8').hex(): t for t in all_target_tags if t != 'ALL_USERS'}
+        query_names = ['tag'] + list(tag_hex_to_str.keys())
+        
+        conditions = ["name = ANY(%s)"]
+        params = [query_names]
+        
+        if user_ids:
+            conditions.append("user_id = ANY(%s)")
+            params.append(user_ids)
+            
+        where_clause = " AND ".join(conditions)
+        tenant_cur.execute(f"SELECT user_id, name, value FROM {t_private} WHERE {where_clause}", params)
+        for r in tenant_cur.fetchall():
+            uid = r['user_id']
+            name = r['name']
+            val = r['value']
+            
+            if uid not in user_tags:
+                user_tags[uid] = set()
+                
+            if name == 'tag':
+                if isinstance(val, str) and val.startswith('['):
+                    import ast
+                    try:
+                        parsed = ast.literal_eval(val)
+                        if isinstance(parsed, list):
+                            user_tags[uid].update(parsed)
+                        else:
+                            user_tags[uid].add(str(parsed))
+                    except:
+                        user_tags[uid].add(val)
+                else:
+                    user_tags[uid].update(val.split(',') if ',' in val else [val])
+            else:
+                # Hex encoded tag
+                if val == '1':
+                    tag_str = tag_hex_to_str.get(name)
+                    if tag_str:
+                        user_tags[uid].add(tag_str)
+
         
         import re
         valid_uid_pattern = re.compile(r'^U[0-9a-fA-F]{32}$')
@@ -1179,8 +1202,12 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
         for uid in user_ids:
             curr = user_current_menu.get(uid)
             if curr and curr not in all_restricted_menu_ids:
-                # User has a manual link to a non-restricted menu. Skip tag logic and do not unlink.
-                continue
+                if curr in all_existing_menu_ids:
+                    # User has a manual link to a non-restricted menu. Skip tag logic and do not unlink.
+                    continue
+                else:
+                    # Menu no longer exists in database, treat as if user is unassigned
+                    curr = None
                 
             tags = user_tags.get(uid, set())
             assigned_menu = None
