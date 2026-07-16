@@ -10,6 +10,9 @@ richmenu_bp = Blueprint('richmenu', __name__)
 # 全域記憶體圖片快取，避免重複向 LINE API 發起慢速的外部請求
 _IMAGE_CACHE = {}  # { richMenuId: (content, mimetype) }
 
+# 記錄每個 app_name 上一次檢查時，有效的限制型選單狀態，避免每 60 秒執行全量比對
+_LAST_ACTIVE_RESTRICTED_MENUS = {}
+
 def get_line_token(app_name=None):
     """
     Get LINE token from current_oa_config or database.
@@ -1313,9 +1316,23 @@ def check_and_apply_scheduled_rich_menus(app_name):
                     tenant_cur.execute(f"INSERT INTO {t_global} (name, value) VALUES ('default_rich_menu', %s)", (new_default_id,))
                     
             # 2. Check Restricted Menus
-            # This function already filters by active time
-            g.current_line_token = get_line_token(app_name=app_name)
-            bulk_check_and_update_rich_menu(app_name)
+            # Query the currently active restricted menus to detect time-based changes
+            cur.execute(f"""
+                SELECT id, updated_at FROM {t_metadata} 
+                WHERE status = 'restricted' 
+                  AND (start_time IS NULL OR start_time <= (NOW() AT TIME ZONE 'Asia/Taipei'))
+                  AND (end_time IS NULL OR end_time > (NOW() AT TIME ZONE 'Asia/Taipei'))
+                ORDER BY updated_at DESC, id DESC
+            """)
+            active_restricted = cur.fetchall()
+            current_state = str([(r['id'], str(r['updated_at'])) for r in active_restricted])
+            
+            global _LAST_ACTIVE_RESTRICTED_MENUS
+            if _LAST_ACTIVE_RESTRICTED_MENUS.get(app_name) != current_state:
+                # State has changed (a schedule just started/ended, or a menu was updated)
+                g.current_line_token = get_line_token(app_name=app_name)
+                bulk_check_and_update_rich_menu(app_name)
+                _LAST_ACTIVE_RESTRICTED_MENUS[app_name] = current_state
             
             if tenant_conn != conn:
                 tenant_conn.commit()
