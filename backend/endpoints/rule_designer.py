@@ -406,7 +406,16 @@ def delete_rule(rule_id):
         else:
             table_name = f"QA_bank:{app_id}"
         
+        # Dual-rule logic: sync delete the corresponding 'sensor' rule
+        cur.execute(f'SELECT type, content, state_in FROM "{table_name}" WHERE id = %s', (rule_id,))
+        old_rule = cur.fetchone()
+        
         cur.execute(f'DELETE FROM "{table_name}" WHERE id = %s', (rule_id,))
+        
+        if old_rule and old_rule['type'] == 'Message':
+            cur.execute(f'DELETE FROM "{table_name}" WHERE type = %s AND content = %s AND state_in = %s', 
+                       ('Sensor', old_rule['content'], old_rule['state_in']))
+                       
         conn.commit()
         cur.close()
 
