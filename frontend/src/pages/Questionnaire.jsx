@@ -188,7 +188,7 @@ function QuestionCard({ q, index, total, onChange, onDelete, onMoveUp, onMoveDow
 
 const formatDisplayName = (name) => {
     if (!name) return '';
-    return name.replace(/ \- 工程用法則$/, '').replace(/工程用法則$/, '').replace(/ \- 問卷管理$/, '').replace(/ \- 關鍵字回覆$/, '');
+    return name.replace(/^關鍵字回覆 \- /, '').replace(/ \- 工程用法則$/, '').replace(/工程用法則$/, '').replace(/ \- 問卷管理$/, '').replace(/ \- 關鍵字回覆$/, '');
 };
 
 export default function Questionnaire() {

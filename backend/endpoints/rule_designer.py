@@ -249,6 +249,30 @@ def create_rule():
         sql = f"INSERT INTO \"{table_name}\" ({', '.join(fields)}) VALUES ({', '.join(placeholders)}) RETURNING id"
         cur.execute(sql, values)
         new_id = cur.fetchone()['id']
+        
+        # Dual-rule logic: create a corresponding 'sensor' rule for 'message' rules
+        if rule_data.get('type') == 'Message':
+            sensor_rule_data = rule_data.copy()
+            sensor_rule_data['type'] = 'Sensor'
+            sensor_fields = []
+            sensor_placeholders = []
+            sensor_values = []
+            for key, value in sensor_rule_data.items():
+                if key == 'id': continue
+                if key not in existing_cols: continue
+                sensor_fields.append(f"\"{key}\"")
+                if isinstance(value, list):
+                    if key == 'msg_rpy':
+                        sensor_placeholders.append("%s::json[]")
+                        sensor_values.append([json.dumps(m, ensure_ascii=False) if not isinstance(m, str) else m for m in value])
+                    else:
+                        sensor_placeholders.append("%s")
+                        sensor_values.append(value)
+                else:
+                    sensor_placeholders.append("%s")
+                    sensor_values.append(value)
+            sensor_sql = f"INSERT INTO \"{table_name}\" ({', '.join(sensor_fields)}) VALUES ({', '.join(sensor_placeholders)})"
+            cur.execute(sensor_sql, sensor_values)
             
         conn.commit()
         cur.close()
@@ -325,6 +349,33 @@ def update_rule(rule_id):
         sql = f"UPDATE \"{table_name}\" SET {', '.join(updates)} WHERE id = %s"
         cur.execute(sql, values)
         
+        # Dual-rule logic: sync update to the corresponding 'sensor' rule
+        if old_rule and old_rule['type'] == 'Message':
+            sensor_updates = []
+            sensor_values = []
+            for key, value in rule_data.items():
+                if key == 'id': continue
+                if key not in existing_cols: continue
+                if key == 'type': continue # Keep 'Sensor'
+                
+                if isinstance(value, list):
+                    if key == 'msg_rpy':
+                        sensor_updates.append(f"\"{key}\" = %s::json[]")
+                        sensor_values.append([json.dumps(m, ensure_ascii=False) if not isinstance(m, str) else m for m in value])
+                    else:
+                        sensor_updates.append(f"\"{key}\" = %s")
+                        sensor_values.append(value)
+                else:
+                    sensor_updates.append(f"\"{key}\" = %s")
+                    sensor_values.append(value)
+                    
+            sensor_values.append('Sensor')
+            sensor_values.append(old_rule['content'])
+            sensor_values.append(old_rule['state_in'])
+            
+            sensor_sql = f"UPDATE \"{table_name}\" SET {', '.join(sensor_updates)} WHERE type = %s AND content = %s AND state_in = %s"
+            cur.execute(sensor_sql, sensor_values)
+
         conn.commit()
         cur.close()
 

@@ -37,7 +37,7 @@ def migrate():
             # Also handle NULL notes by coalescing to empty string
             query = f"""
                 UPDATE "{table_name}"
-                SET note = COALESCE(note, '') || ' - 關鍵字回覆'
+                SET note = '關鍵字回覆 - ' || COALESCE(note, '')
                 WHERE COALESCE(note, '') NOT LIKE '%關鍵字回覆%' 
                   AND COALESCE(note, '') NOT LIKE '%問卷管理%' 
                   AND COALESCE(note, '') NOT LIKE '%工程用法則%'

@@ -183,6 +183,8 @@ def check_and_clear_dependencies(item_type, item_id, force, oa_conn, main_conn=N
                             real_name = real_name.split("|UPDATED:")[0]
                         if " - 關鍵字回覆" in real_name:
                             real_name = real_name.replace(" - 關鍵字回覆", "")
+                        if "關鍵字回覆 - " in real_name:
+                            real_name = real_name.replace("關鍵字回覆 - ", "")
                         if " - 標準訊息" in real_name:
                             real_name = real_name.replace(" - 標準訊息", "")
                         if " - 進階訊息" in real_name:
