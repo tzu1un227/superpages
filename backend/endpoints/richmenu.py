@@ -1104,12 +1104,16 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
                 except:
                     user_tags[r['user_id']] = {val}
             else:
-                # If it's comma separated, we can split it. Or just use as is.
                 user_tags[r['user_id']] = set(val.split(',')) if ',' in val else {val}
                 
-        # 2. Get all restricted rich menus ordered by updated_at DESC (highest priority first)
-        # Only select currently active menus
+        # 2. Get restricted menus
         t_metadata = f'"rich_menu_metadata:{app_name}"'
+        
+        # Get ALL restricted menu IDs (to correctly identify expired ones)
+        cur.execute(f"SELECT rich_menu_id FROM {t_metadata} WHERE status = 'restricted'")
+        all_restricted_menu_ids = {r['rich_menu_id'] for r in cur.fetchall()}
+        
+        # Get ACTIVE restricted menus
         cur.execute(f"""
             SELECT rich_menu_id, data FROM {t_metadata} 
             WHERE status = 'restricted' 
@@ -1117,10 +1121,10 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
               AND (end_time IS NULL OR end_time > (NOW() AT TIME ZONE 'Asia/Taipei'))
             ORDER BY updated_at DESC
         """)
-        restricted_menus = cur.fetchall()
+        active_restricted_menus = cur.fetchall()
         
         menu_tag_map = []
-        for menu in restricted_menus:
+        for menu in active_restricted_menus:
             data = menu['data'] or {}
             if isinstance(data, str):
                 import json
@@ -1135,14 +1139,12 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
                     'tags': tags,
                     'is_all': 'ALL_USERS' in tags
                 })
-        print(f"DEBUG: bulk_check_and_update_rich_menu | menu_tag_map: {menu_tag_map}")
         
         import re
         valid_uid_pattern = re.compile(r'^U[0-9a-fA-F]{32}$')
         def is_valid_uid(uid):
             return uid and isinstance(uid, str) and valid_uid_pattern.match(uid)
 
-        # Determine all user IDs to process (if not provided, fetch all users from `users` table)
         if not user_ids:
             t_users = f'"users:{app_name}"'
             try:
@@ -1153,51 +1155,52 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
                 user_ids = [uid for uid in user_tags.keys() if is_valid_uid(uid)]
         else:
             user_ids = [uid for uid in user_ids if is_valid_uid(uid)]
-        print(f"DEBUG: bulk_check_and_update_rich_menu | processing {len(user_ids)} users. user_tags size: {len(user_tags)}")
+
         # Fetch current user rich_menu
         user_current_menu = {}
         if user_ids:
             tenant_cur.execute(f"SELECT user_id, value FROM {t_private} WHERE name = 'rich_menu' AND user_id = ANY(%s)", (user_ids,))
             for r in tenant_cur.fetchall():
                 user_current_menu[r['user_id']] = r['value']
-        
-        restricted_menu_ids = {m['rich_menu_id'] for m in menu_tag_map}
                 
-        # 3. Determine target rich menu for each user
+        # 3. Determine target rich menu and see if it changed
         user_to_menu = {}
         users_to_unlink = []
         
         for uid in user_ids:
             curr = user_current_menu.get(uid)
-            if curr and curr not in restricted_menu_ids:
+            if curr and curr not in all_restricted_menu_ids:
                 # User has a manual link to a non-restricted menu. Skip tag logic and do not unlink.
                 continue
                 
             tags = user_tags.get(uid, set())
-            assigned = False
+            assigned_menu = None
             if tags:
                 for menu in menu_tag_map:
                     if menu['is_all'] or menu['tags'].intersection(tags):
-                        user_to_menu[uid] = menu['rich_menu_id']
-                        assigned = True
+                        assigned_menu = menu['rich_menu_id']
                         break
-            if not assigned:
-                # Fallback to checking if any menu has ALL_USERS even if user has no tags
+            if not assigned_menu:
                 for menu in menu_tag_map:
                     if menu['is_all']:
-                        user_to_menu[uid] = menu['rich_menu_id']
-                        assigned = True
+                        assigned_menu = menu['rich_menu_id']
                         break
                         
-            if not assigned:
-                users_to_unlink.append(uid)
+            # Only perform updates if the assigned menu is different from the current menu
+            if assigned_menu != curr:
+                if assigned_menu:
+                    user_to_menu[uid] = assigned_menu
+                elif curr:
+                    users_to_unlink.append(uid)
                 
         # Group users by target menu
         menu_to_users = {}
         for uid, menu_id in user_to_menu.items():
             menu_to_users.setdefault(menu_id, []).append(uid)
             
-        print(f"DEBUG: bulk_check_and_update_rich_menu | menu_to_users: {menu_to_users}")
+        # If no changes are needed, we can exit early!
+        if not users_to_unlink and not user_to_menu:
+            return
             
         # 4. Perform LINE API bulk link/unlink
         token = getattr(g, 'current_line_token', None)
@@ -1213,22 +1216,17 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
             for i in range(0, len(users_to_unlink), 500):
                 batch = users_to_unlink[i:i+500]
                 resp = requests.post('https://api.line.me/v2/bot/richmenu/bulk/unlink', headers=headers, json={'userIds': batch})
-                if resp.status_code != 202:
-                    print(f"Error unlinking users: {resp.status_code} {resp.text}")
                 
             # Bulk Link
             for menu_id, uids in menu_to_users.items():
                 for i in range(0, len(uids), 500):
                     batch = uids[i:i+500]
                     resp = requests.post('https://api.line.me/v2/bot/richmenu/bulk/link', headers=headers, json={'userIds': batch, 'richMenuId': menu_id})
-                    if resp.status_code != 202:
-                        print(f"Error linking menu {menu_id}: {resp.status_code} {resp.text}")
                     
         # 5. Update Database cache
         if users_to_unlink:
             tenant_cur.execute(f"DELETE FROM {t_private} WHERE name = 'rich_menu' AND user_id = ANY(%s)", (users_to_unlink,))
             
-        # Unlink all users to link from DB before relinking
         if user_to_menu:
             users_to_link = list(user_to_menu.keys())
             tenant_cur.execute(f"DELETE FROM {t_private} WHERE name = 'rich_menu' AND user_id = ANY(%s)", (users_to_link,))
