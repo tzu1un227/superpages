@@ -348,3 +348,9 @@ N熽	g NP  W o r k e r   g讄LofczMQ癇BfgQ|vQ  t i m e r   Bl0 
  -   �O�_   u l k _ c h e c k _ a n d _ u p d a t e _ r i c h _ m e n u ��S�m�N\�eKb�R�}�[^��czx��U�v�Ow�_j6R��yd�  i f   c u r r   i n   a l l _ e x i s t i n g _ m e n u _ i d s 	���x�O	g�cz�vW�ex��U�� Y!q�h�N��˄!q�czx��U�&NN(W�czP}_g�_ck8^㉁}&N ��V�-�x��U0
  -   (W  s a v e _ r i c h _ m e n u _ m e t a d a t a   -N�ݑ\|v^�2QX[I�?zBf�v  p u b l i s h S t r a t e g y   = =   ' r e s t r i c t e d ' �	g�czx��U	��e�XBf��͑�uW�I���	g]��z\;��d�d\O0 
  
+
+## [2026-07-17] UX / BUG 修正 (Issue #35)
+- **RichMenu**: 修正儲存草稿時未能顯示詳細錯誤訊息的問題。
+- **RichMenu**: 修正載入發送人數時，會短暫顯示 0 人的狀況，改為顯示「計算中...」提示與動畫。
+- **App**: 修正使用者在建立功能項目(如新增選單)過程中，若切換 OA 帳號，不會回到列表頁的問題。
+- **Auth/API**: 新增 30 分鐘(後改為1天)閒置登出機制，並在遇到登入失效 (401) 時自動導回登入頁面並顯示相應提示。

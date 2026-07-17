@@ -192,6 +192,11 @@ api.interceptors.response.use(
         return response;
     },
     (error) => {
+        if (error.response && error.response.status === 401) {
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new Event('auth:expired'));
+            }
+        }
         return Promise.reject(error);
     }
 );

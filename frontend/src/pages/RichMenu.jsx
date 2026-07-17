@@ -123,6 +123,7 @@ function RichMenu() {
     const [linkModalState, setLinkModalState] = useState(null);
     const [backgroundImage, setBackgroundImage] = useState(null);
     const [isBgLoading, setIsBgLoading] = useState(false);
+    const [isCalculatingCount, setIsCalculatingCount] = useState(false);
     const [allAliases, setAllAliases] = useState([]);
     const [viewOnly, setViewOnly] = useState(false);
     const [menuSearch, setMenuSearch] = useState('');
@@ -289,11 +290,14 @@ function RichMenu() {
         if (!currentMenu || view !== 'edit') return;
         if (currentMenu.status !== 'draft' || viewOnly) return;
         const fetchCount = async (tags = []) => {
+            setIsCalculatingCount(true);
             try {
                 const res = await api.post('/customers/count-by-tags', { tags });
                 setCurrentMenu(prev => ({ ...prev, targetUserCount: res.data.count, totalUserCount: res.data.totalCount || 0 }));
             } catch (e) {
                 console.error('Failed to fetch target user count', e);
+            } finally {
+                setIsCalculatingCount(false);
             }
         };
 
@@ -310,11 +314,14 @@ function RichMenu() {
     useEffect(() => {
         if (!linkModalState) return;
         const fetchCount = async (tags = []) => {
+            setIsCalculatingCount(true);
             try {
                 const res = await api.post('/customers/count-by-tags', { tags });
                 setLinkModalState(prev => ({ ...prev, targetUserCount: res.data.count, totalUserCount: res.data.totalCount || 0 }));
             } catch (e) {
                 console.error('Failed to fetch target user count', e);
+            } finally {
+                setIsCalculatingCount(false);
             }
         };
 
@@ -539,7 +546,7 @@ function RichMenu() {
             showToast('草稿群組已儲存', 'success');
             setView('list');
         } catch (err) {
-            showToast('儲存草稿失敗', 'error');
+            showToast(err.response?.data?.error || '儲存草稿失敗', 'error');
         } finally {
             setLoading(false);
         }
@@ -1207,16 +1214,28 @@ function RichMenu() {
                                         )}
                                         <div style={{ marginTop: '15px', fontSize: '13px', color: '#aaa', display: 'flex', alignItems: 'center', gap: '5px' }}>
                                             <Shield size={14} /> 預計套用人數：
-                                            <span style={{ color: 'var(--primary-yellow)', fontWeight: 'bold', fontSize: '16px' }}>{currentMenu.targetUserCount}</span> 人
-                                            <span style={{ fontSize: '11px', color: '#666' }}>(佔好友人數 {currentMenu.totalUserCount ? ((currentMenu.targetUserCount / currentMenu.totalUserCount) * 100).toFixed(1) : 0}%)</span>
+                                            {isCalculatingCount ? (
+                                                <span style={{ color: 'var(--primary-yellow)', fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px' }}><div className="spinner" style={{ width: '12px', height: '12px', borderWidth: '2px' }}></div> 計算中...</span>
+                                            ) : (
+                                                <>
+                                                    <span style={{ color: 'var(--primary-yellow)', fontWeight: 'bold', fontSize: '16px' }}>{currentMenu.targetUserCount}</span> 人
+                                                    <span style={{ fontSize: '11px', color: '#666' }}>(佔好友人數 {currentMenu.totalUserCount ? ((currentMenu.targetUserCount / currentMenu.totalUserCount) * 100).toFixed(1) : 0}%)</span>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                 )}
                                 {currentMenu.publishStrategy === 'default' && (
                                     <div style={{ backgroundColor: '#111', padding: '10px 15px', borderRadius: '8px', border: '1px solid #333', marginLeft: '25px', display: 'flex', alignItems: 'center', gap: '5px' }}>
                                         <Shield size={14} style={{ color: '#aaa' }} /> <span style={{ color: '#aaa', fontSize: '13px' }}>預計套用人數：</span>
-                                        <span style={{ color: 'var(--primary-yellow)', fontWeight: 'bold', fontSize: '16px' }}>{currentMenu.totalUserCount || 0}</span> <span style={{ color: '#aaa', fontSize: '13px' }}>人</span>
-                                        <span style={{ fontSize: '11px', color: '#666' }}>(佔好友人數 100%)</span>
+                                        {isCalculatingCount ? (
+                                            <span style={{ color: 'var(--primary-yellow)', fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px' }}><div className="spinner" style={{ width: '12px', height: '12px', borderWidth: '2px' }}></div> 計算中...</span>
+                                        ) : (
+                                            <>
+                                                <span style={{ color: 'var(--primary-yellow)', fontWeight: 'bold', fontSize: '16px' }}>{currentMenu.totalUserCount || 0}</span> <span style={{ color: '#aaa', fontSize: '13px' }}>人</span>
+                                                <span style={{ fontSize: '11px', color: '#666' }}>(佔好友人數 100%)</span>
+                                            </>
+                                        )}
                                     </div>
                                 )}
 
@@ -1663,8 +1682,14 @@ function RichMenu() {
                                     </div>
                                     <div style={{ marginTop: '15px', fontSize: '13px', color: '#aaa', display: 'flex', alignItems: 'center', gap: '5px' }}>
                                         <Shield size={14} /> 預計套用人數：
-                                        <span style={{ color: 'var(--primary-yellow)', fontWeight: 'bold', fontSize: '16px' }}>{linkModalState.targetUserCount}</span> 人
-                                        <span style={{ fontSize: '11px', color: '#666' }}>(佔好友人數 {linkModalState.totalUserCount ? ((linkModalState.targetUserCount / linkModalState.totalUserCount) * 100).toFixed(1) : 0}%)</span>
+                                        {isCalculatingCount ? (
+                                            <span style={{ color: 'var(--primary-yellow)', fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px' }}><div className="spinner" style={{ width: '12px', height: '12px', borderWidth: '2px' }}></div> 計算中...</span>
+                                        ) : (
+                                            <>
+                                                <span style={{ color: 'var(--primary-yellow)', fontWeight: 'bold', fontSize: '16px' }}>{linkModalState.targetUserCount}</span> 人
+                                                <span style={{ fontSize: '11px', color: '#666' }}>(佔好友人數 {linkModalState.totalUserCount ? ((linkModalState.targetUserCount / linkModalState.totalUserCount) * 100).toFixed(1) : 0}%)</span>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             )}
@@ -1672,8 +1697,14 @@ function RichMenu() {
                             {linkModalState.publishStrategy === 'default' && (
                                 <div style={{ backgroundColor: '#111', padding: '10px 15px', borderRadius: '8px', border: '1px solid #333', display: 'flex', alignItems: 'center', gap: '5px' }}>
                                     <Shield size={14} style={{ color: '#aaa' }} /> <span style={{ color: '#aaa', fontSize: '13px' }}>預計套用人數：</span>
-                                    <span style={{ color: 'var(--primary-yellow)', fontWeight: 'bold', fontSize: '16px' }}>{linkModalState.totalUserCount || 0}</span> <span style={{ color: '#aaa', fontSize: '13px' }}>人</span>
-                                    <span style={{ fontSize: '11px', color: '#666' }}>(佔好友人數 100%)</span>
+                                    {isCalculatingCount ? (
+                                        <span style={{ color: 'var(--primary-yellow)', fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px' }}><div className="spinner" style={{ width: '12px', height: '12px', borderWidth: '2px' }}></div> 計算中...</span>
+                                    ) : (
+                                        <>
+                                            <span style={{ color: 'var(--primary-yellow)', fontWeight: 'bold', fontSize: '16px' }}>{linkModalState.totalUserCount || 0}</span> <span style={{ color: '#aaa', fontSize: '13px' }}>人</span>
+                                            <span style={{ fontSize: '11px', color: '#666' }}>(佔好友人數 100%)</span>
+                                        </>
+                                    )}
                                 </div>
                             )}
 

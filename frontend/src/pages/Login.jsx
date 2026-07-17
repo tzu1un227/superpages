@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { Box, Typography, Alert, Paper, CircularProgress } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,6 +9,18 @@ const Login = () => {
   const navigate = useNavigate();
   const [error, setError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  useEffect(() => {
+    const reason = sessionStorage.getItem('logoutReason');
+    if (reason === 'idle') {
+      setError('閒置時間過長，請重新登入。');
+    } else if (reason === '401') {
+      setError('登入憑證已失效，請重新登入。');
+    }
+    if (reason) {
+      sessionStorage.removeItem('logoutReason');
+    }
+  }, []);
 
   const handleGoogleSuccess = async (credentialResponse) => {
     setIsLoggingIn(true);

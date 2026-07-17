@@ -313,8 +313,12 @@ const MainLayout = () => {
             </Tooltip>
           </div>
         )}
-        <Routes>
-          <Route path="/login" element={<Login />} />
+        {(() => {
+          const currentOaIdMatch = location.pathname.match(/^\/oa\/(\d+)/);
+          const currentOaId = currentOaIdMatch ? currentOaIdMatch[1] : 'default';
+          return (
+            <Routes key={currentOaId}>
+              <Route path="/login" element={<Login />} />
           <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
           <Route path="/dashboard" element={<Navigate to="/" />} />
 
@@ -345,6 +349,8 @@ const MainLayout = () => {
             )
           } />
         </Routes>
+          );
+        })()}
       </main>
       {taskState.isProcessing && (
         <StatusIndicator message={taskState.processingMessage} progress={taskState.progress} />

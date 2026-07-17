@@ -135,7 +135,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Logout function
-  const logout = () => {
+  const logout = (reason = null) => {
+    if (reason) {
+      sessionStorage.setItem('logoutReason', reason);
+    }
     localStorage.removeItem('jwt');
     localStorage.removeItem('currentAccountId');
     setToken(null);
@@ -155,10 +158,17 @@ export const AuthProvider = ({ children }) => {
       timeoutId = setTimeout(() => {
         if (isAuthenticated) {
           console.log("Auto-logging out due to inactivity");
-          logout();
+          logout('idle');
         }
       }, AUTO_LOGOUT_TIME);
     };
+
+    const handleAuthExpired = () => {
+      console.log("Auto-logging out due to 401 unauthorized");
+      logout('401');
+    };
+
+    window.addEventListener('auth:expired', handleAuthExpired);
 
     if (isAuthenticated) {
       // Initialize timer
@@ -176,7 +186,10 @@ export const AuthProvider = ({ children }) => {
         events.forEach(event => {
           window.removeEventListener(event, resetTimer);
         });
+        window.removeEventListener('auth:expired', handleAuthExpired);
       };
+    } else {
+      window.removeEventListener('auth:expired', handleAuthExpired);
     }
   }, [isAuthenticated]);
 
