@@ -866,6 +866,9 @@ def save_rich_menu_metadata():
                 if m['status'] == 'published' and status == 'draft':
                     return jsonify({'error': '已發佈的選單不可編輯'}), 400
                 
+                publish_strategy = data.get('data', {}).get('publishStrategy')
+                is_scheduled = (status == 'restricted' or publish_strategy == 'restricted')
+
                 if status == 'default' and start_time and end_time:
                     cur.execute(f"""
                         SELECT id FROM {t_metadata} 
@@ -875,6 +878,16 @@ def save_rich_menu_metadata():
                     """, (oa_id, id, end_time, start_time))
                     if cur.fetchone():
                         return jsonify({'error': '排程時間與現存的排程預設選單重疊，請重新選擇時間。'}), 400
+                elif is_scheduled and start_time and end_time:
+                    cur.execute(f"""
+                        SELECT id FROM {t_metadata} 
+                        WHERE oa_id = %s AND id != %s 
+                          AND (status = 'restricted' OR (status = 'draft' AND data->>'publishStrategy' = 'restricted'))
+                          AND start_time IS NOT NULL AND end_time IS NOT NULL
+                          AND start_time < %s AND end_time > %s
+                    """, (oa_id, id, end_time, start_time))
+                    if cur.fetchone():
+                        return jsonify({'error': '排程時間與現存的有排程圖文選單重疊，請重新選擇時間。'}), 400
 
                 cur.execute(f"""
                     UPDATE {t_metadata}
@@ -883,6 +896,9 @@ def save_rich_menu_metadata():
                 """, (name, chat_bar_text, data_json, status, rich_menu_id, start_time, end_time, permission_tags, fallback_message, ui_uuid, group_id, id))
                 return_id = id
             else:
+                publish_strategy = data.get('data', {}).get('publishStrategy')
+                is_scheduled = (status == 'restricted' or publish_strategy == 'restricted')
+
                 if status == 'default' and start_time and end_time:
                     cur.execute(f"""
                         SELECT id FROM {t_metadata} 
@@ -892,6 +908,16 @@ def save_rich_menu_metadata():
                     """, (oa_id, end_time, start_time))
                     if cur.fetchone():
                         return jsonify({'error': '排程時間與現存的排程預設選單重疊，請重新選擇時間。'}), 400
+                elif is_scheduled and start_time and end_time:
+                    cur.execute(f"""
+                        SELECT id FROM {t_metadata} 
+                        WHERE oa_id = %s 
+                          AND (status = 'restricted' OR (status = 'draft' AND data->>'publishStrategy' = 'restricted'))
+                          AND start_time IS NOT NULL AND end_time IS NOT NULL
+                          AND start_time < %s AND end_time > %s
+                    """, (oa_id, end_time, start_time))
+                    if cur.fetchone():
+                        return jsonify({'error': '排程時間與現存的有排程圖文選單重疊，請重新選擇時間。'}), 400
 
                 cur.execute(f"""
                     INSERT INTO {t_metadata} (oa_id, name, chat_bar_text, data, status, rich_menu_id, start_time, end_time, permission_tags, fallback_message, ui_uuid, group_id, created_at, updated_at)
@@ -1202,12 +1228,8 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
         for uid in user_ids:
             curr = user_current_menu.get(uid)
             if curr and curr not in all_restricted_menu_ids:
-                if curr in all_existing_menu_ids:
-                    # User has a manual link to a non-restricted menu. Skip tag logic and do not unlink.
-                    continue
-                else:
-                    # Menu no longer exists in database, treat as if user is unassigned
-                    curr = None
+                # Menu no longer exists in database or is not restricted, treat as if user is unassigned
+                curr = None
                 
             tags = user_tags.get(uid, set())
             assigned_menu = None
