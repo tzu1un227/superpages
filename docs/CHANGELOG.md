@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## [2026-07-21] 問卷管理 note 欄位前綴格式變更
+- **後端/前端 (`frontend/src/pages/RuleDesigner.jsx`, `frontend/src/pages/Questionnaire.jsx`, `backend/endpoints/questionnaire.py`)**: 變更問卷管理頁面寫入 DB 時 `note` 欄位的格式，將後綴 ` - 問卷管理` 更改為前綴 `問卷管理 - `。
+
 ## [2026-07-01] 圖文選單 Badge 顯示統一
 - **前端 (`frontend/src/pages/RichMenu.jsx`)**: 根據 Issue #24，將圖文選單列表的狀態標記統一拆分為三個獨立 Badge 顯示：LINE 資源狀態、套用狀態、切換權限。
 

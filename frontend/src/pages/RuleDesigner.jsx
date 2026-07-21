@@ -434,7 +434,7 @@ function RuleDesigner() {
             newRules = newRules.map(r => {
                 const parts = (r.note || '').split('|UPDATED:');
                 let baseNote = parts[0] || '';
-                let cleanNote = baseNote.replace(/^關鍵字回覆 \- /, '').replace(/ \- 關鍵字回覆$/, '').replace(/ \- 問卷管理$/, '').replace(/ \- 工程用法則$/, '').replace(/工程用法則$/, '');
+                let cleanNote = baseNote.replace(/^關鍵字回覆 \- /, '').replace(/ \- 關鍵字回覆$/, '').replace(/ \- 問卷管理$/, '').replace(/^問卷管理 \- /, '').replace(/ \- 工程用法則$/, '').replace(/工程用法則$/, '');
                 return {
                     ...r,
                     note: cleanNote,
@@ -608,7 +608,7 @@ function RuleDesigner() {
         // 檢查關鍵字標題是否重複
         if (designMode === 'simple') {
             let currentNote = ruleToSave.note ? ruleToSave.note : '';
-            currentNote = currentNote.replace(/^關鍵字回覆 \- /, '').replace(/ \- 關鍵字回覆$/, '').replace(/ \- 問卷管理$/, '').replace(/ \- 工程用法則$/, '').replace(/工程用法則$/, '').trim();
+            currentNote = currentNote.replace(/^關鍵字回覆 \- /, '').replace(/ \- 關鍵字回覆$/, '').replace(/ \- 問卷管理$/, '').replace(/^問卷管理 \- /, '').replace(/ \- 工程用法則$/, '').replace(/工程用法則$/, '').trim();
             if (!currentNote) {
                 showToast('請填寫關鍵字名稱', 'error');
                 return;
@@ -642,7 +642,7 @@ function RuleDesigner() {
         const nowIso = new Date().toISOString();
         
         let baseNote = ruleToSave.note || '';
-        baseNote = baseNote.replace(/^關鍵字回覆 \- /, '').replace(/ \- 關鍵字回覆$/, '').replace(/ \- 問卷管理$/, '').replace(/ \- 工程用法則$/, '').replace(/工程用法則$/, '');
+        baseNote = baseNote.replace(/^關鍵字回覆 \- /, '').replace(/ \- 關鍵字回覆$/, '').replace(/ \- 問卷管理$/, '').replace(/^問卷管理 \- /, '').replace(/ \- 工程用法則$/, '').replace(/工程用法則$/, '');
         baseNote = `關鍵字回覆 - ${baseNote}`;
 
         ruleToSave.note = `${baseNote}|UPDATED:${nowIso}`;

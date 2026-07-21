@@ -188,7 +188,7 @@ function QuestionCard({ q, index, total, onChange, onDelete, onMoveUp, onMoveDow
 
 const formatDisplayName = (name) => {
     if (!name) return '';
-    return name.replace(/^關鍵字回覆 \- /, '').replace(/ \- 工程用法則$/, '').replace(/工程用法則$/, '').replace(/ \- 問卷管理$/, '').replace(/ \- 關鍵字回覆$/, '');
+    return name.replace(/^關鍵字回覆 \- /, '').replace(/ \- 工程用法則$/, '').replace(/工程用法則$/, '').replace(/ \- 問卷管理$/, '').replace(/^問卷管理 \- /, '').replace(/ \- 關鍵字回覆$/, '');
 };
 
 export default function Questionnaire() {
@@ -449,7 +449,7 @@ export default function Questionnaire() {
 
             const payload = {
                 group_id: selectedGroupId,
-                note: formatDisplayName(note) + ' - 問卷管理',
+                note: '問卷管理 - ' + formatDisplayName(note),
                 trigger,
                 finish_msg: finishMsg,
                 questions: questions.map(q => ({
