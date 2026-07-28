@@ -428,7 +428,7 @@ def delete_tag(tag_name):
             # Capture config before entering thread
             settings = getattr(g, 'current_oa_config', None).other_settings if getattr(g, 'current_oa_config', None) else {}
             s_url = settings.get('socket_url')
-            s_name = settings.get('socket_name')
+            app_name = settings.get('app_name') or settings.get('socket_name')
             
             def notify_socket():
                 events = [{
@@ -437,9 +437,9 @@ def delete_tag(tag_name):
                     "type": "Sensor",
                     "api_index": 0
                 } for uid in affected_uids]
-                target_ns = f"/{s_name}" if s_name else "/websoc"
+                target_ns = f"/{app_name}" if app_name else None
                 print(f"DEBUG: notify_socket (del_tag) | URL: {s_url} | NS: {target_ns} | Count: {len(events)}")
-                send_socket_events_batch(events, socket_url=s_url, bot_name=s_name, namespace=target_ns)
+                send_socket_events_batch(events, socket_url=s_url, bot_name=app_name, namespace=target_ns)
             threading.Thread(target=notify_socket).start()
 
             from endpoints.richmenu import bulk_check_and_update_rich_menu
@@ -522,7 +522,7 @@ def add_tag_batch():
             # Capture config before entering thread
             settings = getattr(g, 'current_oa_config', None).other_settings if getattr(g, 'current_oa_config', None) else {}
             s_url = settings.get('socket_url')
-            s_name = settings.get('socket_name')
+            app_name = settings.get('app_name') or settings.get('socket_name')
             
             tags_str = str(tag_names) # List to string representation like "['A', 'B']"
 
@@ -533,9 +533,9 @@ def add_tag_batch():
                     "type": "Sensor",
                     "api_index": 0
                 } for uid in affected_uids]
-                target_ns = f"/{s_name}" if s_name else "/websoc"
+                target_ns = f"/{app_name}" if app_name else None
                 print(f"DEBUG: notify_socket (set_tag) | URL: {s_url} | NS: {target_ns} | Count: {len(events)}")
-                send_socket_events_batch(events, socket_url=s_url, bot_name=s_name, namespace=target_ns)
+                send_socket_events_batch(events, socket_url=s_url, bot_name=app_name, namespace=target_ns)
             threading.Thread(target=notify_socket).start()
 
             from endpoints.richmenu import bulk_check_and_update_rich_menu

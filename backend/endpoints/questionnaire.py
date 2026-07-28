@@ -42,7 +42,7 @@ def _trigger_sql_reload():
         }
         if socket_url:
             data["target_ws_url"] = socket_url
-        send_socket_event(data, namespace="/websoc")
+        send_socket_event(data)
     except Exception as e:
         print(f"[questionnaire] SQL reload trigger failed (non-critical): {e}")
 

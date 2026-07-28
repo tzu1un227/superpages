@@ -42,7 +42,7 @@ def send_socket_event(data, namespace=None, wait_time=0.5, poll_func=None, max_p
     current_oa_id = getattr(g, 'current_oa_id', None)
     current_oa_config = getattr(g, 'current_oa_config', None)
     
-    # 1. Resolve Target URL and Bot Name
+    # 1. Resolve Target URL and Bot Name (prefer app_name over socket_name)
     if current_oa_config:
         try:
             if current_oa_config.other_settings:
@@ -50,7 +50,7 @@ def send_socket_event(data, namespace=None, wait_time=0.5, poll_func=None, max_p
                 if settings.get('socket_url'):
                     target_ws_url = settings['socket_url']
                 
-                bot_name = settings.get('socket_name') or DEFAULT_BOT_NAME
+                bot_name = settings.get('app_name') or settings.get('socket_name') or DEFAULT_BOT_NAME
         except Exception as e:
             print(f"DEBUG: send_socket_event | Error reading from g.current_oa_config: {e}")
 
@@ -61,25 +61,17 @@ def send_socket_event(data, namespace=None, wait_time=0.5, poll_func=None, max_p
                 settings = oa.other_settings
                 if target_ws_url == WS_URL and settings.get('socket_url'):
                     target_ws_url = settings['socket_url']
-                if settings.get('socket_name'):
-                    bot_name = settings['socket_name']
+                if settings.get('app_name') or settings.get('socket_name'):
+                    bot_name = settings.get('app_name') or settings.get('socket_name')
         except Exception as e:
             pass
 
-    if not target_ws_url:
-        target_ws_url = WS_URL
-    if not bot_name:
-        bot_name = DEFAULT_BOT_NAME
-
-    final_namespace = namespace if namespace else f"/{bot_name}"
-    
-    local_sio = get_shared_sio(target_ws_url, final_namespace)
-    
     # Priority 3: Explicit override in data
     # Save the original target app_name to look up DB
     target_app_name = None
     if 'bot_name' in data:
          target_app_name = data['bot_name']
+         bot_name = target_app_name
          
     if 'target_ws_url' in data:
          target_ws_url = data['target_ws_url']
@@ -92,17 +84,17 @@ def send_socket_event(data, namespace=None, wait_time=0.5, poll_func=None, max_p
                 if oa.other_settings and oa.other_settings.get('app_name') == target_app_name:
                     if target_ws_url == WS_URL and oa.other_settings.get('socket_url'):
                         target_ws_url = oa.other_settings['socket_url']
-                    if bot_name == DEFAULT_BOT_NAME and oa.other_settings.get('socket_name'):
-                        bot_name = oa.other_settings['socket_name']
+                    if (bot_name == DEFAULT_BOT_NAME or not bot_name) and (oa.other_settings.get('app_name') or oa.other_settings.get('socket_name')):
+                        bot_name = oa.other_settings.get('app_name') or oa.other_settings.get('socket_name')
                     break
         except Exception as e:
             print(f"DEBUG: send_socket_event | Error querying OAConfig by app_name: {e}")
 
-    # Ensure bot_name falls back to websoc if not overridden by DB or 'socket_name'
+    # Ensure bot_name falls back to websoc if not overridden by DB or 'app_name'
     if not bot_name:
         bot_name = DEFAULT_BOT_NAME
 
-    final_namespace = namespace if namespace else f"/{bot_name}"
+    final_namespace = namespace if (namespace and namespace != '/websoc') else f"/{bot_name}"
     local_sio = get_shared_sio(target_ws_url, final_namespace)
         
     print(f"DEBUG: [SOCKET_INIT] Target: {target_ws_url} | BotName: {bot_name} | Namespace: {final_namespace} | OA_ID: {current_oa_id}")
@@ -178,17 +170,18 @@ def send_socket_events_batch(events, namespace=None, socket_url=None, bot_name=N
     target_ws_url = socket_url if socket_url else WS_URL
     target_bot_name = bot_name if bot_name else DEFAULT_BOT_NAME
     
-    if not socket_url or not bot_name:
+    if not socket_url or not bot_name or bot_name == DEFAULT_BOT_NAME:
         try:
             current_oa_config = getattr(g, 'current_oa_config', None)
             if current_oa_config:
                 settings = current_oa_config.other_settings
                 if settings:
                     if not socket_url: target_ws_url = settings.get('socket_url') or WS_URL
-                    if not bot_name: target_bot_name = settings.get('socket_name') or DEFAULT_BOT_NAME
+                    if not bot_name or bot_name == DEFAULT_BOT_NAME:
+                        target_bot_name = settings.get('app_name') or settings.get('socket_name') or DEFAULT_BOT_NAME
         except: pass
 
-    final_namespace = namespace if namespace else f"/{target_bot_name}"
+    final_namespace = namespace if (namespace and namespace != '/websoc') else f"/{target_bot_name}"
     event_name = f'{target_bot_name}_message'
 
     try:

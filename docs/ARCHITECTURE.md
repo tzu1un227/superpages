@@ -142,3 +142,7 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 
 ## 10. 對話問卷管理 (Dialog Questionnaire) 命名規範 (2026-07-21 新增)
 - **資料庫識別區隔**: 在 `Q_bank` 的 `note` 欄位中，對話問卷的格式由原本的後綴 ` - 問卷管理` 修改為前綴 `問卷管理 - {自訂名稱}`，以便於在資料庫層級或是系統管理介面上，能夠統一前綴排序並與 `關鍵字回覆 - {自訂名稱}` 等其他系統模組的命名習慣對齊。
+
+## 11. WebSocket Namespace 動態解析機制 (2026-07-28 新增)
+- **權限設定連線隔離 (`app_name`)**：系統全面廢除舊有硬編碼 namespace (`/websoc`) 或過時之 `socket_name` 欄位，WebSocket 連線與事件觸發發送 (含 `send_socket_event` 與 `send_socket_events_batch`) 統一從權限設定 (`OAConfig.other_settings`) 優先解析 `app_name` 作為 Namespace (`/{app_name}`) 與訊息事件名稱 (`{app_name}_message`)，實現各機器人平台即時連線的嚴格隔離與動態綁定。
+

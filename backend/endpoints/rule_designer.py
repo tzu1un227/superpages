@@ -43,7 +43,7 @@ def trigger_sql_reload():
             data['target_ws_url'] = socket_url
         
         print(f"[RULE_DESIGNER] Triggering SQL reload: {data}")
-        send_socket_event(data, namespace='/websoc')
+        send_socket_event(data)
         print(f"[RULE_DESIGNER] SQL reload triggered successfully")
     except Exception as e:
         print(f"[RULE_DESIGNER] SQL reload trigger failed: {e}")

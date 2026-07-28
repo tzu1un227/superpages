@@ -1,3 +1,10 @@
+## [2026-07-28] WebSocket Namespace 動態改為權限設定 app_name
+- **重構 (backend/utils/socket_utils.py)**: `send_socket_event` 與 `send_socket_events_batch` 全面改為從權限設定 (`OAConfig.other_settings`) 優先提取 `app_name` 作為連線 Namespace (`/{app_name}`) 與訊息事件名稱。
+- **重構 (backend/endpoints/rule_designer.py, questionnaire.py)**: 移除硬編碼 `namespace='/websoc'`，改由 `socket_utils` 動態注入 `/{app_name}`。
+- **重構 (backend/utils/scheduler.py)**: `cron_table_checker` 調整為依據各 OA 獨立的 `socket_url` 與 `app_name` 發送 WebSocket 事件。
+- **重構 (backend/endpoints/customers.py)**: 批次更新標籤之 WebSocket 通知改為優先使用權限設定之 `app_name`。
+- **文件更新 (docs/ARCHITECTURE.md)**: 同步更新系統架構文件之 WebSocket Namespace 動態解析機制說明。
+
 ## [2026-07-28] Admin Alert Fix & Main DB Strict Isolation
 - Fix (frontend/src/pages/AdminPage.jsx): Remove blocking alert popup on user fetch error.
 - Refactor (backend/endpoints/broadcast.py): Update get_rds_connection to use tenant db connection get_db_connection, enforcing primary DB strict isolation (only users, pages, permission_settings).
