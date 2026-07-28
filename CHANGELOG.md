@@ -3,7 +3,7 @@
 - **重構 (backend/endpoints/rule_designer.py, questionnaire.py)**: 移除硬編碼 `namespace='/websoc'`，改由 `socket_utils` 動態注入 `/{app_name}`。
 - **重構 (backend/utils/scheduler.py)**: `cron_table_checker` 調整為依據各 OA 獨立的 `socket_url` 與 `app_name` 發送 WebSocket 事件。
 - **重構 (backend/endpoints/customers.py)**: 批次更新標籤之 WebSocket 通知改為優先使用權限設定之 `app_name`。
-- **文件更新 (docs/ARCHITECTURE.md)**: 同步更新系統架構文件之 WebSocket Namespace 動態解析機制說明。
+- **功能擴充 (backend/utils/socket_utils.py)**: `send_socket_event` 與 `send_socket_events_batch` 自動為所有 WebSocket 發送 Payload 注入 `"is_test": False` 預設屬性。
 
 ## [2026-07-28] Admin Alert Fix & Main DB Strict Isolation
 - Fix (frontend/src/pages/AdminPage.jsx): Remove blocking alert popup on user fetch error.

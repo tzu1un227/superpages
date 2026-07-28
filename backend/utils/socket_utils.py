@@ -37,6 +37,9 @@ def send_socket_event(data, namespace=None, wait_time=0.5, poll_func=None, max_p
     Sends an event via Socket.IO to the bot engine.
     Uses a persistent shared connection per target to prevent Heroku/eventlet connect/disconnect crashes.
     """
+    if isinstance(data, dict):
+        data.setdefault('is_test', False)
+
     target_ws_url = WS_URL
     bot_name = DEFAULT_BOT_NAME
     current_oa_id = getattr(g, 'current_oa_id', None)
@@ -197,6 +200,8 @@ def send_socket_events_batch(events, namespace=None, socket_url=None, bot_name=N
         local_sio.connect(target_ws_url, **connect_kwargs)
         print(f"DEBUG: [BATCH_CONNECTED] URL: {target_ws_url} | NS: {final_namespace}")
         for data in events:
+            if isinstance(data, dict):
+                data.setdefault('is_test', False)
             local_sio.emit(event_name, data, namespace=final_namespace)
             time.sleep(0.02)
         time.sleep(1.0) # Increased to ensure flush

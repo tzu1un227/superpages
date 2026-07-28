@@ -145,4 +145,5 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 
 ## 11. WebSocket Namespace 動態解析機制 (2026-07-28 新增)
 - **權限設定連線隔離 (`app_name`)**：系統全面廢除舊有硬編碼 namespace (`/websoc`) 或過時之 `socket_name` 欄位，WebSocket 連線與事件觸發發送 (含 `send_socket_event` 與 `send_socket_events_batch`) 統一從權限設定 (`OAConfig.other_settings`) 優先解析 `app_name` 作為 Namespace (`/{app_name}`) 與訊息事件名稱 (`{app_name}_message`)，實現各機器人平台即時連線的嚴格隔離與動態綁定。
+- **預設測試標籤注入 (`is_test`)**：發送所有 WebSocket 事件時，`socket_utils` 模組會自動檢查並為 Payload 字典注入 `"is_test": False` 預設屬性（除非呼叫端已明確指定），以利後端機器人引擎進行測試與正式連線之識別與區隔。
 
