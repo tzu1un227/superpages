@@ -3,7 +3,7 @@ import uuid
 import datetime
 from psycopg2.extras import RealDictCursor
 
-RDS_URL = "postgresql://u96dp6sm9o9f9:p7ac2133ca353c2b313a9f40e8624cd3674aa088bc788dd3f6b45afd3a2439527@ec2-100-55-231-150.compute-1.amazonaws.com:5432/d5l2u0pogs9o2"
+RDS_URL = "postgresql://postgres:0000@140.138.176.197:5432/superpages"
 
 def insert_data():
     conn_rds = psycopg2.connect(RDS_URL)

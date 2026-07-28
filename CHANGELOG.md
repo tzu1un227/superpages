@@ -1,3 +1,9 @@
+## [2026-07-28] 主資料庫變更與資料表初始化
+- **主資料庫位址變更**: 將系統預設 Primary DB (RDS_URL / default_rds_url) 從舊有 AWS RDS 變更為 140.138.176.197:5432/superpages (postgresql://postgres:0000@140.138.176.197:5432/superpages)。
+- **資料表初始化 (init_main_db.py)**: 於連線之主資料庫自動創建核心表格 users、pages 與 permission_settings。
+- **變更模組 (backend)**: 更新 ackend/app.py, ackend/db_utils.py, ackend/endpoints/broadcast.py, ackend/endpoints/admin.py, ackend/insert_test_data.py, ackend/test_db.py, check_db.py。
+- **文件更新 (docs/ARCHITECTURE.md)**: 同步更新系統架構文件中主資料庫連線設定說明。
+
 ## [2026-07-16] 效能優化：圖文選單排程與伺服器負載
 - **優化 (backend/endpoints/richmenu.py)**: 在 `check_and_apply_scheduled_rich_menus` 中加入 `_LAST_ACTIVE_RESTRICTED_MENUS` 快取機制，只在「有排程選單生效或過期」時才觸發耗時的 `bulk_check_and_update_rich_menu` 全體比對，以解決每 60 秒頻繁掃描全體用戶導致資料庫連線過載與 Error 503 的問題。
 
@@ -294,10 +300,14 @@ ame  pic
 
   - frontend/src/components/UserAvatar.jsx: 啣 loading_refreshed 隞仿脫迫剖頛亙仃⊿芰隤輻刻艘
   - backend/endpoints/customers.py: 芸 refresh_customer_profile 啣虜蝺塚踹 Connection Leak
- 
-  
- -   2 0 2 6 - 0 7 - 0 1 :   U p d a t e   F l e x M e s s a g e E d i t o r   t o   p r i o r i t i z e   u i _ u u i d   o v e r   r i c h M e n u I d   w h e n   c o n f i g u r i n g   r i c h   m e n u s w i t c h   f o r   f l e x   m e s s a g e   b u t t o n s   t o   e n s u r e   w e b h o o k   r e c e i v e s   t h e   c o r r e c t   U U I D   f o r m a t .  
- -   2 0 2 6 - 0 7 - 0 1   ( H o t f i x ) :   F i x   R e a c t   o p t i o n   r e n d e r i n g   i n   F l e x M e s s a g e E d i t o r   a n d   R u l e D e s i g n e r   b y   s e t t i n g   f a l l b a c k   \  a l u e = { m . u i _ u u i d   | |   ' ' } \   t o   p r e v e n t   t h e   b r o w s e r   f r o m   d e f a u l t i n g   t o   t h e   r i c h   m e n u   n a m e   w h e n   \ u i _ u u i d \   i s   n u l l / u n d e f i n e d .  
+
+ 
+ 
+ 
+ -   2 0 2 6 - 0 7 - 0 1 :   U p d a t e   F l e x M e s s a g e E d i t o r   t o   p r i o r i t i z e   u i _ u u i d   o v e r   r i c h M e n u I d   w h e n   c o n f i g u r i n g   r i c h   m e n u s w i t c h   f o r   f l e x   m e s s a g e   b u t t o n s   t o   e n s u r e   w e b h o o k   r e c e i v e s   t h e   c o r r e c t   U U I D   f o r m a t . 
+ 
+ -   2 0 2 6 - 0 7 - 0 1   ( H o t f i x ) :   F i x   R e a c t   o p t i o n   r e n d e r i n g   i n   F l e x M e s s a g e E d i t o r   a n d   R u l e D e s i g n e r   b y   s e t t i n g   f a l l b a c k   \  a l u e = { m . u i _ u u i d   | |   ' ' } \   t o   p r e v e n t   t h e   b r o w s e r   f r o m   d e f a u l t i n g   t o   t h e   r i c h   m e n u   n a m e   w h e n   \ u i _ u u i d \   i s   n u l l / u n d e f i n e d . 
+ 
  
 ## [2026-07-06] 詨桅閮剔蝔頛舫瑽
 - 靽格迤: \ackend/endpoints/richmenu.py\ 蝘駁支 \save_rich_menu_metadata\  \set_default_rich_menu\ 脣撘瑕嗅嗡閮剝詨桅蝝 \published\ 頛胯
@@ -317,36 +327,53 @@ ame  pic
  -   送X  b a c k e n d / u t i l s / s c h e d u l e r . p y -N﹃tofczhV0
  -   ,dy  p r o j e c t _ s t a t s _ p r o c e s s o r     r i c h _ m e n u _ s c h e d u l e r _ p r o c e s s o r   _  a p p . p y     s c h e d u l e r . p y 0
  -   送X  c r o n _ t a b l e _ c h e c k e r   氠R[BfT@b	gwQ
-kP:OghV|v  c h e c k _ c r o n _ t a b l e   w e b s o c k e t   N譸0
+kP:O
+ghV|v  c h e c k _ c r o n _ t a b l e   w e b s o c k e t   N譸0
  -   yd  a p p . p y   -N
-	gcz/魯!|;Nz_0 
+	gcz/魯!|;Nz_0
+ 
  
  # #   [ 2 0 2 6 - 0 7 - 1 5 ]   薂ck瓠rTA I m絿命tbU I 
- -   yd0*gOR[b_Mb汦悐嬁0eW[0
- -   \Hrb9e歉  f i x e d   [MO漩嵊澕tPkTBfNg b;NgQ鉀@SJXOPy0 
+ -   yd0*gOR[b_Mb汦悐嬁
+0eW[0
+ -   \Hrb9e歉  f i x e d   [MO漩嵊澕tPkTBf
+Ng b;NgQ鉀@SJXOPy0
+ 
  
  # #   [ 2 0 2 6 - 0 7 - 1 5 ]   薂ck  c r o n _ t a b l e _ c h e c k e r   |vOUL
- -   薂ck(WwQ	gYP  O A   qQ(u黲T  s o c k e t _ u r l   :OghVv鰥翼Ng|v  W e b S o c k e t   N譸vOUL9e墣  s e t ( )    }&N\氠Phs芏:OghV闢|v N!k0 
+ -   薂ck(WwQ	gYP  O A   qQ(u黲T  s o c k e t _ u r l   :O
+ghVv鰥翼Ng|v  W e b S o c k e t   N譸vOUL9e墣  s e t ( )    }&N
+\氠Phs芏:O
+ghV闢|v N!k0
+ 
  
  # #   [ 2 0 2 6 - 0 7 - 1 5 ]   薂ck  G u n i c o r n   Y  W o r k e r   讄L  S c h e d u l e r   OUL
  -   N  U D P   S o c k e t   }[,g0W  P o r t   ( 4 7 2 0 0 )   潩\OLz  ( C r o s s - p r o c e s s   L o c k ) 0
  -   漩嵊!q  G u n i c o r n   _U悐Y\P  W o r k e r T N盬_jhV
-N熽	g NP  W o r k e r   g讄LofczMQ癇BfgQ|vQ  t i m e r   Bl0 
+N熽	g NP  W o r k e r   g讄LofczMQ癇BfgQ|vQ  t i m e r   Bl0
+ 
  
 
 ## [2026-07-15] �湔鰵�餃枂��𩑈
 - 撠��蝡航䌊�閧蒈�箸��嗥眏�垍蔭 30 ����寧� 1 憭� (24撠𤩺�)
 # #   [ 2 0 2 6 - 0 7 - 1 6 ] 
  # # #   F i x e d 
- -   薂ck𠸍zW囻x𨯿U( R i c h   M e n u ) ��of讄L��/���zl  A P I   'Y��Bl\�:OghV  5 0 3   N�	�vOUL�0
+ -   薂ck𠸍zW囻x𨯿U( R i c h   M e n u ) ��of讄L��/���zl  A P I   'Y��Bl\�:O
+ghV  5 0 3   N�	�vOUL�0
  -   薂ck舸P�W囻x𨯿U0Rg𪊺!q掞ck漩N週�OUL�0
  -   薂ck�u㜁[滍�  ( R u l e   D e s i g n e r )   𢔓芏Bfg��"uu  S e n s o r   �  M e s s a g e   𨶙譸�OUL��鏓d鍈藮�滝R�/�0
- -   薂ck*Rd鉷嬫㜁[滍�Bf豤  t u p l e   p a r s i n g    �b�  5 0 0   /㨩�0 
- -   �Ock�czW�ex��U�V!q  \ u s e r s : { a p p _ n a m e } \   ǌ�eh�\�!q�lck�x���S@b	g(u6bT�U�vOUL�  ( f a l l b a c k   t o   P r i v a t e _ v a r )  
+ -   薂ck*Rd鉷嬫㜁[滍�Bf豤  t u p l e   p a r s i n g    �b�  5 0 0   /㨩�0
  
- # #   2 0 2 6 - 0 7 - 1 7 :   W�ex��U�cz��/��Ock
- -   �O�_   u l k _ c h e c k _ a n d _ u p d a t e _ r i c h _ m e n u ��S�m�N\�eKb�R�}�[^��czx��U�v�Ow�_j6R��yd�  i f   c u r r   i n   a l l _ e x i s t i n g _ m e n u _ i d s 	���x�O	g�cz�vW�ex��U�� Y!q�h�N��˄!q�czx��U�&NN(W�czP}_g�_ck8^㉁}&N ��V�-�x��U0
- -   (W  s a v e _ r i c h _ m e n u _ m e t a d a t a   -N�ݑ\|v^�2QX[I�?zBf�v  p u b l i s h S t r a t e g y   = =   ' r e s t r i c t e d ' �	g�czx��U	��e�XBf��͑�uW�I���	g]��z\;��d�d\O0 
+ -   OckczWexUV!q  \ u s e r s : { a p p _ n a m e } \   ǌeh\!qlckxS@b	g(u6b
+TUvOUL  ( f a l l b a c k   t o   P r i v a t e _ v a r ) 
+ 
+ 
+ # #   2 0 2 6 - 0 7 - 1 7 :   WexUcz/Ock
+ -   O_   u l k _ c h e c k _ a n d _ u p d a t e _ r i c h _ m e n u SmN
+\eKbR}[^czxUvOw_j6Ryd  i f   c u r r   i n   a l l _ e x i s t i n g _ m e n u _ i d s 	xO	gczvWexU Y!qhN˄!qczxU&NN(WczP}_g_ck8^㉁}&N V-xU0
+ -   (W  s a v e _ r i c h _ m e n u _ m e t a d a t a   -Nݑ
+\|v^2QX[I?zBfv  p u b l i s h S t r a t e g y   = =   ' r e s t r i c t e d ' 	gczxU	eXBf͑uWI	g]z\;dd\O0
+ 
  
 
 ## [2026-07-17] UX / BUG 修正 (Issue #35)
