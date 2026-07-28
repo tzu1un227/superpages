@@ -19,9 +19,9 @@ if RDS_URL.startswith("postgres://"):
 # Cache to avoid redundant table checks
 _ENSURED_TABLES = set()
 
-def get_rds_connection():
-    from db_utils import get_main_db_connection
-    return get_main_db_connection()
+def get_rds_connection(db_url=None):
+    from db_utils import get_db_connection
+    return get_db_connection(db_url)
 
 def ensure_rds_tables(app_name):
     """確保該平台在 RDS 中擁有必要的資料表"""

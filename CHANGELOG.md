@@ -1,3 +1,7 @@
+## [2026-07-28] Admin Alert Fix & Main DB Strict Isolation
+- Fix (frontend/src/pages/AdminPage.jsx): Remove blocking alert popup on user fetch error.
+- Refactor (backend/endpoints/broadcast.py): Update get_rds_connection to use tenant db connection get_db_connection, enforcing primary DB strict isolation (only users, pages, permission_settings).
+
 ## [2026-07-28] 主資料庫變更與資料表初始化
 - **主資料庫位址變更**: 將系統預設 Primary DB (RDS_URL / default_rds_url) 從舊有 AWS RDS 變更為 140.138.176.197:5432/superpages (postgresql://postgres:0000@140.138.176.197:5432/superpages)。
 - **資料表初始化 (init_main_db.py)**: 於連線之主資料庫自動創建核心表格 users、pages 與 permission_settings。

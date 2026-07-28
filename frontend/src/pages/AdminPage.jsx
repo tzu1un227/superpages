@@ -93,7 +93,6 @@ function AdminPage() {
             setUsers(usersRes.data);
         } catch (error) {
             console.error("Error fetching users", error);
-            alert("無法取得用戶列表: " + (error.response?.data?.message || error.message));
         }
 
         // Fetch OA Configs
