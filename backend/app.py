@@ -51,6 +51,8 @@ else:
     ]
 CORS(app, origins=origins_list)
 
+bot_info_cache = {}
+
 def json_response(data):
     return app.response_class(
         json.dumps(data, default=lambda x: float(x) if isinstance(x, Decimal) else (x.strftime('%Y-%m-%d %H:%M:%S') if isinstance(x, (datetime, date)) else str(x))),
@@ -423,16 +425,23 @@ def get_my_oas():
         all_pages = [p for p in all_pages if p.name not in DISABLED_PAGE_NAMES]
         pages_map = {p.id: p for p in all_pages}
         
+        now_ts = time.time()
         for c in configs:
             account_name = c.oa_name
             line_token = c.other_settings.get('line_token') if c.other_settings else None
             if line_token:
-                try:
-                    resp = requests.get('https://api.line.me/v2/bot/info', headers={'Authorization': f'Bearer {line_token}'}, timeout=3)
-                    if resp.status_code == 200:
-                        account_name = resp.json().get('displayName', c.oa_name)
-                except Exception as e:
-                    print(f"Failed to fetch bot info for OA {c.id}: {e}")
+                # Check cache first (TTL 600s) to prevent blocking HTTP workers on page navigation
+                cached = bot_info_cache.get(line_token)
+                if cached and (now_ts - cached['ts'] < 600):
+                    account_name = cached['name']
+                else:
+                    try:
+                        resp = requests.get('https://api.line.me/v2/bot/info', headers={'Authorization': f'Bearer {line_token}'}, timeout=2)
+                        if resp.status_code == 200:
+                            account_name = resp.json().get('displayName', c.oa_name)
+                            bot_info_cache[line_token] = {'name': account_name, 'ts': now_ts}
+                    except Exception as e:
+                        print(f"Failed to fetch bot info for OA {c.id}: {e}")
 
             oa_data = {
                 'id': c.id, 

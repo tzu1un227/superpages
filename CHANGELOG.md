@@ -1,3 +1,7 @@
+## [2026-07-29] Heroku 503 錯誤優化與 Gunicorn 多執行緒佈署
+- **佈署設定 (Procfile)**: 將 Gunicorn 啟動參數升級為 `--workers 1 --threads 8 -k gthread --timeout 60`，啟用 gthread 異步線程模式，避免單一線程阻塞引發 Heroku 30 秒 Timeout (503 Error)。
+- **後端快取 (backend/app.py)**: 在 `/api/my_oas` 中為 LINE Bot Profile (`https://api.line.me/v2/bot/info`) 新增 TTL 600s 的記憶體快取，徹底消除切換頁面時因大量同步 HTTP 連線鎖死 Worker 的瓶頸。
+
 ## [2026-07-28] WebSocket Namespace 動態改為權限設定 app_name
 - **重構 (backend/utils/socket_utils.py)**: `send_socket_event` 與 `send_socket_events_batch` 全面改為從權限設定 (`OAConfig.other_settings`) 優先提取 `app_name` 作為連線 Namespace (`/{app_name}`) 與訊息事件名稱。
 - **重構 (backend/endpoints/rule_designer.py, questionnaire.py)**: 移除硬編碼 `namespace='/websoc'`，改由 `socket_utils` 動態注入 `/{app_name}`。

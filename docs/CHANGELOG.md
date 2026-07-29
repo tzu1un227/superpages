@@ -276,18 +276,6 @@
 - **迯主刀譟･隧｢鬆�擇**:
     - 蠕檎ｫｯ譁ｰ蠅� `/api/tickets` 謗･蜿｣�悟ｾ� `ticket_table` 蜿門ｾ礼克蜩∽ｸｭ迯守朽豕√�
     - 蜑咲ｫｯ譁ｰ蠅� `PrizeStatus.jsx` 鬆�擇�碁｡ｯ遉ｺ迯主刀闊�ｸｭ迯手� ID縲�
-    - 謠蝉ｾ幃♀謌ｲ謗ｧ蛻ｶ謖蛾��亥福蜍輔∵歓螟ｧ迯弱�梨髢峨∵告蜃ｺ縲∵眠蠅橸ｼ会ｼ御ｸｦ謨ｴ蜷� Socket.io 隗ｸ逋ｼ謖�ｻ､縲�
-
-### Documentation
-- 驥肴紛譁�ｻｶ譫ｶ讒九�
-
-## [2026-05-22] - Support Heroku Unified Deployment
-- 譁ｰ蠅樊�ｹ逶ｮ骭� `Procfile`縲～package.json` 闊� `requirements.txt` 莉･謾ｯ謠ｴ Heroku Multi-Buildpack 驛ｨ鄂ｲ縲�
-- 菫ｮ謾ｹ `backend/app.py`�悟刈蜈･莨ｺ譛� `frontend/dist` 髱懈�讙疲｡育噪蜉溯�闊� Catch-all 霍ｯ逕ｱ縲�
-
-## [2026-05-22] - Refactor Hardcoded URLs to Config Vars
-- 遘ｻ髯､ `backend/app.py` 闊� `backend/utils/socket_utils.py` 荳ｭ謇譛牙ｯｫ豁ｻ逧�ｼｺ譛榊勣菴榊捩闊�ｳ�侭蠎ｫ蟇�｢ｼ縲�
-- 蟆主�迺ｰ蠅�ｮ頑丙 (Config Vars) 謗ｧ蛻ｶ讖溷ｯ��迺ｰ蠅�嶌萓晁ｨｭ螳夲ｼ啻DATABASE_URL`, `LEGACY_DB_URL`, `WS_URL`, `CORS_ORIGINS`縲�
 
 ## [2026-06-04] - 邉ｻ邨ｱ貂ｬ隧ｦ鬆�擇闊� GitHub 險ｭ螳夐㍾讒�
 ### Added
