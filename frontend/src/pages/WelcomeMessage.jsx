@@ -357,7 +357,6 @@ export default function WelcomeMessage() {
                     <strong>提示與約定說明：</strong>
                     <ul style={{ paddingLeft: '20px', marginTop: '5px', marginBottom: 0 }}>
                         <li><strong>單一啟用限制：</strong>同一時間只能啟用一則加入好友訊息設定。當已有啟用的設定時，無法啟用其他設定。</li>
-                        <li><strong>用戶資訊保存：</strong>所有加入好友訊息自動包含 <code style={{ background: '#333', padding: '2px 6px', borderRadius: '4px', color: '#FFD700' }}>pri_set("name",sys.name(m)),pri_set("pic",sys.picture(m))</code> 用以保存頭貼與姓名。</li>
                         <li>若全站沒有任何啟用的設定，系統會維持一則預設加入好友訊息並套用預設圖文選單。</li>
                     </ul>
                 </div>

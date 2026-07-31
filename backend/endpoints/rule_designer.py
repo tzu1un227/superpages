@@ -431,7 +431,7 @@ def delete_rule(rule_id):
 # Follow Rules (加入好友訊息設定) Special Endpoints
 # ==========================================
 
-DEFAULT_FOLLOW_FUNCTION = 'pri_set("name",sys.name(m)),pri_set("pic",sys.picture(m))'
+DEFAULT_FOLLOW_FUNCTION = 'pri_set("name",sys.name(m)),pri_set("pic",sys.picture(m)),update(f"switch_rm|{(dboperation.dbModel.getTable(\'rich_menu_metadata:\' + str(dboperation.dbModel.appname), filter=[(\'status\',\'default\')]) or [{\'ui_uuid\': \'\'}])[0][\'ui_uuid\']}")'
 BASE_FOLLOW_FUNCTION = 'pri_set("name",sys.name(m)),pri_set("pic",sys.picture(m))'
 
 def ensure_base_follow_function(func_str):
