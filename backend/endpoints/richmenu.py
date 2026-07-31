@@ -109,23 +109,34 @@ def list_rich_menus():
         default_resp = requests.get('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
         default_id = default_resp.json().get('richMenuId') if default_resp.status_code == 200 else None
         
-        # Get ui_uuid mappings from metadata database
+        # Get ui_uuid mappings and default count from metadata database
         metadata_map = {}
+        db_has_default = False
         try:
             m_conn = get_tenant_conn(oa_id=oa_id)
             if m_conn:
                 t_metadata = get_t('rich_menu_metadata')
                 m_cur = m_conn.cursor()
-                m_cur.execute(f"SELECT rich_menu_id, ui_uuid, end_time FROM {t_metadata} WHERE oa_id = %s AND rich_menu_id IS NOT NULL", (oa_id,))
+                m_cur.execute(f"SELECT rich_menu_id, ui_uuid, end_time, status FROM {t_metadata} WHERE oa_id = %s AND rich_menu_id IS NOT NULL", (oa_id,))
                 for r in m_cur.fetchall():
                     metadata_map[r[0]] = {
                         'ui_uuid': r[1],
                         'end_time': r[2].isoformat() if r[2] else None
                     }
+                    if r[3] == 'default':
+                        db_has_default = True
                 m_cur.close()
                 m_conn.close()
         except Exception as e:
             print(f"Error fetching metadata mapping in list_rich_menus: {e}")
+            
+        # If database has no default menu configured, automatically clear LINE global default
+        if not db_has_default and default_id:
+            try:
+                requests.delete('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
+                default_id = None
+            except Exception as e:
+                print(f"Error unsetting LINE default rich menu: {e}")
             
         for menu in menus:
             menu['status'] = 'default' if menu['richMenuId'] == default_id else 'none'
@@ -367,6 +378,14 @@ def delete_rich_menu(richMenuId):
         finally:
             if oa_conn: oa_conn.close()
             if main_conn: main_conn.close()
+
+        # Check if this menu is currently set as global default on LINE; if so, clear it first
+        default_resp = requests.get('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
+        if default_resp.status_code == 200:
+            current_default_id = default_resp.json().get('richMenuId')
+            if current_default_id == richMenuId:
+                print(f"Unlinking global default rich menu {richMenuId} before deletion...")
+                requests.delete('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
 
         # First, find and delete all associated aliases
         alias_resp = requests.get('https://api.line.me/v2/bot/richmenu/alias/list', headers=headers)
