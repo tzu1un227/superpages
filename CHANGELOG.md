@@ -1,3 +1,10 @@
+## [2026-07-31] 群發數據統計與 CRM 後續轉換紀錄 (MVP v1.3)
+- **新功能 (backend/endpoints/broadcast.py)**: 新增 `GET /api/broadcasts/<id>/stats` 成效統計 API，涵蓋 LINE 官方互動 11 個指標與 CRM 後續關聯行為 6 個指標。
+- **資料表擴充 (backend/endpoints/broadcast.py)**: 在 RDS 中新增受眾快照表 `broadcast_recipients:<app_name>` 與 LINE Insights 15 分鐘 TTL 快照表 `broadcast_line_stats:<app_name>`。
+- **資料庫查詢優化**: 採用 `ht_view:<app_id>` 視圖進行即時動態 live 查詢，計算受眾在指定時間區間內的新增標籤、旅程加入與聯集去重後續行為人數及行為率。
+- **前端 UI (frontend/src/components/BroadcastStatsModal.jsx)**: 新增 `BroadcastStatsModal` 儀表板，支援 1天/3天/7天/30天 統計區間切換，並完整呈現 11 項 LINE 指標與 6 項 CRM 指標。
+- **前端整合 (frontend/src/pages/Broadcast.jsx)**: 於已發送的廣播卡片上新增「成效」統計按鈕以展開彈窗儀表板。
+
 ## [2026-07-31] 加入好友設定 Q_bank history 欄位預設與自動修復
 - **修正 (backend/endpoints/rule_designer.py)**: 在 `create_rule` 與 `update_rule` 中確保當規則類型為 `Follow` (加入好友設定) 時，寫入 `Q_bank` 的 `history` 欄位強制設為 `True` (TRUE)。
 - **自動修復 (backend/endpoints/rule_designer.py)**: 在 `get_follow_rules` 載入設定時，自動對 DB 中舊有 `history IS NULL` 或 `FALSE` 的 `Follow` 規則執行 `UPDATE SET history = TRUE` 診斷修復。

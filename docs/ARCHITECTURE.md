@@ -156,4 +156,20 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 - **無啟用法則時之預設機制 (Default Fallback)**：當檢測到資料庫中完全沒有啟用的 Follow 法則時，系統自動初始化一則預設加入好友法則，帶有預設歡迎訊息與條件式圖文選單切換語法 `[update(f"switch_rm|{x['ui_uuid']}") for x in getTable(...)[:1]]`（若無預設選單則完全不執行 update）。
 - **欄位規格與歷程記錄**：所有 Follow 法則寫入 `Q_bank:{app_name}` 時，`state_out` 欄位固定設為 `'00000'`，`history` 欄位固定設為 `TRUE` (`True`)。
 
+## 13. 群發數據統計與 CRM 後續轉換紀錄 (MVP v1.3) 架構 (2026-07-31 新增)
+- **資料表設計**:
+  - `broadcasts:<app_name>`: 擴充 `request_id`, `custom_aggregation_unit`, `sent_recipient_count` ($N$), `statistics_updated_at` 欄位。
+  - `broadcast_recipients:<app_name>`: 紀錄群發發送時的受眾快照清單 (`broadcast_id`, `user_id`, `send_status`, `sent_at`)。
+  - `broadcast_line_stats:<app_name>`: 儲存來自 LINE Official Insights API 抓取之 `delivered`, `unique_impression`, `unique_click`, `unique_media_played`, `unique_media_played_100_percent` 快照，採 15 分鐘 TTL 限流保護機制。
+- **11 個 LINE 官方互動指標與 API 對應**:
+  - `Request ID API` (`/v2/bot/insight/message/event?requestId=...`) 與 `Unit API` (`/v2/bot/insight/message/event/aggregation?customAggregationUnit=...`) 雙軌對應，處理 `overview.delivered` 呈現差異與母數標記。
+- **6 個 CRM 後續關聯行為與 `ht_view` Live 查詢**:
+  - 以受眾快照 (`broadcast_recipients`) 為基礎，直接針對 `ht_view:<app_id>` 資料庫視圖在指定時間區間 (`1d`, `3d`, `7d`, `30d`) 進行 live 查詢：
+    - 新增任一標籤人數 (排除 `manual`, `unknown`) 與各標籤新增人數明細對應。
+    - 加入任一旅程人數 (`status = 'success'`) 與各旅程加入人數明細對應。
+    - 有後續行為人數 (標籤與旅程受眾之聯集去重 `COUNT(DISTINCT user_id)`) 與後續行為率 (`union_count / N`)。
+- **前端介面 (`BroadcastStatsModal.jsx`)**:
+  - 在群發卡片新增「成效」按鈕，展開彈窗儀表板呈現 17 項數據指標與時間區間切換控制。
+
+
 

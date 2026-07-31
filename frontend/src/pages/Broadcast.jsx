@@ -7,7 +7,7 @@ import {
     ChevronRight, ChevronLeft, Save, Trash2, Edit2,
     Eye, Clock, CheckCircle2, FileText, AlertCircle,
     Monitor, Layout, Type, Image as ImageIcon, Video,
-    X, Check, ExternalLink, RefreshCcw, HelpCircle
+    X, Check, ExternalLink, RefreshCcw, HelpCircle, BarChart2
 } from 'lucide-react';
 import {
     Autocomplete, TextField, Chip, Box, CircularProgress,
@@ -19,6 +19,7 @@ import FlexMessageEditor from '../components/FlexMessageEditor';
 import JourneyPreview from '../components/JourneyPreview';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TagInput from '../components/TagInput';
+import BroadcastStatsModal from '../components/BroadcastStatsModal';
 import { useToast } from '../contexts/ToastContext';
 
 class ErrorBoundary extends React.Component {
@@ -97,6 +98,7 @@ function BroadcastContent() {
     const [loading, setLoading] = useState(false);
     const [executing, setExecuting] = useState(false);
     const [deletingId, setDeletingId] = useState(null);
+    const [selectedStatsBc, setSelectedStatsBc] = useState(null);
 
     // Wizard state
     const [step, setStep] = useState(1);
@@ -1400,6 +1402,9 @@ function BroadcastContent() {
                                     </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: '5px' }}>
+                                    {bc.status === 'sent' && (
+                                        <Tooltip title="數據成效分析"><IconButton onClick={() => setSelectedStatsBc(bc)} sx={{ color: 'var(--primary-yellow)' }}><BarChart2 size={18} /></IconButton></Tooltip>
+                                    )}
                                     {bc.status === 'draft' ? (
                                         <Tooltip title="編輯草稿"><IconButton onClick={() => handleEdit(bc)} sx={{ color: 'var(--primary-yellow)' }}><Edit2 size={18} /></IconButton></Tooltip>
                                     ) : (
@@ -1524,6 +1529,13 @@ function BroadcastContent() {
                     </Box>
                 </Modal>
             )}
+
+            {/* Broadcast Statistics Modal */}
+            <BroadcastStatsModal
+                open={Boolean(selectedStatsBc)}
+                onClose={() => setSelectedStatsBc(null)}
+                broadcast={selectedStatsBc}
+            />
         </div>
     );
 }

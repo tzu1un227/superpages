@@ -144,8 +144,54 @@ def ensure_rds_tables(app_name):
                 except psycopg2.Error:
                     conn.rollback()
                     cur = conn.cursor()
-                conn.commit()
-                cur = conn.cursor()
+        # broadcasts 表格欄位擴充檢查
+        try:
+            cur.execute(f"SELECT request_id FROM \"{t_broadcasts}\" LIMIT 0")
+        except psycopg2.Error:
+            conn.rollback()
+            cur = conn.cursor()
+            try: cur.execute(f"ALTER TABLE \"{t_broadcasts}\" ADD COLUMN request_id VARCHAR(100)")
+            except: conn.rollback(); cur = conn.cursor()
+            try: cur.execute(f"ALTER TABLE \"{t_broadcasts}\" ADD COLUMN custom_aggregation_unit VARCHAR(100)")
+            except: conn.rollback(); cur = conn.cursor()
+            try: cur.execute(f"ALTER TABLE \"{t_broadcasts}\" ADD COLUMN sent_recipient_count INT DEFAULT 0")
+            except: conn.rollback(); cur = conn.cursor()
+            try: cur.execute(f"ALTER TABLE \"{t_broadcasts}\" ADD COLUMN statistics_updated_at TIMESTAMP")
+            except: conn.rollback(); cur = conn.cursor()
+            conn.commit()
+            cur = conn.cursor()
+
+        # broadcast_recipients 表格
+        t_recipients = f"broadcast_recipients:{app_name}"
+        cur.execute(f"SELECT 1 FROM information_schema.tables WHERE table_name = %s", (t_recipients,))
+        if not cur.fetchone():
+            logger.info(f"Creating table {t_recipients}...")
+            cur.execute(f"""
+                CREATE TABLE "{t_recipients}" (
+                    id SERIAL PRIMARY KEY,
+                    broadcast_id INTEGER,
+                    user_id VARCHAR(255),
+                    send_status VARCHAR(50) DEFAULT 'sent',
+                    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+        # broadcast_line_stats 表格
+        t_line_stats = f"broadcast_line_stats:{app_name}"
+        cur.execute(f"SELECT 1 FROM information_schema.tables WHERE table_name = %s", (t_line_stats,))
+        if not cur.fetchone():
+            logger.info(f"Creating table {t_line_stats}...")
+            cur.execute(f"""
+                CREATE TABLE "{t_line_stats}" (
+                    broadcast_id INTEGER PRIMARY KEY,
+                    delivered INTEGER,
+                    unique_impression INTEGER,
+                    unique_click INTEGER,
+                    unique_media_played INTEGER,
+                    unique_media_played_100_percent INTEGER,
+                    fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
 
         conn.commit()
         _ENSURED_TABLES.add(app_name)
@@ -577,7 +623,15 @@ def execute_broadcast(id):
                 print(f"Triggering immediate broadcast (Format: {bc['target_type']}) via WebSocket: {data['message']}")
                 send_socket_event(data)
                 
-                cur_rds.execute(f"UPDATE {t_broadcasts} SET status = 'sent' WHERE id = %s", (id,))
+                # 寫入受眾快照
+                try:
+                    t_recipients = get_t('broadcast_recipients')
+                    rec_insert_data = [(id, uid, 'sent') for uid in user_ids]
+                    execute_values(cur_rds, f"INSERT INTO {t_recipients} (broadcast_id, user_id, send_status) VALUES %s", rec_insert_data)
+                except Exception as rec_e:
+                    logger.error(f"Failed to record recipient snapshot for broadcast {id}: {rec_e}")
+
+                cur_rds.execute(f"UPDATE {t_broadcasts} SET status = 'sent', sent_recipient_count = %s WHERE id = %s", (len(user_ids), id))
                 conn_rds.commit()
                 return jsonify({'status': 'success', 'method': 'websocket', 'targets': len(user_ids)})
 
@@ -608,7 +662,15 @@ def execute_broadcast(id):
                 sql = f"INSERT INTO {t_cron} (user_id, message_content, push_time, status) VALUES %s"
                 execute_values(cur_rds, sql, insert_data)
                 
-                cur_rds.execute(f"UPDATE {t_broadcasts} SET status = 'scheduled' WHERE id = %s", (id,))
+                # 寫入受眾快照
+                try:
+                    t_recipients = get_t('broadcast_recipients')
+                    rec_insert_data = [(id, uid, 'scheduled') for uid in user_ids]
+                    execute_values(cur_rds, f"INSERT INTO {t_recipients} (broadcast_id, user_id, send_status) VALUES %s", rec_insert_data)
+                except Exception as rec_e:
+                    logger.error(f"Failed to record recipient snapshot for broadcast {id}: {rec_e}")
+
+                cur_rds.execute(f"UPDATE {t_broadcasts} SET status = 'scheduled', sent_recipient_count = %s WHERE id = %s", (len(user_ids), id))
                 conn_rds.commit()
                 
                 logger.info(f"Successfully scheduled broadcast {id} for {len(user_ids)} users using bulk insert.")
@@ -627,3 +689,247 @@ def execute_broadcast(id):
             conn_oa.close()
         if conn_rds:
             conn_rds.close()
+
+@broadcast_bp.route('/<int:id>/stats', methods=['GET'])
+@token_required
+def get_broadcast_stats(id):
+    period = request.args.get('period', '7d')
+    force_refresh = request.args.get('refresh', 'false').lower() == 'true'
+    
+    conn_rds = None
+    conn_oa = None
+    try:
+        conn_rds = get_rds_connection()
+        cur_rds = conn_rds.cursor(cursor_factory=RealDictCursor)
+        t_broadcasts = get_t('broadcasts')
+        t_recipients = get_t('broadcast_recipients')
+        t_line_stats = get_t('broadcast_line_stats')
+        
+        cur_rds.execute(f"SELECT * FROM {t_broadcasts} WHERE id = %s", (id,))
+        bc = cur_rds.fetchone()
+        if not bc:
+            return jsonify({'error': 'Broadcast not found'}), 404
+            
+        oa = OAConfig.query.get(bc['oa_id'])
+        if not oa:
+            return jsonify({'error': 'OA configuration not found'}), 400
+            
+        app_id = get_logical_app_id(oa)
+        
+        # 1. Recipient count N
+        cur_rds.execute(f"SELECT COUNT(DISTINCT user_id) as count FROM {t_recipients} WHERE broadcast_id = %s", (id,))
+        rec_row = cur_rds.fetchone()
+        target_n = rec_row['count'] if (rec_row and rec_row['count'] > 0) else (bc.get('sent_recipient_count') or 0)
+        
+        # 2. LINE Stats Fetch / Cache (15 min TTL)
+        line_stats_data = {}
+        cur_rds.execute(f"SELECT * FROM {t_line_stats} WHERE broadcast_id = %s", (id,))
+        cached_line = cur_rds.fetchone()
+        
+        now_dt = datetime.now()
+        cache_valid = False
+        if cached_line and cached_line['fetched_at'] and not force_refresh:
+            fetched_at = cached_line['fetched_at']
+            if fetched_at.tzinfo is not None:
+                fetched_at = fetched_at.replace(tzinfo=None)
+            if (now_dt - fetched_at).total_seconds() < 900:
+                cache_valid = True
+                line_stats_data = cached_line
+
+        if not cache_valid and oa.channel_access_token:
+            import requests
+            headers = {"Authorization": f"Bearer {oa.channel_access_token}"}
+            request_id = bc.get('request_id')
+            custom_unit = bc.get('custom_aggregation_unit')
+            
+            line_api_res = None
+            if request_id:
+                try:
+                    res = requests.get(f"https://api.line.me/v2/bot/insight/message/event?requestId={request_id}", headers=headers, timeout=5)
+                    if res.status_code == 200:
+                        line_api_res = res.json()
+                except Exception as e:
+                    logger.error(f"LINE Insight API request failed: {e}")
+            elif custom_unit:
+                try:
+                    today_str = datetime.now().strftime('%Y%m%d')
+                    res = requests.get(f"https://api.line.me/v2/bot/insight/message/event/aggregation?customAggregationUnit={custom_unit}&from={today_str}&to={today_str}", headers=headers, timeout=5)
+                    if res.status_code == 200:
+                        line_api_res = res.json()
+                except Exception as e:
+                    logger.error(f"LINE Unit API request failed: {e}")
+                    
+            if line_api_res and 'overview' in line_api_res:
+                ov = line_api_res['overview']
+                delivered = ov.get('delivered')
+                unique_impression = ov.get('uniqueImpression')
+                unique_click = ov.get('uniqueClick')
+                unique_media_played = ov.get('uniqueMediaPlayed')
+                unique_media_played_100 = ov.get('uniqueMediaPlayed100Percent')
+                
+                cur_rds.execute(f"""
+                    INSERT INTO {t_line_stats} (broadcast_id, delivered, unique_impression, unique_click, unique_media_played, unique_media_played_100_percent, fetched_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                    ON CONFLICT (broadcast_id) DO UPDATE SET
+                    delivered = EXCLUDED.delivered,
+                    unique_impression = EXCLUDED.unique_impression,
+                    unique_click = EXCLUDED.unique_click,
+                    unique_media_played = EXCLUDED.unique_media_played,
+                    unique_media_played_100_percent = EXCLUDED.unique_media_played_100_percent,
+                    fetched_at = NOW()
+                """, (id, delivered, unique_impression, unique_click, unique_media_played, unique_media_played_100))
+                conn_rds.commit()
+                
+                line_stats_data = {
+                    'delivered': delivered,
+                    'unique_impression': unique_impression,
+                    'unique_click': unique_click,
+                    'unique_media_played': unique_media_played,
+                    'unique_media_played_100_percent': unique_media_played_100
+                }
+
+        deliv = line_stats_data.get('delivered')
+        u_imp = line_stats_data.get('unique_impression')
+        u_clk = line_stats_data.get('unique_click')
+        u_med = line_stats_data.get('unique_media_played')
+        u_med100 = line_stats_data.get('unique_media_played_100_percent')
+        
+        is_unit_api = not bc.get('request_id') and bool(bc.get('custom_aggregation_unit'))
+        denom_rate = deliv if (deliv and not is_unit_api) else target_n
+        
+        impression_rate = round((u_imp / denom_rate) * 100, 2) if (u_imp is not None and denom_rate and denom_rate > 0) else None
+        click_rate = round((u_clk / denom_rate) * 100, 2) if (u_clk is not None and denom_rate and denom_rate > 0) else None
+        ctor = round((u_clk / u_imp) * 100, 2) if (u_clk is not None and u_imp and u_imp > 0) else None
+        media_comp_rate = round((u_med100 / u_med) * 100, 2) if (u_med100 is not None and u_med and u_med > 0) else None
+
+        line_metrics = {
+            "api_type": "unit" if is_unit_api else "request_id",
+            "estimated_send": target_n,
+            "delivered": deliv,
+            "unique_impression": u_imp,
+            "impression_rate": impression_rate,
+            "unique_click": u_clk,
+            "click_rate": click_rate,
+            "click_through_open_rate": ctor,
+            "unique_media_played": u_med,
+            "unique_media_played_100_percent": u_med100,
+            "media_completion_rate": media_comp_rate,
+            "block_change": None
+        }
+        
+        # 3. CRM Follow-up Behaviors from ht_view
+        sent_at = bc.get('created_at') or datetime.now()
+        if sent_at.tzinfo is not None:
+            sent_at = sent_at.replace(tzinfo=None)
+            
+        days_map = {'1d': 1, '3d': 3, '7d': 7, '30d': 30}
+        days = days_map.get(period, 7)
+        end_at = sent_at + timedelta(days=days)
+        
+        custom_end = request.args.get('end_at')
+        if custom_end:
+            try: end_at = datetime.fromisoformat(custom_end.replace(' ', 'T')).replace(tzinfo=None)
+            except: pass
+            
+        crm_metrics = {
+            "target_n": target_n,
+            "tag_any_count": 0,
+            "tag_breakdown": [],
+            "journey_any_count": 0,
+            "journey_breakdown": [],
+            "has_behavior_count": 0,
+            "behavior_rate": 0
+        }
+        
+        if oa.db_url:
+            conn_oa = get_db_connection(oa.db_url)
+            cur_oa = conn_oa.cursor(cursor_factory=RealDictCursor)
+            t_ht_view = f'"ht_view:{app_id}"'
+            
+            cur_rds.execute(f"SELECT user_id FROM {t_recipients} WHERE broadcast_id = %s", (id,))
+            recipient_uids = [r['user_id'] for r in cur_rds.fetchall()]
+            
+            if recipient_uids:
+                uids_tuple = tuple(recipient_uids)
+                
+                # Tag breakdown
+                cur_oa.execute(f"""
+                    SELECT tag, COUNT(DISTINCT user_id) as count 
+                    FROM {t_ht_view}
+                    WHERE user_id IN %s 
+                      AND category = 'Tag' 
+                      AND tag NOT IN ('manual', 'unknown', '')
+                      AND "timestamp" >= %s AND "timestamp" <= %s
+                    GROUP BY tag
+                    ORDER BY count DESC
+                """, (uids_tuple, sent_at, end_at))
+                tag_rows = cur_oa.fetchall()
+                crm_metrics['tag_breakdown'] = [{'tag_name': r['tag'], 'count': r['count']} for r in tag_rows]
+                
+                # Tag Any Unique Count
+                cur_oa.execute(f"""
+                    SELECT COUNT(DISTINCT user_id) as total 
+                    FROM {t_ht_view}
+                    WHERE user_id IN %s 
+                      AND category = 'Tag' 
+                      AND tag NOT IN ('manual', 'unknown', '')
+                      AND "timestamp" >= %s AND "timestamp" <= %s
+                """, (uids_tuple, sent_at, end_at))
+                crm_metrics['tag_any_count'] = cur_oa.fetchone()['total']
+                
+                # Journey Breakdown
+                cur_oa.execute(f"""
+                    SELECT COALESCE(value, tag, '未知旅程') as journey_name, COUNT(DISTINCT user_id) as count 
+                    FROM {t_ht_view}
+                    WHERE user_id IN %s 
+                      AND category IN ('Journey', 'Project')
+                      AND (action = 'success' OR action IS NULL OR action = 'join')
+                      AND "timestamp" >= %s AND "timestamp" <= %s
+                    GROUP BY COALESCE(value, tag, '未知旅程')
+                    ORDER BY count DESC
+                """, (uids_tuple, sent_at, end_at))
+                journey_rows = cur_oa.fetchall()
+                crm_metrics['journey_breakdown'] = [{'journey_name': r['journey_name'], 'count': r['count']} for r in journey_rows]
+                
+                # Journey Any Unique Count
+                cur_oa.execute(f"""
+                    SELECT COUNT(DISTINCT user_id) as total 
+                    FROM {t_ht_view}
+                    WHERE user_id IN %s 
+                      AND category IN ('Journey', 'Project')
+                      AND (action = 'success' OR action IS NULL OR action = 'join')
+                      AND "timestamp" >= %s AND "timestamp" <= %s
+                """, (uids_tuple, sent_at, end_at))
+                crm_metrics['journey_any_count'] = cur_oa.fetchone()['total']
+                
+                # Union Count
+                cur_oa.execute(f"""
+                    SELECT COUNT(DISTINCT user_id) as union_total
+                    FROM {t_ht_view}
+                    WHERE user_id IN %s 
+                      AND "timestamp" >= %s AND "timestamp" <= %s
+                      AND (
+                        (category = 'Tag' AND tag NOT IN ('manual', 'unknown', '')) OR
+                        (category IN ('Journey', 'Project') AND (action = 'success' OR action IS NULL OR action = 'join'))
+                      )
+                """, (uids_tuple, sent_at, end_at))
+                union_row = cur_oa.fetchone()
+                union_count = union_row['union_total'] if union_row else 0
+                crm_metrics['has_behavior_count'] = union_count
+                crm_metrics['behavior_rate'] = round((union_count / target_n * 100), 2) if target_n > 0 else 0
+                
+        return jsonify({
+            'broadcast_id': id,
+            'broadcast_name': bc['name'],
+            'sent_at': sent_at.isoformat(),
+            'period': period,
+            'line_stats': line_metrics,
+            'crm_stats': crm_metrics
+        })
+    except Exception as e:
+        logger.exception(f"Error fetching stats for broadcast {id}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn_oa: conn_oa.close()
+        if conn_rds: conn_rds.close()
+
