@@ -442,6 +442,13 @@ def ensure_base_follow_function(func_str):
         return f"{BASE_FOLLOW_FUNCTION},{func_str.strip()}"
     return func_str.strip()
 
+def is_content_active(content_val):
+    """Check if content represents an active rule (* or ['*'])."""
+    if not content_val: return False
+    if isinstance(content_val, list):
+        return '*' in content_val or "['*']" in [str(c) for c in content_val]
+    return content_val == '*' or content_val == "['*']"
+
 @rule_designer_bp.route('/follow-rules', methods=['GET'])
 def get_follow_rules():
     """Get all follow rules for current app and auto-initialize default rule if none are active."""
@@ -461,41 +468,45 @@ def get_follow_rules():
         cur.execute(f'SELECT * FROM "{table_name}" WHERE type = %s ORDER BY id ASC', ('Follow',))
         rules = cur.fetchall()
 
-        has_active = any(r.get('content') == '*' for r in rules)
+        has_active = any(is_content_active(r.get('content')) for r in rules)
 
         # If no active follow rules exist, auto create / enable default follow rule
         if not has_active:
             print(f"[FOLLOW_RULES] No active follow rule found in {table_name}, initializing default rule...")
             default_note = "加入好友訊息 - 預設歡迎訊息"
             
-            # Check if default rule already exists in DB as inactive (content == 'OFF')
+            # Check content column type in DB
+            cur.execute("SELECT data_type FROM information_schema.columns WHERE table_name = %s AND column_name = 'content'", (table_name,))
+            col_type = (cur.fetchone() or {}).get('data_type', 'character varying')
+            default_content = ['*'] if ('ARRAY' in col_type.upper() or col_type == 'ARRAY') else '*'
+
             cur.execute(f'SELECT id FROM "{table_name}" WHERE type = %s AND note LIKE %s LIMIT 1', ('Follow', '%預設歡迎訊息%'))
             existing_default = cur.fetchone()
             
             if existing_default:
-                # Enable existing default rule
                 rule_id = existing_default['id']
                 cur.execute(f'UPDATE "{table_name}" SET content = %s, function = %s WHERE id = %s', 
-                            ('*', DEFAULT_FOLLOW_FUNCTION, rule_id))
+                            (default_content, DEFAULT_FOLLOW_FUNCTION, rule_id))
             else:
-                # Insert brand new default follow rule
+                cur.execute(f'SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM "{table_name}"')
+                next_id = cur.fetchone()['next_id']
                 insert_sql = f'''
-                    INSERT INTO "{table_name}" ("state_in", "type", "content", "msg_rpy", "function", "state_out", "note")
-                    VALUES (%s, %s, %s, %s::json[], %s, %s, %s)
+                    INSERT INTO "{table_name}" ("id", "state_in", "type", "content", "msg_rpy", "function", "state_out", "note")
+                    VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s)
                 '''
                 cur.execute(insert_sql, (
+                    next_id,
                     ['*'],
                     'Follow',
-                    '*',
+                    default_content,
                     [json.dumps("感謝您加入我們的官方帳號！", ensure_ascii=False)],
                     DEFAULT_FOLLOW_FUNCTION,
-                    ['*'],
+                    '*',
                     default_note
                 ))
             conn.commit()
             trigger_sql_reload()
 
-            # Re-fetch rules after default init
             cur.execute(f'SELECT * FROM "{table_name}" WHERE type = %s ORDER BY id ASC', ('Follow',))
             rules = cur.fetchall()
             has_active = True
@@ -524,43 +535,54 @@ def create_follow_rule():
         app_id = get_app_id()
         table_name = f"Q_bank:{app_id}"
 
-        # Single active enforcement: If user tries to set content == '*', check if another active follow rule exists
-        content = rule_data.get('content', '*')
-        if content == '*':
-            cur.execute(f'SELECT id FROM "{table_name}" WHERE type = %s AND content = %s LIMIT 1', ('Follow', '*'))
-            active_rule = cur.fetchone()
-            if active_rule:
+        # Single active enforcement: Check if another active follow rule exists
+        raw_content = rule_data.get('content', '*')
+        is_activating = is_content_active(raw_content)
+
+        cur.execute(f'SELECT id, content FROM "{table_name}" WHERE type = %s', ('Follow',))
+        all_follow_rules = cur.fetchall()
+        
+        if is_activating:
+            has_other_active = any(is_content_active(r['content']) for r in all_follow_rules)
+            if has_other_active:
                 cur.close()
                 return jsonify({'error': '已有被啟用的加入好友訊息設定，請先停用該設定後再嘗試啟用此設定。'}), 400
 
-        # Note field enforcement: Must include "加入好友訊息"
+        # Check content column type in DB
+        cur.execute("SELECT data_type FROM information_schema.columns WHERE table_name = %s AND column_name = 'content'", (table_name,))
+        col_type = (cur.fetchone() or {}).get('data_type', 'character varying')
+        if 'ARRAY' in col_type.upper() or col_type == 'ARRAY':
+            db_content = ['*'] if is_activating else ['OFF']
+        else:
+            db_content = '*' if is_activating else 'OFF'
+
         note = rule_data.get('note', '').strip()
         if not note:
             note = '加入好友訊息'
         elif '加入好友訊息' not in note:
             note = f'加入好友訊息 - {note}'
 
-        # Function field enforcement: Must include base follow function
         raw_func = rule_data.get('function', '')
         func_val = ensure_base_follow_function(raw_func)
 
         msg_rpy = rule_data.get('msg_rpy', [])
-        if isinstance(msg_rpy, list):
-            formatted_msg_rpy = [json.dumps(m, ensure_ascii=False) if not isinstance(m, str) else m for m in msg_rpy]
-        else:
-            formatted_msg_rpy = []
+        formatted_msg_rpy = [json.dumps(m, ensure_ascii=False) if not isinstance(m, str) else m for m in msg_rpy] if isinstance(msg_rpy, list) else []
+
+        cur.execute(f'SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM "{table_name}"')
+        next_id = cur.fetchone()['next_id']
 
         insert_sql = f'''
-            INSERT INTO "{table_name}" ("state_in", "type", "content", "msg_rpy", "function", "state_out", "note")
-            VALUES (%s, %s, %s, %s::json[], %s, %s, %s) RETURNING id
+            INSERT INTO "{table_name}" ("id", "state_in", "type", "content", "msg_rpy", "function", "state_out", "note")
+            VALUES (%s, %s, %s, %s, %s::json[], %s, %s, %s) RETURNING id
         '''
         cur.execute(insert_sql, (
-            rule_data.get('state_in', ['*']),
+            next_id,
+            ['*'],
             'Follow',
-            content,
+            db_content,
             formatted_msg_rpy,
             func_val,
-            rule_data.get('state_out', ['*']),
+            '*',
             note
         ))
         new_id = cur.fetchone()['id']
@@ -592,38 +614,43 @@ def update_follow_rule(rule_id):
         app_id = get_app_id()
         table_name = f"Q_bank:{app_id}"
 
-        # Single active enforcement: If user tries to activate this rule (content == '*'), verify no other rule is active
-        content = rule_data.get('content', '*')
-        if content == '*':
-            cur.execute(f'SELECT id FROM "{table_name}" WHERE type = %s AND content = %s AND id != %s LIMIT 1', ('Follow', '*', rule_id))
-            active_rule = cur.fetchone()
-            if active_rule:
+        raw_content = rule_data.get('content', '*')
+        is_activating = is_content_active(raw_content)
+
+        cur.execute(f'SELECT id, content FROM "{table_name}" WHERE type = %s AND id != %s', ('Follow', rule_id))
+        other_rules = cur.fetchall()
+
+        if is_activating:
+            has_other_active = any(is_content_active(r['content']) for r in other_rules)
+            if has_other_active:
                 cur.close()
                 return jsonify({'error': '已有被啟用的加入好友訊息設定，請先停用該設定後再嘗試啟用此設定。'}), 400
 
-        # Note field enforcement: Must include "加入好友訊息"
+        cur.execute("SELECT data_type FROM information_schema.columns WHERE table_name = %s AND column_name = 'content'", (table_name,))
+        col_type = (cur.fetchone() or {}).get('data_type', 'character varying')
+        if 'ARRAY' in col_type.upper() or col_type == 'ARRAY':
+            db_content = ['*'] if is_activating else ['OFF']
+        else:
+            db_content = '*' if is_activating else 'OFF'
+
         note = rule_data.get('note', '').strip()
         if not note:
             note = '加入好友訊息'
         elif '加入好友訊息' not in note:
             note = f'加入好友訊息 - {note}'
 
-        # Function field enforcement
         raw_func = rule_data.get('function', '')
         func_val = ensure_base_follow_function(raw_func)
 
         msg_rpy = rule_data.get('msg_rpy', [])
-        if isinstance(msg_rpy, list):
-            formatted_msg_rpy = [json.dumps(m, ensure_ascii=False) if not isinstance(m, str) else m for m in msg_rpy]
-        else:
-            formatted_msg_rpy = []
+        formatted_msg_rpy = [json.dumps(m, ensure_ascii=False) if not isinstance(m, str) else m for m in msg_rpy] if isinstance(msg_rpy, list) else []
 
         update_sql = f'''
             UPDATE "{table_name}"
             SET "content" = %s, "msg_rpy" = %s::json[], "function" = %s, "note" = %s
             WHERE id = %s AND type = 'Follow'
         '''
-        cur.execute(update_sql, (content, formatted_msg_rpy, func_val, note, rule_id))
+        cur.execute(update_sql, (db_content, formatted_msg_rpy, func_val, note, rule_id))
         conn.commit()
         cur.close()
 
@@ -650,32 +677,42 @@ def toggle_follow_rule(rule_id):
         app_id = get_app_id()
         table_name = f"Q_bank:{app_id}"
 
-        if target_state is None:
-            cur.execute(f'SELECT content FROM "{table_name}" WHERE id = %s AND type = %s', (rule_id, 'Follow'))
-            r = cur.fetchone()
-            if not r:
-                cur.close()
-                return jsonify({'error': 'Rule not found'}), 404
-            target_state = 'OFF' if r['content'] == '*' else '*'
+        cur.execute(f'SELECT content FROM "{table_name}" WHERE id = %s AND type = %s', (rule_id, 'Follow'))
+        current_rule = cur.fetchone()
+        if not current_rule:
+            cur.close()
+            return jsonify({'error': 'Rule not found'}), 404
 
-        if target_state == '*':
-            # Single active enforcement: Check if another rule is already active
-            cur.execute(f'SELECT id FROM "{table_name}" WHERE type = %s AND content = %s AND id != %s LIMIT 1', ('Follow', '*', rule_id))
-            active_rule = cur.fetchone()
-            if active_rule:
+        if target_state is None:
+            is_activating = not is_content_active(current_rule['content'])
+        else:
+            is_activating = is_content_active(target_state)
+
+        if is_activating:
+            cur.execute(f'SELECT id, content FROM "{table_name}" WHERE type = %s AND id != %s', ('Follow', rule_id))
+            other_rules = cur.fetchall()
+            if any(is_content_active(r['content']) for r in other_rules):
                 cur.close()
                 return jsonify({'error': '已有被啟用的加入好友訊息設定，請先停用該設定後再嘗試啟用此設定。'}), 400
 
-        cur.execute(f'UPDATE "{table_name}" SET content = %s WHERE id = %s AND type = %s', (target_state, rule_id, 'Follow'))
+        cur.execute("SELECT data_type FROM information_schema.columns WHERE table_name = %s AND column_name = 'content'", (table_name,))
+        col_type = (cur.fetchone() or {}).get('data_type', 'character varying')
+        if 'ARRAY' in col_type.upper() or col_type == 'ARRAY':
+            db_content = ['*'] if is_activating else ['OFF']
+        else:
+            db_content = '*' if is_activating else 'OFF'
+
+        cur.execute(f'UPDATE "{table_name}" SET content = %s WHERE id = %s AND type = %s', (db_content, rule_id, 'Follow'))
         conn.commit()
         cur.close()
 
         trigger_sql_reload()
-        return jsonify({'status': 'success', 'content': target_state})
+        return jsonify({'status': 'success', 'content': db_content})
     except Exception as e:
         print(f"[FOLLOW_RULES] toggle_follow_rule error: {e}")
         if conn: conn.rollback()
         return jsonify({'error': str(e)}), 500
     finally:
         if conn: conn.close()
+
 
