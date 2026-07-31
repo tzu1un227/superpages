@@ -147,3 +147,12 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 - **權限設定連線隔離 (`app_name`)**：系統全面廢除舊有硬編碼 namespace (`/websoc`) 或過時之 `socket_name` 欄位，WebSocket 連線與事件觸發發送 (含 `send_socket_event` 與 `send_socket_events_batch`) 統一從權限設定 (`OAConfig.other_settings`) 優先解析 `app_name` 作為 Namespace (`/{app_name}`) 與訊息事件名稱 (`{app_name}_message`)，實現各機器人平台即時連線的嚴格隔離與動態綁定。
 - **預設測試標籤注入 (`is_test`)**：發送所有 WebSocket 事件時，`socket_utils` 模組會自動檢查並為 Payload 字典注入 `"is_test": False` 預設屬性（除非呼叫端已明確指定），以利後端機器人引擎進行測試與正式連線之識別與區隔。
 
+## 12. 加入好友設定 (Follow Rules) 模組架構 (2026-07-31 新增)
+- **架構設計**：加入好友設定完全基於 `Q_bank:{app_name}` 資料表中 `type = 'Follow'` 的法則列進行管理，無需新增獨立資料表。
+- **啟用狀態 (`content`)**：啟用時設為 `'*'`；停用時設為 `'OFF'`。
+- **單一啟用檔護與提示**：同一時間只允許一個加入好友設定處於啟用狀態 (`content = '*'`)。若已有被啟用的加入好友訊息設定，當嘗試啟用其他設定時，前端與後端均會直接攔截並提示「已有被啟用的加入好友訊息設定，請先停用該設定後再嘗試啟用此設定。」，確保絕對不會非預期覆蓋。
+- **固定語法注入 (`function`)**：所有透過該模組儲存之法則，其 `function` 欄位強制包含 `pri_set("name",sys.name(m)),pri_set("pic",sys.picture(m))`，以確保 LINE 用戶加入時自動保存姓名與頭貼 URL。後續 CRM 動作（標籤、圖文選單切換、自動旅程）則附加於該基本語法後。
+- **`note` 欄位標記**：所有法則之 `note` 欄位強制包含 `加入好友訊息` 標記（如：`加入好友訊息 - 歡迎光臨`）。
+- **無啟用法則時之預設機制 (Default Fallback)**：當檢測到資料庫中完全沒有啟用的 Follow 法則時，系統自動初始化一則預設加入好友法則，並帶有預設歡迎訊息與 `update(f"switch_rm|{...}[0]['ui_uuid']}")` 圖文選單套用語法。
+
+

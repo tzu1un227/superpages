@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## [2026-07-31] 加入好友設定 (Follow Rules) 專屬 Pages 與 Q_bank 整合
+- **後端 (`backend/endpoints/rule_designer.py`)**: 
+  - 新增 `/api/rule-designer/follow-rules` 專屬 API (GET, POST, PUT, TOGGLE)。
+  - 實作「單一啟用限制檔護」：當已有被啟用的 Follow 法則時，嘗試啟用其他設定會被擋掉並提示錯誤訊息。
+  - 強制於法則 `function` 欄位包含 `pri_set("name",sys.name(m)),pri_set("pic",sys.picture(m))`。
+  - 強制於法則 `note` 欄位包含 `加入好友訊息` 標記。
+  - 當全站無啟用的 Follow 法則時，自動初始化預設加入好友訊息法則與圖文選單套用語法。
+- **前端 (`frontend/src/pages/WelcomeMessage.jsx`, `frontend/src/App.jsx`)**:
+  - 新增獨立 Pages「加入好友設定」(`WelcomeMessage.jsx`)。
+  - 承襲關鍵字回覆之 UI 操作邏輯，提供 1~5 則歡迎訊息編輯與標籤、圖文選單、自動旅程初始化動作設定。
+  - 實作單一啟用限制檔護與提示 alert。
+  - 在側邊欄與 Routes 註冊「加入好友設定」選單與路由。
+
+
 ## [2026-07-21] 問卷管理 note 欄位前綴格式變更
 - **後端/前端 (`frontend/src/pages/RuleDesigner.jsx`, `frontend/src/pages/Questionnaire.jsx`, `backend/endpoints/questionnaire.py`)**: 變更問卷管理頁面寫入 DB 時 `note` 欄位的格式，將後綴 ` - 問卷管理` 更改為前綴 `問卷管理 - `。
 

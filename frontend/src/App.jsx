@@ -24,7 +24,8 @@ import RuleDesigner from './pages/RuleDesigner';
 import DatabaseViewer from './pages/DatabaseViewer';
 
 import CustomerCenter from './pages/CustomerCenter';
-import { Users } from 'lucide-react';
+import WelcomeMessage from './pages/WelcomeMessage';
+import { Users, UserPlus } from 'lucide-react';
 
 const GlobalLoading = () => (
   <div className="overlay" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.7)' }}>
@@ -260,6 +261,29 @@ const MainLayout = () => {
                           <RouteIcon size={18} className="text-yellow" /> {!isSidebarCollapsed && displayName}
                         </Link>
                       </li>
+                      {page.name === 'RuleDesigner' && (
+                        <li style={{ marginBottom: '5px' }}>
+                          <Link
+                            to={`/oa/${oa.id}/welcome-message`}
+                            style={{
+                              color: 'white',
+                              textDecoration: 'none',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+                              gap: '12px',
+                              padding: '10px 12px',
+                              borderRadius: '8px',
+                              fontSize: '14px',
+                              backgroundColor: location.pathname.startsWith(`/oa/${oa.id}/welcome-message`) ? '#333' : 'transparent',
+                              borderLeft: location.pathname.startsWith(`/oa/${oa.id}/welcome-message`) ? '4px solid #FFD700' : '4px solid transparent'
+                            }}
+                            className="nav-link"
+                          >
+                            <UserPlus size={18} className="text-yellow" /> {!isSidebarCollapsed && '加入好友設定'}
+                          </Link>
+                        </li>
+                      )}
                       {page.name === 'Questionnaire' && (
                         <li style={{ marginBottom: '5px' }}>
                           <Link
@@ -331,6 +355,7 @@ const MainLayout = () => {
           <Route path="/oa/:oaId/questionnaire" element={<ProtectedRoute><Questionnaire /></ProtectedRoute>} />
           <Route path="/oa/:oaId/liff-questionnaire" element={<ProtectedRoute><LiffQuestionnaire /></ProtectedRoute>} />
           <Route path="/oa/:oaId/ruledesigner" element={<ProtectedRoute><RuleDesigner /></ProtectedRoute>} />
+          <Route path="/oa/:oaId/welcome-message" element={<ProtectedRoute><WelcomeMessage /></ProtectedRoute>} />
           <Route path="/oa/:oaId/dbviewer" element={<ProtectedRoute><DatabaseViewer /></ProtectedRoute>} />
 
           <Route path="/oa/:oaId/customers" element={<ProtectedRoute><CustomerCenter /></ProtectedRoute>} />
