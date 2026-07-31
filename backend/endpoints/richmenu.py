@@ -487,53 +487,53 @@ def set_default_rich_menu(richMenuId):
 
         from psycopg2.extras import RealDictCursor
         conn = get_tenant_conn()
-            if conn:
-                app_name = getattr(g, 'current_app_name', None)
-                oa_id = getattr(g, 'current_oa_id', None)
-                if not app_name:
-                    if oa_id:
-                        from models import OAConfig
-                        oa = OAConfig.query.get(oa_id)
-                        if oa and oa.other_settings and oa.other_settings.get('app_name'):
-                            app_name = str(oa.other_settings['app_name'])
-                            g.current_app_name = app_name
+        if conn:
+            app_name = getattr(g, 'current_app_name', None)
+            oa_id = getattr(g, 'current_oa_id', None)
+            if not app_name:
+                if oa_id:
+                    from models import OAConfig
+                    oa = OAConfig.query.get(oa_id)
+                    if oa and oa.other_settings and oa.other_settings.get('app_name'):
+                        app_name = str(oa.other_settings['app_name'])
+                        g.current_app_name = app_name
+            
+            tenant_conn = get_tenant_conn(app_name=app_name, oa_id=oa_id) if app_name else conn
+            
+            if app_name and tenant_conn:
+                t_metadata = get_t('rich_menu_metadata')
+                cur = conn.cursor()
                 
-                tenant_conn = get_tenant_conn(app_name=app_name, oa_id=oa_id) if app_name else conn
-                
-                if app_name and tenant_conn:
-                    t_metadata = get_t('rich_menu_metadata')
-                    cur = conn.cursor()
-                    
-                    cur.execute(f"SELECT start_time, end_time FROM {t_metadata} WHERE oa_id = %s AND rich_menu_id = %s", (oa_id, richMenuId))
-                    m = cur.fetchone()
-                    if m:
-                        start_time, end_time = m[0], m[1]
-                        if not start_time and not end_time:
-                            cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status = 'default' AND start_time IS NULL AND end_time IS NULL", (oa_id,))
-                        else:
-                            cur.execute(f"""
-                                SELECT id FROM {t_metadata} 
-                                WHERE oa_id = %s AND status = 'default' AND rich_menu_id != %s 
-                                  AND start_time IS NOT NULL AND end_time IS NOT NULL
-                                  AND start_time < %s AND end_time > %s
-                            """, (oa_id, richMenuId, end_time, start_time))
-                            if cur.fetchone():
-                                cur.close()
-                                conn.close()
-                                if tenant_conn and tenant_conn != conn: tenant_conn.close()
-                                return jsonify({'message': 'Set default failed', 'line_error': '排程時間與現存的排程預設選單重疊。'}), 400
+                cur.execute(f"SELECT start_time, end_time FROM {t_metadata} WHERE oa_id = %s AND rich_menu_id = %s", (oa_id, richMenuId))
+                m = cur.fetchone()
+                if m:
+                    start_time, end_time = m[0], m[1]
+                    if not start_time and not end_time:
+                        cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status = 'default' AND start_time IS NULL AND end_time IS NULL", (oa_id,))
+                    else:
+                        cur.execute(f"""
+                            SELECT id FROM {t_metadata} 
+                            WHERE oa_id = %s AND status = 'default' AND rich_menu_id != %s 
+                              AND start_time IS NOT NULL AND end_time IS NOT NULL
+                              AND start_time < %s AND end_time > %s
+                        """, (oa_id, richMenuId, end_time, start_time))
+                        if cur.fetchone():
+                            cur.close()
+                            conn.close()
+                            if tenant_conn and tenant_conn != conn: tenant_conn.close()
+                            return jsonify({'message': 'Set default failed', 'line_error': '排程時間與現存的排程預設選單重疊。'}), 400
 
-                    cur.execute(f"UPDATE {t_metadata} SET status = 'default', updated_at = (NOW() AT TIME ZONE 'Asia/Taipei') WHERE oa_id = %s AND rich_menu_id = %s", (oa_id, richMenuId))
-                    conn.commit()
-                    cur.close()
-                    
-                    from endpoints.richmenu import check_and_apply_scheduled_rich_menus
-                    import threading
-                    threading.Thread(target=check_and_apply_scheduled_rich_menus, args=(app_name,)).start()
-                    
-                conn.close()
-                if tenant_conn and tenant_conn != conn:
-                    tenant_conn.close()
+                cur.execute(f"UPDATE {t_metadata} SET status = 'default', updated_at = (NOW() AT TIME ZONE 'Asia/Taipei') WHERE oa_id = %s AND rich_menu_id = %s", (oa_id, richMenuId))
+                conn.commit()
+                cur.close()
+                
+                from endpoints.richmenu import check_and_apply_scheduled_rich_menus
+                import threading
+                threading.Thread(target=check_and_apply_scheduled_rich_menus, args=(app_name,)).start()
+                
+            conn.close()
+            if tenant_conn and tenant_conn != conn:
+                tenant_conn.close()
         except Exception as e:
             print(f"Error in set_default_rich_menu: {e}")
             
