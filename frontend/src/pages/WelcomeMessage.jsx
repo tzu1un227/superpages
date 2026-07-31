@@ -496,7 +496,11 @@ export default function WelcomeMessage() {
                                     {parsedFunc.journey && (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                                             <RefreshCw size={14} color="#00BCD4" />
-                                            <span>加入自動旅程 ID：{parsedFunc.journey}</span>
+                                            <span>加入自動旅程：{
+                                                (projectsList.find(p => String(p.id || p.project_id) === String(parsedFunc.journey)) || {}).project_name || 
+                                                (projectsList.find(p => String(p.id || p.project_id) === String(parsedFunc.journey)) || {}).name || 
+                                                `旅程 ${parsedFunc.journey}`
+                                            }</span>
                                         </div>
                                     )}
                                 </div>
@@ -639,11 +643,15 @@ export default function WelcomeMessage() {
                                     style={{ width: '100%', padding: '10px', backgroundColor: '#111', border: '1px solid #444', color: '#fff', borderRadius: '6px' }}
                                 >
                                     <option value="">-- 不加入自動旅程 --</option>
-                                    {projectsList.map(p => (
-                                        <option key={p.id} value={p.id}>
-                                            {p.name || p.title} (ID: {p.id})
-                                        </option>
-                                    ))}
+                                    {projectsList.map(p => {
+                                        const projName = p.project_name || p.name || p.title || `旅程 ${p.id || p.project_id}`;
+                                        const projId = p.id || p.project_id;
+                                        return (
+                                            <option key={projId} value={projId}>
+                                                {projName}
+                                            </option>
+                                        );
+                                    })}
                                 </select>
                             </div>
                         </div>

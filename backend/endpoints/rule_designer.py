@@ -449,6 +449,22 @@ def ensure_base_follow_function(func_str):
         return f"{BASE_FOLLOW_FUNCTION},{func_str.strip()}"
     return func_str.strip()
 
+def format_msg_rpy_list(msg_rpy_list):
+    """Ensure all items in msg_rpy are valid JSON string representations for PostgreSQL json[] column."""
+    if not isinstance(msg_rpy_list, list):
+        return []
+    formatted = []
+    for item in msg_rpy_list:
+        if isinstance(item, str):
+            try:
+                json.loads(item)
+                formatted.append(item)
+            except Exception:
+                formatted.append(json.dumps(item, ensure_ascii=False))
+        else:
+            formatted.append(json.dumps(item, ensure_ascii=False))
+    return formatted
+
 def is_content_active(content_val):
     """Check if content represents an active rule (* or ['*'])."""
     if not content_val: return False
@@ -573,7 +589,7 @@ def create_follow_rule():
         func_val = ensure_base_follow_function(raw_func)
 
         msg_rpy = rule_data.get('msg_rpy', [])
-        formatted_msg_rpy = [json.dumps(m, ensure_ascii=False) if not isinstance(m, str) else m for m in msg_rpy] if isinstance(msg_rpy, list) else []
+        formatted_msg_rpy = format_msg_rpy_list(msg_rpy)
 
         cur.execute(f'SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM "{table_name}"')
         next_id = cur.fetchone()['next_id']
@@ -650,7 +666,7 @@ def update_follow_rule(rule_id):
         func_val = ensure_base_follow_function(raw_func)
 
         msg_rpy = rule_data.get('msg_rpy', [])
-        formatted_msg_rpy = [json.dumps(m, ensure_ascii=False) if not isinstance(m, str) else m for m in msg_rpy] if isinstance(msg_rpy, list) else []
+        formatted_msg_rpy = format_msg_rpy_list(msg_rpy)
 
         update_sql = f'''
             UPDATE "{table_name}"
