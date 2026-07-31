@@ -5,7 +5,7 @@ import api from '../api';
 import { 
     Plus, Edit2, Trash2, Save, X, Eye, 
     MessageSquare, AlertCircle, Info, Tag, 
-    UserPlus, CheckCircle, Power, Zap, RefreshCw
+    UserPlus, CheckCircle, Power, Zap, RefreshCw, Upload, Image, FileText
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import JourneyPreview from '../components/JourneyPreview';
@@ -89,6 +89,65 @@ export default function WelcomeMessage() {
     // Flex Message Editor State
     const [showFlexEditor, setShowFlexEditor] = useState(false);
     const [flexEditorIndex, setFlexEditorIndex] = useState(null);
+    const [uploadingMsgIndex, setUploadingMsgIndex] = useState(null);
+
+    const handleAddMessage = (type = 'TextSendMessage') => {
+        if (msgRpyList.length >= 5) return;
+        let newMsg = '';
+        if (type === 'TextSendMessage') {
+            newMsg = '歡迎加入我們的官方帳號！';
+        } else if (type === 'ImageSendMessage') {
+            newMsg = { OTYPE: 'ImageSendMessage', original_content_url: '', preview_image_url: '' };
+        } else if (type === 'FlexSendMessage') {
+            newMsg = { 
+                OTYPE: 'FlexSendMessage', 
+                alt_text: '圖文訊息', 
+                contents: { type: 'bubble', body: { type: 'box', layout: 'vertical', contents: [{ type: 'text', text: '歡迎訊息' }] } } 
+            };
+        }
+        setMsgRpyList([...msgRpyList, newMsg]);
+    };
+
+    const handleUpdateMessage = (index, fieldOrValue, value) => {
+        setMsgRpyList(prevList => {
+            const newList = [...prevList];
+            const currentItem = newList[index];
+            if (typeof currentItem === 'string' && value === undefined) {
+                newList[index] = fieldOrValue;
+            } else if (typeof currentItem === 'object' && currentItem !== null) {
+                newList[index] = { ...currentItem, [fieldOrValue]: value };
+            } else if (typeof fieldOrValue === 'string' && value !== undefined) {
+                newList[index] = { OTYPE: 'TextSendMessage', [fieldOrValue]: value };
+            }
+            return newList;
+        });
+    };
+
+    const handleUploadImage = async (index, file) => {
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) {
+            Swal.fire({ icon: 'warning', title: '檔案過大', text: '圖片大小不可超過 5 MB' });
+            return;
+        }
+        setUploadingMsgIndex(index);
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+            const res = await api.post('/upload/github', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            if (res.data && res.data.url) {
+                handleUpdateMessage(index, 'original_content_url', res.data.url);
+                handleUpdateMessage(index, 'preview_image_url', res.data.url);
+                showToast('圖片上傳成功', 'success');
+            }
+        } catch (err) {
+            const errorMsg = err.response?.status === 413 ? '檔案超過 5MB 限制' : '圖片上傳失敗';
+            Swal.fire({ icon: 'error', title: '上傳失敗', text: errorMsg });
+        } finally {
+            setUploadingMsgIndex(null);
+        }
+    };
 
     // Journey / Message Preview State
     const [previewModalOpen, setPreviewModalOpen] = useState(false);
@@ -563,49 +622,118 @@ const cleanNoteTitle = (noteStr = '') => {
                             </button>
                         </div>
 
-                        {/* Welcome Messages (1 to 5) */}
+                        {/* Welcome Messages (1 to 5) with Text / Image / Flex types */}
                         <div style={{ marginBottom: '25px', backgroundColor: '#1a1a1a', padding: '15px', borderRadius: '6px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                                 <label style={{ fontWeight: 'bold', color: '#FFD700' }}>歡迎訊息清單 (最多 5 則)：</label>
-                                <span style={{ fontSize: '12px', color: '#aaa' }}>{msgRpyList.length} / 5 則</span>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '12px', color: '#aaa', marginRight: '5px' }}>{msgRpyList.length} / 5 則</span>
+                                    <button type="button" onClick={() => handleAddMessage('TextSendMessage')} disabled={msgRpyList.length >= 5} style={{ fontSize: '12px', padding: '4px 10px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '4px', cursor: msgRpyList.length >= 5 ? 'not-allowed' : 'pointer' }}>+ 文字</button>
+                                    <button type="button" onClick={() => handleAddMessage('ImageSendMessage')} disabled={msgRpyList.length >= 5} style={{ fontSize: '12px', padding: '4px 10px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '4px', cursor: msgRpyList.length >= 5 ? 'not-allowed' : 'pointer' }}>+ 圖片</button>
+                                    <button type="button" onClick={() => handleAddMessage('FlexSendMessage')} disabled={msgRpyList.length >= 5} style={{ fontSize: '12px', padding: '4px 10px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '4px', cursor: msgRpyList.length >= 5 ? 'not-allowed' : 'pointer' }}>+ 圖文</button>
+                                </div>
                             </div>
 
-                            {msgRpyList.map((msg, idx) => (
-                                <div key={idx} style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-                                    <textarea
-                                        rows={2}
-                                        value={typeof msg === 'string' ? msg : JSON.stringify(msg)}
-                                        onChange={(e) => {
-                                            const updated = [...msgRpyList];
-                                            updated[idx] = e.target.value;
-                                            setMsgRpyList(updated);
-                                        }}
-                                        placeholder={`歡迎訊息 ${idx + 1} 內容 (可輸入文字或 QA| 引用)`}
-                                        style={{ flex: 1, padding: '8px', backgroundColor: '#222', border: '1px solid #444', color: '#fff', borderRadius: '4px' }}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            const updated = msgRpyList.filter((_, i) => i !== idx);
-                                            setMsgRpyList(updated);
-                                        }}
-                                        disabled={msgRpyList.length === 1}
-                                        style={{ backgroundColor: 'transparent', color: '#ff4d4f', border: '1px solid #444', borderRadius: '4px', padding: '0 10px', cursor: 'pointer' }}
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
-                                </div>
-                            ))}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                {msgRpyList.map((msg, idx) => {
+                                    const isObj = msg && typeof msg === 'object';
+                                    const otype = isObj ? (msg.OTYPE || msg.type || (msg.original_content_url ? 'ImageSendMessage' : (msg.contents ? 'FlexSendMessage' : 'TextSendMessage'))) : 'TextSendMessage';
+                                    const isText = !isObj || otype === 'TextSendMessage' || otype === 'text';
+                                    const isImage = isObj && (otype === 'ImageSendMessage' || otype === 'image');
+                                    const isFlex = isObj && (otype === 'FlexSendMessage' || otype === 'flex');
 
-                            {msgRpyList.length < 5 && (
-                                <button
-                                    type="button"
-                                    onClick={() => setMsgRpyList([...msgRpyList, ''])}
-                                    style={{ backgroundColor: '#333', color: '#fff', border: '1px dashed #666', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', width: '100%' }}
-                                >
-                                    + 新增一則訊息 ({msgRpyList.length}/5)
-                                </button>
-                            )}
+                                    return (
+                                        <div key={idx} style={{ backgroundColor: '#222', border: '1px solid #333', padding: '12px', borderRadius: '6px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                                <span style={{ fontSize: '12px', padding: '2px 8px', backgroundColor: '#333', borderRadius: '4px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                                    <span style={{ color: '#aaa' }}>#{idx + 1}</span>
+                                                    <span style={{ color: '#FFD700', fontWeight: 'bold' }}>
+                                                        {isText ? '文字訊息' : (isImage ? '圖片訊息' : '圖文訊息')}
+                                                    </span>
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setMsgRpyList(msgRpyList.filter((_, i) => i !== idx))}
+                                                    disabled={msgRpyList.length === 1}
+                                                    style={{ backgroundColor: 'transparent', color: '#ff4d4f', border: 'none', cursor: msgRpyList.length === 1 ? 'not-allowed' : 'pointer', opacity: msgRpyList.length === 1 ? 0.3 : 1 }}
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+
+                                            {/* Text Editor */}
+                                            {isText && (
+                                                <textarea
+                                                    rows={2}
+                                                    value={typeof msg === 'string' ? msg : (msg.text || '')}
+                                                    onChange={(e) => handleUpdateMessage(idx, typeof msg === 'string' ? e.target.value : 'text', typeof msg === 'string' ? undefined : e.target.value)}
+                                                    placeholder="輸入文字訊息內容..."
+                                                    style={{ width: '100%', padding: '8px', backgroundColor: '#111', border: '1px solid #444', color: '#fff', borderRadius: '4px', fontSize: '13px' }}
+                                                />
+                                            )}
+
+                                            {/* Image Editor */}
+                                            {isImage && (
+                                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                    <input 
+                                                        type="text" 
+                                                        value={msg.original_content_url || ''} 
+                                                        onChange={(e) => {
+                                                            handleUpdateMessage(idx, 'original_content_url', e.target.value);
+                                                            handleUpdateMessage(idx, 'preview_image_url', e.target.value);
+                                                        }} 
+                                                        placeholder="圖片網址 (https://...)" 
+                                                        style={{ flex: 1, padding: '8px 12px', backgroundColor: '#111', border: '1px solid #444', color: '#fff', borderRadius: '4px', fontSize: '13px' }} 
+                                                    />
+                                                    <label style={{
+                                                        padding: '8px 14px',
+                                                        backgroundColor: uploadingMsgIndex === idx ? '#555' : '#FFD700',
+                                                        color: '#000',
+                                                        borderRadius: '4px',
+                                                        cursor: uploadingMsgIndex === idx ? 'not-allowed' : 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '5px',
+                                                        fontSize: '12px',
+                                                        fontWeight: 'bold',
+                                                        whiteSpace: 'nowrap'
+                                                    }}>
+                                                        {uploadingMsgIndex === idx ? <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Upload size={14} />}
+                                                        {uploadingMsgIndex === idx ? '上傳中...' : '上傳圖片'}
+                                                        <input 
+                                                            type="file" 
+                                                            disabled={uploadingMsgIndex === idx}
+                                                            accept="image/*"
+                                                            onChange={(e) => {
+                                                                const file = e.target.files[0];
+                                                                if (file) handleUploadImage(idx, file);
+                                                                e.target.value = '';
+                                                            }}
+                                                            style={{ display: 'none' }}
+                                                        />
+                                                    </label>
+                                                </div>
+                                            )}
+
+                                            {/* Flex Message Editor */}
+                                            {isFlex && (
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#111', padding: '10px', borderRadius: '4px' }}>
+                                                    <span style={{ fontSize: '13px', color: '#aaa' }}>
+                                                        {msg.alt_text || '圖文訊息'} ({JSON.stringify(msg.contents || {}).length} 字元)
+                                                    </span>
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => { setFlexEditorIndex(idx); setShowFlexEditor(true); }}
+                                                        style={{ backgroundColor: '#FF9800', color: '#000', border: 'none', padding: '6px 14px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}
+                                                    >
+                                                        <Edit2 size={14} /> 編輯圖文內容
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
 
                         {/* CRM Actions (Tags, Rich Menu, Journey) */}
@@ -680,6 +808,28 @@ const cleanNoteTitle = (noteStr = '') => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Flex Message Editor Sub-Modal */}
+            {showFlexEditor && flexEditorIndex !== null && (
+                <FlexMessageEditor
+                    initialJson={
+                        typeof msgRpyList[flexEditorIndex] === 'object' && msgRpyList[flexEditorIndex].contents
+                            ? msgRpyList[flexEditorIndex].contents
+                            : { type: 'bubble', body: { type: 'box', layout: 'vertical', contents: [{ type: 'text', text: '歡迎訊息' }] } }
+                    }
+                    onSave={(flexContents) => {
+                        handleUpdateMessage(flexEditorIndex, 'contents', flexContents);
+                        handleUpdateMessage(flexEditorIndex, 'OTYPE', 'FlexSendMessage');
+                        showToast('圖文訊息儲存成功', 'success');
+                        setShowFlexEditor(false);
+                        setFlexEditorIndex(null);
+                    }}
+                    onClose={() => {
+                        setShowFlexEditor(false);
+                        setFlexEditorIndex(null);
+                    }}
+                />
             )}
         </div>
     );
