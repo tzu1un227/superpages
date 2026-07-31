@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## [2026-07-31] 預設加入好友法則 Function 語法精簡
+- **後端 (`backend/endpoints/rule_designer.py`)**: 簡化預設 Follow 法則之 `DEFAULT_FOLLOW_FUNCTION` 語法，統一固定為 `pri_set("name",sys.name(m)),pri_set("pic",sys.picture(m))`。
+
 ## [2026-07-31] 加入好友設定 (Follow Rules) 專屬 Pages 與 Q_bank 整合
 - **後端 (`backend/endpoints/rule_designer.py`)**: 
   - 新增 `/api/rule-designer/follow-rules` 專屬 API (GET, POST, PUT, TOGGLE)。
