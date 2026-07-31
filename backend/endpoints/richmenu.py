@@ -473,11 +473,20 @@ def set_default_rich_menu(richMenuId):
     }
     
     try:
-        from psycopg2.extras import RealDictCursor
-        
-        # 取消所有個別使用者的綁定，確保 default 選單能覆蓋所有用戶
+        # 1. 向 LINE API 設定該選單為全域預設選單
+        resp = requests.post(f'https://api.line.me/v2/bot/user/all/richmenu/{richMenuId}', headers=headers)
+        if resp.status_code != 200:
+            print(f"LINE API set default failed: {resp.text}")
+            return jsonify({'message': 'LINE API 預設選單設定失敗', 'error': resp.text}), resp.status_code
+
+        # 2. 解除所有個別使用者的舊綁定，確保全體手機覆蓋顯示此預設選單
         try:
-            conn = get_tenant_conn()
+            bulk_unlink_all_users(headers)
+        except Exception as u_err:
+            print(f"Warning unlinking users in set_default: {u_err}")
+
+        from psycopg2.extras import RealDictCursor
+        conn = get_tenant_conn()
             if conn:
                 app_name = getattr(g, 'current_app_name', None)
                 oa_id = getattr(g, 'current_oa_id', None)
@@ -601,30 +610,31 @@ def clear_all_rich_menus():
         # 2. Unlink individual users
         bulk_unlink_all_users(headers)
         
-        # 3. Update database status
+        # 3. Update database status on tenant connection
         try:
-            from db_utils import get_main_db_connection
-            oa_id = getattr(g, 'current_oa_id', None)
-            if oa_id:
-                t_metadata = get_t('rich_menu_metadata')
-                conn = get_main_db_connection()
+            conn = get_tenant_conn()
+            if conn:
+                app_name = getattr(g, 'current_app_name', None) or '5013'
+                oa_id = getattr(g, 'current_oa_id', None) or 5
+                
+                t_metadata = f'"rich_menu_metadata:{app_name}"'
                 cur = conn.cursor()
-                cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status IN ('default', 'link', 'restricted')", (oa_id,))
+                cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE status IN ('default', 'link', 'restricted')")
                 conn.commit()
                 cur.close()
-                
-                app_name = getattr(g, 'current_app_name', None)
-                if not app_name:
-                    from models import OAConfig
-                    oa = OAConfig.query.get(oa_id)
-                    if oa and oa.other_settings and oa.other_settings.get('app_name'):
-                        app_name = str(oa.other_settings['app_name'])
-                if app_name:
-                    t_global = f'"Global_var:{app_name}"'
-                    cur = conn.cursor()
-                    cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
-                    conn.commit()
-                    cur.close()
+
+                t_global = f'"Global_var:{app_name}"'
+                cur = conn.cursor()
+                cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
+                conn.commit()
+                cur.close()
+
+                t_private = f'"Private_var:{app_name}"'
+                cur = conn.cursor()
+                cur.execute(f"DELETE FROM {t_private} WHERE name = 'rich_menu'")
+                conn.commit()
+                cur.close()
+
                 conn.close()
         except Exception as db_err:
             print(f"Error updating DB statuses on clear-all: {db_err}")
