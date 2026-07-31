@@ -235,7 +235,7 @@ def create_rule():
             if isinstance(value, list):
                 if key == 'msg_rpy':
                     placeholders.append("%s::json[]")
-                    values.append([json.dumps(m, ensure_ascii=False) if not isinstance(m, str) else m for m in value])
+                    values.append(format_msg_rpy_list(value))
                 else:
                     placeholders.append("%s")
                     values.append(value)
@@ -261,7 +261,7 @@ def create_rule():
                 if isinstance(value, list):
                     if key == 'msg_rpy':
                         sensor_placeholders.append("%s::json[]")
-                        sensor_values.append([json.dumps(m, ensure_ascii=False) if not isinstance(m, str) else m for m in value])
+                        sensor_values.append(format_msg_rpy_list(value))
                     else:
                         sensor_placeholders.append("%s")
                         sensor_values.append(value)
@@ -450,10 +450,20 @@ def ensure_base_follow_function(func_str):
     return func_str.strip()
 
 def format_msg_rpy_list(msg_rpy_list):
-    """Ensure msg_rpy format is identical to keyword rules."""
+    """Ensure all items in msg_rpy are valid JSON strings with proper quotes for PostgreSQL json[] column."""
     if not isinstance(msg_rpy_list, list):
         return []
-    return [json.dumps(m, ensure_ascii=False) if not isinstance(m, str) else m for m in msg_rpy_list]
+    formatted = []
+    for m in msg_rpy_list:
+        if isinstance(m, str):
+            s = m.strip()
+            if (s.startswith('{') and s.endswith('}')) or (s.startswith('"') and s.endswith('"')) or (s.startswith('[') and s.endswith(']')):
+                formatted.append(m)
+            else:
+                formatted.append(json.dumps(m, ensure_ascii=False))
+        else:
+            formatted.append(json.dumps(m, ensure_ascii=False))
+    return formatted
 
 def format_follow_rule_note(raw_note):
     note = (raw_note or '').strip()
