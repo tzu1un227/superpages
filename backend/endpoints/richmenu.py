@@ -378,9 +378,22 @@ def delete_rich_menu(richMenuId):
                     print(f"Deleting associated alias: {alias_id}")
                     requests.delete(f'https://api.line.me/v2/bot/richmenu/alias/{alias_id}', headers=headers)
         
-        # Then delete the rich menu
+        # Then delete the rich menu on LINE
         resp = requests.delete(f'https://api.line.me/v2/bot/richmenu/{richMenuId}', headers=headers)
-        if resp.status_code == 200:
+        if resp.status_code == 200 or resp.status_code == 404:
+            # 同步清除資料庫 metadata
+            try:
+                db_conn = get_tenant_conn()
+                if db_conn:
+                    db_cur = db_conn.cursor()
+                    app_id = g.current_app_name if hasattr(g, 'current_app_name') and g.current_app_name else '5013'
+                    db_cur.execute(f'DELETE FROM "rich_menu_metadata:{app_id}" WHERE rich_menu_id = %s', (richMenuId,))
+                    db_conn.commit()
+                    db_cur.close()
+                    db_conn.close()
+            except Exception as d_err:
+                print(f"Warning: error deleting metadata for {richMenuId}: {d_err}")
+
             # 同步清除全域圖片快取
             if richMenuId in _IMAGE_CACHE:
                 del _IMAGE_CACHE[richMenuId]

@@ -178,16 +178,30 @@ export default function WelcomeMessage() {
     };
 
     const handleToggleRuleStatus = async (rule) => {
-        const isActivating = rule.content !== '*';
+        const isRuleActive = rule.content === '*' || (Array.isArray(rule.content) && rule.content.includes('*')) || String(rule.content).includes('*');
+        const isActivating = !isRuleActive;
         
         // Single active enforcement in frontend
         if (isActivating) {
-            const activeRule = rules.find(r => r.id !== rule.id && r.content === '*');
+            const activeRule = rules.find(r => r.id !== rule.id && (r.content === '*' || (Array.isArray(r.content) && r.content.includes('*')) || String(r.content).includes('*')));
             if (activeRule) {
                 Swal.fire({
                     icon: 'warning',
                     title: '無法啟用設定',
                     text: '已有被啟用的加入好友訊息設定，請先停用該設定後再嘗試啟用此設定。',
+                    confirmButtonColor: '#FFD700',
+                    confirmButtonText: '我知道了'
+                });
+                return;
+            }
+        } else {
+            // Prevent disabling if no other active rule exists
+            const otherActiveRules = rules.filter(r => r.id !== rule.id && (r.content === '*' || (Array.isArray(r.content) && r.content.includes('*')) || String(r.content).includes('*')));
+            if (rules.length <= 1 || otherActiveRules.length === 0) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: '無法停用設定',
+                    text: '至少需維持一則啟用的加入好友訊息，無法停用此設定。',
                     confirmButtonColor: '#FFD700',
                     confirmButtonText: '我知道了'
                 });
@@ -373,7 +387,7 @@ export default function WelcomeMessage() {
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     {rules.map((rule) => {
-                        const isRuleActive = rule.content === '*';
+                        const isRuleActive = rule.content === '*' || (Array.isArray(rule.content) && rule.content.includes('*')) || String(rule.content).includes('*');
                         const parsedFunc = parseFunctionString(rule.function || '');
                         
                         return (
@@ -439,20 +453,22 @@ export default function WelcomeMessage() {
                                         >
                                             <Edit2 size={14} /> 編輯
                                         </button>
-                                        <button
-                                            onClick={() => handleDeleteRule(rule.id)}
-                                            style={{
-                                                backgroundColor: 'transparent',
-                                                color: '#ff4d4f',
-                                                border: '1px solid #ff4d4f',
-                                                borderRadius: '4px',
-                                                padding: '6px 12px',
-                                                fontSize: '13px',
-                                                cursor: 'pointer'
-                                            }}
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
+                                        {rules.length > 1 && (
+                                            <button
+                                                onClick={() => handleDeleteRule(rule.id)}
+                                                style={{
+                                                    backgroundColor: 'transparent',
+                                                    color: '#ff4d4f',
+                                                    border: '1px solid #ff4d4f',
+                                                    borderRadius: '4px',
+                                                    padding: '6px 12px',
+                                                    fontSize: '13px',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
 

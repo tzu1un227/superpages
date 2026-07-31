@@ -403,10 +403,17 @@ def delete_rule(rule_id):
         else:
             table_name = f"QA_bank:{app_id}"
         
-        # Dual-rule logic: sync delete the corresponding 'sensor' rule
         cur.execute(f'SELECT type, content, state_in FROM "{table_name}" WHERE id = %s', (rule_id,))
         old_rule = cur.fetchone()
-        
+
+        # Check if deleting follow rule when only 1 exists
+        if old_rule and old_rule['type'] == 'Follow':
+            cur.execute(f'SELECT COUNT(*) as count FROM "{table_name}" WHERE type = %s', ('Follow',))
+            follow_count = cur.fetchone()['count']
+            if follow_count <= 1:
+                cur.close()
+                return jsonify({'error': '目前僅剩一則加入好友訊息，必須保留且無法刪除。'}), 400
+
         cur.execute(f'DELETE FROM "{table_name}" WHERE id = %s', (rule_id,))
         
         if old_rule and old_rule['type'] == 'Message':
@@ -694,6 +701,13 @@ def toggle_follow_rule(rule_id):
             if any(is_content_active(r['content']) for r in other_rules):
                 cur.close()
                 return jsonify({'error': '已有被啟用的加入好友訊息設定，請先停用該設定後再嘗試啟用此設定。'}), 400
+        else:
+            # Prevent disabling if no other active follow rule exists
+            cur.execute(f'SELECT id, content FROM "{table_name}" WHERE type = %s AND id != %s', ('Follow', rule_id))
+            other_rules = cur.fetchall()
+            if len(other_rules) == 0 or not any(is_content_active(r['content']) for r in other_rules):
+                cur.close()
+                return jsonify({'error': '至少需維持一則啟用的加入好友訊息，無法停用此設定。'}), 400
 
         cur.execute("SELECT data_type FROM information_schema.columns WHERE table_name = %s AND column_name = 'content'", (table_name,))
         col_type = (cur.fetchone() or {}).get('data_type', 'character varying')
