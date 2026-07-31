@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## [2026-07-31] 加入好友法則 Q_bank 寫入欄位規格修正
+- **後端 (`backend/endpoints/rule_designer.py`)**: 修正 `get_follow_rules` (預設法則建立/更新)、`create_follow_rule` (新增法則) 與 `update_follow_rule` (更新法則) 寫入 `Q_bank` 資料表時，將 `state_out` 欄位固定寫入 `'00000'`，並明確帶入 `history` 欄位寫入 `TRUE` (`True`)。
+
 ## [2026-07-31] 預設加入好友法則條件式圖文選單切換優化
 - **後端 (`backend/endpoints/rule_designer.py`)**: 將 `DEFAULT_FOLLOW_FUNCTION` 中的圖文選單切換升級為條件式列表推導語法 `[update(f"switch_rm|{x['ui_uuid']}") for x in getTable(...)[:1]]`。當存在預設圖文選單時成功套用；若無預設選單則完全不執行 `update` 函數，徹底解開並杜絕 `IndexError: list index out of range` 錯誤。
 

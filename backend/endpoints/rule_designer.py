@@ -577,15 +577,15 @@ def get_follow_rules():
                 rule_id = existing_default['id']
                 cur.execute(
                     f'UPDATE "{table_name}" '
-                    "SET content = %s, function = %s, \"check\" = ARRAY[''] WHERE id = %s",
-                    (default_content, DEFAULT_FOLLOW_FUNCTION, rule_id)
+                    "SET content = %s, function = %s, \"check\" = ARRAY[''], \"state_out\" = %s, \"history\" = %s WHERE id = %s",
+                    (default_content, DEFAULT_FOLLOW_FUNCTION, '00000', True, rule_id)
                 )
             else:
                 cur.execute(f'SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM "{table_name}"')
                 next_id = cur.fetchone()['next_id']
                 insert_sql = f'''
-                    INSERT INTO "{table_name}" ("id", "state_in", "type", "content", "check", "msg_rpy", "function", "state_out", "note")
-                    VALUES (%s, %s, %s, %s, ARRAY[''], %s::json[], %s, %s, %s)
+                    INSERT INTO "{table_name}" ("id", "state_in", "type", "content", "check", "msg_rpy", "function", "state_out", "history", "note")
+                    VALUES (%s, %s, %s, %s, ARRAY[''], %s::json[], %s, %s, %s, %s)
                 '''
                 cur.execute(insert_sql, (
                     next_id,
@@ -594,7 +594,8 @@ def get_follow_rules():
                     default_content,
                     [json.dumps("感謝您加入我們的官方帳號！", ensure_ascii=False)],
                     DEFAULT_FOLLOW_FUNCTION,
-                    '*',
+                    '00000',
+                    True,
                     default_note
                 ))
             conn.commit()
@@ -661,8 +662,8 @@ def create_follow_rule():
         next_id = cur.fetchone()['next_id']
 
         insert_sql = f'''
-            INSERT INTO "{table_name}" ("id", "state_in", "type", "content", "check", "msg_rpy", "function", "state_out", "note")
-            VALUES (%s, %s, %s, %s, ARRAY[''], %s::json[], %s, %s, %s) RETURNING id
+            INSERT INTO "{table_name}" ("id", "state_in", "type", "content", "check", "msg_rpy", "function", "state_out", "history", "note")
+            VALUES (%s, %s, %s, %s, ARRAY[''], %s::json[], %s, %s, %s, %s) RETURNING id
         '''
         cur.execute(insert_sql, (
             next_id,
@@ -671,7 +672,8 @@ def create_follow_rule():
             db_content,
             formatted_msg_rpy,
             func_val,
-            '*',
+            '00000',
+            True,
             note
         ))
         new_id = cur.fetchone()['id']
@@ -732,10 +734,10 @@ def update_follow_rule(rule_id):
 
         update_sql = f'''
             UPDATE "{table_name}"
-            SET "content" = %s, "check" = ARRAY[''], "msg_rpy" = %s::json[], "function" = %s, "note" = %s
+            SET "content" = %s, "check" = ARRAY[''], "msg_rpy" = %s::json[], "function" = %s, "state_out" = %s, "history" = %s, "note" = %s
             WHERE id = %s AND type = 'Follow'
         '''
-        cur.execute(update_sql, (db_content, formatted_msg_rpy, func_val, note, rule_id))
+        cur.execute(update_sql, (db_content, formatted_msg_rpy, func_val, '00000', True, note, rule_id))
         conn.commit()
         cur.close()
 

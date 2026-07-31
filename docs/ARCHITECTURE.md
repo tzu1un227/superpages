@@ -154,5 +154,6 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 - **固定語法注入 (`function`)**：所有透過該模組儲存之法則，其 `function` 欄位強制包含 `pri_set("name",sys.name(m)),pri_set("pic",sys.picture(m))`，以確保 LINE 用戶加入時自動保存姓名與頭貼 URL。後續 CRM 動作（標籤、圖文選單切換、自動旅程）則附加於該基本語法後。
 - **`note` 欄位標記**：所有法則之 `note` 欄位強制包含 `加入好友訊息` 標記（如：`加入好友訊息 - 歡迎光臨`）。
 - **無啟用法則時之預設機制 (Default Fallback)**：當檢測到資料庫中完全沒有啟用的 Follow 法則時，系統自動初始化一則預設加入好友法則，帶有預設歡迎訊息與條件式圖文選單切換語法 `[update(f"switch_rm|{x['ui_uuid']}") for x in getTable(...)[:1]]`（若無預設選單則完全不執行 update）。
+- **欄位規格與歷程記錄**：所有 Follow 法則寫入 `Q_bank:{app_name}` 時，`state_out` 欄位固定設為 `'00000'`，`history` 欄位固定設為 `TRUE` (`True`)。
 
 
