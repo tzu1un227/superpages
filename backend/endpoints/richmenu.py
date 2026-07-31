@@ -478,11 +478,7 @@ def set_default_rich_menu(richMenuId):
             print(f"LINE API set default failed: {resp.text}")
             return jsonify({'message': 'LINE API 預設選單設定失敗', 'error': resp.text}), resp.status_code
 
-        # 2. 解除所有個別使用者的舊綁定，確保全體手機覆蓋顯示此預設選單
-        try:
-            bulk_unlink_all_users(headers)
-        except Exception as u_err:
-            print(f"Warning unlinking users in set_default: {u_err}")
+
 
         # 3. 更新業務資料庫選單狀態
         conn = get_tenant_conn()
