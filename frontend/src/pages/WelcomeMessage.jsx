@@ -152,7 +152,7 @@ export default function WelcomeMessage() {
 
 const cleanNoteTitle = (noteStr = '') => {
     if (!noteStr) return '';
-    return noteStr.replace(/^加入好友[訊息設定](\s*-\s*)?/, '').trim();
+    return noteStr.replace(/^加入好友(?:訊息|設定)(\s*-\s*)?/, '').trim();
 };
 
     const handleOpenEditModal = (rule) => {

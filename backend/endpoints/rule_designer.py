@@ -469,7 +469,8 @@ def format_follow_rule_note(raw_note):
     note = (raw_note or '').strip()
     if not note:
         return '加入好友設定'
-    clean_n = note.replace('加入好友訊息', '').replace('加入好友設定', '').strip(' -')
+    import re
+    clean_n = re.sub(r'^加入好友(?:訊息|設定)(\s*-\s*)?', '', note).strip()
     if clean_n:
         return f'加入好友設定 - {clean_n}'
     return '加入好友設定'

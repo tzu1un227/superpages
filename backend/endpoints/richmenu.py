@@ -1103,6 +1103,7 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
     Recalculates and updates the rich menu for specified users (or all users) 
     based on their current tags and the existing restricted rich menus.
     """
+    from psycopg2.extras import RealDictCursor
     conn = get_tenant_conn(app_name=app_name) if app_name else get_tenant_conn()
     tenant_conn = conn
     if not conn: return
