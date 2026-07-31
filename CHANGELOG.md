@@ -1,4 +1,5 @@
 ## [2026-07-31] 群發數據統計與 CRM 後續轉換紀錄 (MVP v1.3)
+- **Bug 修正 (backend/endpoints/broadcast.py)**: 修正 `OAConfig` 物件欠缺 `channel_access_token` 屬性引發之 `AttributeError` 崩潰，改為安全自 `oa.other_settings` JSON 設定解析 Access Token。
 - **404 路由修復 (frontend/src/components/BroadcastStatsModal.jsx)**: 修正 API URL 拼寫錯誤 (將 `/api/broadcasts/<id>/stats` 修正為對應後端藍圖 Prefix 之 `/api/broadcast/<id>/stats`)，解決前端讀取統計跳出 404 及讀取失敗錯誤。
 - **Bug 修正 (backend/endpoints/broadcast.py)**: 修正 `ht_view` 欄位名稱 (`content`) 與 SQL 語法例外處理防呆，防止因舊廣播或無受眾資料導致 500 讀取失敗。
 - **UI 優化 (frontend/src/components/BroadcastStatsModal.jsx)**: 移除時間切換按鈕 `7天 (預設)` 中的 `(預設)` 字樣。

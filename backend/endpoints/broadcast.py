@@ -732,13 +732,24 @@ def get_broadcast_stats(id):
             fetched_at = cached_line['fetched_at']
             if fetched_at.tzinfo is not None:
                 fetched_at = fetched_at.replace(tzinfo=None)
-            if (now_dt - fetched_at).total_seconds() < 900:
-                cache_valid = True
-                line_stats_data = cached_line
+        # Safe extract channel access token from oa.other_settings
+        channel_access_token = None
+        if oa and oa.other_settings:
+            other = oa.other_settings
+            if isinstance(other, str):
+                try: other = json.loads(other)
+                except: other = {}
+            if isinstance(other, dict):
+                channel_access_token = (
+                    other.get('channel_access_token') or 
+                    other.get('line_token') or 
+                    other.get('token') or 
+                    other.get('channel_token')
+                )
 
-        if not cache_valid and oa.channel_access_token:
+        if not cache_valid and channel_access_token:
             import requests
-            headers = {"Authorization": f"Bearer {oa.channel_access_token}"}
+            headers = {"Authorization": f"Bearer {channel_access_token}"}
             request_id = bc.get('request_id')
             custom_unit = bc.get('custom_aggregation_unit')
             
