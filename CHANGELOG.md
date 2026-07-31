@@ -1,5 +1,8 @@
 ## [2026-07-31] 群發數據統計與 CRM 後續轉換紀錄 (MVP v1.3)
-- **Bug 修正 (backend/endpoints/broadcast.py)**: 修正 `OAConfig` 物件欠缺 `channel_access_token` 屬性引發之 `AttributeError` 崩潰，改為安全自 `oa.other_settings` JSON 設定解析 Access Token。
+- **UI 調整 (frontend/src/components/BroadcastStatsModal.jsx)**: 移除所有 17 個指標標題前方的數字編號 (如將 `1. 預估送出人數` 簡化為 `預估送出人數`)。
+- **UI 調整 (frontend/src/components/BroadcastStatsModal.jsx)**: 移除 Modal 標題對應 API 種類之 `Request ID API (廣播)` Chip 標籤。
+- **UI 調整 (frontend/src/components/BroadcastStatsModal.jsx)**: 移除區塊標題中的 `(11 項)` 與 `(6 項)` 數量標記字樣。
+- **UX 提示 (frontend/src/components/BroadcastStatsModal.jsx)**: 加入 LINE 官方 Server 洞察數據 (送達/開啟/點擊) 1~2 小時統計時間差之提醒提示，並將無數據狀態顯示為「資料處理中」。
 - **404 路由修復 (frontend/src/components/BroadcastStatsModal.jsx)**: 修正 API URL 拼寫錯誤 (將 `/api/broadcasts/<id>/stats` 修正為對應後端藍圖 Prefix 之 `/api/broadcast/<id>/stats`)，解決前端讀取統計跳出 404 及讀取失敗錯誤。
 - **Bug 修正 (backend/endpoints/broadcast.py)**: 修正 `ht_view` 欄位名稱 (`content`) 與 SQL 語法例外處理防呆，防止因舊廣播或無受眾資料導致 500 讀取失敗。
 - **UI 優化 (frontend/src/components/BroadcastStatsModal.jsx)**: 移除時間切換按鈕 `7天 (預設)` 中的 `(預設)` 字樣。
