@@ -591,7 +591,7 @@ export default function WelcomeMessage() {
                             <div style={{ marginBottom: '15px' }}>
                                 <label style={{ display: 'block', fontSize: '13px', marginBottom: '5px', color: '#ccc' }}>1. 新增初始標籤 (可多選)：</label>
                                 <TagInput
-                                    value={selectedTags}
+                                    tags={selectedTags}
                                     onChange={(newTags) => setSelectedTags(newTags)}
                                     availableTags={tagsList.map(t => typeof t === 'string' ? t : t.name)}
                                 />

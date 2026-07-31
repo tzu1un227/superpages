@@ -58,8 +58,7 @@ def get_tenant_db_url(app_name=None, oa_id=None):
             return g.current_oa_config.db_url
         return None
 
-    from db_utils import get_main_db_connection
-    conn = get_main_db_connection()
+    conn = get_tenant_conn()
     if conn:
         try:
             cur = conn.cursor()
@@ -113,8 +112,7 @@ def list_rich_menus():
         # Get ui_uuid mappings from metadata database
         metadata_map = {}
         try:
-            from db_utils import get_main_db_connection
-            m_conn = get_main_db_connection()
+            m_conn = get_tenant_conn(oa_id=oa_id)
             if m_conn:
                 t_metadata = get_t('rich_menu_metadata')
                 m_cur = m_conn.cursor()
@@ -182,8 +180,7 @@ def list_all_rich_menus():
             # Get ui_uuid mappings from metadata database for this OA
             metadata_map = {}
             try:
-                from db_utils import get_main_db_connection
-                m_conn = get_main_db_connection()
+                m_conn = get_tenant_conn(oa_id=oa.id)
                 if m_conn:
                     app_name = oa.other_settings.get('app_name')
                     if app_name:
@@ -343,12 +340,12 @@ def delete_rich_menu(richMenuId):
     }
     
     try:
-        from db_utils import get_db_connection, get_main_db_connection
+        from db_utils import get_db_connection, get_tenant_conn
         from utils.dependency_checker import check_and_clear_dependencies
         
         force = request.args.get('force', 'false').lower() == 'true'
         oa_conn = get_db_connection()
-        main_conn = get_main_db_connection()
+        main_conn = get_tenant_conn()
         try:
             main_cur = main_conn.cursor()
             app_id = g.current_app_name if hasattr(g, 'current_app_name') and g.current_app_name else '5013'
@@ -444,12 +441,11 @@ def set_default_rich_menu(richMenuId):
     }
     
     try:
-        from db_utils import get_main_db_connection
         from psycopg2.extras import RealDictCursor
         
         # 取消所有個別使用者的綁定，確保 default 選單能覆蓋所有用戶
         try:
-            conn = get_main_db_connection()
+            conn = get_tenant_conn()
             if conn:
                 app_name = getattr(g, 'current_app_name', None)
                 oa_id = getattr(g, 'current_oa_id', None)
@@ -517,8 +513,7 @@ def unset_default_rich_menu():
         resp = requests.delete('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
         if resp.status_code == 200:
             try:
-                from db_utils import get_main_db_connection
-                conn = get_main_db_connection()
+                conn = get_tenant_conn()
                 if conn:
                     app_name = getattr(g, 'current_app_name', None)
                     oa_id = getattr(g, 'current_oa_id', None)
@@ -646,10 +641,9 @@ def save_rich_menu_permissions():
 
 def bulk_unlink_all_users(headers):
     try:
-        from db_utils import get_main_db_connection
         from psycopg2.extras import RealDictCursor
         from flask import g
-        conn = get_main_db_connection()
+        conn = get_tenant_conn()
         if conn:
             app_name = getattr(g, 'current_app_name', None)
             if not app_name:
@@ -698,10 +692,9 @@ def bulk_unlink_all_users(headers):
 
 def bulk_link_all_users(headers, richMenuId):
     try:
-        from db_utils import get_main_db_connection
         from psycopg2.extras import RealDictCursor
         from flask import g
-        conn = get_main_db_connection()
+        conn = get_tenant_conn()
         if conn:
             app_name = getattr(g, 'current_app_name', None)
             if not app_name:
@@ -799,13 +792,12 @@ def parse_local_naive(dt_str):
 @richmenu_bp.route('/metadata', methods=['GET'], strict_slashes=False)
 @token_required
 def get_rich_menu_metadata():
-    from db_utils import get_main_db_connection
     from psycopg2.extras import RealDictCursor
     oa_id = g.current_oa_id
     
     try:
         t_metadata = get_t('rich_menu_metadata')
-        conn = get_main_db_connection()
+        conn = get_tenant_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         try:
             cur.execute(f"SELECT * FROM {t_metadata} WHERE oa_id = %s ORDER BY created_at DESC", (oa_id,))
@@ -836,7 +828,6 @@ def get_rich_menu_metadata():
 @token_required
 @syslog_action('RICHMENU_CREATE_DRAFT')
 def save_rich_menu_metadata():
-    from db_utils import get_main_db_connection
     from psycopg2.extras import RealDictCursor
     oa_id = g.current_oa_id
     data = request.json
@@ -856,7 +847,7 @@ def save_rich_menu_metadata():
     
     try:
         t_metadata = get_t('rich_menu_metadata')
-        conn = get_main_db_connection()
+        conn = get_tenant_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         try:
             if id:
@@ -975,13 +966,12 @@ def save_rich_menu_metadata():
 @token_required
 @syslog_action('RICHMENU_DELETE_DRAFT')
 def delete_rich_menu_metadata(id):
-    from db_utils import get_main_db_connection, get_db_connection
     try:
         force = request.args.get('force', 'false').lower() == 'true'
         from utils.dependency_checker import check_and_clear_dependencies
 
         t_metadata = get_t('rich_menu_metadata')
-        conn = get_main_db_connection()
+        conn = get_tenant_conn()
         cur = conn.cursor()
         try:
             cur.execute(f"SELECT rich_menu_id, ui_uuid FROM {t_metadata} WHERE id = %s", (id,))
@@ -1049,8 +1039,7 @@ def link_rich_menu_to_all(richMenuId):
     
     app_name = getattr(g, 'current_app_name', None)
     if app_name:
-        from db_utils import get_main_db_connection
-        conn = get_main_db_connection()
+        conn = get_tenant_conn()
         if conn:
             try:
                 cur = conn.cursor()
@@ -1101,17 +1090,12 @@ def bulk_check_and_update_rich_menu(app_name, user_ids=None):
     Recalculates and updates the rich menu for specified users (or all users) 
     based on their current tags and the existing restricted rich menus.
     """
-    from db_utils import get_main_db_connection
-    from psycopg2.extras import RealDictCursor, execute_values
-    from flask import g
-    import ast
-    
-    conn = get_main_db_connection()
-    tenant_conn = get_tenant_conn(app_name=app_name) if app_name else conn
-    if not conn or not tenant_conn: return
+    conn = get_tenant_conn(app_name=app_name) if app_name else get_tenant_conn()
+    tenant_conn = conn
+    if not conn: return
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        tenant_cur = tenant_conn.cursor(cursor_factory=RealDictCursor)
+        tenant_cur = cur
         t_private = f'"Private_var:{app_name}"'
         
         # 1. First get ACTIVE restricted menus to know which tags to look for
@@ -1315,12 +1299,12 @@ def check_and_apply_scheduled_rich_menus(app_name):
     dummy = Flask(__name__)
     with dummy.app_context():
         g.current_app_name = app_name
-        conn = get_main_db_connection()
-        tenant_conn = get_tenant_conn(app_name=app_name) if app_name else conn
-        if not conn or not tenant_conn: return
+        conn = get_tenant_conn(app_name=app_name)
+        tenant_conn = conn
+        if not conn: return
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            tenant_cur = tenant_conn.cursor(cursor_factory=RealDictCursor)
+            tenant_cur = cur
             
             t_metadata = f'"rich_menu_metadata:{app_name}"'
             

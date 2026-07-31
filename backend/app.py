@@ -1299,7 +1299,7 @@ def create_schedule():
         t_schedules = get_suffixed_table('project_schedules')
         cur.execute(
             f"INSERT INTO {t_schedules} (project_id, step_id, interval_hours, interval_unit, message_content) VALUES (%s, %s, %s, %s, %s) RETURNING schedule_id",
-            (data['project_id'], data['step_id'], data['interval_hours'], data.get('interval_unit', 'hours'), data['message_content'])
+            (data['project_id'], data['step_id'], float(data['interval_hours']), data.get('interval_unit', 'hours'), data['message_content'])
         )
         schedule_id = cur.fetchone()[0]
         conn.commit()
@@ -1326,7 +1326,7 @@ def update_schedule(id):
         t_schedules = get_suffixed_table('project_schedules')
         cur.execute(
             f"UPDATE {t_schedules} SET project_id=%s, step_id=%s, interval_hours=%s, interval_unit=%s, message_content=%s WHERE schedule_id=%s",
-            (data['project_id'], data['step_id'], data['interval_hours'], data.get('interval_unit', 'hours'), data['message_content'], id)
+            (data['project_id'], data['step_id'], float(data['interval_hours']), data.get('interval_unit', 'hours'), data['message_content'], id)
         )
         conn.commit()
         cur.close()
