@@ -20,7 +20,7 @@ export default function BroadcastStatsModal({ open, onClose, broadcast }) {
         setLoading(true);
         setError(null);
         try {
-            const res = await api.get(`/broadcasts/${broadcast.id}/stats`, {
+            const res = await api.get(`/broadcast/${broadcast.id}/stats`, {
                 params: { period: selectedPeriod, refresh: forceRefresh }
             });
             setStats(res.data);
