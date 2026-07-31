@@ -1,3 +1,8 @@
+## [2026-07-31] 加入好友設定 Q_bank history 欄位預設與自動修復
+- **修正 (backend/endpoints/rule_designer.py)**: 在 `create_rule` 與 `update_rule` 中確保當規則類型為 `Follow` (加入好友設定) 時，寫入 `Q_bank` 的 `history` 欄位強制設為 `True` (TRUE)。
+- **自動修復 (backend/endpoints/rule_designer.py)**: 在 `get_follow_rules` 載入設定時，自動對 DB 中舊有 `history IS NULL` 或 `FALSE` 的 `Follow` 規則執行 `UPDATE SET history = TRUE` 診斷修復。
+- **資料庫修復**: 已對現有 DB `Q_bank:*` 資料表中 `Follow` 規則之 `history` 欄位進行全面修復與驗證。
+
 ## [2026-07-28] WebSocket Namespace 動態改為權限設定 app_name
 - **重構 (backend/utils/socket_utils.py)**: `send_socket_event` 與 `send_socket_events_batch` 全面改為從權限設定 (`OAConfig.other_settings`) 優先提取 `app_name` 作為連線 Namespace (`/{app_name}`) 與訊息事件名稱。
 - **重構 (backend/endpoints/rule_designer.py, questionnaire.py)**: 移除硬編碼 `namespace='/websoc'`，改由 `socket_utils` 動態注入 `/{app_name}`。

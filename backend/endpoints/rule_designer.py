@@ -196,6 +196,10 @@ def create_rule():
     
     if not rule_data:
         return jsonify({'error': 'Rule data is required'}), 400
+
+    # Ensure Follow rules always have history = True
+    if rule_data.get('type') == 'Follow':
+        rule_data['history'] = True
     
     # Validate fields before saving
     validation_errors = validate_rule_fields(rule_data, bank_type, design_mode)
@@ -296,6 +300,10 @@ def update_rule(rule_id):
     
     if not rule_data:
         return jsonify({'error': 'Rule data is required'}), 400
+
+    # Ensure Follow rules always have history = True
+    if rule_data.get('type') == 'Follow':
+        rule_data['history'] = True
     
     # Validate fields before saving
     validation_errors = validate_rule_fields(rule_data, bank_type)
@@ -557,6 +565,13 @@ def get_follow_rules():
 
         cur.execute(f'SELECT * FROM "{table_name}" WHERE type = %s ORDER BY id ASC', ('Follow',))
         rules = cur.fetchall()
+
+        # Ensure all existing Follow rules in Q_bank have history = TRUE
+        cur.execute(f'UPDATE "{table_name}" SET history = TRUE WHERE type = %s AND (history IS NULL OR history = FALSE)', ('Follow',))
+        if cur.rowcount > 0:
+            conn.commit()
+            cur.execute(f'SELECT * FROM "{table_name}" WHERE type = %s ORDER BY id ASC', ('Follow',))
+            rules = cur.fetchall()
 
         has_active = any(is_content_active(r.get('content')) for r in rules)
 
