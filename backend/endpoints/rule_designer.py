@@ -465,6 +465,15 @@ def format_msg_rpy_list(msg_rpy_list):
             formatted.append(json.dumps(item, ensure_ascii=False))
     return formatted
 
+def format_follow_rule_note(raw_note):
+    note = (raw_note or '').strip()
+    if not note:
+        return '加入好友設定'
+    clean_n = note.replace('加入好友訊息', '').replace('加入好友設定', '').strip(' -')
+    if clean_n:
+        return f'加入好友設定 - {clean_n}'
+    return '加入好友設定'
+
 def is_content_active(content_val):
     """Check if content represents an active rule (* or ['*'])."""
     if not content_val: return False
@@ -496,7 +505,7 @@ def get_follow_rules():
         # If no active follow rules exist, auto create / enable default follow rule
         if not has_active:
             print(f"[FOLLOW_RULES] No active follow rule found in {table_name}, initializing default rule...")
-            default_note = "加入好友訊息 - 預設歡迎訊息"
+            default_note = "加入好友設定 - 預設歡迎訊息"
             
             # Check content column type in DB
             cur.execute("SELECT data_type FROM information_schema.columns WHERE table_name = %s AND column_name = 'content'", (table_name,))
@@ -579,11 +588,7 @@ def create_follow_rule():
         else:
             db_content = '*' if is_activating else 'OFF'
 
-        note = rule_data.get('note', '').strip()
-        if not note:
-            note = '加入好友訊息'
-        elif '加入好友訊息' not in note:
-            note = f'加入好友訊息 - {note}'
+        note = format_follow_rule_note(rule_data.get('note', ''))
 
         raw_func = rule_data.get('function', '')
         func_val = ensure_base_follow_function(raw_func)
@@ -656,11 +661,7 @@ def update_follow_rule(rule_id):
         else:
             db_content = '*' if is_activating else 'OFF'
 
-        note = rule_data.get('note', '').strip()
-        if not note:
-            note = '加入好友訊息'
-        elif '加入好友訊息' not in note:
-            note = f'加入好友訊息 - {note}'
+        note = format_follow_rule_note(rule_data.get('note', ''))
 
         raw_func = rule_data.get('function', '')
         func_val = ensure_base_follow_function(raw_func)

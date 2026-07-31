@@ -150,11 +150,16 @@ export default function WelcomeMessage() {
         setIsEditModalOpen(true);
     };
 
+const cleanNoteTitle = (noteStr = '') => {
+    if (!noteStr) return '';
+    return noteStr.replace(/^加入好友[訊息設定](\s*-\s*)?/, '').trim();
+};
+
     const handleOpenEditModal = (rule) => {
         setEditingRule(rule);
-        const cleanNote = (rule.note || '').replace(/^加入好友訊息 \- /, '').replace(/^加入好友訊息$/, '');
-        setRuleNote(cleanNote || '加入好友訊息');
-        setIsEnabled(rule.content === '*');
+        setRuleNote(cleanNoteTitle(rule.note));
+        const isRuleActive = rule.content === '*' || (Array.isArray(rule.content) && rule.content.includes('*')) || String(rule.content).includes('*');
+        setIsEnabled(isRuleActive);
         
         // Parse msg_rpy
         let parsedRpy = [];
@@ -417,7 +422,7 @@ export default function WelcomeMessage() {
                                             <Power size={14} /> {isRuleActive ? '啟用中 (*)' : '已停用 (OFF)'}
                                         </span>
                                         <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#fff', margin: 0 }}>
-                                            {rule.note || '加入好友訊息'}
+                                            {cleanNoteTitle(rule.note) || '加入好友設定'}
                                         </h3>
                                     </div>
                                     
