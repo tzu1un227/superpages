@@ -330,7 +330,7 @@ def update_rule(rule_id):
             if isinstance(value, list):
                 if key == 'msg_rpy':
                     updates.append(f"\"{key}\" = %s::json[]")
-                    values.append([json.dumps(m, ensure_ascii=False) if not isinstance(m, str) else m for m in value])
+                    values.append(format_msg_rpy_list(value))
                 else:
                     updates.append(f"\"{key}\" = %s")
                     values.append(value)
@@ -358,7 +358,7 @@ def update_rule(rule_id):
                 if isinstance(value, list):
                     if key == 'msg_rpy':
                         sensor_updates.append(f"\"{key}\" = %s::json[]")
-                        sensor_values.append([json.dumps(m, ensure_ascii=False) if not isinstance(m, str) else m for m in value])
+                        sensor_values.append(format_msg_rpy_list(value))
                     else:
                         sensor_updates.append(f"\"{key}\" = %s")
                         sensor_values.append(value)
@@ -450,16 +450,73 @@ def ensure_base_follow_function(func_str):
     return func_str.strip()
 
 def format_msg_rpy_list(msg_rpy_list):
-    """Ensure all items in msg_rpy are valid JSON strings with proper quotes for PostgreSQL json[] column."""
+    """
+    Ensure all items in msg_rpy conform to Line-Bot-Main's expected format:
+    Each element must be a JSON string of {"Line": {"OTYPE": "...", ...}}.
+
+    Input can be:
+      - A plain string (text message content) -> wrap as {"Line": {"OTYPE": "TextSendMessage", "text": "..."}}
+      - A JSON string already in correct format -> pass through
+      - A dict with "Line" key already -> serialize as-is
+      - A dict with "OTYPE" key but no "Line" wrapper -> wrap in {"Line": ...}
+    """
     if not isinstance(msg_rpy_list, list):
         return []
     formatted = []
     for m in msg_rpy_list:
         if isinstance(m, str):
             s = m.strip()
-            if (s.startswith('{') and s.endswith('}')) or (s.startswith('"') and s.endswith('"')) or (s.startswith('[') and s.endswith(']')):
-                formatted.append(m)
+            # Try to parse as JSON first
+            if s.startswith('{') or s.startswith('['):
+                try:
+                    parsed = json.loads(s)
+                    if isinstance(parsed, dict):
+                        if 'Line' in parsed:
+                            # Already correct format: {"Line": {"OTYPE": "...", ...}}
+                            formatted.append(s)
+                        elif 'OTYPE' in parsed:
+                            # Has OTYPE but missing Line wrapper
+                            wrapped = {"Line": parsed}
+                            formatted.append(json.dumps(wrapped, ensure_ascii=False))
+                        else:
+                            # Unknown dict structure, wrap as-is
+                            formatted.append(s)
+                    else:
+                        formatted.append(s)
+                    continue
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            # Plain text string -> wrap as TextSendMessage
+            if s and s != '""' and s != "''":
+                # Remove surrounding quotes if double-quoted raw string
+                text_val = s
+                if len(text_val) >= 2 and text_val.startswith('"') and text_val.endswith('"'):
+                    try:
+                        text_val = json.loads(text_val)
+                    except Exception:
+                        pass
+                if text_val:
+                    wrapped = {"Line": {"OTYPE": "TextSendMessage", "text": text_val}}
+                    formatted.append(json.dumps(wrapped, ensure_ascii=False))
             else:
+                formatted.append(json.dumps({"Line": {"OTYPE": "TextSendMessage", "text": ""}}, ensure_ascii=False))
+        elif isinstance(m, dict):
+            if 'Line' in m:
+                # Already correct format
+                formatted.append(json.dumps(m, ensure_ascii=False))
+            elif 'OTYPE' in m:
+                # Has OTYPE but missing Line wrapper -> wrap it
+                wrapped = {"Line": m}
+                formatted.append(json.dumps(wrapped, ensure_ascii=False))
+            elif 'type' in m and m.get('type') in ('text', 'image', 'flex'):
+                # LINE SDK style type field -> convert to OTYPE format
+                type_map = {'text': 'TextSendMessage', 'image': 'ImageSendMessage', 'flex': 'FlexSendMessage'}
+                converted = {k: v for k, v in m.items() if k != 'type'}
+                converted['OTYPE'] = type_map.get(m['type'], 'TextSendMessage')
+                wrapped = {"Line": converted}
+                formatted.append(json.dumps(wrapped, ensure_ascii=False))
+            else:
+                # Unknown dict, serialize as-is
                 formatted.append(json.dumps(m, ensure_ascii=False))
         else:
             formatted.append(json.dumps(m, ensure_ascii=False))
