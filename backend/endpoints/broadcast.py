@@ -842,81 +842,91 @@ def get_broadcast_stats(id):
         }
         
         if oa.db_url:
-            conn_oa = get_db_connection(oa.db_url)
-            cur_oa = conn_oa.cursor(cursor_factory=RealDictCursor)
-            t_ht_view = f'"ht_view:{app_id}"'
-            
-            cur_rds.execute(f"SELECT user_id FROM {t_recipients} WHERE broadcast_id = %s", (id,))
-            recipient_uids = [r['user_id'] for r in cur_rds.fetchall()]
-            
-            if recipient_uids:
-                uids_tuple = tuple(recipient_uids)
+            try:
+                conn_oa = get_db_connection(oa.db_url)
+                cur_oa = conn_oa.cursor(cursor_factory=RealDictCursor)
+                t_ht_view = f'"ht_view:{app_id}"'
                 
-                # Tag breakdown
-                cur_oa.execute(f"""
-                    SELECT tag, COUNT(DISTINCT user_id) as count 
-                    FROM {t_ht_view}
-                    WHERE user_id IN %s 
-                      AND category = 'Tag' 
-                      AND tag NOT IN ('manual', 'unknown', '')
-                      AND "timestamp" >= %s AND "timestamp" <= %s
-                    GROUP BY tag
-                    ORDER BY count DESC
-                """, (uids_tuple, sent_at, end_at))
-                tag_rows = cur_oa.fetchall()
-                crm_metrics['tag_breakdown'] = [{'tag_name': r['tag'], 'count': r['count']} for r in tag_rows]
+                cur_rds.execute(f"SELECT user_id FROM {t_recipients} WHERE broadcast_id = %s", (id,))
+                recipient_uids = [r['user_id'] for r in cur_rds.fetchall()]
                 
-                # Tag Any Unique Count
-                cur_oa.execute(f"""
-                    SELECT COUNT(DISTINCT user_id) as total 
-                    FROM {t_ht_view}
-                    WHERE user_id IN %s 
-                      AND category = 'Tag' 
-                      AND tag NOT IN ('manual', 'unknown', '')
-                      AND "timestamp" >= %s AND "timestamp" <= %s
-                """, (uids_tuple, sent_at, end_at))
-                crm_metrics['tag_any_count'] = cur_oa.fetchone()['total']
-                
-                # Journey Breakdown
-                cur_oa.execute(f"""
-                    SELECT COALESCE(value, tag, '未知旅程') as journey_name, COUNT(DISTINCT user_id) as count 
-                    FROM {t_ht_view}
-                    WHERE user_id IN %s 
-                      AND category IN ('Journey', 'Project')
-                      AND (action = 'success' OR action IS NULL OR action = 'join')
-                      AND "timestamp" >= %s AND "timestamp" <= %s
-                    GROUP BY COALESCE(value, tag, '未知旅程')
-                    ORDER BY count DESC
-                """, (uids_tuple, sent_at, end_at))
-                journey_rows = cur_oa.fetchall()
-                crm_metrics['journey_breakdown'] = [{'journey_name': r['journey_name'], 'count': r['count']} for r in journey_rows]
-                
-                # Journey Any Unique Count
-                cur_oa.execute(f"""
-                    SELECT COUNT(DISTINCT user_id) as total 
-                    FROM {t_ht_view}
-                    WHERE user_id IN %s 
-                      AND category IN ('Journey', 'Project')
-                      AND (action = 'success' OR action IS NULL OR action = 'join')
-                      AND "timestamp" >= %s AND "timestamp" <= %s
-                """, (uids_tuple, sent_at, end_at))
-                crm_metrics['journey_any_count'] = cur_oa.fetchone()['total']
-                
-                # Union Count
-                cur_oa.execute(f"""
-                    SELECT COUNT(DISTINCT user_id) as union_total
-                    FROM {t_ht_view}
-                    WHERE user_id IN %s 
-                      AND "timestamp" >= %s AND "timestamp" <= %s
-                      AND (
-                        (category = 'Tag' AND tag NOT IN ('manual', 'unknown', '')) OR
-                        (category IN ('Journey', 'Project') AND (action = 'success' OR action IS NULL OR action = 'join'))
-                      )
-                """, (uids_tuple, sent_at, end_at))
-                union_row = cur_oa.fetchone()
-                union_count = union_row['union_total'] if union_row else 0
-                crm_metrics['has_behavior_count'] = union_count
-                crm_metrics['behavior_rate'] = round((union_count / target_n * 100), 2) if target_n > 0 else 0
+                if recipient_uids:
+                    uids_tuple = tuple(recipient_uids)
+                    
+                    # 1. Tag breakdown
+                    try:
+                        cur_oa.execute(f"""
+                            SELECT content as tag_name, COUNT(DISTINCT user_id) as count 
+                            FROM {t_ht_view}
+                            WHERE user_id IN %s 
+                              AND LOWER(category) = 'tag' 
+                              AND content NOT IN ('manual', 'unknown', '')
+                              AND "timestamp" >= %s AND "timestamp" <= %s
+                            GROUP BY content
+                            ORDER BY count DESC
+                        """, (uids_tuple, sent_at, end_at))
+                        tag_rows = cur_oa.fetchall()
+                        crm_metrics['tag_breakdown'] = [{'tag_name': r['tag_name'], 'count': r['count']} for r in tag_rows]
+                        
+                        cur_oa.execute(f"""
+                            SELECT COUNT(DISTINCT user_id) as total 
+                            FROM {t_ht_view}
+                            WHERE user_id IN %s 
+                              AND LOWER(category) = 'tag' 
+                              AND content NOT IN ('manual', 'unknown', '')
+                              AND "timestamp" >= %s AND "timestamp" <= %s
+                        """, (uids_tuple, sent_at, end_at))
+                        tag_total_row = cur_oa.fetchone()
+                        crm_metrics['tag_any_count'] = tag_total_row['total'] if tag_total_row else 0
+                    except Exception as tag_err:
+                        logger.error(f"Error querying tag stats from ht_view: {tag_err}")
+
+                    # 2. Journey breakdown
+                    try:
+                        cur_oa.execute(f"""
+                            SELECT COALESCE(content, '未知旅程') as journey_name, COUNT(DISTINCT user_id) as count 
+                            FROM {t_ht_view}
+                            WHERE user_id IN %s 
+                              AND LOWER(category) IN ('journey', 'project')
+                              AND "timestamp" >= %s AND "timestamp" <= %s
+                            GROUP BY COALESCE(content, '未知旅程')
+                            ORDER BY count DESC
+                        """, (uids_tuple, sent_at, end_at))
+                        journey_rows = cur_oa.fetchall()
+                        crm_metrics['journey_breakdown'] = [{'journey_name': r['journey_name'], 'count': r['count']} for r in journey_rows]
+                        
+                        cur_oa.execute(f"""
+                            SELECT COUNT(DISTINCT user_id) as total 
+                            FROM {t_ht_view}
+                            WHERE user_id IN %s 
+                              AND LOWER(category) IN ('journey', 'project')
+                              AND "timestamp" >= %s AND "timestamp" <= %s
+                        """, (uids_tuple, sent_at, end_at))
+                        journey_total_row = cur_oa.fetchone()
+                        crm_metrics['journey_any_count'] = journey_total_row['total'] if journey_total_row else 0
+                    except Exception as j_err:
+                        logger.error(f"Error querying journey stats from ht_view: {j_err}")
+
+                    # 3. Union Count
+                    try:
+                        cur_oa.execute(f"""
+                            SELECT COUNT(DISTINCT user_id) as union_total
+                            FROM {t_ht_view}
+                            WHERE user_id IN %s 
+                              AND "timestamp" >= %s AND "timestamp" <= %s
+                              AND (
+                                (LOWER(category) = 'tag' AND content NOT IN ('manual', 'unknown', '')) OR
+                                (LOWER(category) IN ('journey', 'project'))
+                              )
+                        """, (uids_tuple, sent_at, end_at))
+                        union_row = cur_oa.fetchone()
+                        union_count = union_row['union_total'] if union_row else 0
+                        crm_metrics['has_behavior_count'] = union_count
+                        crm_metrics['behavior_rate'] = round((union_count / target_n * 100), 2) if target_n > 0 else 0
+                    except Exception as u_err:
+                        logger.error(f"Error querying union stats from ht_view: {u_err}")
+            except Exception as oa_db_e:
+                logger.error(f"Error connecting or querying OA DB stats: {oa_db_e}")
                 
         return jsonify({
             'broadcast_id': id,

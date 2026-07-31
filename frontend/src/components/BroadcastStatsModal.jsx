@@ -69,7 +69,7 @@ export default function BroadcastStatsModal({ open, onClose, broadcast }) {
                             群發數據統計 & 後續轉換紀錄
                         </Typography>
                         <Typography variant="caption" sx={{ color: '#888', display: 'flex', alignItems: 'center', gap: 1 }}>
-                            {broadcast?.name} • 發送時間：{stats?.sent_at ? new Date(stats.sent_at).toLocaleString() : (broadcast?.scheduled_at || '立即發送')}
+                            {broadcast?.name} • 發送時間：{stats?.sent_at ? new Date(stats.sent_at).toLocaleString() : (broadcast?.scheduled_at ? new Date(broadcast.scheduled_at).toLocaleString() : (broadcast?.created_at ? new Date(broadcast.created_at).toLocaleString() : '—'))}
                             <Chip
                                 label={line.api_type === 'unit' ? 'Unit API (推送)' : 'Request ID API (廣播)'}
                                 size="small"
@@ -88,7 +88,7 @@ export default function BroadcastStatsModal({ open, onClose, broadcast }) {
                         {[
                             { key: '1d', label: '1天' },
                             { key: '3d', label: '3天' },
-                            { key: '7d', label: '7天 (預設)' },
+                            { key: '7d', label: '7天' },
                             { key: '30d', label: '30天' }
                         ].map(p => (
                             <Button

@@ -1429,8 +1429,8 @@ function BroadcastContent() {
                                         <Clock size={16} color="#666" />
                                     </div>
                                     <div>
-                                        <p style={{ color: '#666', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>預計時間</p>
-                                        <p style={{ fontSize: '13px', color: '#BBB' }}>{bc.scheduled_at ? new Date(bc.scheduled_at).toLocaleDateString() : '立即發送'}</p>
+                                        <p style={{ color: '#666', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>{bc.send_type === 'immediate' ? '發送時間' : '預計時間'}</p>
+                                        <p style={{ fontSize: '13px', color: '#BBB' }}>{bc.scheduled_at ? new Date(bc.scheduled_at).toLocaleString() : (bc.created_at ? new Date(bc.created_at).toLocaleString() : '立即發送')}</p>
                                     </div>
                                 </div>
                             </div>
