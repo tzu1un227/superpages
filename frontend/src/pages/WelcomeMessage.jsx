@@ -546,15 +546,43 @@ const cleanNoteTitle = (noteStr = '') => {
 
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', fontSize: '13px', color: '#aaa' }}>
                                     {parsedFunc.tags.length > 0 && (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                                             <Tag size={14} color="#4CAF50" />
-                                            <span>標籤：{parsedFunc.tags.join(', ')}</span>
+                                            <span style={{ color: '#ccc' }}>自動標籤：</span>
+                                            {parsedFunc.tags.map((t, idx) => (
+                                                <span 
+                                                    key={idx} 
+                                                    style={{ 
+                                                        backgroundColor: 'rgba(76, 175, 80, 0.15)', 
+                                                        color: '#4CAF50', 
+                                                        border: '1px solid rgba(76, 175, 80, 0.4)', 
+                                                        padding: '2px 8px', 
+                                                        borderRadius: '12px', 
+                                                        fontSize: '12px',
+                                                        fontWeight: 'bold',
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center'
+                                                    }}
+                                                >
+                                                    {t}
+                                                </span>
+                                            ))}
                                         </div>
                                     )}
                                     {parsedFunc.richMenu && (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                                             <Zap size={14} color="#FF9800" />
-                                            <span>套用圖文選單：{parsedFunc.richMenu}</span>
+                                            <span>套用圖文選單：{
+                                                (() => {
+                                                    const targetRm = richMenusList.find(rm => 
+                                                        String(rm.ui_uuid) === String(parsedFunc.richMenu) || 
+                                                        String(rm.rich_menu_id) === String(parsedFunc.richMenu) || 
+                                                        String(rm.richMenuId) === String(parsedFunc.richMenu) || 
+                                                        String(rm.id) === String(parsedFunc.richMenu)
+                                                    );
+                                                    return targetRm ? (targetRm.menu_name || targetRm.name || parsedFunc.richMenu) : parsedFunc.richMenu;
+                                                })()
+                                            }</span>
                                         </div>
                                     )}
                                     {parsedFunc.journey && (
