@@ -419,7 +419,7 @@ const cleanNoteTitle = (noteStr = '') => {
                                             alignItems: 'center',
                                             gap: '5px'
                                         }}>
-                                            <Power size={14} /> {isRuleActive ? '啟用中 (*)' : '已停用 (OFF)'}
+                                            <Power size={14} /> {isRuleActive ? '啟用中' : '已停用'}
                                         </span>
                                         <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#fff', margin: 0 }}>
                                             {cleanNoteTitle(rule.note) || '加入好友設定'}
@@ -559,7 +559,7 @@ const cleanNoteTitle = (noteStr = '') => {
                                     gap: '8px'
                                 }}
                             >
-                                <Power size={16} /> {isEnabled ? '啟用 (content = *)' : '停用 (content = OFF)'}
+                                <Power size={16} /> {isEnabled ? '啟用' : '停用'}
                             </button>
                         </div>
 
