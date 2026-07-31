@@ -450,20 +450,10 @@ def ensure_base_follow_function(func_str):
     return func_str.strip()
 
 def format_msg_rpy_list(msg_rpy_list):
-    """Ensure all items in msg_rpy are valid JSON string representations for PostgreSQL json[] column."""
+    """Ensure msg_rpy format is identical to keyword rules."""
     if not isinstance(msg_rpy_list, list):
         return []
-    formatted = []
-    for item in msg_rpy_list:
-        if isinstance(item, str):
-            try:
-                json.loads(item)
-                formatted.append(item)
-            except Exception:
-                formatted.append(json.dumps(item, ensure_ascii=False))
-        else:
-            formatted.append(json.dumps(item, ensure_ascii=False))
-    return formatted
+    return [json.dumps(m, ensure_ascii=False) if not isinstance(m, str) else m for m in msg_rpy_list]
 
 def format_follow_rule_note(raw_note):
     note = (raw_note or '').strip()

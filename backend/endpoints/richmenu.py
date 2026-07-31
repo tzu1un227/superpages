@@ -471,26 +471,35 @@ def set_default_rich_menu(richMenuId):
         'Content-Type': 'application/json'
     }
     
+    conn = get_tenant_conn()
+    actual_rich_menu_id = richMenuId
+    app_name = getattr(g, 'current_app_name', None) or '5013'
+    oa_id = getattr(g, 'current_oa_id', None)
+
     try:
+        if conn:
+            t_metadata = f'"rich_menu_metadata:{app_name}"'
+            cur = conn.cursor()
+            cur.execute(f"SELECT rich_menu_id FROM {t_metadata} WHERE rich_menu_id = %s OR ui_uuid = %s", (richMenuId, richMenuId))
+            m_row = cur.fetchone()
+            if m_row and m_row[0]:
+                actual_rich_menu_id = m_row[0]
+            cur.close()
+
         # 1. 向 LINE API 設定該選單為全域預設選單
-        resp = requests.post(f'https://api.line.me/v2/bot/user/all/richmenu/{richMenuId}', headers=headers)
+        resp = requests.post(f'https://api.line.me/v2/bot/user/all/richmenu/{actual_rich_menu_id}', headers=headers)
         if resp.status_code != 200:
-            print(f"LINE API set default failed: {resp.text}")
+            print(f"LINE API set default failed ({actual_rich_menu_id}): {resp.text}")
             return jsonify({'message': 'LINE API 預設選單設定失敗', 'error': resp.text}), resp.status_code
 
-
-
-        # 3. 更新業務資料庫選單狀態
-        conn = get_tenant_conn()
+        # 2. 更新業務資料庫與 Global_var 預設選單紀錄
         if conn:
             try:
-                app_name = getattr(g, 'current_app_name', None) or '5013'
-                oa_id = getattr(g, 'current_oa_id', None)
-                
                 t_metadata = f'"rich_menu_metadata:{app_name}"'
+                t_global = f'"Global_var:{app_name}"'
                 cur = conn.cursor()
                 
-                cur.execute(f"SELECT start_time, end_time FROM {t_metadata} WHERE rich_menu_id = %s", (richMenuId,))
+                cur.execute(f"SELECT start_time, end_time FROM {t_metadata} WHERE rich_menu_id = %s OR ui_uuid = %s", (richMenuId, richMenuId))
                 m = cur.fetchone()
                 if m:
                     start_time, end_time = m[0], m[1]
@@ -502,13 +511,17 @@ def set_default_rich_menu(richMenuId):
                             WHERE status = 'default' AND rich_menu_id != %s 
                               AND start_time IS NOT NULL AND end_time IS NOT NULL
                               AND start_time < %s AND end_time > %s
-                        """, (richMenuId, end_time, start_time))
+                        """, (actual_rich_menu_id, end_time, start_time))
                         if cur.fetchone():
                             cur.close()
-                            conn.close()
                             return jsonify({'message': 'Set default failed', 'line_error': '排程時間與現存的排程預設選單重疊。'}), 400
 
-                cur.execute(f"UPDATE {t_metadata} SET status = 'default', updated_at = (NOW() AT TIME ZONE 'Asia/Taipei') WHERE rich_menu_id = %s", (richMenuId,))
+                cur.execute(f"UPDATE {t_metadata} SET status = 'default', updated_at = (NOW() AT TIME ZONE 'Asia/Taipei') WHERE rich_menu_id = %s OR ui_uuid = %s", (actual_rich_menu_id, richMenuId))
+                
+                # 同步寫入 Global_var 供全域 Bot Engine 直接取用
+                cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
+                cur.execute(f"INSERT INTO {t_global} (name, value) VALUES ('default_rich_menu', %s)", (actual_rich_menu_id,))
+
                 conn.commit()
                 cur.close()
                 
@@ -521,6 +534,7 @@ def set_default_rich_menu(richMenuId):
         return jsonify({'status': 'success'})
     except Exception as e:
         print(f"Error in set_default_rich_menu: {e}")
+        if conn: conn.close()
         return jsonify({'message': 'Error', 'error': str(e)}), 500
 
 @richmenu_bp.route('/set-default', methods=['DELETE'])
