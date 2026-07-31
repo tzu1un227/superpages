@@ -450,7 +450,6 @@ def delete_rich_menu_alias(aliasId):
         return jsonify({'message': 'Line token not configured'}), 400
     
     headers = {'Authorization': f'Bearer {token}'}
-    
     try:
         resp = requests.delete(f'https://api.line.me/v2/bot/richmenu/alias/{aliasId}', headers=headers)
         if resp.status_code == 200:
@@ -485,61 +484,49 @@ def set_default_rich_menu(richMenuId):
         except Exception as u_err:
             print(f"Warning unlinking users in set_default: {u_err}")
 
-        from psycopg2.extras import RealDictCursor
+        # 3. 更新業務資料庫選單狀態
         conn = get_tenant_conn()
         if conn:
-            app_name = getattr(g, 'current_app_name', None)
-            oa_id = getattr(g, 'current_oa_id', None)
-            if not app_name:
-                if oa_id:
-                    from models import OAConfig
-                    oa = OAConfig.query.get(oa_id)
-                    if oa and oa.other_settings and oa.other_settings.get('app_name'):
-                        app_name = str(oa.other_settings['app_name'])
-                        g.current_app_name = app_name
-            
-            tenant_conn = get_tenant_conn(app_name=app_name, oa_id=oa_id) if app_name else conn
-            
-            if app_name and tenant_conn:
-                t_metadata = get_t('rich_menu_metadata')
+            try:
+                app_name = getattr(g, 'current_app_name', None) or '5013'
+                oa_id = getattr(g, 'current_oa_id', None)
+                
+                t_metadata = f'"rich_menu_metadata:{app_name}"'
                 cur = conn.cursor()
                 
-                cur.execute(f"SELECT start_time, end_time FROM {t_metadata} WHERE oa_id = %s AND rich_menu_id = %s", (oa_id, richMenuId))
+                cur.execute(f"SELECT start_time, end_time FROM {t_metadata} WHERE rich_menu_id = %s", (richMenuId,))
                 m = cur.fetchone()
                 if m:
                     start_time, end_time = m[0], m[1]
                     if not start_time and not end_time:
-                        cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status = 'default' AND start_time IS NULL AND end_time IS NULL", (oa_id,))
+                        cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE status = 'default' AND start_time IS NULL AND end_time IS NULL")
                     else:
                         cur.execute(f"""
                             SELECT id FROM {t_metadata} 
-                            WHERE oa_id = %s AND status = 'default' AND rich_menu_id != %s 
+                            WHERE status = 'default' AND rich_menu_id != %s 
                               AND start_time IS NOT NULL AND end_time IS NOT NULL
                               AND start_time < %s AND end_time > %s
-                        """, (oa_id, richMenuId, end_time, start_time))
+                        """, (richMenuId, end_time, start_time))
                         if cur.fetchone():
                             cur.close()
                             conn.close()
-                            if tenant_conn and tenant_conn != conn: tenant_conn.close()
                             return jsonify({'message': 'Set default failed', 'line_error': '排程時間與現存的排程預設選單重疊。'}), 400
 
-                cur.execute(f"UPDATE {t_metadata} SET status = 'default', updated_at = (NOW() AT TIME ZONE 'Asia/Taipei') WHERE oa_id = %s AND rich_menu_id = %s", (oa_id, richMenuId))
+                cur.execute(f"UPDATE {t_metadata} SET status = 'default', updated_at = (NOW() AT TIME ZONE 'Asia/Taipei') WHERE rich_menu_id = %s", (richMenuId,))
                 conn.commit()
                 cur.close()
                 
-                from endpoints.richmenu import check_and_apply_scheduled_rich_menus
                 import threading
+                from endpoints.richmenu import check_and_apply_scheduled_rich_menus
                 threading.Thread(target=check_and_apply_scheduled_rich_menus, args=(app_name,)).start()
-                
-            conn.close()
-            if tenant_conn and tenant_conn != conn:
-                tenant_conn.close()
-        except Exception as e:
-            print(f"Error in set_default_rich_menu: {e}")
+            finally:
+                conn.close()
             
         return jsonify({'status': 'success'})
     except Exception as e:
+        print(f"Error in set_default_rich_menu: {e}")
         return jsonify({'message': 'Error', 'error': str(e)}), 500
+
 @richmenu_bp.route('/set-default', methods=['DELETE'])
 @token_required
 @syslog_action('RICHMENU_UNSET_DEFAULT')
@@ -552,45 +539,25 @@ def unset_default_rich_menu():
     
     try:
         resp = requests.delete('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
-        if resp.status_code == 200:
+        if resp.status_code == 200 or resp.status_code == 404:
             try:
                 conn = get_tenant_conn()
                 if conn:
-                    app_name = getattr(g, 'current_app_name', None)
-                    oa_id = getattr(g, 'current_oa_id', None)
-                    if not app_name:
-                        if oa_id:
-                            from models import OAConfig
-                            oa = OAConfig.query.get(oa_id)
-                            if oa and oa.other_settings and oa.other_settings.get('app_name'):
-                                app_name = str(oa.other_settings['app_name'])
+                    app_name = getattr(g, 'current_app_name', None) or '5013'
+                    t_global = f'"Global_var:{app_name}"'
+                    t_metadata = f'"rich_menu_metadata:{app_name}"'
                     
-                    tenant_conn = get_tenant_conn(app_name=app_name, oa_id=oa_id) if app_name else conn
-                    
-                    if app_name and tenant_conn:
-                        t_global = f'"Global_var:{app_name}"'
-                        t_metadata = get_t('rich_menu_metadata')
-                        tenant_cur = tenant_conn.cursor()
-                        tenant_cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
-                        
-                        cur = conn.cursor()
-                        # Set metadata status of this OA from public back to published
-                        if oa_id:
-                            cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status = 'default'", (oa_id,))
-                            
-                        conn.commit()
-                        cur.close()
-                        
-                        if tenant_conn != conn:
-                            tenant_conn.commit()
-                        tenant_cur.close()
+                    cur = conn.cursor()
+                    cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
+                    cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE status = 'default'")
+                    conn.commit()
+                    cur.close()
                     conn.close()
-                    if tenant_conn and tenant_conn != conn:
-                        tenant_conn.close()
-            except Exception as e:
-                print(f"Error removing default rich menu cache: {e}")
+            except Exception as db_err:
+                print(f"Error in unset_default_rich_menu DB update: {db_err}")
+                
             return jsonify({'status': 'success'})
-        return jsonify({'message': 'Unset default failed', 'line_error': resp.text}), resp.status_code
+        return jsonify({'message': 'Unset default failed', 'error': resp.text}), resp.status_code
     except Exception as e:
         return jsonify({'message': 'Error', 'error': str(e)}), 500
 
