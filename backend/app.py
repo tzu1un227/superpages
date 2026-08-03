@@ -1549,9 +1549,24 @@ def get_statistics_keywords():
         if cur.fetchone():
             cur.execute(f'SELECT id, note, type, "check", content FROM "{t_qbank}" ORDER BY id ASC')
             raw_rules = cur.fetchall()
+
+            # Filter out paired Sensor rules created alongside Message rules
+            def _rule_key(r):
+                return f"{r.get('content')}|{r.get('note')}"
+
+            message_rule_keys = {
+                _rule_key(r) for r in raw_rules if r.get('type') == 'Message'
+            }
+
+            seen_rule_sigs = set()
             for r in raw_rules:
                 r_type = r.get('type') or ''
                 r_note = r.get('note') or ''
+
+                # Skip paired Sensor rules
+                if r_type == 'Sensor' and _rule_key(r) in message_rule_keys:
+                    continue
+
                 if r_type in ['Message', 'Sensor', ''] or '關鍵字' in r_note:
                     triggers = set()
                     c_str = str(r.get('content') or '')
@@ -1572,6 +1587,13 @@ def get_statistics_keywords():
                         clean_name = note_base.replace('關鍵字回覆 - ', '').replace(' - 關鍵字回覆', '').replace(' - 問卷管理', '').replace('問卷管理 - ', '').replace(' - 工程用法則', '').replace('工程用法則', '').strip()
                         if not clean_name:
                             clean_name = f"法則 #{r['id']}"
+
+                        # Deduplicate by signature (clean_name, triggers)
+                        sig = (clean_name, tuple(sorted(triggers)))
+                        if sig in seen_rule_sigs:
+                            continue
+                        seen_rule_sigs.add(sig)
+
                         rules.append({
                             'id': r['id'],
                             'name': clean_name,
