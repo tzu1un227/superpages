@@ -171,5 +171,21 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 - **前端介面 (`BroadcastStatsModal.jsx`)**:
   - 在群發卡片新增「成效」按鈕，展開彈窗儀表板呈現 17 項數據指標與時間區間切換控制。
 
+## 14. 關鍵字排行統計與未命中訊息排行 (MVP v1.1) 架構 (2026-08-03 新增)
+- **零 DB 變動與動態比對架構**:
+  - 完全不更動 PostgreSQL 關聯結構與 DB 欄位，亦不改動 `Line-Bot-Main`。
+  - 後端 `GET /api/statistics/keywords` API 即時對 `history:{app_id}` 的有效訊息與 `Q_bank:{app_id}` 啟用的關鍵字法則進行文字標準化比對。
+- **文字標準化與無效訊息過濾**:
+  - 標準化演算：英文轉小寫、全形/半形轉置、去頭尾與連續多餘空白。
+  - 無效訊息過濾：自動排除純空白、標點符號、純 Emoji、純網址 URL、圖片/貼圖/影片及系統管理員 (`yzuadmin`, `system`) 訊息。
+- **指標與雙排行統計**:
+  - **整體指標**: 計算 `overall_match_rate` (整體關鍵字命中率 %)、`matched_total_count` (命中總次數)、`unmatched_total_count` (未命中總次數)。
+  - **規則命中排行**: 統計每條 Q_bank 法則的 `hit_count` (命中次數)、`unique_users` (獨立人數) 與 `percentage` (命中占比 %)。點擊規則名稱可導向 `/rule-designer` 法則編輯頁面。
+  - **未命中訊息排行**: 整理未命中訊息之 `count` (出現次數) 與 `unique_users` (獨立使用者數)。點擊「建立規則」按鈕可帶入該未命中訊息文字跳轉至 `RuleDesigner` 並預填建立新規則。
+- **前端整合 (`Statistics.jsx` & `RuleDesigner.jsx`)**:
+  - `Statistics.jsx` 重構為頂部三大指標卡片 + 雙頁籤切換表格與 CSV 下載。
+  - `RuleDesigner.jsx` 支援讀取 URL 關鍵字參數，開啟時自動創建預填 draft rule。
+
+
 
 

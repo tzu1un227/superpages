@@ -423,6 +423,32 @@ function RuleDesigner() {
         }
     }, [designMode]);
 
+    // Handle URL keyword parameter from Statistics unmatched ranking create rule button
+    useEffect(() => {
+        const queryParams = new URLSearchParams(window.location.search);
+        const kwParam = queryParams.get('keyword');
+        if (kwParam) {
+            setDesignMode('simple');
+            setBankType('q_bank');
+            setSearchTerm(kwParam);
+            const newRule = {
+                state_in: ['*'],
+                type: 'Message',
+                content: [kwParam],
+                check: [''],
+                msg_rpy: [],
+                state_out: '00000',
+                function: '',
+                history: true,
+                note: kwParam,
+                _isDirty: true,
+                _isNew: true
+            };
+            setDraftRules(prev => [newRule, ...prev]);
+            setSelectedRuleIndex(0);
+        }
+    }, []);
+
     const fetchRules = async () => {
         setLoading(true);
         setRowErrors({}); // Clear all errors on reload/switch

@@ -1,3 +1,10 @@
+## [2026-08-03] 關鍵字排行統計與未命中訊息排行 (MVP v1.1)
+- **新功能 (backend/app.py)**: 升級 `GET /api/statistics/keywords` API，採用動態比對演算機制，零 DB Schema 變動且零影響 `Line-Bot-Main`。計算整體命中率、命中總次數、未命中總次數，並回傳「規則命中排行」與「未命中訊息排行」。
+- **無效訊息過濾與標準化 (backend/app.py)**: 實作文字標準化 (小寫、全/半形轉置、去空白) 與無效訊息排除 (過濾系統事件、標點、純 Emoji、純 URL、yzuadmin/system 等)。
+- **前端 UI 重構 (frontend/src/pages/Statistics.jsx)**: 於數據統計頁面新增頂部三大整體指標卡片 (整體命中率、命中總次數、未命中總次數) 與雙頁籤 (規則命中排行 vs 未命中訊息排行)。
+- **操作連線與快速建立規則 (frontend/src/pages/Statistics.jsx, RuleDesigner.jsx)**: 規則命中列點擊規則名稱可跳轉至法則設定；未命中列點擊「建立規則」按鈕可帶入未命中文字跳轉至 RuleDesigner 並自動預填建立新規則。
+- **報表匯出 (frontend/src/pages/Statistics.jsx)**: 下載排名報表按鈕升級支援雙頁籤資料 CSV 格式匯出。
+
 ## [2026-07-31] 群發數據統計與 CRM 後續轉換紀錄 (MVP v1.3)
 - **UI 調整 (frontend/src/components/BroadcastStatsModal.jsx)**: 移除所有 17 個指標標題前方的數字編號 (如將 `1. 預估送出人數` 簡化為 `預估送出人數`)。
 - **UI 調整 (frontend/src/components/BroadcastStatsModal.jsx)**: 移除 Modal 標題對應 API 種類之 `Request ID API (廣播)` Chip 標籤。

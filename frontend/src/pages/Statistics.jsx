@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
 import {
     Users,
@@ -90,10 +90,15 @@ const StatCard = ({ title, value, loading, icon: Component, color }) => (
 
 const Statistics = () => {
     const { oaId } = useParams();
+    const navigate = useNavigate();
     const [globalData, setGlobalData] = useState({ follow: [], user: [], message: [], total_counts: {} });
     const [lineInsight, setLineInsight] = useState(null);
     const [quotaConsumption, setQuotaConsumption] = useState(null);
     const [keywordData, setKeywordData] = useState([]);
+    const [overallStats, setOverallStats] = useState({ overall_match_rate: 0, matched_total_count: 0, unmatched_total_count: 0 });
+    const [matchedRanking, setMatchedRanking] = useState([]);
+    const [unmatchedRanking, setUnmatchedRanking] = useState([]);
+    const [keywordTab, setKeywordTab] = useState('matched'); // 'matched' or 'unmatched'
     const [loading, setLoading] = useState(false);
     const [statsDateRange, setStatsDateRange] = useState({
         start: new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().split('T')[0],
@@ -154,7 +159,15 @@ const Statistics = () => {
             };
             if (keywordTag) params.tag = keywordTag;
             const kwResp = await api.get('/statistics/keywords', { params });
-            setKeywordData(kwResp.data);
+            const data = kwResp.data || {};
+            if (data.overall_stats) {
+                setOverallStats(data.overall_stats);
+                setMatchedRanking(data.matched_ranking || []);
+                setUnmatchedRanking(data.unmatched_ranking || []);
+                setKeywordData(data.legacy_keywords || []);
+            } else if (Array.isArray(data)) {
+                setKeywordData(data);
+            }
             setKeywordPage(1);
         } catch (err) {
             console.error('Error fetching keywords:', err);
@@ -251,11 +264,25 @@ const Statistics = () => {
     };
 
     const handleDownloadKeywords = () => {
-        const formattedData = keywordData.map(item => ({
-            '關鍵字': item.keyword,
-            '出現次數': item.count
-        }));
-        downloadCSV(formattedData, `keyword_ranking_${statsDateRange.start}_${statsDateRange.end}.csv`);
+        if (keywordTab === 'matched') {
+            const formattedData = matchedRanking.map(item => ({
+                '排名': item.rank,
+                '規則名稱': item.rule_name,
+                '觸發關鍵字': item.triggers,
+                '命中次數': item.hit_count,
+                '獨立人數': item.unique_users,
+                '占比': `${item.percentage}%`
+            }));
+            downloadCSV(formattedData, `matched_rules_ranking_${statsDateRange.start}_${statsDateRange.end}.csv`);
+        } else {
+            const formattedData = unmatchedRanking.map(item => ({
+                '排名': item.rank,
+                '未命中訊息': item.unmatched_message,
+                '出現次數': item.count,
+                '獨立使用者': item.unique_users
+            }));
+            downloadCSV(formattedData, `unmatched_messages_ranking_${statsDateRange.start}_${statsDateRange.end}.csv`);
+        }
     };
 
     return (
@@ -423,12 +450,12 @@ const Statistics = () => {
             </div>
 
             <div className="card" style={{ padding: '25px', background: 'var(--secondary-black)', borderRadius: '16px', border: '1px solid #333' }}>
-                <div style={{ marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '12px', fontSize: '20px' }}>
-                        <MessageSquare size={24} className="text-yellow" /> 用戶熱門關鍵字 (Top {keywordData.length})
+                        <MessageSquare size={24} className="text-yellow" /> 關鍵字統計與排行 (MVP v1.1)
                     </h2>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                        {Math.ceil(keywordData.length / ITEMS_PER_PAGE) > 1 && (
+                        {((keywordTab === 'matched' ? matchedRanking : unmatchedRanking).length > ITEMS_PER_PAGE) && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#111', padding: '6px', borderRadius: '10px' }}>
                                 <button
                                     onClick={() => setKeywordPage(p => Math.max(1, p - 1))}
@@ -438,12 +465,12 @@ const Statistics = () => {
                                     <ChevronLeft size={20} />
                                 </button>
                                 <span style={{ fontSize: '14px', minWidth: '60px', textAlign: 'center' }}>
-                                    {keywordPage} / {Math.ceil(keywordData.length / ITEMS_PER_PAGE)}
+                                    {keywordPage} / {Math.ceil((keywordTab === 'matched' ? matchedRanking : unmatchedRanking).length / ITEMS_PER_PAGE)}
                                 </span>
                                 <button
-                                    onClick={() => setKeywordPage(p => Math.min(Math.ceil(keywordData.length / ITEMS_PER_PAGE), p + 1))}
-                                    disabled={keywordPage === Math.ceil(keywordData.length / ITEMS_PER_PAGE)}
-                                    style={{ background: 'transparent', border: 'none', color: keywordPage === Math.ceil(keywordData.length / ITEMS_PER_PAGE) ? '#444' : '#fff', cursor: keywordPage === Math.ceil(keywordData.length / ITEMS_PER_PAGE) ? 'default' : 'pointer' }}
+                                    onClick={() => setKeywordPage(p => Math.min(Math.ceil((keywordTab === 'matched' ? matchedRanking : unmatchedRanking).length / ITEMS_PER_PAGE), p + 1))}
+                                    disabled={keywordPage === Math.ceil((keywordTab === 'matched' ? matchedRanking : unmatchedRanking).length / ITEMS_PER_PAGE)}
+                                    style={{ background: 'transparent', border: 'none', color: keywordPage === Math.ceil((keywordTab === 'matched' ? matchedRanking : unmatchedRanking).length / ITEMS_PER_PAGE) ? '#444' : '#fff', cursor: keywordPage === Math.ceil((keywordTab === 'matched' ? matchedRanking : unmatchedRanking).length / ITEMS_PER_PAGE) ? 'default' : 'pointer' }}
                                 >
                                     <ChevronRight size={20} />
                                 </button>
@@ -458,6 +485,64 @@ const Statistics = () => {
                             <Download size={18} /> 下載排名報表
                         </button>
                     </div>
+                </div>
+
+                {/* 頂部三大整體指標卡片 */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '15px', marginBottom: '25px' }}>
+                    <div style={{ background: '#111', padding: '18px 20px', borderRadius: '12px', border: '1px solid #333', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <span style={{ fontSize: '13px', color: '#aaa' }}>整體關鍵字命中率</span>
+                        <div style={{ fontSize: '26px', fontWeight: 'bold', color: '#4CAF50' }}>
+                            {overallStats.overall_match_rate}%
+                        </div>
+                    </div>
+                    <div style={{ background: '#111', padding: '18px 20px', borderRadius: '12px', border: '1px solid #333', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <span style={{ fontSize: '13px', color: '#aaa' }}>命中總次數</span>
+                        <div style={{ fontSize: '26px', fontWeight: 'bold', color: '#2196F3' }}>
+                            {overallStats.matched_total_count.toLocaleString()} 次
+                        </div>
+                    </div>
+                    <div style={{ background: '#111', padding: '18px 20px', borderRadius: '12px', border: '1px solid #333', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <span style={{ fontSize: '13px', color: '#aaa' }}>未命中總次數</span>
+                        <div style={{ fontSize: '26px', fontWeight: 'bold', color: '#FF9800' }}>
+                            {overallStats.unmatched_total_count.toLocaleString()} 次
+                        </div>
+                    </div>
+                </div>
+
+                {/* 排行頁籤切換 */}
+                <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', borderBottom: '1px solid #333', pb: '10px' }}>
+                    <button
+                        onClick={() => { setKeywordTab('matched'); setKeywordPage(1); }}
+                        style={{
+                            padding: '10px 20px',
+                            borderRadius: '8px 8px 0 0',
+                            background: keywordTab === 'matched' ? '#333' : 'transparent',
+                            border: 'none',
+                            color: keywordTab === 'matched' ? '#FFD700' : '#888',
+                            borderBottom: keywordTab === 'matched' ? '3px solid #FFD700' : '3px solid transparent',
+                            cursor: 'pointer',
+                            fontWeight: keywordTab === 'matched' ? 'bold' : 'normal',
+                            fontSize: '15px'
+                        }}
+                    >
+                        規則命中排行 ({matchedRanking.length})
+                    </button>
+                    <button
+                        onClick={() => { setKeywordTab('unmatched'); setKeywordPage(1); }}
+                        style={{
+                            padding: '10px 20px',
+                            borderRadius: '8px 8px 0 0',
+                            background: keywordTab === 'unmatched' ? '#333' : 'transparent',
+                            border: 'none',
+                            color: keywordTab === 'unmatched' ? '#FFD700' : '#888',
+                            borderBottom: keywordTab === 'unmatched' ? '3px solid #FFD700' : '3px solid transparent',
+                            cursor: 'pointer',
+                            fontWeight: keywordTab === 'unmatched' ? 'bold' : 'normal',
+                            fontSize: '15px'
+                        }}
+                    >
+                        未命中訊息排行 ({unmatchedRanking.length})
+                    </button>
                 </div>
 
                 {/* 關鍵字排行標籤篩選區 */}
@@ -502,33 +587,120 @@ const Statistics = () => {
                         )}
                     </div>
                 )}
+
                 {(loading || keywordLoading) ? (
-                    <div style={{ height: '400px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#666' }}>
+                    <div style={{ height: '300px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#666' }}>
                         數據加載中...
                     </div>
-                ) : keywordData.length > 0 ? (
-                    <div style={{ height: '450px', width: '100%' }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart
-                                layout="vertical"
-                                data={keywordData.slice((keywordPage - 1) * ITEMS_PER_PAGE, keywordPage * ITEMS_PER_PAGE)}
-                                margin={{ top: 10, right: 30, left: 60, bottom: 10 }}
-                            >
-                                <CartesianGrid strokeDasharray="3 3" stroke="#333" horizontal={true} vertical={false} />
-                                <XAxis type="number" stroke="#888" fontSize={12} />
-                                <YAxis dataKey="keyword" type="category" width={100} stroke="#888" fontSize={12} />
-                                <Tooltip
-                                    cursor={{ fill: '#ffffff11' }}
-                                    contentStyle={{ background: '#222', border: '1px solid #444', color: '#fff' }}
-                                />
-                                <Bar dataKey="count" fill="#FFD700" radius={[0, 6, 6, 0]} barSize={24} name="出現次數" />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
+                ) : keywordTab === 'matched' ? (
+                    matchedRanking.length > 0 ? (
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid #444', color: '#888' }}>
+                                        <th style={{ padding: '12px 10px', width: '60px' }}>排名</th>
+                                        <th style={{ padding: '12px 10px' }}>規則名稱</th>
+                                        <th style={{ padding: '12px 10px' }}>觸發關鍵字</th>
+                                        <th style={{ padding: '12px 10px', textAlign: 'right' }}>命中次數</th>
+                                        <th style={{ padding: '12px 10px', textAlign: 'right' }}>獨立人數</th>
+                                        <th style={{ padding: '12px 10px', textAlign: 'right' }}>占比</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {matchedRanking
+                                        .slice((keywordPage - 1) * ITEMS_PER_PAGE, keywordPage * ITEMS_PER_PAGE)
+                                        .map((item) => (
+                                            <tr key={item.rule_id} style={{ borderBottom: '1px solid #222', transition: 'background 0.2s' }}>
+                                                <td style={{ padding: '14px 10px', fontWeight: 'bold', color: item.rank <= 3 ? '#FFD700' : '#888' }}>
+                                                    #{item.rank}
+                                                </td>
+                                                <td style={{ padding: '14px 10px' }}>
+                                                    <span
+                                                        onClick={() => navigate('/rule-designer')}
+                                                        style={{ color: '#2196F3', cursor: 'pointer', textDecoration: 'underline' }}
+                                                        title="前往規則設定"
+                                                    >
+                                                        {item.rule_name}
+                                                    </span>
+                                                </td>
+                                                <td style={{ padding: '14px 10px', color: '#aaa', fontSize: '13px' }}>
+                                                    {item.triggers}
+                                                </td>
+                                                <td style={{ padding: '14px 10px', textAlign: 'right', fontWeight: 'bold' }}>
+                                                    {item.hit_count.toLocaleString()} 次
+                                                </td>
+                                                <td style={{ padding: '14px 10px', textAlign: 'right', color: '#aaa' }}>
+                                                    {item.unique_users.toLocaleString()} 人
+                                                </td>
+                                                <td style={{ padding: '14px 10px', textAlign: 'right', color: '#4CAF50', fontWeight: 'bold' }}>
+                                                    {item.percentage}%
+                                                </td>
+                                            </tr>
+                                        ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div style={{ height: '250px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#666' }}>
+                            此範圍內尚無規則命中紀錄
+                        </div>
+                    )
                 ) : (
-                    <div style={{ height: '400px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#666' }}>
-                        此範圍內查無關鍵字紀錄
-                    </div>
+                    unmatchedRanking.length > 0 ? (
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid #444', color: '#888' }}>
+                                        <th style={{ padding: '12px 10px', width: '60px' }}>排名</th>
+                                        <th style={{ padding: '12px 10px' }}>未命中訊息</th>
+                                        <th style={{ padding: '12px 10px', textAlign: 'right' }}>出現次數</th>
+                                        <th style={{ padding: '12px 10px', textAlign: 'right' }}>獨立使用者</th>
+                                        <th style={{ padding: '12px 10px', textAlign: 'center', width: '120px' }}>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {unmatchedRanking
+                                        .slice((keywordPage - 1) * ITEMS_PER_PAGE, keywordPage * ITEMS_PER_PAGE)
+                                        .map((item) => (
+                                            <tr key={item.unmatched_message} style={{ borderBottom: '1px solid #222' }}>
+                                                <td style={{ padding: '14px 10px', fontWeight: 'bold', color: item.rank <= 3 ? '#FF9800' : '#888' }}>
+                                                    #{item.rank}
+                                                </td>
+                                                <td style={{ padding: '14px 10px', fontWeight: '500' }}>
+                                                    {item.unmatched_message}
+                                                </td>
+                                                <td style={{ padding: '14px 10px', textAlign: 'right', fontWeight: 'bold' }}>
+                                                    {item.count.toLocaleString()} 次
+                                                </td>
+                                                <td style={{ padding: '14px 10px', textAlign: 'right', color: '#aaa' }}>
+                                                    {item.unique_users.toLocaleString()} 人
+                                                </td>
+                                                <td style={{ padding: '14px 10px', textAlign: 'center' }}>
+                                                    <button
+                                                        onClick={() => navigate(`/rule-designer?keyword=${encodeURIComponent(item.unmatched_message)}`)}
+                                                        style={{
+                                                            padding: '5px 12px',
+                                                            borderRadius: '6px',
+                                                            background: '#FFD70022',
+                                                            border: '1px solid #FFD700',
+                                                            color: '#FFD700',
+                                                            cursor: 'pointer',
+                                                            fontSize: '12px'
+                                                        }}
+                                                    >
+                                                        建立規則
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div style={{ height: '250px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#666' }}>
+                            此範圍內無未命中訊息紀錄
+                        </div>
+                    )
                 )}
             </div>
         </div>

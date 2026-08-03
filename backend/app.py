@@ -1486,6 +1486,40 @@ def get_statistics():
         if conn: conn.close()
 
 
+def _normalize_msg_text(text):
+    if not text:
+        return ""
+    text = str(text).lower().replace('\u3000', ' ')
+    n_chars = []
+    for c in text:
+        code = ord(c)
+        if 0xFF01 <= code <= 0xFF5E:
+            n_chars.append(chr(code - 0xEE00))
+        else:
+            n_chars.append(c)
+    text = "".join(n_chars)
+    return re.sub(r'\s+', ' ', text).strip()
+
+def _is_invalid_message_text(raw_text):
+    if not raw_text:
+        return True
+    s = str(raw_text).strip()
+    if not s:
+        return True
+    if s.startswith('{') and s.endswith('}'):
+        return True
+    if s.startswith('[') and s.endswith(']'):
+        if s in ['[text]', '[image]', '[sticker]', '[video]', '[audio]', '[file]', '[location]']:
+            return True
+    if s.startswith('cron|') or s.startswith('bmcast|') or s.startswith('QA|') or s.startswith('set_tag|') or s.startswith('del_tag|') or s.startswith('rct'):
+        return True
+    if re.match(r'^https?://\S+$', s, re.IGNORECASE):
+        return True
+    norm = _normalize_msg_text(s)
+    if not re.search(r'[\w\u4e00-\u9fff]', norm):
+        return True
+    return False
+
 @app.route('/api/statistics/keywords', methods=['GET'])
 def get_statistics_keywords():
     conn = None
@@ -1493,7 +1527,6 @@ def get_statistics_keywords():
         start_time = request.args.get('start_time', (datetime.now().replace(hour=0, minute=0, second=0)).isoformat())
         end_time = request.args.get('end_time', datetime.now().isoformat())
         
-        # Handle date-only strings from frontend (e.g. YYYY-MM-DD)
         if len(start_time) == 10:
             start_time += " 00:00:00"
         if len(end_time) == 10:
@@ -1505,19 +1538,184 @@ def get_statistics_keywords():
         except:
             limit = 150
 
+        app_id = get_current_app_id()
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        cur.execute(
-            "SELECT * FROM (SELECT * FROM get_keyword_ranking(%s, %s, %s, %s, %s)) sub WHERE keyword != '[text]' LIMIT %s",
-            (start_time, end_time, tag, limit + 5, get_current_app_id(), limit)
-        )
-        results = cur.fetchall()
-            
+
+        # 1. Fetch active Q_bank keyword rules
+        t_qbank = f"Q_bank:{app_id}"
+        rules = []
+        cur.execute("SELECT 1 FROM information_schema.tables WHERE table_name = %s", (t_qbank,))
+        if cur.fetchone():
+            cur.execute(f'SELECT id, note, type, "check", content FROM "{t_qbank}" ORDER BY id ASC')
+            raw_rules = cur.fetchall()
+            for r in raw_rules:
+                r_type = r.get('type') or ''
+                r_note = r.get('note') or ''
+                if r_type in ['Message', 'Sensor', ''] or '關鍵字' in r_note:
+                    triggers = set()
+                    c_str = str(r.get('content') or '')
+                    chk_str = str(r.get('check') or '')
+                    
+                    for raw in [c_str, chk_str]:
+                        found = re.findall(r'["\'](.*?)["\']', raw)
+                        for f in found:
+                            f_clean = _normalize_msg_text(f)
+                            if f_clean and f_clean not in ['rct', 'msg', 'sensor', ''] and not f_clean.startswith('m.'):
+                                triggers.add(f_clean)
+                        clean_raw = _normalize_msg_text(raw.replace('[', '').replace(']', '').replace("'", "").replace('"', ''))
+                        if clean_raw and len(clean_raw) < 50 and not clean_raw.startswith('cron|') and not clean_raw.startswith('m.'):
+                            triggers.add(clean_raw)
+                    
+                    if triggers:
+                        clean_name = r_note.replace('關鍵字回覆 - ', '').replace(' - 關鍵字回覆', '').replace(' - 工程用法則', '').replace('工程用法則', '').strip()
+                        if not clean_name:
+                            clean_name = f"法則 #{r['id']}"
+                        rules.append({
+                            'id': r['id'],
+                            'name': clean_name,
+                            'original_note': r_note,
+                            'triggers': list(triggers)
+                        })
+
+        # 2. Fetch history messages
+        t_history = f"history:{app_id}"
+        messages = []
+        cur.execute("SELECT 1 FROM information_schema.tables WHERE table_name = %s", (t_history,))
+        if cur.fetchone():
+            if tag and tag.strip():
+                t_pv = f"Private_var:{app_id}"
+                cur.execute("SELECT 1 FROM information_schema.tables WHERE table_name = %s", (t_pv,))
+                if cur.fetchone():
+                    cur.execute(f'''
+                        SELECT h.user_id, h.content 
+                        FROM "{t_history}" h
+                        JOIN "{t_pv}" v ON h.user_id = v.user_id AND v.name = 'tag'
+                        WHERE h.timestamp >= %s AND h.timestamp <= %s 
+                          AND (LOWER(h.category) = 'message' OR h.category IS NULL)
+                          AND h.user_id LIKE 'U%%' AND length(h.user_id) = 33
+                          AND h.user_id NOT IN ('yzuadmin', 'system')
+                          AND v.value ILIKE %s
+                    ''', (start_time, end_time, f"%{tag}%"))
+                    messages = cur.fetchall()
+                else:
+                    messages = []
+            else:
+                cur.execute(f'''
+                    SELECT user_id, content 
+                    FROM "{t_history}"
+                    WHERE timestamp >= %s AND timestamp <= %s 
+                      AND (LOWER(category) = 'message' OR category IS NULL)
+                      AND user_id LIKE 'U%%' AND length(user_id) = 33
+                      AND user_id NOT IN ('yzuadmin', 'system')
+                ''', (start_time, end_time))
+                messages = cur.fetchall()
+
         cur.close()
-        return json_response(results)
+
+        # 3. Dynamic Match Algorithm
+        rule_hit_count = {r['id']: 0 for r in rules}
+        rule_hit_users = {r['id']: set() for r in rules}
+        
+        matched_total_count = 0
+        unmatched_total_count = 0
+        matched_users = set()
+        unmatched_users = set()
+        
+        unmatched_msg_counts = {}
+        unmatched_msg_users = {}
+
+        for m in messages:
+            raw_content = m.get('content')
+            if _is_invalid_message_text(raw_content):
+                continue
+            
+            uid = m.get('user_id')
+            norm_content = _normalize_msg_text(raw_content)
+            if not norm_content:
+                continue
+
+            matched_any = False
+            for r in rules:
+                is_rule_hit = False
+                for trig in r['triggers']:
+                    if trig in norm_content or norm_content in trig:
+                        is_rule_hit = True
+                        break
+                if is_rule_hit:
+                    matched_any = True
+                    rule_hit_count[r['id']] += 1
+                    rule_hit_users[r['id']].add(uid)
+
+            if matched_any:
+                matched_total_count += 1
+                matched_users.add(uid)
+            else:
+                unmatched_total_count += 1
+                unmatched_users.add(uid)
+                unmatched_msg_counts[norm_content] = unmatched_msg_counts.get(norm_content, 0) + 1
+                if norm_content not in unmatched_msg_users:
+                    unmatched_msg_users[norm_content] = set()
+                unmatched_msg_users[norm_content].add(uid)
+
+        total_valid = matched_total_count + unmatched_total_count
+        overall_match_rate = round((matched_total_count / total_valid * 100), 1) if total_valid > 0 else 0.0
+
+        matched_ranking = []
+        for r in rules:
+            h_count = rule_hit_count[r['id']]
+            if h_count > 0:
+                pct = round((h_count / matched_total_count * 100), 1) if matched_total_count > 0 else 0.0
+                matched_ranking.append({
+                    'rule_id': r['id'],
+                    'rule_name': r['name'],
+                    'triggers': ", ".join(r['triggers']),
+                    'hit_count': h_count,
+                    'unique_users': len(rule_hit_users[r['id']]),
+                    'percentage': pct
+                })
+        
+        matched_ranking.sort(key=lambda x: x['hit_count'], reverse=True)
+        for idx, item in enumerate(matched_ranking):
+            item['rank'] = idx + 1
+
+        unmatched_ranking = []
+        for msg_text, cnt in unmatched_msg_counts.items():
+            unmatched_ranking.append({
+                'unmatched_message': msg_text,
+                'count': cnt,
+                'unique_users': len(unmatched_msg_users[msg_text])
+            })
+        
+        unmatched_ranking.sort(key=lambda x: x['count'], reverse=True)
+        unmatched_ranking = unmatched_ranking[:limit]
+        for idx, item in enumerate(unmatched_ranking):
+            item['rank'] = idx + 1
+
+        legacy_keywords = [
+            {'keyword': item['unmatched_message'], 'count': item['count']}
+            for item in unmatched_ranking
+        ]
+
+        response_data = {
+            'overall_stats': {
+                'overall_match_rate': overall_match_rate,
+                'matched_total_count': matched_total_count,
+                'unmatched_total_count': unmatched_total_count,
+                'matched_unique_users': len(matched_users),
+                'unmatched_unique_users': len(unmatched_users),
+                'total_valid_messages': total_valid
+            },
+            'matched_ranking': matched_ranking,
+            'unmatched_ranking': unmatched_ranking,
+            'legacy_keywords': legacy_keywords
+        }
+        
+        return json_response(response_data)
     except Exception as e:
         print(f"Error in get_statistics_keywords: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
     finally:
         if conn: conn.close()
