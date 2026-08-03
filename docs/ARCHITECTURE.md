@@ -180,10 +180,10 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
   - 無效訊息過濾：自動排除純空白、標點符號、純 Emoji、純網址 URL、圖片/貼圖/影片及系統管理員 (`yzuadmin`, `system`) 訊息。
 - **指標與雙排行統計**:
   - **整體指標**: 計算 `overall_match_rate` (整體關鍵字命中率 %)、`matched_total_count` (命中總次數)、`unmatched_total_count` (未命中總次數)。
-  - **規則命中排行**: 統計每條 Q_bank 法則的 `hit_count` (命中次數)、`unique_users` (獨立人數) 與 `percentage` (命中占比 %)。點擊規則名稱可導向 `/rule-designer` 法則編輯頁面。
+  - **規則命中排行**: 統計每條 Q_bank 法則的 `hit_count` (命中次數)、`unique_users` (獨立人數) 與 `percentage` (命中占比 %)。自動清除 `|UPDATED:XXXX` 時間戳記與系統前綴/字尾。點擊規則名稱可導向 `/rule-designer` 法則編輯頁面。
   - **未命中訊息排行**: 整理未命中訊息之 `count` (出現次數) 與 `unique_users` (獨立使用者數)。點擊「建立規則」按鈕可帶入該未命中訊息文字跳轉至 `RuleDesigner` 並預填建立新規則。
 - **前端整合 (`Statistics.jsx` & `RuleDesigner.jsx`)**:
-  - `Statistics.jsx` 重構為頂部三大指標卡片 + 雙頁籤切換表格與 CSV 下載。
+  - `Statistics.jsx` 重構為頂部三大指標卡片 + 雙頁籤切換表格與全方位 CSV 匯出（單一檔案包含規則命中與未命中排行兩大區塊）。
   - `RuleDesigner.jsx` 支援讀取 URL 關鍵字參數，開啟時自動創建預填 draft rule。
 
 

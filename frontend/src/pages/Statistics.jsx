@@ -264,25 +264,64 @@ const Statistics = () => {
     };
 
     const handleDownloadKeywords = () => {
-        if (keywordTab === 'matched') {
-            const formattedData = matchedRanking.map(item => ({
+        const combinedData = [];
+
+        // 區塊 1：規則命中排行
+        combinedData.push({
+            '類別': '【規則命中排行】',
+            '排名': '',
+            '名稱/未命中訊息': '',
+            '觸發關鍵字': '',
+            '次數': '',
+            '獨立人數': '',
+            '占比': ''
+        });
+        matchedRanking.forEach(item => {
+            combinedData.push({
+                '類別': '規則命中',
                 '排名': item.rank,
-                '規則名稱': item.rule_name,
+                '名稱/未命中訊息': item.rule_name,
                 '觸發關鍵字': item.triggers,
-                '命中次數': item.hit_count,
+                '次數': item.hit_count,
                 '獨立人數': item.unique_users,
                 '占比': `${item.percentage}%`
-            }));
-            downloadCSV(formattedData, `matched_rules_ranking_${statsDateRange.start}_${statsDateRange.end}.csv`);
-        } else {
-            const formattedData = unmatchedRanking.map(item => ({
+            });
+        });
+
+        // 空行分隔
+        combinedData.push({
+            '類別': '',
+            '排名': '',
+            '名稱/未命中訊息': '',
+            '觸發關鍵字': '',
+            '次數': '',
+            '獨立人數': '',
+            '占比': ''
+        });
+
+        // 區塊 2：未命中訊息排行
+        combinedData.push({
+            '類別': '【未命中訊息排行】',
+            '排名': '',
+            '名稱/未命中訊息': '',
+            '觸發關鍵字': '',
+            '次數': '',
+            '獨立人數': '',
+            '占比': ''
+        });
+        unmatchedRanking.forEach(item => {
+            combinedData.push({
+                '類別': '未命中訊息',
                 '排名': item.rank,
-                '未命中訊息': item.unmatched_message,
-                '出現次數': item.count,
-                '獨立使用者': item.unique_users
-            }));
-            downloadCSV(formattedData, `unmatched_messages_ranking_${statsDateRange.start}_${statsDateRange.end}.csv`);
-        }
+                '名稱/未命中訊息': item.unmatched_message,
+                '觸發關鍵字': '-',
+                '次數': item.count,
+                '獨立人數': item.unique_users,
+                '占比': '-'
+            });
+        });
+
+        downloadCSV(combinedData, `keyword_statistics_ranking_${statsDateRange.start}_${statsDateRange.end}.csv`);
     };
 
     return (
@@ -452,7 +491,7 @@ const Statistics = () => {
             <div className="card" style={{ padding: '25px', background: 'var(--secondary-black)', borderRadius: '16px', border: '1px solid #333' }}>
                 <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '12px', fontSize: '20px' }}>
-                        <MessageSquare size={24} className="text-yellow" /> 關鍵字統計與排行 (MVP v1.1)
+                        <MessageSquare size={24} className="text-yellow" /> 關鍵字統計與排行
                     </h2>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                         {((keywordTab === 'matched' ? matchedRanking : unmatchedRanking).length > ITEMS_PER_PAGE) && (

@@ -1568,7 +1568,8 @@ def get_statistics_keywords():
                             triggers.add(clean_raw)
                     
                     if triggers:
-                        clean_name = r_note.replace('關鍵字回覆 - ', '').replace(' - 關鍵字回覆', '').replace(' - 工程用法則', '').replace('工程用法則', '').strip()
+                        note_base = (r_note or '').split('|UPDATED:')[0].strip()
+                        clean_name = note_base.replace('關鍵字回覆 - ', '').replace(' - 關鍵字回覆', '').replace(' - 問卷管理', '').replace('問卷管理 - ', '').replace(' - 工程用法則', '').replace('工程用法則', '').strip()
                         if not clean_name:
                             clean_name = f"法則 #{r['id']}"
                         rules.append({
