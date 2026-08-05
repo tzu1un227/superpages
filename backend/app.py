@@ -76,10 +76,11 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'dev_secret_key'
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_size': 3,
-    'max_overflow': 0,
-    'pool_timeout': 30,
+    'pool_size': 10,
+    'max_overflow': 10,
+    'pool_timeout': 10,
     'pool_recycle': 1800,
+    'pool_pre_ping': True,
 }
 
 from db_utils import get_db_connection, get_main_db_connection, PooledConnectionWrapper
@@ -225,6 +226,9 @@ def increment_project_stat(project_id, metric, oa_id, date_str=None):
             try: target_conn.close()
             except: pass
 
+_oa_config_cache = {}
+_OA_CONFIG_CACHE_TTL = 60 # seconds
+
 @app.before_request
 def load_oa_context():
     # Skip for OPTIONS requests
@@ -234,21 +238,31 @@ def load_oa_context():
     oa_id = request.headers.get('X-OA-ID')
     if oa_id:
         try:
-            # Ensure the session is clean before querying for config
-            db.session.rollback()
-            oa_config = OAConfig.query.get(int(oa_id))
-            if oa_config and oa_config.db_url:
-                g.current_oa_config = oa_config
-                g.current_db_url = oa_config.db_url
+            now = time.time()
+            cache_entry = _oa_config_cache.get(oa_id)
+            if cache_entry and (now - cache_entry['time'] < _OA_CONFIG_CACHE_TTL):
+                g.current_db_url = cache_entry['db_url']
                 g.current_oa_id = oa_id
-                
-                if oa_config.other_settings and 'app_name' in oa_config.other_settings:
-                    if oa_config.other_settings['app_name']:
-                        g.current_app_name = str(oa_config.other_settings['app_name'])
-                
-                # print(f"DEBUG: Switched to DB context for OA {oa_id} ({g.current_app_name})")
+                g.current_app_name = cache_entry['app_name']
             else:
-                print(f"WARNING: OA {oa_id} found but has no DB URL configured.")
+                db.session.rollback()
+                oa_config = OAConfig.query.get(int(oa_id))
+                if oa_config and oa_config.db_url:
+                    g.current_oa_config = oa_config
+                    g.current_db_url = oa_config.db_url
+                    g.current_oa_id = oa_id
+                    app_name = 'default'
+                    if oa_config.other_settings and 'app_name' in oa_config.other_settings:
+                        if oa_config.other_settings['app_name']:
+                            app_name = str(oa_config.other_settings['app_name'])
+                    g.current_app_name = app_name
+                    _oa_config_cache[oa_id] = {
+                        'time': now,
+                        'db_url': oa_config.db_url,
+                        'app_name': app_name
+                    }
+                else:
+                    print(f"WARNING: OA {oa_id} found but has no DB URL configured.")
         except Exception as e:
             db.session.rollback()
             print(f"Error loading OA context for ID {oa_id}: {e}")
@@ -2329,11 +2343,13 @@ def sys_debug():
     except Exception as e:
         return str(e)
 
+from werkzeug.exceptions import HTTPException
+
 @app.errorhandler(Exception)
 def handle_exception(e):
     import traceback
     # Pass through HTTP errors
-    if hasattr(e, 'code'):
+    if isinstance(e, HTTPException):
         return e
     return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
 

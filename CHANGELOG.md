@@ -1,3 +1,8 @@
+## [2026-08-05] 修復連線池爆滿 (QueuePool Limit) 與全域 Exception Handler 誤判 503 錯誤
+- **SQLAlchemy 連線池優化 (backend/app.py)**: 調整 `SQLALCHEMY_ENGINE_OPTIONS` 設定，將 `pool_size` 提升至 10、`max_overflow` 設為 10、`pool_timeout` 設為 10 秒，並開啟 `pool_pre_ping=True` 確保自動健康檢查與死連線復原。
+- **全域例外處理器修正 (backend/app.py)**: 修正 `@app.errorhandler(Exception)` 判斷邏輯，改用 `isinstance(e, HTTPException)` 精確判定 HTTP 例外，防止 SQLAlchemy 2.0 之 `TimeoutError` 因自帶 `code` 屬性而被誤認為 HTTP Exception 回傳，導致 Flask 丟出 `TypeError` 引發 503/500 錯誤。
+- **OAConfig 快取機制 (backend/app.py)**: 於 `load_oa_context` 加入 60 秒記憶體快取 (`_oa_config_cache`)，減少頻繁切換頁面時對主資料庫 `OAConfig` 的重複打點與連線消耗。
+
 ## [2026-08-03] 關鍵字排行統計與未命中訊息排行 (MVP v1.1)
 - **新功能 (backend/app.py)**: 升級 `GET /api/statistics/keywords` API，採用動態比對演算機制，零 DB Schema 變動且零影響 `Line-Bot-Main`。計算整體命中率、命中總次數、未命中總次數，並回傳「規則命中排行」與「未命中訊息排行」。
 - **名稱淨化與去重 (backend/app.py)**: 規則命中排行之規則名稱自動去除 `|UPDATED:XXXX` 時間戳記，並自動過濾雙軌機制下重複出現的成對 Sensor 法則與重複簽章規則，確保每個規則於列表中獨一無二呈現一次。

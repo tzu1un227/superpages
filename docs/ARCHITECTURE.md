@@ -85,7 +85,7 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
   - 後端集中由 `backend/db_utils.py` 管理資料庫連線，全面移除私有實作。
   - 強制使用 `try...finally` 模式確保執行後連線確實歸還，杜絕連線外洩 (Connection Leak)。
   - **因應 RDS 升級優化**：全面採用 `psycopg2.pool.ThreadedConnectionPool` 取代原有的自製簡易佇列。各租戶 (OA) 連線池上限提升為 10，以充分利用升級後的 120 條連線額度，並增強連線自動回收與併發處理能力。
-  - **主資料庫連線設定 (2026-07-28 變更)**：系統的主資料庫 URL (`RDS_URL`) 定義於後端 `app.py`、`db_utils.py`、`endpoints/broadcast.py` 與 `endpoints/admin.py` 等模組中，預設連線至 `140.138.176.197:5432/superpages` (postgresql://postgres:0000@140.138.176.197:5432/superpages)。用於連接系統主資料庫，管理使用者 (users)、頁面 (pages) 與權限設定 (permission_settings)。由於 SQLAlchemy 1.4+ 不再支援舊的 `postgres://` 協定頭，連線字串統一以 `postgresql://` 開頭以防止啟動錯誤。
+  - **SQLAlchemy 連線池與例外判斷防禦 (2026-08-05 變更)**：針對 Heroku 頻繁切換頁面出現的 `QueuePool limit` 與 503 錯誤，於 `backend/app.py` 將 SQLAlchemy 引擎連線池調升為 `pool_size: 10` 與 `max_overflow: 10`，啟用 `pool_pre_ping: True` 防止無效死連線；修正全域 Exception Handler 改以 `isinstance(e, HTTPException)` 判斷放行，防範 SQLAlchemy 2.0 之 `TimeoutError` 誤被回傳導致 Flask 拋出 `TypeError` 爆發 503 錯誤；並為 `load_oa_context` 引入 60 秒快取機制，大幅降低並行頁面切換對主資料庫的開銷。
 - **動態環境解析**：透過 WebSocket 觸發時，會動態從 `OAConfig` 取得對應的機器人名稱與 Namespace，確保與本地及雲端引擎皆能順利溝通。
 - **CDN 整合**：圖片上傳整合 GitHub API，並自動轉為 `jsDelivr` CDN 連結，以符合 LINE Bot API 對圖片 URL 的嚴格要求。
 
