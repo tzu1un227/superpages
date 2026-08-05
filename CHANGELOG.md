@@ -3,7 +3,8 @@
 - **訊息中心輪購背景防護與頻率降低 (frontend/src/pages/MessageCenter.jsx)**: 為 `setInterval` 加入 `document.hidden` 判定（視窗於背景/隱藏時自動掛起所有 API 發送），並將歷史訊息輪詢週期改為 3 秒、側邊欄用戶列表改為 15 秒，消滅無人操作時佔滿 Heroku 連線池導致 503 的瓶頸。
 - **SQLAlchemy 連線池優化 (backend/app.py)**: 調整 `SQLALCHEMY_ENGINE_OPTIONS` 設定，將 `pool_size` 提升至 10、`max_overflow` 設為 10、`pool_timeout` 設為 10 秒，並開啟 `pool_pre_ping=True` 確保自動健康檢查與死連線復原。
 - **GET /api/users 查詢效能重構 (backend/app.py)**: 引進 `WITH target_users AS (...)` 共通資料表表達式 (CTE)，將 `LIMIT 200` 與排序前置至用戶 ID 篩選階段，將過往對全表無差別執行的子查詢（包含 `last_message`、`recent_messages` 等 8 個相關關聯子查詢）限縮至僅計算前 200 筆目標用戶，查詢回應時間縮短 95% 以上，徹底解除切換帳號時多重重型 `/api/users` 查詢擠爆 PostgreSQL 與引發 Heroku 503 的危機。
-- **預載 API 淨化 (frontend/src/api.js)**: 從 `preloadPagesData` 移除全域連設 `/users` 的背景預載，避免初次登入與切換帳號時對背景非非必要租戶連續發起耗時的用戶列表打點。
+- **預載流程併發保護 (frontend/src/App.jsx, api.js)**: 修正網頁啟動時對全體 OA 無差別並行發起數十個重型 API 的問題。`App.jsx` 改為僅對當前選擇的單一 OA 進行畫面預載，且 `api.js` 中 `preloadPagesData` 移除重型 `/customers` 端點的預載，消除啟動與登入瞬間擠爆 Heroku Gunicorn Worker 引發的 503 錯誤。
+- **GET /api/customers 防禦性分頁 (backend/endpoints/customers.py)**: 在未帶入 `limit` 參數時強制加入預設 `LIMIT 200` 限制，防止無界全表掃描全表數據與計算歷史交互，保障伺服器併發穩定性。
 
 ## [2026-08-03] 關鍵字排行統計與未命中訊息排行 (MVP v1.1)
 - **新功能 (backend/app.py)**: 升級 `GET /api/statistics/keywords` API，採用動態比對演算機制，零 DB Schema 變動且零影響 `Line-Bot-Main`。計算整體命中率、命中總次數、未命中總次數，並回傳「規則命中排行」與「未命中訊息排行」。

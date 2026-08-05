@@ -210,8 +210,7 @@ export const preloadPagesData = (oaId, force = false) => {
     const chunk1 = [
         '/registered-users', 
         '/tags', 
-        '/questionnaire/groups', 
-        '/customers'
+        '/questionnaire/groups'
     ];
     
     // Chunk 2: Secondary data

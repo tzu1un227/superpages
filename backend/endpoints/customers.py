@@ -18,10 +18,10 @@ def get_customers():
     print("DEBUG: get_customers called")
     
     from flask import request
-    limit = request.args.get('limit', type=int)
-    offset = request.args.get('offset', type=int)
-    limit_clause = f"LIMIT {limit}" if limit else ""
-    offset_clause = f"OFFSET {offset}" if offset else ""
+    limit = request.args.get('limit', type=int) or 200
+    offset = request.args.get('offset', type=int) or 0
+    limit_clause = f"LIMIT {limit}"
+    offset_clause = f"OFFSET {offset}"
     
     conn = None
     try:
