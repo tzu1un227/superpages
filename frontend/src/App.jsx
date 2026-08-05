@@ -123,12 +123,11 @@ const MainLayout = () => {
 
   React.useEffect(() => {
     if (isAuthenticated && myOAs && myOAs.length > 0) {
-      // 預載所有權限的所有頁面資料
-      myOAs.forEach(oa => {
-        if (oa.id) {
-          preloadPagesData(oa.id);
-        }
-      });
+      // 僅預載當前選擇的 OA 資料，避免對全體 OA 並行發起數十個重型請求導致 Server 503
+      const currentId = localStorage.getItem('currentAccountId') || myOAs[0]?.id;
+      if (currentId) {
+        preloadPagesData(currentId);
+      }
     }
   }, [isAuthenticated, myOAs]);
 
