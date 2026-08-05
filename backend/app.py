@@ -228,6 +228,13 @@ def increment_project_stat(project_id, metric, oa_id, date_str=None):
             try: target_conn.close()
             except: pass
 
+class CachedOAConfig:
+    """Lightweight plain Python wrapper for OAConfig to avoid SQLAlchemy ORM session detachment issues."""
+    def __init__(self, oa_id, db_url, other_settings):
+        self.id = oa_id
+        self.db_url = db_url
+        self.other_settings = other_settings or {}
+
 _oa_config_cache = {}
 _OA_CONFIG_CACHE_TTL = 60 # seconds
 
@@ -243,24 +250,27 @@ def load_oa_context():
             now = time.time()
             cache_entry = _oa_config_cache.get(oa_id)
             if cache_entry and (now - cache_entry['time'] < _OA_CONFIG_CACHE_TTL):
-                g.current_db_url = cache_entry['db_url']
+                cached_obj = cache_entry['oa_config']
+                g.current_oa_config = cached_obj
+                g.current_db_url = cached_obj.db_url
                 g.current_oa_id = oa_id
                 g.current_app_name = cache_entry['app_name']
             else:
                 db.session.rollback()
                 oa_config = OAConfig.query.get(int(oa_id))
                 if oa_config and oa_config.db_url:
-                    g.current_oa_config = oa_config
+                    cached_obj = CachedOAConfig(oa_config.id, oa_config.db_url, oa_config.other_settings)
+                    g.current_oa_config = cached_obj
                     g.current_db_url = oa_config.db_url
                     g.current_oa_id = oa_id
                     app_name = 'default'
-                    if oa_config.other_settings and 'app_name' in oa_config.other_settings:
-                        if oa_config.other_settings['app_name']:
-                            app_name = str(oa_config.other_settings['app_name'])
+                    if cached_obj.other_settings and 'app_name' in cached_obj.other_settings:
+                        if cached_obj.other_settings['app_name']:
+                            app_name = str(cached_obj.other_settings['app_name'])
                     g.current_app_name = app_name
                     _oa_config_cache[oa_id] = {
                         'time': now,
-                        'db_url': oa_config.db_url,
+                        'oa_config': cached_obj,
                         'app_name': app_name
                     }
                 else:
