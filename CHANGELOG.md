@@ -1,3 +1,8 @@
+## [2026-08-05] 修復連線池爆滿 (QueuePool Limit) 與全域 Exception Handler 誤判 503 錯誤
+- **SQLAlchemy 連線池優化 (backend/app.py)**: 調整 `SQLALCHEMY_ENGINE_OPTIONS` 設定，將 `pool_size` 提升至 10、`max_overflow` 設為 10、`pool_timeout` 設為 10 秒，並開啟 `pool_pre_ping=True` 確保自動健康檢查與死連線復原。
+- **全域例外處理器修正 (backend/app.py)**: 修正 `@app.errorhandler(Exception)` 判斷邏輯，改用 `isinstance(e, HTTPException)` 精確判定 HTTP 例外，防止 SQLAlchemy 2.0 之 `TimeoutError` 因自帶 `code` 屬性而被誤認為 HTTP Exception 回傳，導致 Flask 丟出 `TypeError` 引發 503/500 錯誤。
+- **OAConfig 快取機制 (backend/app.py)**: 於 `load_oa_context` 加入 60 秒記憶體快取 (`_oa_config_cache`)，減少頻繁切換頁面時對主資料庫 `OAConfig` 的重複打點與連線消耗。
+
 ## [2026-07-29] Heroku 503 錯誤優化與 Gunicorn 多執行緒佈署
 - **佈署設定 (Procfile)**: 將 Gunicorn 啟動參數升級為 `--workers 1 --threads 8 -k gthread --timeout 60`，啟用 gthread 異步線程模式，避免單一線程阻塞引發 Heroku 30 秒 Timeout (503 Error)。
 - **後端快取 (backend/app.py)**: 在 `/api/my_oas` 中為 LINE Bot Profile (`https://api.line.me/v2/bot/info`) 新增 TTL 600s 的記憶體快取，徹底消除切換頁面時因大量同步 HTTP 連線鎖死 Worker 的瓶頸。
