@@ -218,8 +218,7 @@ export const preloadPagesData = (oaId, force = false) => {
     const chunk2 = [
         '/projects', 
         '/broadcast/', 
-        '/scheduled-events', 
-        '/users'
+        '/scheduled-events'
     ];
     
     // Chunk 3: Less frequently accessed tabs

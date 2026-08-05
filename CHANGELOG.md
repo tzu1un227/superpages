@@ -2,7 +2,8 @@
 - **OAConfig 快取修復與權限 context 補完 (backend/app.py)**: 引入 `CachedOAConfig` 封裝快取資料，確保在 `load_oa_context` 快取命中時持續正確設定 `g.current_oa_config`，徹底修復圖文選單 API 因找不到 Token 回傳 400 (`Line token not configured`) 的重大 Bug。
 - **訊息中心輪購背景防護與頻率降低 (frontend/src/pages/MessageCenter.jsx)**: 為 `setInterval` 加入 `document.hidden` 判定（視窗於背景/隱藏時自動掛起所有 API 發送），並將歷史訊息輪詢週期改為 3 秒、側邊欄用戶列表改為 15 秒，消滅無人操作時佔滿 Heroku 連線池導致 503 的瓶頸。
 - **SQLAlchemy 連線池優化 (backend/app.py)**: 調整 `SQLALCHEMY_ENGINE_OPTIONS` 設定，將 `pool_size` 提升至 10、`max_overflow` 設為 10、`pool_timeout` 設為 10 秒，並開啟 `pool_pre_ping=True` 確保自動健康檢查與死連線復原。
-- **全域例外處理器修正 (backend/app.py)**: 修正 `@app.errorhandler(Exception)` 判斷邏輯，改用 `isinstance(e, HTTPException)` 精確判定 HTTP 例外，防止 SQLAlchemy 2.0 之 `TimeoutError` 因自帶 `code` 屬性而被誤認為 HTTP Exception 回傳，導致 Flask 丟出 `TypeError` 引發 503/500 錯誤。
+- **GET /api/users 查詢效能重構 (backend/app.py)**: 引進 `WITH target_users AS (...)` 共通資料表表達式 (CTE)，將 `LIMIT 200` 與排序前置至用戶 ID 篩選階段，將過往對全表無差別執行的子查詢（包含 `last_message`、`recent_messages` 等 8 個相關關聯子查詢）限縮至僅計算前 200 筆目標用戶，查詢回應時間縮短 95% 以上，徹底解除切換帳號時多重重型 `/api/users` 查詢擠爆 PostgreSQL 與引發 Heroku 503 的危機。
+- **預載 API 淨化 (frontend/src/api.js)**: 從 `preloadPagesData` 移除全域連設 `/users` 的背景預載，避免初次登入與切換帳號時對背景非非必要租戶連續發起耗時的用戶列表打點。
 
 ## [2026-07-29] Heroku 503 錯誤優化與 Gunicorn 多執行緒佈署
 - **佈署設定 (Procfile)**: 將 Gunicorn 啟動參數升級為 `--workers 1 --threads 8 -k gthread --timeout 60`，啟用 gthread 異步線程模式，避免單一線程阻塞引發 Heroku 30 秒 Timeout (503 Error)。

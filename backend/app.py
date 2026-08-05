@@ -1759,11 +1759,25 @@ def get_users_list():
         """
 
         query = f"""
-            SELECT sub.user_id,
+            WITH target_users AS (
+                SELECT sub.user_id, sub.last_time
+                FROM (
+                    SELECT user_id,
+                           MAX(timestamp) as last_time
+                    FROM "history:{app_id}"
+                    WHERE TRUE
+                      {visible_message_filter}
+                    GROUP BY user_id
+                ) sub
+                {where_sql}
+                ORDER BY sub.last_time DESC NULLS LAST, sub.user_id ASC
+                LIMIT 200
+            )
+            SELECT u.user_id,
                    (
                        SELECT content 
                        FROM "history:{app_id}" 
-                       WHERE user_id = sub.user_id 
+                       WHERE user_id = u.user_id 
                          {visible_message_filter}
                        ORDER BY timestamp DESC 
                        LIMIT 1
@@ -1771,7 +1785,7 @@ def get_users_list():
                    (
                        SELECT category 
                        FROM "history:{app_id}" 
-                       WHERE user_id = sub.user_id 
+                       WHERE user_id = u.user_id 
                          {visible_message_filter}
                        ORDER BY timestamp DESC 
                        LIMIT 1
@@ -1781,35 +1795,26 @@ def get_users_list():
                        FROM (
                            SELECT * 
                            FROM "history:{app_id}" 
-                           WHERE user_id = sub.user_id 
+                           WHERE user_id = u.user_id 
                              {visible_message_filter}
                            ORDER BY timestamp DESC 
                            LIMIT 10
                        ) msg_data
                    ) as recent_messages,
-                   sub.last_time,
-                    (SELECT string_agg(value, '|') FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'tag') as tags,
-                    (SELECT value FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'name' LIMIT 1) as name,
-                    (SELECT value FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'pic' LIMIT 1) as pic,
-                    (SELECT value FROM "Private_var:{app_id}" WHERE user_id = sub.user_id AND name = 'unread_count' LIMIT 1) as unread_count,
+                   u.last_time,
+                    (SELECT string_agg(value, '|') FROM "Private_var:{app_id}" WHERE user_id = u.user_id AND name = 'tag') as tags,
+                    (SELECT value FROM "Private_var:{app_id}" WHERE user_id = u.user_id AND name = 'name' LIMIT 1) as name,
+                    (SELECT value FROM "Private_var:{app_id}" WHERE user_id = u.user_id AND name = 'pic' LIMIT 1) as pic,
+                    (SELECT value FROM "Private_var:{app_id}" WHERE user_id = u.user_id AND name = 'unread_count' LIMIT 1) as unread_count,
                     (
                         SELECT category
                         FROM "history:{app_id}"
-                        WHERE user_id = sub.user_id AND category IN ('Follow', 'Unfollow')
+                        WHERE user_id = u.user_id AND category IN ('Follow', 'Unfollow')
                         ORDER BY timestamp DESC
                         LIMIT 1
                     ) IS DISTINCT FROM 'Unfollow' as is_following
-            FROM (
-                SELECT user_id,
-                       MAX(timestamp) as last_time
-                FROM "history:{app_id}"
-                WHERE TRUE
-                  {visible_message_filter}
-                GROUP BY user_id
-            ) sub
-            {where_sql}
-            ORDER BY sub.last_time DESC NULLS LAST, sub.user_id ASC
-            LIMIT 200
+            FROM target_users u
+            ORDER BY u.last_time DESC NULLS LAST, u.user_id ASC
         """
         print(f"DEBUG SQL: {cur.mogrify(query, params).decode('utf-8')}")
         cur.execute(query, params)
