@@ -674,23 +674,24 @@ function MessageCenter() {
         }
     }, [selectedUser, messages]);
 
-    // 整合後的單一輪詢計時器 (1秒循環)
+    // 整合後的單一輪詢計時器 (3秒循環，分頁切換至背景時自動停用)
     useEffect(() => {
         let tickCount = 0;
         const pollInterval = setInterval(() => {
+            if (document.hidden) return; // 頁面處於背景時暫停輪詢，防止背後耗盡 Heroku 連線與 Worker
             tickCount++;
             
-            // 1. 每 1 秒檢查當前選中用戶的增量訊息 (1s)
+            // 1. 每 3 秒檢查當前選中用戶的增量訊息 (3s)
             if (selectedUserRef.current && (Date.now() - lastSendTimeRef.current > 1000)) {
                 fetchHistory(selectedUserRef.current, true);
             }
 
-            // 2. 每 5 秒更新一次側邊欄用戶清單 (5s)
+            // 2. 每 15 秒更新一次側邊欄用戶清單 (15s)
             // 只有在沒有搜尋查詢時才自動更新
             if (tickCount % 5 === 0 && !searchQuery) {
                 fetchUsers(searchQuery, selectedTagFilters);
             }
-        }, 1000);
+        }, 3000);
 
         return () => clearInterval(pollInterval);
     }, [selectedUser, searchQuery, selectedTagFilters]);
