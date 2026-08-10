@@ -872,40 +872,8 @@ def batch_operation():
         import ast
 
         pv_table = f'"Private_var:{app_id}"'
-        jobs_table = f'"batch_jobs:{app_id}"'
-        results_table = f'"batch_job_results:{app_id}"'
 
-        # Ensure batch tables exist
-        cur.execute(f"""
-            CREATE TABLE IF NOT EXISTS {jobs_table} (
-                job_id SERIAL PRIMARY KEY,
-                action_type VARCHAR(50) NOT NULL,
-                operator_id VARCHAR(100),
-                selected_count INT NOT NULL,
-                success_count INT DEFAULT 0,
-                skipped_count INT DEFAULT 0,
-                failed_count INT DEFAULT 0,
-                payload JSONB,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS {results_table} (
-                id SERIAL PRIMARY KEY,
-                job_id INT NOT NULL,
-                user_id VARCHAR(100) NOT NULL,
-                result_status VARCHAR(20) NOT NULL,
-                failure_reason TEXT,
-                executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-
-        operator_id = getattr(g, 'user', {}).get('email') or getattr(g, 'user', {}).get('user_id') or 'admin'
-        cur.execute(f"""
-            INSERT INTO {jobs_table} (action_type, operator_id, selected_count, payload)
-            VALUES (%s, %s, %s, %s) RETURNING job_id
-        """, (action_type, operator_id, len(user_ids), json.dumps(payload, ensure_ascii=False)))
-        job_id = cur.fetchone()[0]
-
-        results = [] # list of (job_id, user_id, status, reason)
+        results = [] # list of dicts: {"user_id": uid, "status": status, "reason": reason}
         success_count = 0
         skipped_count = 0
         failed_count = 0
@@ -942,10 +910,10 @@ def batch_operation():
                 if added_any:
                     updates.append((uid, str(new_tags)))
                     affected_uids.append(uid)
-                    results.append((job_id, uid, 'success', None))
+                    results.append({"user_id": uid, "status": "success", "reason": None})
                     success_count += 1
                 else:
-                    results.append((job_id, uid, 'skipped', '使用者已持有該標籤'))
+                    results.append({"user_id": uid, "status": "skipped", "reason": "使用者已持有該標籤"})
                     skipped_count += 1
 
             if updates:
@@ -994,10 +962,10 @@ def batch_operation():
                 if len(new_tags) < len(curr_tags):
                     updates.append((uid, str(new_tags)))
                     affected_uids.append(uid)
-                    results.append((job_id, uid, 'success', None))
+                    results.append({"user_id": uid, "status": "success", "reason": None})
                     success_count += 1
                 else:
-                    results.append((job_id, uid, 'skipped', '使用者原本沒有該標籤'))
+                    results.append({"user_id": uid, "status": "skipped", "reason": "使用者原本沒有該標籤"})
                     skipped_count += 1
 
             if updates:
@@ -1040,7 +1008,7 @@ def batch_operation():
             for uid in user_ids:
                 curr_rm = existing_map.get(uid)
                 if curr_rm == target_rm_id:
-                    results.append((job_id, uid, 'skipped', '目前個人圖文選單已是指定選單'))
+                    results.append({"user_id": uid, "status": "skipped", "reason": "目前個人圖文選單已是指定選單"})
                     skipped_count += 1
                 else:
                     to_link_uids.append(uid)
@@ -1065,11 +1033,11 @@ def batch_operation():
                     cur.execute(f"DELETE FROM {pv_table} WHERE name = 'rich_menu' AND user_id = ANY(%s)", (to_link_uids,))
                     execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", [(uid, 'rich_menu', target_rm_id) for uid in to_link_uids])
                     for uid in to_link_uids:
-                        results.append((job_id, uid, 'success', None))
+                        results.append({"user_id": uid, "status": "success", "reason": None})
                         success_count += 1
                 else:
                     for uid in to_link_uids:
-                        results.append((job_id, uid, 'failed', 'LINE API 套用圖文選單失敗'))
+                        results.append({"user_id": uid, "status": "failed", "reason": "LINE API 套用圖文選單失敗"})
                         failed_count += 1
 
         elif action_type == 'unlink_richmenu':
@@ -1081,7 +1049,7 @@ def batch_operation():
                 if uid in existing_map and existing_map[uid]:
                     to_unlink_uids.append(uid)
                 else:
-                    results.append((job_id, uid, 'skipped', '原本沒有個人圖文選單連結'))
+                    results.append({"user_id": uid, "status": "skipped", "reason": "原本沒有個人圖文選單連結"})
                     skipped_count += 1
 
             if to_unlink_uids:
@@ -1102,11 +1070,11 @@ def batch_operation():
                 if line_success:
                     cur.execute(f"DELETE FROM {pv_table} WHERE name = 'rich_menu' AND user_id = ANY(%s)", (to_unlink_uids,))
                     for uid in to_unlink_uids:
-                        results.append((job_id, uid, 'success', None))
+                        results.append({"user_id": uid, "status": "success", "reason": None})
                         success_count += 1
                 else:
                     for uid in to_unlink_uids:
-                        results.append((job_id, uid, 'failed', 'LINE API 解除圖文選單失敗'))
+                        results.append({"user_id": uid, "status": "failed", "reason": "LINE API 解除圖文選單失敗"})
                         failed_count += 1
 
         elif action_type == 'enroll_journey':
@@ -1121,7 +1089,7 @@ def batch_operation():
             to_enroll_uids = []
             for uid in user_ids:
                 if existing_ups.get(uid) == 'active':
-                    results.append((job_id, uid, 'skipped', '使用者目前已在該旅程進行中'))
+                    results.append({"user_id": uid, "status": "skipped", "reason": "使用者目前已在該旅程進行中"})
                     skipped_count += 1
                 else:
                     to_enroll_uids.append(uid)
@@ -1131,11 +1099,11 @@ def batch_operation():
                 ok, err_msg = batch_enroll_journey_users_internal(project_id, to_enroll_uids, app_id)
                 if ok:
                     for uid in to_enroll_uids:
-                        results.append((job_id, uid, 'success', None))
+                        results.append({"user_id": uid, "status": "success", "reason": None})
                         success_count += 1
                 else:
                     for uid in to_enroll_uids:
-                        results.append((job_id, uid, 'failed', f'加入自動旅程失敗: {err_msg}'))
+                        results.append({"user_id": uid, "status": "failed", "reason": f"加入自動旅程失敗: {err_msg}"})
                         failed_count += 1
 
         elif action_type == 'stop_journey':
@@ -1154,48 +1122,26 @@ def batch_operation():
                 if existing_ups.get(uid) == 'active':
                     to_stop_uids.append(uid)
                 else:
-                    results.append((job_id, uid, 'skipped', '未加入、已完成或已停止'))
+                    results.append({"user_id": uid, "status": "skipped", "reason": "未加入、已完成或已停止"})
                     skipped_count += 1
 
             if to_stop_uids:
                 cur.execute(f"DELETE FROM {t_cron} WHERE project_id = %s AND user_id = ANY(%s)", (project_id, to_stop_uids))
                 cur.execute(f"UPDATE {t_ups} SET status = 'stopped', updated_at = NOW() WHERE project_id = %s AND user_id = ANY(%s)", (project_id, to_stop_uids))
                 for uid in to_stop_uids:
-                    results.append((job_id, uid, 'success', None))
+                    results.append({"user_id": uid, "status": "success", "reason": None})
                     success_count += 1
-
-        # Update batch_jobs summary counts
-        cur.execute(f"""
-            UPDATE {jobs_table} 
-            SET success_count = %s, skipped_count = %s, failed_count = %s
-            WHERE job_id = %s
-        """, (success_count, skipped_count, failed_count, job_id))
-
-        # Insert detailed results
-        if results:
-            execute_values(cur, f"""
-                INSERT INTO {results_table} (job_id, user_id, result_status, failure_reason)
-                VALUES %s
-            """, results)
 
         conn.commit()
 
-        # Format output list for frontend
-        output_results = [{
-            "user_id": r[1],
-            "status": r[2],
-            "reason": r[3]
-        } for r in results]
-
         return jsonify({
             "success": True,
-            "job_id": job_id,
             "action_type": action_type,
             "selected_count": len(user_ids),
             "success_count": success_count,
             "skipped_count": skipped_count,
             "failed_count": failed_count,
-            "results": output_results
+            "results": results
         })
 
     except Exception as e:
