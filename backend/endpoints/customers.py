@@ -848,3 +848,371 @@ def refresh_customer_profile(user_id):
         if conn:
             conn.close()
 
+
+@customers_bp.route('/batch-operation', methods=['POST'])
+@token_required
+@syslog_action('CUSTOMER_BATCH_OPERATION')
+def batch_operation():
+    data = request.json or {}
+    action_type = data.get('action_type')
+    user_ids = data.get('user_ids', [])
+    payload = data.get('payload', {})
+
+    if not action_type or not user_ids:
+        return jsonify({"error": "Missing action_type or user_ids"}), 400
+
+    app_id = get_current_app_id()
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        from psycopg2.extras import RealDictCursor, execute_values
+        import json
+        import ast
+
+        pv_table = f'"Private_var:{app_id}"'
+        jobs_table = f'"batch_jobs:{app_id}"'
+        results_table = f'"batch_job_results:{app_id}"'
+
+        # Ensure batch tables exist
+        cur.execute(f"""
+            CREATE TABLE IF NOT EXISTS {jobs_table} (
+                job_id SERIAL PRIMARY KEY,
+                action_type VARCHAR(50) NOT NULL,
+                operator_id VARCHAR(100),
+                selected_count INT NOT NULL,
+                success_count INT DEFAULT 0,
+                skipped_count INT DEFAULT 0,
+                failed_count INT DEFAULT 0,
+                payload JSONB,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS {results_table} (
+                id SERIAL PRIMARY KEY,
+                job_id INT NOT NULL,
+                user_id VARCHAR(100) NOT NULL,
+                result_status VARCHAR(20) NOT NULL,
+                failure_reason TEXT,
+                executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
+        operator_id = getattr(g, 'user', {}).get('email') or getattr(g, 'user', {}).get('user_id') or 'admin'
+        cur.execute(f"""
+            INSERT INTO {jobs_table} (action_type, operator_id, selected_count, payload)
+            VALUES (%s, %s, %s, %s) RETURNING job_id
+        """, (action_type, operator_id, len(user_ids), json.dumps(payload, ensure_ascii=False)))
+        job_id = cur.fetchone()[0]
+
+        results = [] # list of (job_id, user_id, status, reason)
+        success_count = 0
+        skipped_count = 0
+        failed_count = 0
+
+        # Helper to parse python/json list strings safely
+        def parse_list(val):
+            if not val: return []
+            try:
+                parsed = ast.literal_eval(val)
+                return parsed if isinstance(parsed, list) else [str(parsed)]
+            except:
+                return [val]
+
+        if action_type == 'add_tags':
+            tag_names = payload.get('tag_names', [])
+            if not tag_names and payload.get('tag_name'):
+                tag_names = [payload.get('tag_name')]
+            
+            cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = 'tag' AND user_id = ANY(%s)", (user_ids,))
+            rows = cur.fetchall()
+            existing_map = {r[0]: r[1] for r in rows}
+
+            updates = []
+            affected_uids = []
+            for uid in user_ids:
+                curr_tags = parse_list(existing_map.get(uid))
+                new_tags = curr_tags.copy()
+                added_any = False
+                for t in tag_names:
+                    if t not in new_tags:
+                        new_tags.append(t)
+                        added_any = True
+                
+                if added_any:
+                    updates.append((uid, str(new_tags)))
+                    affected_uids.append(uid)
+                    results.append((job_id, uid, 'success', None))
+                    success_count += 1
+                else:
+                    results.append((job_id, uid, 'skipped', '使用者已持有該標籤'))
+                    skipped_count += 1
+
+            if updates:
+                cur.execute(f"DELETE FROM {pv_table} WHERE name = 'tag' AND user_id = ANY(%s)", (affected_uids,))
+                execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", [(uid, 'tag', val) for uid, val in updates])
+                
+                # Background Sensor Event & Richmenu Update
+                from utils.socket_utils import send_socket_events_batch
+                import threading
+                settings = getattr(g, 'current_oa_config', None).other_settings if getattr(g, 'current_oa_config', None) else {}
+                s_url = settings.get('socket_url')
+                app_name = settings.get('app_name') or settings.get('socket_name')
+                tags_str = str(tag_names)
+                def notify_socket():
+                    events = [{"user": uid, "message": f"set_tag|{tags_str}", "type": "Sensor", "api_index": 0} for uid in affected_uids]
+                    send_socket_events_batch(events, socket_url=s_url, bot_name=app_name, namespace=f"/{app_name}" if app_name else None)
+                threading.Thread(target=notify_socket).start()
+
+                from endpoints.richmenu import bulk_check_and_update_rich_menu
+                g_context = g._get_current_object()
+                def update_menus():
+                    try:
+                        from flask import Flask, g
+                        dummy_app = Flask(__name__)
+                        with dummy_app.app_context():
+                            g.current_app_name = getattr(g_context, 'current_app_name', app_id)
+                            bulk_check_and_update_rich_menu(affected_uids)
+                    except Exception as ex:
+                        print("Error updating menus async:", ex)
+                threading.Thread(target=update_menus).start()
+
+        elif action_type == 'remove_tags':
+            tag_names = payload.get('tag_names', [])
+            if not tag_names and payload.get('tag_name'):
+                tag_names = [payload.get('tag_name')]
+
+            cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = 'tag' AND user_id = ANY(%s)", (user_ids,))
+            rows = cur.fetchall()
+            existing_map = {r[0]: r[1] for r in rows}
+
+            updates = []
+            affected_uids = []
+            for uid in user_ids:
+                curr_tags = parse_list(existing_map.get(uid))
+                new_tags = [t for t in curr_tags if t not in tag_names]
+                if len(new_tags) < len(curr_tags):
+                    updates.append((uid, str(new_tags)))
+                    affected_uids.append(uid)
+                    results.append((job_id, uid, 'success', None))
+                    success_count += 1
+                else:
+                    results.append((job_id, uid, 'skipped', '使用者原本沒有該標籤'))
+                    skipped_count += 1
+
+            if updates:
+                cur.execute(f"DELETE FROM {pv_table} WHERE name = 'tag' AND user_id = ANY(%s)", (affected_uids,))
+                execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", [(uid, 'tag', val) for uid, val in updates])
+
+                # Background Sensor Event & Richmenu Update
+                from utils.socket_utils import send_socket_events_batch
+                import threading
+                settings = getattr(g, 'current_oa_config', None).other_settings if getattr(g, 'current_oa_config', None) else {}
+                s_url = settings.get('socket_url')
+                app_name = settings.get('app_name') or settings.get('socket_name')
+                def notify_socket():
+                    events = [{"user": uid, "message": f"del_tag|{tag_names[0] if tag_names else ''}", "type": "Sensor", "api_index": 0} for uid in affected_uids]
+                    send_socket_events_batch(events, socket_url=s_url, bot_name=app_name, namespace=f"/{app_name}" if app_name else None)
+                threading.Thread(target=notify_socket).start()
+
+                from endpoints.richmenu import bulk_check_and_update_rich_menu
+                g_context = g._get_current_object()
+                def update_menus():
+                    try:
+                        from flask import Flask, g
+                        dummy_app = Flask(__name__)
+                        with dummy_app.app_context():
+                            g.current_app_name = getattr(g_context, 'current_app_name', app_id)
+                            bulk_check_and_update_rich_menu(affected_uids)
+                    except Exception as ex:
+                        print("Error updating menus async:", ex)
+                threading.Thread(target=update_menus).start()
+
+        elif action_type == 'apply_richmenu':
+            target_rm_id = payload.get('rich_menu_id')
+            if not target_rm_id:
+                return jsonify({"error": "Missing rich_menu_id in payload"}), 400
+
+            cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = 'rich_menu' AND user_id = ANY(%s)", (user_ids,))
+            existing_map = {r[0]: r[1] for r in cur.fetchall()}
+
+            to_link_uids = []
+            for uid in user_ids:
+                curr_rm = existing_map.get(uid)
+                if curr_rm == target_rm_id:
+                    results.append((job_id, uid, 'skipped', '目前個人圖文選單已是指定選單'))
+                    skipped_count += 1
+                else:
+                    to_link_uids.append(uid)
+
+            if to_link_uids:
+                from endpoints.richmenu import get_line_token
+                token = get_line_token()
+                import requests
+                headers = {'Authorization': f'Bearer {token}'} if token else {}
+
+                # Bulk Link via LINE API
+                line_success = True
+                if token:
+                    for i in range(0, len(to_link_uids), 500):
+                        batch = to_link_uids[i:i+500]
+                        resp = requests.post('https://api.line.me/v2/bot/richmenu/bulk/link', headers=headers, json={'userIds': batch, 'richMenuId': target_rm_id})
+                        if resp.status_code != 200:
+                            line_success = False
+                            break
+
+                if line_success:
+                    cur.execute(f"DELETE FROM {pv_table} WHERE name = 'rich_menu' AND user_id = ANY(%s)", (to_link_uids,))
+                    execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", [(uid, 'rich_menu', target_rm_id) for uid in to_link_uids])
+                    for uid in to_link_uids:
+                        results.append((job_id, uid, 'success', None))
+                        success_count += 1
+                else:
+                    for uid in to_link_uids:
+                        results.append((job_id, uid, 'failed', 'LINE API 套用圖文選單失敗'))
+                        failed_count += 1
+
+        elif action_type == 'unlink_richmenu':
+            cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = 'rich_menu' AND user_id = ANY(%s)", (user_ids,))
+            existing_map = {r[0]: r[1] for r in cur.fetchall()}
+
+            to_unlink_uids = []
+            for uid in user_ids:
+                if uid in existing_map and existing_map[uid]:
+                    to_unlink_uids.append(uid)
+                else:
+                    results.append((job_id, uid, 'skipped', '原本沒有個人圖文選單連結'))
+                    skipped_count += 1
+
+            if to_unlink_uids:
+                from endpoints.richmenu import get_line_token
+                token = get_line_token()
+                import requests
+                headers = {'Authorization': f'Bearer {token}'} if token else {}
+
+                line_success = True
+                if token:
+                    for i in range(0, len(to_unlink_uids), 500):
+                        batch = to_unlink_uids[i:i+500]
+                        resp = requests.post('https://api.line.me/v2/bot/richmenu/bulk/unlink', headers=headers, json={'userIds': batch})
+                        if resp.status_code != 200:
+                            line_success = False
+                            break
+
+                if line_success:
+                    cur.execute(f"DELETE FROM {pv_table} WHERE name = 'rich_menu' AND user_id = ANY(%s)", (to_unlink_uids,))
+                    for uid in to_unlink_uids:
+                        results.append((job_id, uid, 'success', None))
+                        success_count += 1
+                else:
+                    for uid in to_unlink_uids:
+                        results.append((job_id, uid, 'failed', 'LINE API 解除圖文選單失敗'))
+                        failed_count += 1
+
+        elif action_type == 'enroll_journey':
+            project_id = payload.get('project_id')
+            if not project_id:
+                return jsonify({"error": "Missing project_id in payload"}), 400
+
+            t_ups = f'"user_project_status:{app_id}"'
+            cur.execute(f"SELECT user_id, status FROM {t_ups} WHERE project_id = %s AND user_id = ANY(%s)", (project_id, user_ids))
+            existing_ups = {r[0]: str(r[1]).lower() for r in cur.fetchall()}
+
+            to_enroll_uids = []
+            for uid in user_ids:
+                if existing_ups.get(uid) == 'active':
+                    results.append((job_id, uid, 'skipped', '使用者目前已在該旅程進行中'))
+                    skipped_count += 1
+                else:
+                    to_enroll_uids.append(uid)
+
+            if to_enroll_uids:
+                # Trigger batch restart/enroll logic for these users
+                try:
+                    from app import batch_restart_project_users_internal
+                    # If batch_restart_project_users_internal isn't separate, perform status update directly
+                    t_cron = f'"cron_table:{app_id}"'
+                    cur.execute(f"DELETE FROM {t_cron} WHERE project_id = %s AND user_id = ANY(%s)", (project_id, to_enroll_uids))
+                    cur.execute(f"DELETE FROM {t_ups} WHERE project_id = %s AND user_id = ANY(%s)", (project_id, to_enroll_uids))
+                    
+                    # Insert active status
+                    execute_values(cur, f"INSERT INTO {t_ups} (user_id, project_id, status, updated_at) VALUES %s", [(uid, project_id, 'active', 'NOW()') for uid in to_enroll_uids])
+                    
+                    for uid in to_enroll_uids:
+                        results.append((job_id, uid, 'success', None))
+                        success_count += 1
+                except Exception as ex:
+                    print("Error enrolling journey:", ex)
+                    for uid in to_enroll_uids:
+                        results.append((job_id, uid, 'failed', f'加入自動旅程失敗: {str(ex)}'))
+                        failed_count += 1
+
+        elif action_type == 'stop_journey':
+            project_id = payload.get('project_id')
+            stop_reason = payload.get('stop_reason', '')
+            if not project_id:
+                return jsonify({"error": "Missing project_id in payload"}), 400
+
+            t_ups = f'"user_project_status:{app_id}"'
+            t_cron = f'"cron_table:{app_id}"'
+            cur.execute(f"SELECT user_id, status FROM {t_ups} WHERE project_id = %s AND user_id = ANY(%s)", (project_id, user_ids))
+            existing_ups = {r[0]: str(r[1]).lower() for r in cur.fetchall()}
+
+            to_stop_uids = []
+            for uid in user_ids:
+                if existing_ups.get(uid) == 'active':
+                    to_stop_uids.append(uid)
+                else:
+                    results.append((job_id, uid, 'skipped', '未加入、已完成或已停止'))
+                    skipped_count += 1
+
+            if to_stop_uids:
+                cur.execute(f"DELETE FROM {t_cron} WHERE project_id = %s AND user_id = ANY(%s)", (project_id, to_stop_uids))
+                cur.execute(f"UPDATE {t_ups} SET status = 'stopped', updated_at = NOW() WHERE project_id = %s AND user_id = ANY(%s)", (project_id, to_stop_uids))
+                for uid in to_stop_uids:
+                    results.append((job_id, uid, 'success', None))
+                    success_count += 1
+
+        # Update batch_jobs summary counts
+        cur.execute(f"""
+            UPDATE {jobs_table} 
+            SET success_count = %s, skipped_count = %s, failed_count = %s
+            WHERE job_id = %s
+        """, (success_count, skipped_count, failed_count, job_id))
+
+        # Insert detailed results
+        if results:
+            execute_values(cur, f"""
+                INSERT INTO {results_table} (job_id, user_id, result_status, failure_reason)
+                VALUES %s
+            """, results)
+
+        conn.commit()
+
+        # Format output list for frontend
+        output_results = [{
+            "user_id": r[1],
+            "status": r[2],
+            "reason": r[3]
+        } for r in results]
+
+        return jsonify({
+            "success": True,
+            "job_id": job_id,
+            "action_type": action_type,
+            "selected_count": len(user_ids),
+            "success_count": success_count,
+            "skipped_count": skipped_count,
+            "failed_count": failed_count,
+            "results": output_results
+        })
+
+    except Exception as e:
+        if conn: conn.rollback()
+        print(f"Error in batch_operation: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cur: cur.close()
+        if conn: conn.close()
+
+

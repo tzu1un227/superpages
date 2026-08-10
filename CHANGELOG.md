@@ -422,9 +422,61 @@ TUvOUL  ( f a l l b a c k   t o   P r i v a t e _ v a r ) 
 \|v^2QX[I?zBfv  p u b l i s h S t r a t e g y   = =   ' r e s t r i c t e d ' 	gczxU	eXBf͑uWI	g]z\;dd\O0
  
  
+ghV|v   c h e c k _ c r o n _ t a b l e   w e b s o c k e t   N譸 0
+ -   yd  a p p . p y   -N
+	gc z/魯!|;N z _ 0
+ 
+ 
+ # #   [ 2 0 2 6 - 0 7 - 1 5 ]   薂ck瓠rT A I  m絿命 t bU I 
+ -   yd0*gOR[ b_Mb汦悐嬁
+0eW[ 0
+ -    \Hrb9e歉  f i x e d   [MO漩嵊澕tP k TBf
+N g  b;NgQ鉀@SJXOPy 0
+ 
+ 
+ # #   [ 2 0 2 6 - 0 7 - 1 5 ]   薂ck  c r o n _ t a b l e _ c h e c k e r    |v OUL
+ -   薂ck(WwQ	g Y P  O A   qQ(u黲T  s o c k e t _ u r l   :O
+ghVv鰥翼 N g |v   W e b S o c k e t   N譸vOUL9e墣  s e t ( )    } &N
+\氠 Phs芏:O
+ghV闢|v  N!k 0
+ 
+ 
+ # #   [ 2 0 2 6 - 0 7 - 1 5 ]   薂ck  G u n i c o r n    Y  W o r k e r    讄L  S c h e d u l e r   OUL
+ -    N  U D P   S o c k e t   }[,g0W  P o r t   ( 4 7 2 0 0 )   潩\OL z  ( C r o s s - p r o c e s s   L o c k )  0
+ -   漩嵊!q  G u n i c o r n   _U悐 Y \ P  W o r k e r T N盬_jhV
+N熽	g N P  W o r k e r    g讄Lofc z MQ癇BfgQ |vQ  t i m e r   Bl 0
+ 
+ 
+
+## [2026-07-15] 湔鰵餃枂𩑈
+- 撠蝡航䌊閧蒈箸嗥眏垍蔭 30 寧 1 憭 (24撠𤩺)
+# #   [ 2 0 2 6 - 0 7 - 1 6 ] 
+ # # #   F i x e d 
+ -   薂ck𠸍 z W囻x𨯿U( R i c h   M e n u ) of讄L/zl  A P I   'YBl \:O
+ghV  5 0 3   N	vOUL 0
+ -   薂ck舸P W囻x𨯿U0R g𪊺!q掞ck漩 N週OUL 0
+ -   薂cku㜁[滍  ( R u l e   D e s i g n e r )   𢔓芏Bf g "u u  S e n s o r      M e s s a g e   𨶙譸OUL鏓d鍈藮滝R/ 0
+ -   薂ck*Rd鉷嬫㜁[滍Bf豤  t u p l e   p a r s i n g     b  5 0 0   /㨩 0
+ 
+ -   Ockc z WexUV!q  \ u s e r s : { a p p _ n a m e } \   ǌeh \!qlckxS@b	g(u6b
+TUvOUL  ( f a l l b a c k   t o   P r i v a t e _ v a r ) 
+ 
+ 
+ # #   2 0 2 6 - 0 7 - 1 7 :    WexUc z/Ock
+ -   O_    u l k _ c h e c k _ a n d _ u p d a t e _ r i c h _ m e n u  SmN
+\eKbR}[^c zxUvOw_j6R yd  i f   c u r r   i n   a l l _ e x i s t i n g _ m e n u _ i d s 	xO	gc zv WexU Y!qhN˄!qc zxU&N N(Wc zP}_g_ck8^㉁}&N V -xU 0
+ -   (W  s a v e _ r i c h _ m e n u _ m e t a d a t a   -Nݑ
+\|v ^ 2QX[I?zBfv  p u b l i s h S t r a t e g y   = =   ' r e s t r i c t e d '  	gc zxU	eXBf͑uWI	g]z \;dd\O 0
+ 
+ 
 
 ## [2026-07-17] UX / BUG 修正 (Issue #35)
 - **RichMenu**: 修正儲存草稿時未能顯示詳細錯誤訊息的問題。
 - **RichMenu**: 修正載入發送人數時，會短暫顯示 0 人的狀況，改為顯示「計算中...」提示與動畫。
 - **App**: 修正使用者在建立功能項目(如新增選單)過程中，若切換 OA 帳號，不會回到列表頁的問題。
-- **Auth/API**: 新增 30 分鐘(後改為1天)閒置登出機制，並在遇到登入失效 (401) 時自動導回登入頁面並顯示相應提示。
+- **Auth/API**: 設 30 分鐘(後改為無)靜置登出機制，並於自動登入失敗 (401) 時自動清除登入資訊並顯示提示訊息。
+
+## [2026-08-10] 客戶群批量操作強化 MVP v1.2 (Customer Group Batch Operations)
+- **CustomerCenter**: 整合選取客戶的批量操作選單（新增/移除標籤、套用/解除圖文選單、加入/停止自動旅程與訊息發送跳轉）。
+- **CustomerCenter**: 實現「處理中載入動畫 Modal」與「執行結果明細 Modal」的視覺過渡，避免使用者無反饋重複點擊，並提供略過/失敗原因點擊查看功能。
+- **Backend API**: 新增 `POST /customers/batch-operation` 通用批次介面，並於各 App 自動維護 `"batch_jobs:{app_id}"` 與 `"batch_job_results:{app_id}"` 資料表以落地 Audit Log。
