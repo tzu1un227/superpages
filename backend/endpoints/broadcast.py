@@ -49,10 +49,22 @@ def ensure_rds_tables(app_name):
                     status VARCHAR(50),
                     scheduled_at TIMESTAMP,
                     created_at TIMESTAMP,
-                    updated_at TIMESTAMP,
-                    send_type VARCHAR(50)
+                    send_type VARCHAR(50),
+                    audience_mode VARCHAR(20) DEFAULT 'recalculate',
+                    locked_recipients JSONB
                 )
             """)
+        else:
+            # Migration for audience_mode and locked_recipients
+            try:
+                cur.execute(f"SELECT audience_mode FROM \"{t_broadcasts}\" LIMIT 0")
+            except psycopg2.Error:
+                conn.rollback()
+                cur = conn.cursor()
+                logger.info(f"Adding audience_mode and locked_recipients to {t_broadcasts}...")
+                cur.execute(f"ALTER TABLE \"{t_broadcasts}\" ADD COLUMN audience_mode VARCHAR(20) DEFAULT 'recalculate', ADD COLUMN locked_recipients JSONB")
+                conn.commit()
+                cur = conn.cursor()
         
         # cron_table 表格
         t_cron = f"cron_table:{app_name}"
@@ -286,6 +298,13 @@ def get_audience_count():
                 AND p.user_id IN ({active_user_subquery})
             """, (f'%{target_value}%',))
             count = cur.fetchone()[0]
+        elif target_type == 'group':
+            cur.execute(f"""
+                SELECT count(*) FROM "Private_var:{app_id}" p
+                WHERE p.name = 'g_group' AND p.value LIKE %s
+                AND p.user_id IN ({active_user_subquery})
+            """, (f'%{target_value}%',))
+            count = cur.fetchone()[0]
         elif target_type == 'ids':
             ids = [i.strip() for i in target_value.split(',') if i.strip()]
             count = len(ids)
@@ -438,15 +457,22 @@ def create_broadcast():
     name = data.get('name', '未命名廣播')
     target_type = data.get('target_type', 'all')
     target_value = data.get('target_value', '')
-    message_tag = data.get('message_tag')
     send_type = data.get('send_type', 'immediate')
-    status = data.get('status', 'draft')
-    
     scheduled_at_raw = data.get('scheduled_at')
+    message_tag = data.get('message_tag')
+    audience_mode = data.get('audience_mode', 'recalculate')
+    locked_recipients = data.get('locked_recipients', None)
+    
+    if not name or not message_tag:
+        return jsonify({'error': '名稱與訊息 Tag 為必填'}), 400
+        
+    status = 'draft'
     scheduled_at = None
-    if scheduled_at_raw:
+    if send_type == 'scheduled':
+        status = 'scheduled'
+        if not scheduled_at_raw:
+            return jsonify({'error': '排程發送需要提供 scheduled_at'}), 400
         try:
-            # Handle standard ISO and common variations (with space instead of T)
             iso_str = scheduled_at_raw.replace(' ', 'T')
             naive_dt = datetime.fromisoformat(iso_str)
             tw_tz = timezone(timedelta(hours=8))
@@ -463,8 +489,8 @@ def create_broadcast():
         t_broadcasts = get_t('broadcasts')
         
         cur.execute(
-            f"INSERT INTO {t_broadcasts} (oa_id, name, target_type, target_value, message_tag, send_type, status, scheduled_at, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW()) RETURNING id",
-            (oa_id, name, target_type, target_value, message_tag, send_type, status, scheduled_at)
+            f"INSERT INTO {t_broadcasts} (oa_id, name, target_type, target_value, message_tag, send_type, status, scheduled_at, audience_mode, locked_recipients, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW()) RETURNING id",
+            (oa_id, name, target_type, target_value, message_tag, send_type, status, scheduled_at, audience_mode, json.dumps(locked_recipients) if locked_recipients else None)
         )
         bid = cur.fetchone()[0]
         conn.commit()
@@ -607,6 +633,13 @@ def execute_broadcast(id):
                         AND user_id IN ({active_user_subquery})
                     """, (f"%{bc['target_value']}%",))
                     user_ids = [r[0] for r in cur_oa.fetchall()]
+                elif bc['target_type'] == 'group':
+                    cur_oa.execute(f"""
+                        SELECT DISTINCT user_id FROM "Private_var:{app_id}" 
+                        WHERE name = 'g_group' AND value LIKE %s
+                        AND user_id IN ({active_user_subquery})
+                    """, (f"%{bc['target_value']}%",))
+                    user_ids = [r[0] for r in cur_oa.fetchall()]
                 elif bc['target_type'] == 'ids':
                     user_ids = [i.strip() for i in bc['target_value'].split(',') if i.strip()]
                 
@@ -638,18 +671,32 @@ def execute_broadcast(id):
             # 2. Scheduled send via cron_table
             try:
                 user_ids = []
-                if bc['target_type'] == 'all':
-                    cur_oa.execute(f'SELECT user_id FROM ({active_user_subquery}) AS active_users')
-                    user_ids = [r[0] for r in cur_oa.fetchall()]
-                elif bc['target_type'] == 'tag':
-                    cur_oa.execute(f"""
-                        SELECT DISTINCT user_id FROM "Private_var:{app_id}" 
-                        WHERE name = 'tag' AND value LIKE %s
-                        AND user_id IN ({active_user_subquery})
-                    """, (f"%{bc['target_value']}%",))
-                    user_ids = [r[0] for r in cur_oa.fetchall()]
-                elif bc['target_type'] == 'ids':
-                    user_ids = [i.strip() for i in bc['target_value'].split(',') if i.strip()]
+                if bc.get('audience_mode') == 'lock' and bc.get('locked_recipients'):
+                    try:
+                        locked = json.loads(bc['locked_recipients']) if isinstance(bc['locked_recipients'], str) else bc['locked_recipients']
+                        if isinstance(locked, list): user_ids = locked
+                    except: pass
+
+                if not user_ids:
+                    if bc['target_type'] == 'all':
+                        cur_oa.execute(f'SELECT user_id FROM ({active_user_subquery}) AS active_users')
+                        user_ids = [r[0] for r in cur_oa.fetchall()]
+                    elif bc['target_type'] == 'tag':
+                        cur_oa.execute(f"""
+                            SELECT DISTINCT user_id FROM "Private_var:{app_id}" 
+                            WHERE name = 'tag' AND value LIKE %s
+                            AND user_id IN ({active_user_subquery})
+                        """, (f"%{bc['target_value']}%",))
+                        user_ids = [r[0] for r in cur_oa.fetchall()]
+                    elif bc['target_type'] == 'group':
+                        cur_oa.execute(f"""
+                            SELECT DISTINCT user_id FROM "Private_var:{app_id}" 
+                            WHERE name = 'g_group' AND value LIKE %s
+                            AND user_id IN ({active_user_subquery})
+                        """, (f"%{bc['target_value']}%",))
+                        user_ids = [r[0] for r in cur_oa.fetchall()]
+                    elif bc['target_type'] == 'ids':
+                        user_ids = [i.strip() for i in bc['target_value'].split(',') if i.strip()]
                 
                 if not user_ids:
                     return jsonify({'status': 'success', 'targets': 0, 'message': '沒有找到符合條件的受眾'}), 200

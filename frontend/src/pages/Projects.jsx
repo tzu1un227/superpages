@@ -732,12 +732,13 @@ const ProjectsManagement = () => {
     };
 
 
-    const handleBatchAdd = async (userIds) => {
-        if (!userIds || userIds.length === 0) return;
+    const handleBatchAdd = async (userIds, groupName) => {
+        if (!groupName && (!userIds || userIds.length === 0)) return;
         setIsBatchProcessing(true);
         try {
-            await api.post(`/projects/${selectedProjectId}/users/batch-restart`, { user_ids: userIds });
-            showToast(`已成功批次加入 ${userIds.length} 位用戶`, 'success');
+            const payload = groupName ? { group_name: groupName } : { user_ids: userIds };
+            const res = await api.post(`/projects/${selectedProjectId}/users/batch-restart`, payload);
+            showToast(res.data.message || '已成功加入用戶', 'success');
             setIsUserSelectModalOpen(false);
             setTimeout(() => fetchProjectUsers(selectedProjectId), 1000);
         } catch (err) {
@@ -2448,6 +2449,10 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
 const UserSelectModal = ({ isOpen, onClose, onSelectBatch, existingUsers = [] }) => {
     const [users, setUsers] = useState([]);
     const [allTags, setAllTags] = useState([]);
+    const [customerGroups, setCustomerGroups] = useState([]);
+    const [targetType, setTargetType] = useState('users'); // 'users' or 'group'
+    const [selectedGroup, setSelectedGroup] = useState('');
+    const [groupMemberCount, setGroupMemberCount] = useState(0);
     const [loading, setLoading] = useState(false);
     const [nameSearch, setNameSearch] = useState('');
     const [selectedTags, setSelectedTags] = useState([]);
@@ -2475,14 +2480,18 @@ const UserSelectModal = ({ isOpen, onClose, onSelectBatch, existingUsers = [] })
         if (isOpen) {
             setLoading(true);
             setSelectedUserIds([]); // Reset selection when opening
+            setTargetType('users');
+            setSelectedGroup('');
             Promise.all([
                 api.get('/registered-users?source=private_var'),
-                api.get('/tags')
-            ]).then(([userRes, tagRes]) => {
+                api.get('/tags'),
+                api.get('/customers/groups')
+            ]).then(([userRes, tagRes, groupRes]) => {
                 const userData = Array.isArray(userRes.data) ? userRes.data : [];
                 setUsers(userData.filter(u => u && u.user_id));
                 const tagData = Array.isArray(tagRes.data) ? tagRes.data : [];
                 setAllTags(tagData.sort());
+                setCustomerGroups(groupRes.data.groups || []);
             }).catch(err => {
                 console.error("Failed to load modal data:", err);
             }).finally(() => setLoading(false));
@@ -2529,6 +2538,20 @@ const UserSelectModal = ({ isOpen, onClose, onSelectBatch, existingUsers = [] })
     };
 
     const handleSubmit = async () => {
+        if (targetType === 'group') {
+            if (!selectedGroup) {
+                alert('請先選擇一個客戶群');
+                return;
+            }
+            setProcessing(true);
+            try {
+                await onSelectBatch(null, selectedGroup);
+            } finally {
+                setProcessing(false);
+            }
+            return;
+        }
+
         if (selectedUserIds.length === 0) {
             alert('請先選取至少一位用戶');
             return;
@@ -2561,15 +2584,58 @@ const UserSelectModal = ({ isOpen, onClose, onSelectBatch, existingUsers = [] })
                     </div>
                 )}
                 <div style={{ opacity: processing ? 0.3 : 1, pointerEvents: processing ? 'none' : 'auto' }}>
-                    <div style={{ marginBottom: '20px' }}>
-                        <input
-                            type="text"
-                            placeholder="搜尋用戶名稱..."
-                            value={nameSearch}
-                            onChange={(e) => setNameSearch(e.target.value)}
-                            style={{ width: '100%', padding: '10px', background: '#333', border: '1px solid #555', borderRadius: '4px', color: '#fff' }}
-                        />
+                    <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+                        <button
+                            type="button"
+                            onClick={() => setTargetType('users')}
+                            style={{ flex: 1, padding: '8px', background: targetType === 'users' ? 'var(--primary-yellow)' : '#333', color: targetType === 'users' ? '#000' : '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                        >
+                            依標籤 / 用戶搜尋
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setTargetType('group')}
+                            style={{ flex: 1, padding: '8px', background: targetType === 'group' ? 'var(--primary-yellow)' : '#333', color: targetType === 'group' ? '#000' : '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                        >
+                            選擇整批客戶群
+                        </button>
+                    </div>
+
+                    {targetType === 'group' ? (
+                        <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#111', borderRadius: '8px', border: '1px solid #333' }}>
+                            <label style={{ fontSize: '13px', color: '#aaa', display: 'block', marginBottom: '8px' }}>選擇目標客戶群：</label>
+                            <select
+                                value={selectedGroup}
+                                onChange={(e) => setSelectedGroup(e.target.value)}
+                                style={{ width: '100%', padding: '10px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '6px' }}
+                            >
+                                <option value="">-- 請選擇客戶群 --</option>
+                                {customerGroups.map(g => (
+                                    <option key={g.group_name} value={g.group_name}>
+                                        {g.group_name} ({g.member_count || 0} 人)
+                                    </option>
+                                ))}
+                            </select>
+                            {selectedGroup && (
+                                <div style={{ marginTop: '10px', fontSize: '13px', color: '#FFD700' }}>
+                                    預估人數：{customerGroups.find(g => g.group_name === selectedGroup)?.member_count || 0} 人
+                                </div>
+                            )}
+                            <div style={{ marginTop: '12px', fontSize: '12px', color: '#888', lineHeight: '1.5' }}>
+                                ⓘ 說明：本次為一次性加入，將對選定客戶群當前所有成員加入此旅程（已在進行中或已完成者將自動略過）。日後新加入該客群的成員不會自動加入。
+                            </div>
                         </div>
+                    ) : (
+                        <>
+                            <div style={{ marginBottom: '20px' }}>
+                                <input
+                                    type="text"
+                                    placeholder="搜尋用戶名稱..."
+                                    value={nameSearch}
+                                    onChange={(e) => setNameSearch(e.target.value)}
+                                    style={{ width: '100%', padding: '10px', background: '#333', border: '1px solid #555', borderRadius: '4px', color: '#fff' }}
+                                />
+                            </div>
                         <div style={{ marginBottom: '20px' }}>
                             <div style={{ color: '#aaa', marginBottom: '10px', display: 'flex', justifyContent: 'space-between' }}>
                                 <span>篩選標籤:</span>

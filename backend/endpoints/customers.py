@@ -721,11 +721,44 @@ def delete_customer_richmenu(user_id):
         return jsonify({'message': 'Error', 'error': str(e)}), 500
 
 
+@customers_bp.route('/groups/<path:group_name>/users', methods=['GET'])
+@token_required
+def get_group_users(group_name):
+    app_id = get_current_app_id()
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        pv_table = f'"Private_var:{app_id}"'
+        active_user_subquery = f"""
+            SELECT p.user_id FROM {pv_table} p
+            WHERE p.name = 'name'
+            AND (
+                SELECT h.category FROM "history:{app_id}" h
+                WHERE h.user_id = p.user_id 
+                AND h.category IN ('Follow', 'Unfollow')
+                ORDER BY h.timestamp DESC LIMIT 1
+            ) IS DISTINCT FROM 'Unfollow'
+            AND length(p.user_id) = 33 AND p.user_id LIKE 'U%%'
+        """
+        cur.execute(f"""
+            SELECT DISTINCT user_id FROM {pv_table}
+            WHERE name = 'g_group' AND value LIKE %s
+            AND user_id IN ({active_user_subquery})
+        """, (f'%{group_name}%',))
+        uids = [r[0] for r in cur.fetchall()]
+        return jsonify({"group_name": group_name, "count": len(uids), "user_ids": uids})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
+
 @customers_bp.route('/count-by-tags', methods=['POST'])
 @token_required
 def count_by_tags():
-    data = request.json
+    data = request.json or {}
     tags = data.get('tags', [])
+    group = data.get('group', None)
     app_id = get_current_app_id()
     from db_utils import get_db_connection
     conn = None
@@ -747,6 +780,16 @@ def count_by_tags():
         """
         cur.execute(f"SELECT COUNT(*) FROM ({active_user_subquery}) AS active_users")
         total_count = cur.fetchone()[0]
+
+        if group:
+            pv_table = f'"Private_var:{app_id}"'
+            cur.execute(f"""
+                SELECT COUNT(DISTINCT user_id) FROM {pv_table}
+                WHERE name = 'g_group' AND value LIKE %s
+                AND user_id IN ({active_user_subquery})
+            """, (f'%{group}%',))
+            cnt = cur.fetchone()[0]
+            return jsonify({"count": cnt, "totalCount": total_count})
 
         if not tags:
             return jsonify({"count": total_count, "totalCount": total_count})

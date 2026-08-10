@@ -480,3 +480,10 @@ TUvOUL  ( f a l l b a c k   t o   P r i v a t e _ v a r )
 - **CustomerCenter**: 整合選取客戶的批量操作選單（新增/移除標籤、套用/解除圖文選單、加入/停止自動旅程與訊息發送跳轉）。
 - **CustomerCenter**: 實現「處理中載入動畫 Modal」與「執行結果明細 Modal」的視覺過渡，避免使用者無反饋重複點擊，並提供略過/失敗原因點擊查看功能。
 - **Backend API**: 新增 `POST /customers/batch-operation` 極簡批次介面，無須新增任何資料庫表格，於記憶體即時運算並傳回完整執行統計與明細。
+
+## [2026-08-10] 客戶群作為目標對象 MVP v1.0 (Customer Group Target Audience)
+- **Broadcast**: 發送對象新增「客戶群受眾」，支援即時群發與排程群發。排程發送支援 `(●) 送出時重新計算` 與 `( ) 鎖定目前名單` 模式選擇。
+- **RichMenu**: 連結圖文選單 Modal 支援選擇指定「客戶群」，一次性套用至客群當前全體成員。
+- **Projects**: 手動加入專案用戶 Modal 新增「選擇整批客戶群」切換模式，一次性將選定客群成員納入自動旅程。
+- **Customers API**: 新增 `GET /customers/groups/<group_name>/users` 取得成員 ID 清單，並擴充 `/customers/count-by-tags` 支援客群預估人數查詢。
+

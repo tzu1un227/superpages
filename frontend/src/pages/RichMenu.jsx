@@ -174,6 +174,7 @@ function RichMenu() {
     };
 
     const [allTags, setAllTags] = useState([]);
+    const [customerGroups, setCustomerGroups] = useState([]);
 
     const scale = 0.2;
 
@@ -199,12 +200,14 @@ function RichMenu() {
 
         try {
             await Promise.all([fetchMenus(), fetchMetadata()]);
-            // 取得標籤清單供下拉選單使用
+            // 取得標籤與客戶群清單供下拉選單使用
             try {
                 const tagsRes = await api.get('/customers/tags');
                 setAllTags(tagsRes.data || []);
+                const groupsRes = await api.get('/customers/groups');
+                setCustomerGroups(groupsRes.data.groups || []);
             } catch (err) {
-                console.error('Failed to fetch tags:', err);
+                console.error('Failed to fetch tags or groups:', err);
             }
         } finally {
             setLoading(false);
@@ -770,30 +773,41 @@ function RichMenu() {
     
     const submitLinkModal = async () => {
         if (!linkModalState) return;
-        setLoading(true);
         try {
-            // First update metadata to match selected strategy and tags
-            const item = linkModalState.item;
-            let newStatus = 'published';
-            if (linkModalState.publishStrategy === 'restricted') newStatus = 'restricted';
-            else if (linkModalState.publishStrategy === 'default') newStatus = 'published';
-            else newStatus = 'hidden';
+            setLoading(true);
+            if (linkModalState.publishStrategy === 'group') {
+                if (!linkModalState.targetGroup) {
+                    showToast('請選擇客戶群', 'warning');
+                    setLoading(false);
+                    return;
+                }
+                const gUsersRes = await api.get(`/customers/groups/${encodeURIComponent(linkModalState.targetGroup)}/users`);
+                const uids = gUsersRes.data.user_ids || [];
+                if (uids.length === 0) {
+                    showToast('該客戶群目前沒有有效成員', 'warning');
+                    setLoading(false);
+                    return;
+                }
+                const batchRes = await api.post('/customers/batch-operation', {
+                    action_type: 'apply_richmenu',
+                    user_ids: uids,
+                    payload: { rich_menu_id: linkModalState.richMenuId }
+                });
+                showToast(`已成功一次性套用至客戶群 ${linkModalState.targetGroup} (套用: ${batchRes.data.success_count} 位, 略過: ${batchRes.data.skipped_count} 位)`, 'success');
+                setLinkModalState(null);
+                fetchMetadata();
+                return;
+            }
 
+            const item = linkModalState.item;
             const payload = {
-                id: item.id,
-                name: item.name,
-                chat_bar_text: item.chat_bar_text || item.chatBarText,
-                status: newStatus,
                 rich_menu_id: linkModalState.richMenuId,
-                start_time: item.start_time || null,
-                end_time: item.end_time || null,
-                permission_tags: item.permission_tags || item.permissionTags || [],
-                fallback_message: item.fallback_message || item.fallbackMessage || '',
+                name: item.name || '圖文選單',
+                chat_bar_text: item.chat_bar_text || item.chatBarText || '開啟選單',
                 ui_uuid: item.ui_uuid,
                 group_id: item.group_id,
+                status: linkModalState.publishStrategy,
                 data: {
-                    ...(item.data || {}),
-                    size: item.size || (item.data && item.data.size),
                     areas: item.areas || (item.data && item.data.areas),
                     name: item.name,
                     chatBarText: item.chat_bar_text || item.chatBarText,
@@ -1657,6 +1671,43 @@ function RichMenu() {
                                 <input type="radio" name="linkPublishStrategy" value="restricted" checked={linkModalState.publishStrategy === 'restricted'} onChange={() => setLinkModalState({ ...linkModalState, publishStrategy: 'restricted' })} style={{ accentColor: '#FFD700', transform: 'scale(1.2)', margin: '0 5px' }} />
                                 選定標籤
                             </label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                                <input type="radio" name="linkPublishStrategy" value="group" checked={linkModalState.publishStrategy === 'group'} onChange={() => setLinkModalState({ ...linkModalState, publishStrategy: 'group', targetGroup: '' })} style={{ accentColor: '#FFD700', transform: 'scale(1.2)', margin: '0 5px' }} />
+                                選定客戶群
+                            </label>
+
+                            {linkModalState.publishStrategy === 'group' && (
+                                <div style={{ backgroundColor: '#111', padding: '15px', borderRadius: '8px', border: '1px solid #333' }}>
+                                    <label className="label">選擇目標客戶群</label>
+                                    <select
+                                        value={linkModalState.targetGroup || ''}
+                                        onChange={(e) => {
+                                            const gName = e.target.value;
+                                            setLinkModalState({ ...linkModalState, targetGroup: gName });
+                                            if (gName) {
+                                                api.post('/customers/count-by-tags', { group: gName }).then(res => {
+                                                    setLinkModalState(prev => prev ? { ...prev, targetUserCount: res.data.count, totalUserCount: res.data.totalCount } : prev);
+                                                });
+                                            }
+                                        }}
+                                        style={{ width: '100%', padding: '10px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '6px', marginTop: '8px' }}
+                                    >
+                                        <option value="">-- 請選擇客戶群 --</option>
+                                        {customerGroups.map(g => (
+                                            <option key={g.group_name} value={g.group_name}>
+                                                {g.group_name} ({g.member_count || 0} 人)
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div style={{ marginTop: '12px', fontSize: '12px', color: '#888', lineHeight: '1.5' }}>
+                                        ⓘ 提示：本次為一次性套用，將對選定客戶群當前所有成員綁定圖文選單。日後新加入該客群的成員不會自動套用。
+                                    </div>
+                                    <div style={{ marginTop: '12px', fontSize: '13px', color: '#aaa', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        <Shield size={14} /> 預計套用人數：
+                                        <span style={{ color: 'var(--primary-yellow)', fontWeight: 'bold', fontSize: '16px' }}>{linkModalState.targetUserCount || 0}</span> 人
+                                    </div>
+                                </div>
+                            )}
 
                             {linkModalState.publishStrategy === 'restricted' && (
                                 <div style={{ backgroundColor: '#111', padding: '15px', borderRadius: '8px', border: '1px solid #333' }}>

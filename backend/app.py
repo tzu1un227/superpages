@@ -1216,10 +1216,41 @@ def batch_enroll_journey_users_internal(project_id, user_ids, app_id):
 def batch_restart_project_users(id):
     data = request.json or {}
     user_ids = data.get('user_ids', [])
-    if not user_ids:
-        return jsonify({"status": "error", "message": "No users selected"}), 400
+    group_name = data.get('group_name') or data.get('group')
 
     app_id = get_current_app_id()
+    if group_name and not user_ids:
+        conn = None
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            pv_table = f'"Private_var:{app_id}"'
+            active_user_subquery = f"""
+                SELECT p.user_id FROM {pv_table} p
+                WHERE p.name = 'name'
+                AND (
+                    SELECT h.category FROM "history:{app_id}" h
+                    WHERE h.user_id = p.user_id 
+                    AND h.category IN ('Follow', 'Unfollow')
+                    ORDER BY h.timestamp DESC LIMIT 1
+                ) IS DISTINCT FROM 'Unfollow'
+                AND length(p.user_id) = 33 AND p.user_id LIKE 'U%%'
+            """
+            cur.execute(f"""
+                SELECT DISTINCT user_id FROM {pv_table}
+                WHERE name = 'g_group' AND value LIKE %s
+                AND user_id IN ({active_user_subquery})
+            """, (f'%{group_name}%',))
+            user_ids = [r[0] for r in cur.fetchall()]
+            cur.close()
+        except Exception as ex:
+            print("Error resolving group users for project enroll:", ex)
+        finally:
+            if conn: conn.close()
+
+    if not user_ids:
+        return jsonify({"status": "error", "message": "未選取用戶或該客戶群目前無任何有效成員"}), 400
+
     ok, err_msg = batch_enroll_journey_users_internal(id, user_ids, app_id)
     if ok:
         return jsonify({"status": "success", "message": f"Successfully added {len(user_ids)} users to project."})
