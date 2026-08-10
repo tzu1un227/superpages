@@ -2728,24 +2728,26 @@ const UserSelectModal = ({ isOpen, onClose, onSelectBatch, existingUsers = [] })
                         <div style={{ marginTop: '10px', textAlign: 'right', fontSize: '12px', color: '#888' }}>
                             已選取 {selectedUserIds.length} 位用戶
                         </div>
-                    </div>
+                    </>
+                    )}
+                </div>
             </DialogContent>
             <DialogActions style={{ borderTop: '1px solid #333', padding: '15px' }}>
                 <button onClick={onClose} disabled={processing} style={{ background: '#444', color: '#fff', padding: '8px 20px', borderRadius: '4px', border: 'none', cursor: 'pointer' }}>取消</button>
                 <button
                     onClick={handleSubmit}
-                    disabled={processing || selectedUserIds.length === 0}
+                    disabled={processing || (targetType === 'users' && selectedUserIds.length === 0) || (targetType === 'group' && !selectedGroup)}
                     style={{
-                        background: selectedUserIds.length > 0 ? 'var(--primary-yellow)' : '#333',
-                        color: selectedUserIds.length > 0 ? '#000' : '#888',
+                        background: ((targetType === 'users' && selectedUserIds.length > 0) || (targetType === 'group' && selectedGroup)) ? 'var(--primary-yellow)' : '#333',
+                        color: ((targetType === 'users' && selectedUserIds.length > 0) || (targetType === 'group' && selectedGroup)) ? '#000' : '#888',
                         padding: '8px 20px',
                         borderRadius: '4px',
                         border: 'none',
                         fontWeight: 'bold',
-                        cursor: selectedUserIds.length > 0 ? 'pointer' : 'not-allowed'
+                        cursor: ((targetType === 'users' && selectedUserIds.length > 0) || (targetType === 'group' && selectedGroup)) ? 'pointer' : 'not-allowed'
                     }}
                 >
-                    {processing ? '處理中...' : `加入已選取用戶 (${selectedUserIds.length})`}
+                    {processing ? '處理中...' : targetType === 'group' ? '加入整批客戶群成員' : `加入已選取用戶 (${selectedUserIds.length})`}
                 </button>
             </DialogActions>
         </Dialog>
