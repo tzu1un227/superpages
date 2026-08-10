@@ -1696,7 +1696,7 @@ const CustomerCenter = () => {
 
                     <div style={{ marginBottom: '16px' }}>
                       <label style={{ fontSize: '13px', color: '#aaa', display: 'block', marginBottom: '8px' }}>選擇要移除的標籤：</label>
-                      <TagInput value={batchTagsToRemove} onChange={setBatchTagsToRemove} placeholder="選擇或輸入標籤按 Enter..." />
+                      <TagInput tags={batchTagsToRemove} onChange={setBatchTagsToRemove} placeholder="選擇或輸入標籤按 Enter..." />
                     </div>
 
                     <div style={{ backgroundColor: '#1a1a1a', border: '1px dashed #444', borderRadius: '8px', padding: '12px', fontSize: '12px', color: '#888', marginBottom: '20px', lineHeight: '1.6' }}>

@@ -480,3 +480,4 @@ TUvOUL  ( f a l l b a c k   t o   P r i v a t e _ v a r )
 - **CustomerCenter**: 整合選取客戶的批量操作選單（新增/移除標籤、套用/解除圖文選單、加入/停止自動旅程與訊息發送跳轉）。
 - **CustomerCenter**: 實現「處理中載入動畫 Modal」與「執行結果明細 Modal」的視覺過渡，避免使用者無反饋重複點擊，並提供略過/失敗原因點擊查看功能。
 - **Backend API**: 新增 `POST /customers/batch-operation` 通用批次介面，並於各 App 自動維護 `"batch_jobs:{app_id}"` 與 `"batch_job_results:{app_id}"` 資料表以落地 Audit Log。
+- **Hotfix**: 修正批量移除標籤視窗標籤未顯示問題 (TagInput prop 傳遞錯誤)，修復加入自動旅程後端匯入函數缺漏問題。

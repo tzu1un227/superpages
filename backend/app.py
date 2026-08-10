@@ -1100,28 +1100,21 @@ def restart_project_user(id, user_id):
     finally:
         if conn: conn.close()
 
-@app.route('/api/projects/<int:id>/users/batch-restart', methods=['POST'])
-@token_required
-def batch_restart_project_users(id):
+def batch_enroll_journey_users_internal(project_id, user_ids, app_id):
     conn = None
     try:
-        data = request.json
-        user_ids = data.get('user_ids', [])
-        if not user_ids:
-            return jsonify({"status": "error", "message": "No users selected"}), 400
-
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        t_projects = get_suffixed_table('projects')
-        t_schedules = get_suffixed_table('project_schedules')
-        t_cron = get_suffixed_table('cron_table')
-        t_ups = get_suffixed_table('user_project_status')
+        t_projects = f'"projects:{app_id}"'
+        t_schedules = f'"project_schedules:{app_id}"'
+        t_cron = f'"cron_table:{app_id}"'
+        t_ups = f'"user_project_status:{app_id}"'
 
         # 1. Fetch Project, start_date and Anchor Config
-        cur.execute(f"SELECT anchor_config, start_date FROM {t_projects} WHERE project_id = %s", (id,))
+        cur.execute(f"SELECT anchor_config, start_date FROM {t_projects} WHERE project_id = %s", (project_id,))
         project = cur.fetchone()
         if not project:
-            return jsonify({"status": "error", "message": "Project not found"}), 404
+            return False, "Project not found"
 
         anchor_conf = project['anchor_config']
         if isinstance(anchor_conf, str):
@@ -1132,8 +1125,6 @@ def batch_restart_project_users(id):
 
         # 2. Calculate Base Start Time
         now_tw = get_now_taiwan()
-        
-        # Determine Reference Time: Use project_start if it's in the future
         reference_time = now_tw
         if project_start:
             ps_local = project_start.replace(tzinfo=None) if project_start.tzinfo else project_start
@@ -1172,17 +1163,16 @@ def batch_restart_project_users(id):
                 print(f"Anchor error in batch_restart: {e}")
 
         # 3. Fetch All Steps
-        cur.execute(f"SELECT step_id, interval_hours, message_content FROM {t_schedules} WHERE project_id = %s ORDER BY step_id ASC", (id,))
+        cur.execute(f"SELECT step_id, interval_hours, interval_unit, message_content FROM {t_schedules} WHERE project_id = %s ORDER BY step_id ASC", (project_id,))
         steps = cur.fetchall()
         if not steps:
             cur.close()
             conn.close()
-            return jsonify({"status": "error", "message": "No schedules found for this project"}), 404
+            return False, "No schedules found for this project"
 
         # 4. Process each user
-        oa_id = get_current_oa_id()
         for user_id in user_ids:
-            cur.execute(f"DELETE FROM {t_cron} WHERE project_id = %s AND user_id = %s", (id, user_id))
+            cur.execute(f"DELETE FROM {t_cron} WHERE project_id = %s AND user_id = %s", (project_id, user_id))
             current_push_time = base_start_time
             for step in steps:
                 s_id = step['step_id']
@@ -1204,22 +1194,39 @@ def batch_restart_project_users(id):
                     current_push_time += timedelta(hours=interval_val)
                     
                 cur.execute(f"INSERT INTO {t_cron} (user_id, project_id, step_id, message_content, push_time, status) VALUES (%s, %s, %s, %s, %s, 'active')",
-                            (user_id, id, s_id, msg, current_push_time))
+                            (user_id, project_id, s_id, msg, current_push_time))
             cur.execute(f"INSERT INTO {t_ups} (user_id, project_id, status, updated_at) VALUES (%s, %s, 'active', %s) ON CONFLICT (user_id, project_id) DO UPDATE SET status = 'active', updated_at = %s",
-                        (user_id, id, now_tw, now_tw))
-            if oa_id:
-                try: increment_project_stat(id, 'ttc', oa_id)
+                        (user_id, project_id, now_tw, now_tw))
+            if app_id:
+                try: increment_project_stat(project_id, 'ttc', app_id)
                 except: pass
 
         conn.commit()
         cur.close()
-        return jsonify({"status": "success", "message": f"Successfully added {len(user_ids)} users to project."})
+        return True, None
     except Exception as e:
         print(f"Batch restart error: {e}")
         if conn: conn.rollback()
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return False, str(e)
     finally:
         if conn: conn.close()
+
+@app.route('/api/projects/<int:id>/users/batch-restart', methods=['POST'])
+@token_required
+def batch_restart_project_users(id):
+    data = request.json or {}
+    user_ids = data.get('user_ids', [])
+    if not user_ids:
+        return jsonify({"status": "error", "message": "No users selected"}), 400
+
+    app_id = get_current_app_id()
+    ok, err_msg = batch_enroll_journey_users_internal(id, user_ids, app_id)
+    if ok:
+        return jsonify({"status": "success", "message": f"Successfully added {len(user_ids)} users to project."})
+    else:
+        status_code = 404 if err_msg and "not found" in err_msg.lower() else 500
+        return jsonify({"status": "error", "message": err_msg}), status_code
+
 
 def cron_scheduler_processor():
     """

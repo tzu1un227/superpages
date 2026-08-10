@@ -1127,24 +1127,15 @@ def batch_operation():
                     to_enroll_uids.append(uid)
 
             if to_enroll_uids:
-                # Trigger batch restart/enroll logic for these users
-                try:
-                    from app import batch_restart_project_users_internal
-                    # If batch_restart_project_users_internal isn't separate, perform status update directly
-                    t_cron = f'"cron_table:{app_id}"'
-                    cur.execute(f"DELETE FROM {t_cron} WHERE project_id = %s AND user_id = ANY(%s)", (project_id, to_enroll_uids))
-                    cur.execute(f"DELETE FROM {t_ups} WHERE project_id = %s AND user_id = ANY(%s)", (project_id, to_enroll_uids))
-                    
-                    # Insert active status
-                    execute_values(cur, f"INSERT INTO {t_ups} (user_id, project_id, status, updated_at) VALUES %s", [(uid, project_id, 'active', 'NOW()') for uid in to_enroll_uids])
-                    
+                from app import batch_enroll_journey_users_internal
+                ok, err_msg = batch_enroll_journey_users_internal(project_id, to_enroll_uids, app_id)
+                if ok:
                     for uid in to_enroll_uids:
                         results.append((job_id, uid, 'success', None))
                         success_count += 1
-                except Exception as ex:
-                    print("Error enrolling journey:", ex)
+                else:
                     for uid in to_enroll_uids:
-                        results.append((job_id, uid, 'failed', f'加入自動旅程失敗: {str(ex)}'))
+                        results.append((job_id, uid, 'failed', f'加入自動旅程失敗: {err_msg}'))
                         failed_count += 1
 
         elif action_type == 'stop_journey':
