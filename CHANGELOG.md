@@ -486,4 +486,6 @@ TUvOUL  ( f a l l b a c k   t o   P r i v a t e _ v a r )
 - **RichMenu**: 連結圖文選單 Modal 支援選擇指定「客戶群」，一次性套用至客群當前全體成員。
 - **Projects**: 手動加入專案用戶 Modal 新增「選擇整批客戶群」切換模式，一次性將選定客群成員納入自動旅程。
 - **Customers API**: 新增 `GET /customers/groups/<group_name>/users` 取得成員 ID 清單，並擴充 `/customers/count-by-tags` 支援客群預估人數查詢。
+- **Hotfix**: 修正 Broadcast.jsx 中的 Tag 圖示匯入，於 RichMenu.jsx 編輯發布策略中補齊「指定客戶群」選項與套用發布邏輯。
+
 

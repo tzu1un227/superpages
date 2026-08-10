@@ -3,7 +3,7 @@ import Swal from 'sweetalert2';
 import { useLocation, useParams } from 'react-router-dom';
 import api from '../api';
 import {
-    Send, Users, Info, Plus, Search, Filter,
+    Send, Users, Info, Plus, Search, Filter, Tag,
     ChevronRight, ChevronLeft, Save, Trash2, Edit2,
     Eye, Clock, CheckCircle2, FileText, AlertCircle,
     Monitor, Layout, Type, Image as ImageIcon, Video,
@@ -717,7 +717,7 @@ function BroadcastContent() {
                             disabled={(formData.status === 'sent' || formData.status === 'scheduled')}
                             style={{ flex: 1, padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: (formData.status === 'sent' || formData.status === 'scheduled') ? 0.7 : 1 }}
                         >
-                            {type.id === 'all' ? <Users size={16} /> : type.id === 'tag' ? <Filter size={16} /> : type.id === 'group' ? <TagIcon size={16} /> : <Search size={16} />}
+                            {type.id === 'all' ? <Users size={16} /> : type.id === 'tag' ? <Filter size={16} /> : type.id === 'group' ? <Tag size={16} /> : <Search size={16} />}
                             {type.label}
                         </button>
                     ))}

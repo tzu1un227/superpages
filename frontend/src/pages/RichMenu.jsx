@@ -674,6 +674,20 @@ function RichMenu() {
                     } catch (err) {
                         console.error('Failed to set default', err);
                     }
+                } else if (menu.publishStrategy === 'restricted' && menu.targetMode === 'group' && menu.targetGroup) {
+                    try {
+                        const gUsersRes = await api.get(`/customers/groups/${encodeURIComponent(menu.targetGroup)}/users`);
+                        const uids = gUsersRes.data.user_ids || [];
+                        if (uids.length > 0) {
+                            await api.post('/customers/batch-operation', {
+                                action_type: 'apply_richmenu',
+                                user_ids: uids,
+                                payload: { rich_menu_id: richMenuId }
+                            });
+                        }
+                    } catch (gErr) {
+                        console.error('Error applying rich menu to group users:', gErr);
+                    }
                 }
             }
             
@@ -1192,16 +1206,51 @@ function RichMenu() {
                                     <div style={{ backgroundColor: '#111', padding: '15px', borderRadius: '8px', border: '1px solid #333', marginLeft: '25px' }}>
                                         <div style={{ marginBottom: '15px', display: 'flex', gap: '20px' }}>
                                             <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: viewOnly ? 'default' : 'pointer' }}>
-                                                <input type="radio" checked={currentMenu.targetAll} disabled={viewOnly} onChange={() => setCurrentMenu({...currentMenu, targetAll: true, targetTags: ['ALL_USERS']})} style={{ accentColor: '#FFD700' }} />
+                                                <input type="radio" checked={currentMenu.targetMode === 'all' || (!currentMenu.targetMode && currentMenu.targetAll)} disabled={viewOnly} onChange={() => setCurrentMenu({...currentMenu, targetMode: 'all', targetAll: true, targetTags: ['ALL_USERS'], targetGroup: ''})} style={{ accentColor: '#FFD700' }} />
                                                 所有好友
                                             </label>
                                             <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: viewOnly ? 'default' : 'pointer' }}>
-                                                <input type="radio" checked={!currentMenu.targetAll} disabled={viewOnly} onChange={() => setCurrentMenu({...currentMenu, targetAll: false, targetTags: []})} style={{ accentColor: '#FFD700' }} />
+                                                <input type="radio" checked={currentMenu.targetMode === 'tag' || (!currentMenu.targetMode && !currentMenu.targetAll)} disabled={viewOnly} onChange={() => setCurrentMenu({...currentMenu, targetMode: 'tag', targetAll: false, targetTags: [], targetGroup: ''})} style={{ accentColor: '#FFD700' }} />
                                                 指定標籤
+                                            </label>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: viewOnly ? 'default' : 'pointer' }}>
+                                                <input type="radio" checked={currentMenu.targetMode === 'group'} disabled={viewOnly} onChange={() => setCurrentMenu({...currentMenu, targetMode: 'group', targetAll: false, targetTags: [], targetGroup: ''})} style={{ accentColor: '#FFD700' }} />
+                                                指定客戶群
                                             </label>
                                         </div>
                                         
-                                        {!currentMenu.targetAll && (
+                                        {currentMenu.targetMode === 'group' && (
+                                            <div style={{ marginBottom: '15px' }}>
+                                                <label className="label">選擇目標客戶群</label>
+                                                <select
+                                                    value={currentMenu.targetGroup || ''}
+                                                    disabled={viewOnly}
+                                                    onChange={(e) => {
+                                                        const gName = e.target.value;
+                                                        setCurrentMenu({ ...currentMenu, targetGroup: gName });
+                                                        if (gName) {
+                                                            setIsCalculatingCount(true);
+                                                            api.post('/customers/count-by-tags', { group: gName }).then(res => {
+                                                                setCurrentMenu(prev => ({ ...prev, targetUserCount: res.data.count, totalUserCount: res.data.totalCount }));
+                                                            }).finally(() => setIsCalculatingCount(false));
+                                                        }
+                                                    }}
+                                                    style={{ width: '100%', padding: '10px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '6px', marginTop: '5px' }}
+                                                >
+                                                    <option value="">-- 請選擇客戶群 --</option>
+                                                    {customerGroups.map(g => (
+                                                        <option key={g.group_name} value={g.group_name}>
+                                                            {g.group_name} ({g.member_count || 0} 人)
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                <div style={{ marginTop: '8px', fontSize: '12px', color: '#888' }}>
+                                                    ⓘ 說明：一次性套用，將對此客戶群當前成員綁定選單。日後新增成員不會自動套用。
+                                                </div>
+                                            </div>
+                                        )}
+                                        
+                                        {(currentMenu.targetMode === 'tag' || (!currentMenu.targetMode && !currentMenu.targetAll)) && (
                                             <>
                                                 <label className="label">適用標籤 (可複選)</label>
                                                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
