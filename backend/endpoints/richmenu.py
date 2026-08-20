@@ -1225,12 +1225,14 @@ def get_richmenu_apply_sources(rich_menu_id):
                 })
 
                 if is_menu_matched(raw_mc) or is_menu_matched(q_msg_text) or is_menu_matched(q_fn_text):
+                    matching_sched_rows.append(item)
                     k = ("journey", p_name, f"步驟 {step_idx} 訊息按鈕切換", "/projects")
                     if k not in sources_map:
                         sources_map[k] = {"current_count": 0, "last_applied_at": None}
         except Exception as e:
             print("Error scanning project_schedules for rich menu:", e)
 
+        matching_q_rows = []
         # 3. 主動掃描 Q_bank (關鍵字法則表)
         try:
             cur.execute(f"SELECT * FROM {t_qbank}")
@@ -1238,6 +1240,7 @@ def get_richmenu_apply_sources(rich_menu_id):
             for r in q_rows:
                 r_text = f"{r.get('msg_rpy')} {r.get('function')} {r.get('check')} {r.get('state_out')}"
                 if is_menu_matched(r_text):
+                    matching_q_rows.append(r)
                     kw_raw = r.get('content')
                     kw_disp = format_kw_display(kw_raw)
                     kw_clean = clean_rule_title(r.get('note'), kw_disp)
@@ -1257,6 +1260,7 @@ def get_richmenu_apply_sources(rich_menu_id):
                     continue  # 已歸入自動旅程排程
                 r_text = f"{r.get('msg_rpy')} {r.get('function')} {r.get('check')} {r.get('state_out')}"
                 if is_menu_matched(r_text):
+                    matching_q_rows.append(r)
                     qa_clean = clean_rule_title(r.get('note'), qa_tag)
                     k = ("keyword", qa_clean, f"觸發標籤: {qa_tag}", "/rules")
                     if k not in sources_map:
@@ -1327,59 +1331,76 @@ def get_richmenu_apply_sources(rich_menu_id):
                     try:
                         cur.execute(f"""
                             SELECT category, content, "timestamp" FROM {t_history}
-                            WHERE user_id = %s AND (
-                                content ILIKE %s OR 
-                                content ILIKE '%%sys_bind%%' OR 
-                                content ILIKE '%%switch_rm%%'
-                            )
-                            ORDER BY "timestamp" DESC LIMIT 1
-                        """, (uid, f"%{rich_menu_id}%"))
-                        h_row = cur.fetchone()
-                        if h_row:
-                            h_content = str(h_row.get('content') or '')
-                            
-                            # Check journey schedule match
-                            matched_sched = None
-                            for item in sched_lookup_by_content:
-                                for mid in all_menu_ids:
-                                    if mid and (mid in item['raw_mc'] or mid in item['q_msg_text'] or mid in item['q_fn_text']):
-                                        matched_sched = item
-                                        break
-                                if matched_sched: break
-                            
-                            if matched_sched:
+                            WHERE user_id = %s
+                            ORDER BY "timestamp" DESC LIMIT 20
+                        """, (uid,))
+                        h_rows = cur.fetchall()
+
+                        # A. 優先比對歷程中是否有按鈕或指令切換
+                        for h in h_rows:
+                            h_content = str(h.get('content') or '')
+                            for item in matching_sched_rows:
+                                if (item['raw_mc'] and item['raw_mc'] in h_content) or (item['tag'] and item['tag'] in h_content):
+                                    meta = {
+                                        "source_type": "journey",
+                                        "source_name": item['project_name'],
+                                        "trigger_display": f"步驟 {item['step_id']} 訊息按鈕切換",
+                                        "occurred_at": str(h['timestamp'])[:19] if h.get('timestamp') else None,
+                                        "setting_url": "/projects"
+                                    }
+                                    break
+                            if meta: break
+
+                        # B. 比對歷程中的使用者訊息 (Message) 與設定了該選單的關鍵字規則
+                        if not meta:
+                            for h in h_rows:
+                                if h.get('category') == 'Message':
+                                    msg_text = str(h.get('content') or '').strip()
+                                    for r in matching_q_rows:
+                                        kw_raw = r.get('content')
+                                        if kw_raw:
+                                            is_kw_match = False
+                                            if isinstance(kw_raw, list):
+                                                is_kw_match = any(str(k).strip() and (str(k).strip() == msg_text or str(k).strip() in msg_text or msg_text in str(k).strip()) for k in kw_raw)
+                                            else:
+                                                s_kw = str(kw_raw).strip()
+                                                is_kw_match = s_kw and (s_kw == msg_text or s_kw in msg_text or msg_text in s_kw)
+                                            if is_kw_match:
+                                                clean_t = clean_rule_title(r.get('note'), format_kw_display(kw_raw))
+                                                meta = {
+                                                    "source_type": "keyword",
+                                                    "source_name": clean_t,
+                                                    "trigger_display": f"觸發關鍵字: {format_kw_display(kw_raw)}",
+                                                    "occurred_at": str(h['timestamp'])[:19] if h.get('timestamp') else None,
+                                                    "setting_url": "/rules"
+                                                }
+                                                break
+                                if meta: break
+
+                        # C. 若歷程無直接比對，但系統有明確探測出單一關鍵字/旅程設定，自動歸屬至設定源
+                        if not meta:
+                            if matching_q_rows:
+                                r = matching_q_rows[0]
+                                kw_raw = r.get('content')
+                                clean_t = clean_rule_title(r.get('note'), format_kw_display(kw_raw))
+                                meta = {
+                                    "source_type": "keyword",
+                                    "source_name": clean_t,
+                                    "trigger_display": f"觸發關鍵字: {format_kw_display(kw_raw)}",
+                                    "occurred_at": str(h_rows[0]['timestamp'])[:19] if h_rows and h_rows[0].get('timestamp') else None,
+                                    "setting_url": "/rules"
+                                }
+                            elif matching_sched_rows:
+                                item = matching_sched_rows[0]
                                 meta = {
                                     "source_type": "journey",
-                                    "source_name": matched_sched['project_name'],
-                                    "trigger_display": f"步驟 {matched_sched['step_id']} 訊息按鈕切換",
-                                    "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
+                                    "source_name": item['project_name'],
+                                    "trigger_display": f"步驟 {item['step_id']} 訊息按鈕切換",
+                                    "occurred_at": str(h_rows[0]['timestamp'])[:19] if h_rows and h_rows[0].get('timestamp') else None,
                                     "setting_url": "/projects"
                                 }
-                            else:
-                                cur.execute(f"""
-                                    SELECT id, content, note FROM {t_qbank}
-                                    WHERE msg_rpy::text LIKE %s OR function::text LIKE %s
-                                    LIMIT 1
-                                """, (f"%{rich_menu_id}%", f"%{rich_menu_id}%"))
-                                matched_q = cur.fetchone()
-                                if matched_q:
-                                    clean_t = clean_rule_title(matched_q.get('note'), format_kw_display(matched_q.get('content')))
-                                    meta = {
-                                        "source_type": "keyword",
-                                        "source_name": clean_t,
-                                        "trigger_display": f"觸發關鍵字: {format_kw_display(matched_q.get('content'))}",
-                                        "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
-                                        "setting_url": "/rules"
-                                    }
-                                else:
-                                    meta = {
-                                        "source_type": "manual",
-                                        "source_name": "人工操作",
-                                        "trigger_display": "管理後台手動套用",
-                                        "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
-                                        "setting_url": None
-                                    }
-                    except: pass
+                    except Exception as e:
+                        print("Error resolving user rich menu source:", e)
 
                 if not meta:
                     meta = {
