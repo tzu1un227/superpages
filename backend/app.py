@@ -1254,19 +1254,30 @@ def get_project_join_sources(id):
 
         sources_map = {}
 
+        def format_kw_display(content_val):
+            if not content_val:
+                return "*"
+            if isinstance(content_val, list):
+                items = [str(c).strip() for c in content_val if str(c).strip()]
+                return ", ".join(items) if items else "*"
+            s = str(content_val).strip()
+            return s.replace("['", "").replace("']", "").replace('["', '').replace('"]', '')
+
         # 1. 主動掃描 Q_bank (關鍵字法則表)
         try:
             cur.execute(f"""
-                SELECT id, key_word, note, msg_rpy, function 
-                FROM {t_qbank}
+                SELECT * FROM {t_qbank}
                 WHERE msg_rpy::text LIKE %s 
                    OR function::text LIKE %s 
                    OR msg_rpy::text LIKE %s 
                    OR function::text LIKE %s
             """, (f"%|{id}|%", f"%|{id}|%", f"%journey={id}%", f"%iup|{id}%"))
             for r in cur.fetchall():
-                kw_name = r.get('note') or r.get('key_word') or f"關鍵字 #{r.get('id')}"
-                k = ("keyword", f"關鍵字: {kw_name}", f"觸發關鍵字: {r.get('key_word') or kw_name}", "/rules")
+                kw_raw = r.get('content')
+                kw_disp = format_kw_display(kw_raw)
+                kw_note = r.get('note')
+                kw_title = kw_note if kw_note else kw_disp
+                k = ("keyword", f"關鍵字: {kw_title}", f"觸發關鍵字: {kw_disp}", "/rules")
                 if k not in sources_map:
                     sources_map[k] = {"current_count": 0, "last_joined_at": None}
         except Exception as e:
@@ -1275,8 +1286,7 @@ def get_project_join_sources(id):
         # 2. 主動掃描 QA_bank (問答知識庫表)
         try:
             cur.execute(f"""
-                SELECT id, tag, msg_rpy, function 
-                FROM {t_qabank}
+                SELECT * FROM {t_qabank}
                 WHERE msg_rpy::text LIKE %s 
                    OR function::text LIKE %s 
                    OR msg_rpy::text LIKE %s 
@@ -1284,7 +1294,9 @@ def get_project_join_sources(id):
             """, (f"%|{id}|%", f"%|{id}|%", f"%journey={id}%", f"%iup|{id}%"))
             for r in cur.fetchall():
                 qa_tag = r.get('tag') or f"問答庫 #{r.get('id')}"
-                k = ("keyword", f"問答庫: {qa_tag}", f"觸發標籤: {qa_tag}", "/rules")
+                qa_note = r.get('note')
+                qa_title = qa_note if qa_note else qa_tag
+                k = ("keyword", f"問答庫: {qa_title}", f"觸發標籤: {qa_tag}", "/rules")
                 if k not in sources_map:
                     sources_map[k] = {"current_count": 0, "last_joined_at": None}
         except Exception as e:
