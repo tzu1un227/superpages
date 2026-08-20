@@ -1244,7 +1244,7 @@ def get_richmenu_apply_sources(rich_menu_id):
                     kw_raw = r.get('content')
                     kw_disp = format_kw_display(kw_raw)
                     kw_clean = clean_rule_title(r.get('note'), kw_disp)
-                    k = ("keyword", kw_clean, f"觸發關鍵字: {kw_disp}", "/rules")
+                    k = ("keyword", kw_clean, f"觸發關鍵字: {kw_disp}", "/ruledesigner")
                     if k not in sources_map:
                         sources_map[k] = {"current_count": 0, "last_applied_at": None}
         except Exception as e:
@@ -1262,7 +1262,7 @@ def get_richmenu_apply_sources(rich_menu_id):
                 if is_menu_matched(r_text):
                     matching_q_rows.append(r)
                     qa_clean = clean_rule_title(r.get('note'), qa_tag)
-                    k = ("keyword", qa_clean, f"觸發標籤: {qa_tag}", "/rules")
+                    k = ("keyword", qa_clean, f"觸發標籤: {qa_tag}", "/ruledesigner")
                     if k not in sources_map:
                         sources_map[k] = {"current_count": 0, "last_applied_at": None}
         except Exception as e:
@@ -1327,7 +1327,8 @@ def get_richmenu_apply_sources(rich_menu_id):
                     try: meta = json.loads(meta_str)
                     except: pass
 
-                if not meta:
+                # 若沒有 meta 或 meta 為 manual（可能是過去舊資料），強制重新檢驗是否符合關鍵字或自動旅程設定
+                if not meta or meta.get('source_type') == 'manual':
                     try:
                         cur.execute(f"""
                             SELECT category, content, "timestamp" FROM {t_history}
@@ -1336,12 +1337,14 @@ def get_richmenu_apply_sources(rich_menu_id):
                         """, (uid,))
                         h_rows = cur.fetchall()
 
+                        found_meta = None
+
                         # A. 優先比對歷程中是否有按鈕或指令切換
                         for h in h_rows:
                             h_content = str(h.get('content') or '')
                             for item in matching_sched_rows:
                                 if (item['raw_mc'] and item['raw_mc'] in h_content) or (item['tag'] and item['tag'] in h_content):
-                                    meta = {
+                                    found_meta = {
                                         "source_type": "journey",
                                         "source_name": item['project_name'],
                                         "trigger_display": f"步驟 {item['step_id']} 訊息按鈕切換",
@@ -1349,10 +1352,10 @@ def get_richmenu_apply_sources(rich_menu_id):
                                         "setting_url": "/projects"
                                     }
                                     break
-                            if meta: break
+                            if found_meta: break
 
                         # B. 比對歷程中的使用者訊息 (Message) 與設定了該選單的關鍵字規則
-                        if not meta:
+                        if not found_meta:
                             for h in h_rows:
                                 if h.get('category') == 'Message':
                                     msg_text = str(h.get('content') or '').strip()
@@ -1367,38 +1370,41 @@ def get_richmenu_apply_sources(rich_menu_id):
                                                 is_kw_match = s_kw and (s_kw == msg_text or s_kw in msg_text or msg_text in s_kw)
                                             if is_kw_match:
                                                 clean_t = clean_rule_title(r.get('note'), format_kw_display(kw_raw))
-                                                meta = {
+                                                found_meta = {
                                                     "source_type": "keyword",
                                                     "source_name": clean_t,
                                                     "trigger_display": f"觸發關鍵字: {format_kw_display(kw_raw)}",
                                                     "occurred_at": str(h['timestamp'])[:19] if h.get('timestamp') else None,
-                                                    "setting_url": "/rules"
+                                                    "setting_url": "/ruledesigner"
                                                 }
                                                 break
-                                if meta: break
+                                if found_meta: break
 
                         # C. 若歷程無直接比對，但系統有明確探測出單一關鍵字/旅程設定，自動歸屬至設定源
-                        if not meta:
+                        if not found_meta:
                             if matching_q_rows:
                                 r = matching_q_rows[0]
                                 kw_raw = r.get('content')
                                 clean_t = clean_rule_title(r.get('note'), format_kw_display(kw_raw))
-                                meta = {
+                                found_meta = {
                                     "source_type": "keyword",
                                     "source_name": clean_t,
                                     "trigger_display": f"觸發關鍵字: {format_kw_display(kw_raw)}",
                                     "occurred_at": str(h_rows[0]['timestamp'])[:19] if h_rows and h_rows[0].get('timestamp') else None,
-                                    "setting_url": "/rules"
+                                    "setting_url": "/ruledesigner"
                                 }
                             elif matching_sched_rows:
                                 item = matching_sched_rows[0]
-                                meta = {
+                                found_meta = {
                                     "source_type": "journey",
                                     "source_name": item['project_name'],
                                     "trigger_display": f"步驟 {item['step_id']} 訊息按鈕切換",
                                     "occurred_at": str(h_rows[0]['timestamp'])[:19] if h_rows and h_rows[0].get('timestamp') else None,
                                     "setting_url": "/projects"
                                 }
+
+                        if found_meta:
+                            meta = found_meta
                     except Exception as e:
                         print("Error resolving user rich menu source:", e)
 
@@ -1418,9 +1424,20 @@ def get_richmenu_apply_sources(rich_menu_id):
             m_url = meta.get('setting_url')
 
             for sk in sources_map.keys():
-                if sk[0] == m_type and (m_name in sk[1] or sk[1] in m_name or m_trig in sk[2]):
-                    matched_key = sk
-                    break
+                if sk[0] == m_type:
+                    if (m_name in sk[1] or sk[1] in m_name or m_trig in sk[2] or sk[2] in m_trig):
+                        matched_key = sk
+                        break
+
+            if not matched_key and m_type == 'keyword':
+                kw_keys = [sk for sk in sources_map.keys() if sk[0] == 'keyword']
+                if kw_keys:
+                    matched_key = kw_keys[0]
+
+            if not matched_key and m_type == 'journey':
+                j_keys = [sk for sk in sources_map.keys() if sk[0] == 'journey']
+                if j_keys:
+                    matched_key = j_keys[0]
 
             target_key = matched_key if matched_key else (m_type, m_name, m_trig, m_url)
             if target_key not in sources_map:
@@ -1430,9 +1447,14 @@ def get_richmenu_apply_sources(rich_menu_id):
             if meta.get('occurred_at') and (not sources_map[target_key]["last_applied_at"] or meta.get('occurred_at') > sources_map[target_key]["last_applied_at"]):
                 sources_map[target_key]["last_applied_at"] = meta.get('occurred_at')
 
-        # If no config sources and no users, provide friendly empty placeholder
+        # 整理輸出清單：若已有設定的來源，且人工操作為 0 人，則不必顯示空白的人工操作列
+        has_config_sources = any(k[0] in ('keyword', 'journey', 'richmenu', 'broadcast', 'form') for k in sources_map.keys())
+        manual_key = ("manual", "人工操作", "管理後台手動套用", None)
+        if has_config_sources and manual_key in sources_map and sources_map[manual_key]["current_count"] == 0:
+            del sources_map[manual_key]
+
         if not sources_map:
-            sources_map[("manual", "人工操作", "管理後台手動套用", None)] = {"current_count": 0, "last_applied_at": None}
+            sources_map[manual_key] = {"current_count": 0, "last_applied_at": None}
 
         source_list = [
             {
@@ -1440,7 +1462,6 @@ def get_richmenu_apply_sources(rich_menu_id):
                 "current_count": v["current_count"], "last_applied_at": v["last_applied_at"]
             } for k, v in sources_map.items()
         ]
-
         cur.close()
         return jsonify({
             "rich_menu_id": rich_menu_id,

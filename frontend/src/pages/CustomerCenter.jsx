@@ -70,7 +70,16 @@ const CustomerCenter = () => {
         {info.setting_url && (
           <div style={{ marginTop: '6px' }}>
             <span 
-              onClick={(e) => { e.stopPropagation(); navigate(info.setting_url); }} 
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                const url = info.setting_url;
+                if (url.startsWith('/oa/')) {
+                  navigate(url);
+                } else {
+                  const cleanUrl = url.replace(/^\/rules/, 'ruledesigner').replace(/^\//, '');
+                  navigate(`/oa/${oaId}/${cleanUrl}`);
+                }
+              }} 
               style={{ color: '#FFD700', textDecoration: 'underline', cursor: 'pointer', fontWeight: 'bold' }}
             >
               前往設定 →

@@ -1363,7 +1363,18 @@ function RichMenu() {
                                                             <td style={{ padding: '8px', color: '#aaa' }}>{row.last_applied_at || '-'}</td>
                                                             <td style={{ padding: '8px' }}>
                                                                 {row.setting_url && (
-                                                                    <button onClick={() => navigate(row.setting_url)} style={{ padding: '2px 6px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>
+                                                                    <button 
+                                                                        onClick={() => {
+                                                                            const url = row.setting_url;
+                                                                            if (url.startsWith('/oa/')) {
+                                                                                navigate(url);
+                                                                            } else {
+                                                                                const cleanUrl = url.replace(/^\/rules/, 'ruledesigner').replace(/^\//, '');
+                                                                                navigate(`/oa/${oaId}/${cleanUrl}`);
+                                                                            }
+                                                                        }} 
+                                                                        style={{ padding: '2px 6px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                                                                    >
                                                                         前往設定
                                                                     </button>
                                                                 )}

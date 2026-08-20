@@ -1342,7 +1342,7 @@ def get_project_join_sources(id):
                 kw_raw = r.get('content')
                 kw_disp = format_kw_display(kw_raw)
                 kw_clean = clean_rule_title(r.get('note'), kw_disp)
-                k = ("keyword", kw_clean, f"觸發關鍵字: {kw_disp}", "/rules")
+                k = ("keyword", kw_clean, f"觸發關鍵字: {kw_disp}", "/ruledesigner")
                 if k not in sources_map:
                     sources_map[k] = {"current_count": 0, "last_joined_at": None}
         except Exception as e:
@@ -1362,7 +1362,7 @@ def get_project_join_sources(id):
                 if qa_tag in journey_sched_tags:
                     continue  # 已歸入自動旅程，不重複列為問答庫關鍵字
                 qa_clean = clean_rule_title(r.get('note'), qa_tag)
-                k = ("keyword", qa_clean, f"觸發標籤: {qa_tag}", "/rules")
+                k = ("keyword", qa_clean, f"觸發標籤: {qa_tag}", "/ruledesigner")
                 if k not in sources_map:
                     sources_map[k] = {"current_count": 0, "last_joined_at": None}
         except Exception as e:
@@ -1482,7 +1482,7 @@ def get_project_join_sources(id):
                                         "source_name": clean_t,
                                         "trigger_display": f"觸發關鍵字: {format_kw_display(matched_q.get('content'))}",
                                         "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
-                                        "setting_url": "/rules"
+                                        "setting_url": "/ruledesigner"
                                     }
                                 else:
                                     meta = {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import { useTask } from '../contexts/TaskContext';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import api from '../api';
 import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, User, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type, BarChart2, Download, Upload, Play, ExternalLink, TrendingUp, CheckCircle2, Circle, ChevronLeft, ChevronRight, BarChart3, RotateCcw, GripVertical, HelpCircle, Layers } from 'lucide-react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, CircularProgress, Tooltip as MuiTooltip } from '@mui/material';
@@ -25,6 +25,8 @@ import {
 
 const ProjectsManagement = () => {
     const location = useLocation();
+    const navigate = useNavigate();
+    const { oaId } = useParams();
     const { showToast } = useToast();
     const { taskState, updateTask, resetTask } = useTask();
 
@@ -1953,7 +1955,18 @@ const ProjectsManagement = () => {
                                             <td style={{ padding: '12px', color: '#aaa' }}>{row.last_joined_at || '-'}</td>
                                             <td style={{ padding: '12px' }}>
                                                 {row.setting_url && (
-                                                    <button onClick={() => navigate(row.setting_url)} style={{ padding: '4px 10px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
+                                                    <button 
+                                                        onClick={() => {
+                                                            const url = row.setting_url;
+                                                            if (url.startsWith('/oa/')) {
+                                                                navigate(url);
+                                                            } else {
+                                                                const cleanUrl = url.replace(/^\/rules/, 'ruledesigner').replace(/^\//, '');
+                                                                navigate(`/oa/${oaId}/${cleanUrl}`);
+                                                            }
+                                                        }} 
+                                                        style={{ padding: '4px 10px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
+                                                    >
                                                         前往設定
                                                     </button>
                                                 )}
