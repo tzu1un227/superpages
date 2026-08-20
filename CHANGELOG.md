@@ -1,4 +1,5 @@
 ## [2026-08-20] CRM 共用來源透明化 MVP v1.2 (Source Transparency System)
+- **客戶中心主表格 Tooltip 全面支援 (CustomerCenter.jsx & backend/endpoints/customers.py)**: 在客戶中心主列表表格中（客戶資訊一覽表），於「標籤」、「自動旅程」與「圖文選單」Chip/欄位旁全面渲染 ⓘ 圖示與 MUI Tooltip，hover 可直接檢視 4 行來源詳細資訊；同時於 `get_customers` 後端進行 Private_var 批量 Meta 查詢與組裝。
 - **黑畫面與 Tooltip 渲染修復 (CustomerCenter.jsx)**: 補齊未定義之 `renderSourceTooltip` 渲染函式，解除側邊欄開啟時發生的 React `ReferenceError: renderSourceTooltip is not defined` 崩潰黑畫面 Bug，並展現 4 行資訊 Tooltip。
 - **客戶中心優化 (CustomerCenter.jsx)**: 補齊 `setSidebarDetails` 之 `tags` 狀態儲存與預設值，加入自動旅程 `displayProjects` 備援渲染，並為 Lucide `<Info />` 圖示加上 DOM `<span>` 容器封裝，徹底修復 MUI Tooltip 無法懸浮觸發與自動旅程不呈現的 Bug。
 - **語法修復 (backend/endpoints/customers.py)**: 修復 `apply_richmenu` 批次操作判斷中多餘重複的 `else:` 區塊導致之 Python `SyntaxError: invalid syntax` 語法錯誤。

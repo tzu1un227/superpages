@@ -136,7 +136,53 @@ def get_customers():
             
             r['api_index'] = 0
             results.append(r)
-            
+
+        # 批量查詢 Private_var 中的 source metadata
+        uids = [r['user_id'] for r in results if r.get('user_id')]
+        if uids:
+            import json
+            cur.execute(f"SELECT user_id, name, value FROM {pv_table} WHERE user_id = ANY(%s) AND name LIKE '%%meta%%'", (uids,))
+            meta_rows = cur.fetchall()
+            meta_map = {(mr['user_id'], mr['name']): mr['value'] for mr in meta_rows}
+
+            for r in results:
+                uid = r['user_id']
+                # 標籤來源
+                tag_objs = []
+                for t in r.get('tag', []):
+                    m_val = meta_map.get((uid, f"tag_meta:{t}"))
+                    s_info = None
+                    if m_val:
+                        try: s_info = json.loads(m_val)
+                        except: pass
+                    if not s_info:
+                        s_info = {"source_type": "manual", "source_name": "歷史資料（來源未明）", "trigger_display": "舊有系統標籤", "occurred_at": None, "setting_url": None}
+                    tag_objs.append({"name": t, "source_info": s_info})
+                r['tag_objects'] = tag_objs
+
+                # 自動旅程來源
+                for p in r.get('projects', []):
+                    p_id = p.get('project_id') or p.get('id')
+                    m_val = meta_map.get((uid, f"journey_meta:{p_id}"))
+                    s_info = None
+                    if m_val:
+                        try: s_info = json.loads(m_val)
+                        except: pass
+                    if not s_info:
+                        s_info = {"source_type": "manual", "source_name": "歷史資料（來源未明）", "trigger_display": "舊有旅程紀錄", "occurred_at": None, "setting_url": None}
+                    p['source_info'] = s_info
+
+                # 圖文選單來源
+                if r.get('rich_menu'):
+                    m_val = meta_map.get((uid, "rich_menu_meta"))
+                    s_info = None
+                    if m_val:
+                        try: s_info = json.loads(m_val)
+                        except: pass
+                    if not s_info:
+                        s_info = {"source_type": "manual", "source_name": "歷史資料（來源未明）", "trigger_display": "舊有圖文選單紀錄", "occurred_at": None, "setting_url": None}
+                    r['rich_menu']['source_info'] = s_info
+
         cur.close()
         print(f"DEBUG: get_customers finished, returning {len(results)} users")
         return jsonify(results)

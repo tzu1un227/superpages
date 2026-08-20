@@ -875,12 +875,31 @@ const CustomerCenter = () => {
                     </div>
                   </td>
                   <td style={{ padding: '16px' }}>
-                    {Array.isArray(c.tag) && c.tag.length > 0 ? (
+                    {Array.isArray(c.tag_objects) && c.tag_objects.length > 0 ? (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {c.tag_objects.map((tagObj, i) => (
+                          <div key={i} style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 8px', borderRadius: '16px', backgroundColor: '#333', fontSize: '12px', border: '1px solid #444', color: '#FFD700' }}>
+                            <Tag size={12} style={{ marginRight: '4px' }} />
+                            {tagObj.name}
+                            <Tooltip title={renderSourceTooltip(tagObj.source_info)} arrow placement="top">
+                              <span style={{ display: 'inline-flex', alignItems: 'center', marginLeft: '4px' }}>
+                                <Info size={13} style={{ cursor: 'pointer', color: '#FFD700' }} />
+                              </span>
+                            </Tooltip>
+                          </div>
+                        ))}
+                      </div>
+                    ) : Array.isArray(c.tag) && c.tag.length > 0 ? (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                         {c.tag.map((t, i) => (
                           <div key={i} style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 8px', borderRadius: '16px', backgroundColor: '#333', fontSize: '12px', border: '1px solid #444', color: '#FFD700' }}>
                             <Tag size={12} style={{ marginRight: '4px' }} />
-                            {t}
+                            {typeof t === 'object' ? t.name : t}
+                            <Tooltip title={renderSourceTooltip(typeof t === 'object' ? t.source_info : null)} arrow placement="top">
+                              <span style={{ display: 'inline-flex', alignItems: 'center', marginLeft: '4px' }}>
+                                <Info size={13} style={{ cursor: 'pointer', color: '#FFD700' }} />
+                              </span>
+                            </Tooltip>
                           </div>
                         ))}
                       </div>
@@ -905,20 +924,24 @@ const CustomerCenter = () => {
                   <td style={{ padding: '16px' }}>
                     {Array.isArray(c.projects) && c.projects.length > 0 ? (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                        {c.projects.map((p, i) => {
-                          return (
-                            <span key={i} style={{ 
-                              backgroundColor: p.status === 'active' ? 'rgba(0,200,0,0.1)' : p.status === 'completed' ? 'rgba(33,150,243,0.1)' : 'rgba(255,255,255,0.1)', 
-                              color: p.status === 'active' ? '#00c800' : p.status === 'completed' ? '#2196F3' : '#ccc', 
-                              padding: '2px 6px', 
-                              borderRadius: '4px', 
-                              fontSize: '12px', 
-                              border: `1px solid ${p.status === 'active' ? 'rgba(0,200,0,0.4)' : p.status === 'completed' ? 'rgba(33,150,243,0.4)' : 'rgba(255,255,255,0.4)'}`
-                            }}>
-                              {p.project_name}{p.status === 'completed' ? ' (已完成)' : ''}
-                            </span>
-                          );
-                        })}
+                        {c.projects.map((p, i) => (
+                          <span key={i} style={{ 
+                            display: 'inline-flex', alignItems: 'center',
+                            backgroundColor: p.status === 'active' ? 'rgba(0,200,0,0.1)' : p.status === 'completed' ? 'rgba(33,150,243,0.1)' : 'rgba(255,255,255,0.1)', 
+                            color: p.status === 'active' ? '#00c800' : p.status === 'completed' ? '#2196F3' : '#ccc', 
+                            padding: '2px 8px', 
+                            borderRadius: '4px', 
+                            fontSize: '12px', 
+                            border: `1px solid ${p.status === 'active' ? 'rgba(0,200,0,0.4)' : p.status === 'completed' ? 'rgba(33,150,243,0.4)' : 'rgba(255,255,255,0.4)'}`
+                          }}>
+                            {p.project_name || p.name}{p.status === 'completed' ? ' (已完成)' : ''}
+                            <Tooltip title={renderSourceTooltip(p.source_info)} arrow placement="top">
+                              <span style={{ display: 'inline-flex', alignItems: 'center', marginLeft: '4px' }}>
+                                <Info size={13} style={{ cursor: 'pointer', color: p.status === 'active' ? '#00c800' : '#aaa' }} />
+                              </span>
+                            </Tooltip>
+                          </span>
+                        ))}
                       </div>
                     ) : (
                       <span style={{ color: '#666', fontSize: '13px' }}>無</span>
@@ -926,7 +949,14 @@ const CustomerCenter = () => {
                   </td>
                   <td style={{ padding: '16px' }}>
                     {c.rich_menu ? (
-                      <span style={{ color: '#FFD700', fontSize: '13px' }}>{c.rich_menu.name}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', color: '#FFD700', fontSize: '13px' }}>
+                        {c.rich_menu.name}
+                        <Tooltip title={renderSourceTooltip(c.rich_menu.source_info)} arrow placement="top">
+                          <span style={{ display: 'inline-flex', alignItems: 'center', marginLeft: '4px' }}>
+                            <Info size={13} style={{ cursor: 'pointer', color: '#FFD700' }} />
+                          </span>
+                        </Tooltip>
+                      </span>
                     ) : (
                       <span style={{ color: '#666', fontSize: '13px' }}>預設選單</span>
                     )}
