@@ -1253,6 +1253,8 @@ def get_project_join_sources(id):
         t_richmenu = f'"rich_menu_metadata:{app_id}"'
 
         sources_map = {}
+        journey_sched_tags = set()
+        sched_lookup_by_content = []
 
         def clean_rule_title(note_str, fallback="關鍵字法則"):
             if not note_str:
@@ -1270,7 +1272,64 @@ def get_project_join_sources(id):
             s = str(content_val).strip()
             return s.replace("['", "").replace("']", "").replace('["', '').replace('"]', '')
 
-        # 1. 主動掃描 Q_bank (關鍵字法則表)
+        # 1. 主動掃描 project_schedules (其他自動旅程排程表，深度解構 QA| 指標)
+        try:
+            cur.execute(f"""
+                SELECT s.schedule_id, s.project_id, s.step_id, s.message_content, p.project_name
+                FROM {t_schedules} s
+                LEFT JOIN {t_projects} p ON s.project_id = p.project_id
+            """)
+            all_sched_rows = cur.fetchall()
+
+            for s in all_sched_rows:
+                s_pid = str(s.get('project_id') or '')
+                p_name = s.get('project_name') or f"旅程 #{s_pid}"
+                step_idx = s.get('step_id') or 1
+                raw_mc = str(s.get('message_content') or '')
+                
+                tag_name = None
+                q_msg_text = ""
+                q_fn_text = ""
+
+                if raw_mc.startswith('QA|'):
+                    parts = raw_mc.split('|')
+                    tag_name = parts[-1]
+                    journey_sched_tags.add(tag_name)
+                    try:
+                        cur.execute(f'SELECT msg_rpy, function FROM {t_qabank} WHERE tag = %s', (tag_name,))
+                        q_row = cur.fetchone()
+                        if q_row:
+                            q_msg_text = str(q_row.get('msg_rpy') or '')
+                            q_fn_text = str(q_row.get('function') or '')
+                    except Exception:
+                        pass
+
+                sched_lookup_by_content.append({
+                    "project_id": s_pid,
+                    "project_name": p_name,
+                    "step_id": step_idx,
+                    "tag": tag_name,
+                    "raw_mc": raw_mc,
+                    "q_msg_text": q_msg_text,
+                    "q_fn_text": q_fn_text
+                })
+
+                # 若排程來自其他旅程且包含指向此旅程 (id) 的跳轉或按鈕
+                if s_pid != str(id):
+                    is_target = False
+                    search_strs = [f"|{id}|", f"journey={id}", f'"journey":{id}', f'"journey":"{id}"', f"iup|{id}"]
+                    for ss in search_strs:
+                        if ss in raw_mc or ss in q_msg_text or ss in q_fn_text:
+                            is_target = True
+                            break
+                    if is_target:
+                        k = ("journey", p_name, f"步驟 {step_idx} 訊息按鈕點擊", "/projects")
+                        if k not in sources_map:
+                            sources_map[k] = {"current_count": 0, "last_joined_at": None}
+        except Exception as e:
+            print("Error scanning project_schedules:", e)
+
+        # 2. 主動掃描 Q_bank (關鍵字法則表)
         try:
             cur.execute(f"""
                 SELECT * FROM {t_qbank}
@@ -1289,7 +1348,7 @@ def get_project_join_sources(id):
         except Exception as e:
             print("Error scanning Q_bank:", e)
 
-        # 2. 主動掃描 QA_bank (問答知識庫表)
+        # 3. 主動掃描 QA_bank (問答知識庫表，自動排除旅程自帶排程標籤)
         try:
             cur.execute(f"""
                 SELECT * FROM {t_qabank}
@@ -1300,36 +1359,14 @@ def get_project_join_sources(id):
             """, (f"%|{id}|%", f"%|{id}|%", f"%journey={id}%", f"%iup|{id}%"))
             for r in cur.fetchall():
                 qa_tag = r.get('tag') or f"問答庫 #{r.get('id')}"
+                if qa_tag in journey_sched_tags:
+                    continue  # 已歸入自動旅程，不重複列為問答庫關鍵字
                 qa_clean = clean_rule_title(r.get('note'), qa_tag)
                 k = ("keyword", qa_clean, f"觸發標籤: {qa_tag}", "/rules")
                 if k not in sources_map:
                     sources_map[k] = {"current_count": 0, "last_joined_at": None}
         except Exception as e:
             print("Error scanning QA_bank:", e)
-
-        # 3. 主動掃描 project_schedules (其他自動旅程排程表)
-        try:
-            cur.execute(f"""
-                SELECT s.schedule_id, s.project_id, s.step_id, s.message_content, p.project_name
-                FROM {t_schedules} s
-                LEFT JOIN {t_projects} p ON s.project_id = p.project_id
-                WHERE (
-                    s.message_content::text LIKE %s 
-                    OR s.message_content::text LIKE %s 
-                    OR s.message_content::text LIKE %s 
-                    OR s.message_content::text LIKE %s
-                    OR s.message_content::text LIKE %s
-                )
-                  AND s.project_id != %s AND s.project_id::text != %s
-            """, (f"%|{id}|%", f"%journey={id}%", f"%\"journey\":{id}%", f"%\"journey\":\"{id}\"%", f"%iup|{id}%", id, str(id)))
-            for r in cur.fetchall():
-                p_name = r.get('project_name') or f"旅程 #{r.get('project_id')}"
-                step_idx = r.get('step_id') or 1
-                k = ("journey", p_name, f"步驟 {step_idx} 訊息按鈕點擊", f"/projects")
-                if k not in sources_map:
-                    sources_map[k] = {"current_count": 0, "last_joined_at": None}
-        except Exception as e:
-            print("Error scanning project_schedules:", e)
 
         # 4. 主動掃描 rich_menu_metadata (圖文選單按鈕)
         try:
@@ -1382,6 +1419,19 @@ def get_project_join_sources(id):
                     try: meta = json.loads(meta_str)
                     except: pass
 
+                if meta:
+                    # Enrich journey project name if available
+                    if meta.get('source_type') == 'journey' and meta.get('source_info'):
+                        s_info = meta.get('source_info', {})
+                        src_pid = str(s_info.get('project_id') or '')
+                        step_idx = s_info.get('step_id') or 1
+                        for item in sched_lookup_by_content:
+                            if item['project_id'] == src_pid:
+                                meta['source_name'] = item['project_name']
+                                meta['trigger_display'] = f"步驟 {step_idx} 訊息按鈕點擊"
+                                meta['setting_url'] = "/projects"
+                                break
+
                 if not meta:
                     try:
                         cur.execute(f"""
@@ -1396,32 +1446,29 @@ def get_project_join_sources(id):
                         """, (uid, f"%|{id}|%", f"%journey={id}%", f"%iup|{id}%", f"%journey%:{id}%"))
                         h_row = cur.fetchone()
                         if h_row:
-                            # Check if matches an existing project schedule
-                            cur.execute(f"""
-                                SELECT s.project_id, s.step_id, p.project_name
-                                FROM {t_schedules} s
-                                LEFT JOIN {t_projects} p ON s.project_id = p.project_id
-                                WHERE (
-                                    s.message_content::text LIKE %s 
-                                    OR s.message_content::text LIKE %s
-                                    OR s.message_content::text LIKE %s
-                                )
-                                AND s.project_id != %s AND s.project_id::text != %s
-                                LIMIT 1
-                            """, (f"%|{id}|%", f"%journey={id}%", f"%iup|{id}%", id, str(id)))
-                            matched_sched = cur.fetchone()
-                            if matched_sched:
-                                p_name = matched_sched.get('project_name') or f"旅程 #{matched_sched.get('project_id')}"
-                                step_idx = matched_sched.get('step_id') or 1
+                            h_content = str(h_row.get('content') or '')
+                            
+                            # 1. 優先檢查是否匹配其他自動旅程排程訊息
+                            matched_sched_item = None
+                            for item in sched_lookup_by_content:
+                                if item['project_id'] != str(id):
+                                    if (item['raw_mc'] and item['raw_mc'] in h_content) or \
+                                       (item['tag'] and item['tag'] in h_content) or \
+                                       (f"|{id}|" in item['q_msg_text']) or \
+                                       (f"journey={id}" in item['q_msg_text']):
+                                        matched_sched_item = item
+                                        break
+                            
+                            if matched_sched_item:
                                 meta = {
                                     "source_type": "journey",
-                                    "source_name": p_name,
-                                    "trigger_display": f"步驟 {step_idx} 訊息按鈕點擊",
+                                    "source_name": matched_sched_item['project_name'],
+                                    "trigger_display": f"步驟 {matched_sched_item['step_id']} 訊息按鈕點擊",
                                     "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
                                     "setting_url": "/projects"
                                 }
                             else:
-                                # Check if matches Q_bank
+                                # 2. 檢查是否匹配 Q_bank (關鍵字法則)
                                 cur.execute(f"""
                                     SELECT id, content, note FROM {t_qbank}
                                     WHERE msg_rpy::text LIKE %s OR function::text LIKE %s OR msg_rpy::text LIKE %s OR function::text LIKE %s
@@ -1441,17 +1488,18 @@ def get_project_join_sources(id):
                                     meta = {
                                         "source_type": "manual",
                                         "source_name": "人工操作",
-                                        "trigger_display": "管理後台加入",
+                                        "trigger_display": "管理後台手動加入",
                                         "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
                                         "setting_url": None
                                     }
-                    except: pass
+                    except Exception as e:
+                        print("Error attributing user join history:", e)
 
                 if not meta:
                     meta = {
                         "source_type": "manual",
                         "source_name": "人工操作",
-                        "trigger_display": "管理後台加入",
+                        "trigger_display": "管理後台手動加入",
                         "occurred_at": None,
                         "setting_url": None
                     }

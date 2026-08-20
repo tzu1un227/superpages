@@ -1163,14 +1163,69 @@ def get_richmenu_apply_sources(rich_menu_id):
             s = str(content_val).strip()
             return s.replace("['", "").replace("']", "").replace('["', '').replace('"]', '')
 
-        # 2. 主動掃描 Q_bank (關鍵字法則表)
         from app import get_suffixed_table
         t_qbank = f'"Q_bank:{app_id}"'
         t_qabank = f'"QA_bank:{app_id}"'
         t_schedules = get_suffixed_table('project_schedules')
         t_projects = get_suffixed_table('projects')
 
+        journey_sched_tags = set()
+        sched_lookup_by_content = []
+
+        # 1. 深度掃描 project_schedules (自動旅程排程表)
+        try:
+            cur.execute(f"""
+                SELECT s.schedule_id, s.project_id, s.step_id, s.message_content, p.project_name
+                FROM {t_schedules} s
+                LEFT JOIN {t_projects} p ON s.project_id = p.project_id
+            """)
+            all_sched_rows = cur.fetchall()
+
+            for s in all_sched_rows:
+                s_pid = str(s.get('project_id') or '')
+                p_name = s.get('project_name') or f"旅程 #{s_pid}"
+                step_idx = s.get('step_id') or 1
+                raw_mc = str(s.get('message_content') or '')
+                
+                tag_name = None
+                q_msg_text = ""
+                q_fn_text = ""
+
+                if raw_mc.startswith('QA|'):
+                    parts = raw_mc.split('|')
+                    tag_name = parts[-1]
+                    journey_sched_tags.add(tag_name)
+                    try:
+                        cur.execute(f'SELECT msg_rpy, function FROM {t_qabank} WHERE tag = %s', (tag_name,))
+                        q_row = cur.fetchone()
+                        if q_row:
+                            q_msg_text = str(q_row.get('msg_rpy') or '')
+                            q_fn_text = str(q_row.get('function') or '')
+                    except Exception:
+                        pass
+
+                sched_lookup_by_content.append({
+                    "project_id": s_pid,
+                    "project_name": p_name,
+                    "step_id": step_idx,
+                    "tag": tag_name,
+                    "raw_mc": raw_mc,
+                    "q_msg_text": q_msg_text,
+                    "q_fn_text": q_fn_text
+                })
+
+                for mid in all_menu_ids:
+                    search_strs = [f"|{mid}|", f"menu={mid}", f"rm|{mid}", f"switch_rm|{mid}"]
+                    is_target = any(ss in raw_mc or ss in q_msg_text or ss in q_fn_text for ss in search_strs)
+                    if is_target:
+                        k = ("journey", p_name, f"步驟 {step_idx} 訊息按鈕切換", "/projects")
+                        if k not in sources_map:
+                            sources_map[k] = {"current_count": 0, "last_applied_at": None}
+        except Exception as e:
+            print("Error scanning project_schedules for rich menu:", e)
+
         for mid in all_menu_ids:
+            # 2. 主動掃描 Q_bank (關鍵字法則表)
             try:
                 cur.execute(f"""
                     SELECT * FROM {t_qbank}
@@ -1190,7 +1245,7 @@ def get_richmenu_apply_sources(rich_menu_id):
             except Exception as e:
                 print("Error scanning Q_bank for rich menu:", e)
 
-            # 3. 主動掃描 QA_bank (問答知識庫表)
+            # 3. 主動掃描 QA_bank (問答知識庫表，自動排除旅程自帶排程標籤)
             try:
                 cur.execute(f"""
                     SELECT * FROM {t_qabank}
@@ -1202,6 +1257,8 @@ def get_richmenu_apply_sources(rich_menu_id):
                 """, (f"%|{mid}|%", f"%|{mid}|%", f"%menu={mid}%", f"%rm|{mid}%", f"%switch_rm|{mid}%"))
                 for r in cur.fetchall():
                     qa_tag = r.get('tag') or f"問答庫 #{r.get('id')}"
+                    if qa_tag in journey_sched_tags:
+                        continue  # 已歸入自動旅程排程
                     qa_clean = clean_rule_title(r.get('note'), qa_tag)
                     k = ("keyword", qa_clean, f"觸發標籤: {qa_tag}", "/rules")
                     if k not in sources_map:
@@ -1209,24 +1266,7 @@ def get_richmenu_apply_sources(rich_menu_id):
             except Exception as e:
                 print("Error scanning QA_bank for rich menu:", e)
 
-            # 4. 主動掃描 project_schedules (自動旅程排程表)
-            try:
-                cur.execute(f"""
-                    SELECT s.schedule_id, s.project_id, s.step_id, s.message_content, p.project_name
-                    FROM {t_schedules} s
-                    LEFT JOIN {t_projects} p ON s.project_id = p.project_id
-                    WHERE s.message_content::text LIKE %s OR s.message_content::text LIKE %s
-                """, (f"%|{mid}|%", f"%menu={mid}%"))
-                for r in cur.fetchall():
-                    p_name = r.get('project_name') or f"旅程 #{r.get('project_id')}"
-                    step_idx = r.get('step_id') or 1
-                    k = ("journey", p_name, f"步驟 {step_idx} 訊息按鈕切換", f"/projects")
-                    if k not in sources_map:
-                        sources_map[k] = {"current_count": 0, "last_applied_at": None}
-            except Exception as e:
-                print("Error scanning project_schedules for rich menu:", e)
-
-            # 5. 主動掃描 rich_menu_metadata (其他圖文選單按鈕切換)
+            # 4. 主動掃描 rich_menu_metadata (其他圖文選單按鈕切換)
             try:
                 cur.execute(f"""
                     SELECT rich_menu_id, ui_uuid, name, data 
@@ -1242,7 +1282,7 @@ def get_richmenu_apply_sources(rich_menu_id):
             except Exception as e:
                 print("Error scanning other rich menus:", e)
 
-        # 6. 統計現有用戶套用歸因
+        # 5. 統計現有用戶套用歸因
         cur.execute(f"SELECT DISTINCT user_id FROM {pv_table} WHERE name = 'rich_menu' AND value = ANY(%s)", (all_menu_ids,))
         explicit_uids = [r['user_id'] for r in cur.fetchall()]
 
