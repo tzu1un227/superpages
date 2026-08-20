@@ -696,56 +696,37 @@ def get_customer_details(user_id):
         conn.close()
         conn = None
         
-        # Get Rich Menu from LINE API
+        # Get Rich Menu from LINE API or Database
         from endpoints.richmenu import get_line_token
         token = get_line_token()
         if token:
             import requests
             headers = {'Authorization': f'Bearer {token}'}
-            resp = requests.get(f'https://api.line.me/v2/bot/user/{user_id}/richmenu', headers=headers)
-            if resp.status_code == 200:
-                rich_menu_id = resp.json().get('richMenuId')
-                if rich_menu_id:
-                    # Query metadata for name
-                    from db_utils import get_main_db_connection
-                    m_conn = get_main_db_connection()
-                    m_cur = m_conn.cursor()
-                    t_metadata = f'"rich_menu_metadata:{app_id}"'
-                    try:
-                        m_cur.execute(f"SELECT name FROM {t_metadata} WHERE rich_menu_id = %s", (rich_menu_id,))
-                        row = m_cur.fetchone()
-                        if row:
-                            details["rich_menu"] = {"id": rich_menu_id, "name": row[0]}
-                        else:
-                            details["rich_menu"] = {"id": rich_menu_id, "name": "未知圖文選單"}
-                            
-                        # Sync to Private_var
-                        pv_table = f'"Private_var:{app_id}"'
-                        m_cur.execute(f"UPDATE {pv_table} SET value = %s WHERE user_id = %s AND name = 'rich_menu'", (rich_menu_id, user_id))
-                        if m_cur.rowcount == 0:
-                            m_cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, 'rich_menu', %s)", (user_id, rich_menu_id))
-                        m_conn.commit()
-                        
-                    except Exception as e:
-                        print("Error querying rich menu metadata or syncing:", e)
-                    finally:
-                        m_cur.close()
-                        m_conn.close()
-            elif resp.status_code == 404:
-                # User has no rich menu linked, sync to DB by deleting the Private_var entry
-                from db_utils import get_main_db_connection
-                try:
-                    m_conn = get_main_db_connection()
-                    m_cur = m_conn.cursor()
-                    pv_table = f'"Private_var:{app_id}"'
-                    m_cur.execute(f"DELETE FROM {pv_table} WHERE user_id = %s AND name = 'rich_menu'", (user_id,))
-                    m_cur.execute(f"DELETE FROM {pv_table} WHERE user_id = %s AND name = 'rich_menu_meta'", (user_id,))
-                    m_conn.commit()
-                except Exception as e:
-                    print("Error syncing missing rich menu:", e)
-                finally:
-                    m_cur.close()
-                    m_conn.close()
+            try:
+                resp = requests.get(f'https://api.line.me/v2/bot/user/{user_id}/richmenu', headers=headers, timeout=5)
+                if resp.status_code == 200:
+                    rich_menu_id = resp.json().get('richMenuId')
+                    if rich_menu_id:
+                        from db_utils import get_main_db_connection
+                        m_conn = get_main_db_connection()
+                        m_cur = m_conn.cursor()
+                        t_metadata = f'"rich_menu_metadata:{app_id}"'
+                        try:
+                            m_cur.execute(f"SELECT name FROM {t_metadata} WHERE rich_menu_id = %s", (rich_menu_id,))
+                            row = m_cur.fetchone()
+                            details["rich_menu"] = {"id": rich_menu_id, "name": row[0] if row else "未知圖文選單"}
+                            pv_table = f'"Private_var:{app_id}"'
+                            m_cur.execute(f"UPDATE {pv_table} SET value = %s WHERE user_id = %s AND name = 'rich_menu'", (rich_menu_id, user_id))
+                            if m_cur.rowcount == 0:
+                                m_cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, 'rich_menu', %s)", (user_id, rich_menu_id))
+                            m_conn.commit()
+                        except Exception as e:
+                            print("Error querying rich menu metadata:", e)
+                        finally:
+                            m_cur.close()
+                            m_conn.close()
+            except Exception as le:
+                print("LINE API fetch rich menu error:", le)
 
         # Fetch Private_var Metadata & Tags with Hybrid Fallback
         from db_utils import get_db_connection
@@ -757,22 +738,53 @@ def get_customer_details(user_id):
         cur_pv.execute(f"SELECT name, value FROM {pv_table} WHERE user_id = %s", (user_id,))
         pv_rows = cur_pv.fetchall()
         pv_dict = {r['name']: r['value'] for r in pv_rows}
+
+        # If details["rich_menu"] was not obtained from LINE API, fallback to Private_var / Global_var
+        if not details.get("rich_menu"):
+            pv_rm_id = pv_dict.get("rich_menu")
+            if not pv_rm_id:
+                try:
+                    gv_table = f'"Global_var:{app_id}"'
+                    cur_pv.execute(f"SELECT value FROM {gv_table} WHERE name = 'default_rich_menu'")
+                    gv_row = cur_pv.fetchone()
+                    if gv_row and gv_row.get('value'):
+                        pv_rm_id = gv_row['value']
+                except Exception:
+                    pass
+            
+            if pv_rm_id:
+                try:
+                    t_metadata = f'"rich_menu_metadata:{app_id}"'
+                    cur_pv.execute(f"SELECT name FROM {t_metadata} WHERE rich_menu_id = %s", (pv_rm_id,))
+                    row = cur_pv.fetchone()
+                    rm_name = row['name'] if row and row.get('name') else "預設圖文選單"
+                    details["rich_menu"] = {"id": pv_rm_id, "name": rm_name}
+                except Exception as ex:
+                    details["rich_menu"] = {"id": pv_rm_id, "name": "圖文選單"}
         
         def get_fallback_ht_source(keyword_hint):
             try:
                 cur_pv.execute(f"""
                     SELECT category, content, "timestamp" FROM {t_history}
-                    WHERE user_id = %s AND (LOWER(category) = LOWER(%s) OR content ILIKE %s)
+                    WHERE user_id = %s AND (
+                        LOWER(category) = LOWER(%s) 
+                        OR content ILIKE %s 
+                        OR content ILIKE '%%sys_bind%%'
+                        OR category = 'Message'
+                    )
                     ORDER BY "timestamp" DESC LIMIT 1
                 """, (user_id, str(keyword_hint), f"%{keyword_hint}%"))
                 h_row = cur_pv.fetchone()
                 if h_row:
+                    cat = h_row.get('category') or ''
+                    cont = str(h_row.get('content') or '')
+                    is_kw = 'sys_bind' in cont or cat in ('Message', 'Sensor')
                     return {
-                        "source_type": "keyword" if "sys_bind" in str(h_row.get('content','')) or h_row.get('category') == 'Message' else "manual",
-                        "source_name": "歷程解構紀錄",
-                        "trigger_display": str(h_row.get('content', '歷史互動紀錄'))[:30],
+                        "source_type": "keyword" if is_kw else "manual",
+                        "source_name": "關鍵字觸發" if is_kw else "歷程解構紀錄",
+                        "trigger_display": (f"關鍵字: {cont[:25]}" if cat == 'Message' else cont[:30]) if cont else "歷史互動紀錄",
                         "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
-                        "setting_url": None
+                        "setting_url": "/rules" if is_kw else None
                     }
             except Exception:
                 pass

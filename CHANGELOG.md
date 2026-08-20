@@ -1,4 +1,6 @@
 ## [2026-08-20] CRM 共用來源透明化 MVP v1.2 (Source Transparency System)
+- **進階訊息編輯器選單解鎖 (FlexMessageEditor.jsx)**: 移除切換圖文選單 dropdown 中對非 Superpages 產生選單的 `disabled={!m.ui_uuid}` 限制與禁用提示，使自動旅程、排程與關鍵字回覆中的所有有效圖文選單皆可正常被選擇與切換。
+- **側邊欄圖文選單即時同步 (backend/endpoints/customers.py & CustomerCenter.jsx)**: 修正 `get_customer_details` 於 LINE API 404 時誤刪 Private_var 選單紀錄的問題，加入資料庫與預設選單備援查詢，並於側邊欄中支援列表資料即時同步，確保關鍵字更換選單後側邊欄能 100% 正確呈現選單與關鍵字來源 Tooltip。
 - **手動標籤來源寫入完善 (CustomerCenter.jsx & backend/app.py)**: 將側邊欄與多選加標籤流程全面改為標準 batch 標籤 API 寫入 `tag_meta`，並在 `/api/trigger` 接收 `set_tag` 時即時同步 `Private_var` 與 `tag_meta`，徹底解決手動打標籤後 Tooltip 誤顯「歷史資料」問題。
 - **自動旅程繁中提示 (backend/app.py & Projects.jsx)**: 將參與用戶分頁加入用戶時的後端回傳與前端 Toast 訊息改為統一繁體中文（「已成功將 X 名用戶加入自動旅程」）。
 - **客戶中心主表格 Tooltip 全面支援 (CustomerCenter.jsx & backend/endpoints/customers.py)**: 在客戶中心主列表表格中（客戶資訊一覽表），於「標籤」、「自動旅程」與「圖文選單」Chip/欄位旁全面渲染 ⓘ 圖示與 MUI Tooltip，hover 可直接檢視 4 行來源詳細資訊；同時於 `get_customers` 後端進行 Private_var 批量 Meta 查詢與組裝。

@@ -1676,17 +1676,20 @@ const CustomerCenter = () => {
                 <div style={{ backgroundColor: '#222', borderRadius: '8px', padding: '16px', border: '1px solid #333', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                   {sidebarDetails.loading ? (
                     <span style={{ color: '#666', fontSize: '14px' }}>載入中...</span>
-                  ) : sidebarDetails.rich_menu ? (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '6px', backgroundColor: 'rgba(255,215,0,0.1)', fontSize: '13px', border: '1px solid #FFD700', color: '#FFD700' }}>
-                      {sidebarDetails.rich_menu.name}
-                      <Tooltip title={renderSourceTooltip(sidebarDetails.rich_menu.source_info)} arrow placement="top">
-                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                          <Info size={13} style={{ marginLeft: '4px', cursor: 'pointer', color: '#FFD700' }} />
-                        </span>
-                      </Tooltip>
-                      <X size={12} style={{ marginLeft: '6px', cursor: 'pointer', color: '#FFD700' }} onClick={handleSidebarDeleteRichMenu} />
-                    </span>
-                  ) : (
+                  ) : (sidebarDetails.rich_menu || selectedCustomerForSidebar.rich_menu) ? (() => {
+                    const rm = sidebarDetails.rich_menu || selectedCustomerForSidebar.rich_menu;
+                    return (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '6px', backgroundColor: 'rgba(255,215,0,0.1)', fontSize: '13px', border: '1px solid #FFD700', color: '#FFD700' }}>
+                        {rm.name}
+                        <Tooltip title={renderSourceTooltip(rm.source_info)} arrow placement="top">
+                          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            <Info size={13} style={{ marginLeft: '4px', cursor: 'pointer', color: '#FFD700' }} />
+                          </span>
+                        </Tooltip>
+                        <X size={12} style={{ marginLeft: '6px', cursor: 'pointer', color: '#FFD700' }} onClick={handleSidebarDeleteRichMenu} />
+                      </span>
+                    );
+                  })() : (
                     <span style={{ color: '#aaa', fontSize: '14px' }}>預設圖文選單</span>
                   )}
                 </div>

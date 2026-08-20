@@ -36,8 +36,8 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
 
     const getMenuSelectValue = (menuVal) => {
         if (!menuVal) return '';
-        const matched = menus.find(m => m.ui_uuid === menuVal || (m.richMenuId || m.rich_menu_id) === menuVal);
-        return matched ? (matched.ui_uuid || '') : menuVal;
+        const matched = menus.find(m => m.ui_uuid === menuVal || (m.richMenuId || m.rich_menu_id) === menuVal || m.id === menuVal);
+        return matched ? (matched.ui_uuid || matched.richMenuId || matched.rich_menu_id || matched.id || '') : menuVal;
     };
 
     useEffect(() => {
@@ -851,15 +851,17 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                                                 style={{ width: '100%', padding: '8px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '4px' }}
                                             >
                                                 <option value="">不設定</option>
-                                                {menus.filter(m => !m.end_time || new Date(m.end_time) > new Date()).map(m => (
-                                                    <option 
-                                                        key={m.richMenuId || m.rich_menu_id || m.id} 
-                                                        value={m.ui_uuid || ''}
-                                                        disabled={!m.ui_uuid}
-                                                    >
-                                                        {m.name || m.richMenuId || m.rich_menu_id} {!m.ui_uuid ? '(不支援，請使用Superpages選單)' : ''}
-                                                    </option>
-                                                ))}
+                                                {menus.filter(m => !m.end_time || new Date(m.end_time) > new Date()).map(m => {
+                                                    const menuVal = m.ui_uuid || m.richMenuId || m.rich_menu_id || m.id;
+                                                    return (
+                                                        <option 
+                                                            key={m.richMenuId || m.rich_menu_id || m.id || m.ui_uuid} 
+                                                            value={menuVal}
+                                                        >
+                                                            {m.name || m.richMenuId || m.rich_menu_id}
+                                                        </option>
+                                                    );
+                                                })}
                                             </select>
                                         </div>
                                     </div>
@@ -956,15 +958,17 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                                                             style={{ width: '100%', padding: '8px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '4px' }}
                                                         >
                                                             <option value="">不設定</option>
-                                                            {menus.filter(m => !m.end_time || new Date(m.end_time) > new Date()).map(m => (
-                                                                <option 
-                                                                    key={m.richMenuId || m.rich_menu_id || m.id} 
-                                                                    value={m.ui_uuid || ''}
-                                                                    disabled={!m.ui_uuid}
-                                                                >
-                                                                    {m.name || m.richMenuId || m.rich_menu_id} {!m.ui_uuid ? '(不支援，請使用Superpages選單)' : ''}
-                                                                </option>
-                                                            ))}
+                                                            {menus.filter(m => !m.end_time || new Date(m.end_time) > new Date()).map(m => {
+                                                                const menuVal = m.ui_uuid || m.richMenuId || m.rich_menu_id || m.id;
+                                                                return (
+                                                                    <option 
+                                                                        key={m.richMenuId || m.rich_menu_id || m.id || m.ui_uuid} 
+                                                                        value={menuVal}
+                                                                    >
+                                                                        {m.name || m.richMenuId || m.rich_menu_id}
+                                                                    </option>
+                                                                );
+                                                            })}
                                                         </select>
                                                     </div>
                                                 </div>
