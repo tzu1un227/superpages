@@ -1,4 +1,8 @@
 ## [2026-08-20] CRM 共用來源透明化 MVP v1.2 (Source Transparency System)
+- **圖文選單套用來源精準探測與 500 錯誤修復 (backend/endpoints/richmenu.py & RichMenu.jsx)**:
+  - 修正前端 `RichMenu.jsx` 於選單為 `ui_uuid` 時未發送來源查詢 API 的問題，全面補齊 `ui_uuid` 識別支援。
+  - 修正後端端點使用 `get_tenant_conn()` 連線至正確租戶資料庫，並修復 `len(total_uids)` 變數名稱導致之 500 錯誤。
+  - 將圖文選單探測集合中之數值 `id` 剔除，嚴格鎖定 `rich_menu_id` 與 `ui_uuid`（長度 >= 6），杜絕數值 ID 誤配無關關鍵字規則或自動旅程排程的問題，精準呈現單一來源。
 - **主動設定表探測與來源地圖架構 (backend/app.py & backend/endpoints/richmenu.py)**:
   - 將自動旅程加入來源與圖文選單套用來源升級為「設定表主動探測 + 成員歸因統計」架構。
   - 主動掃描 `Q_bank`（關鍵字法則表）、`QA_bank`（問答庫）、`project_schedules`（其他自動旅程排程表）與 `rich_menu_metadata`（圖文選單按鈕），即使尚未有用戶觸發，也能完整列出所有指向該旅程/選單的有效觸發點與跳轉設定。
