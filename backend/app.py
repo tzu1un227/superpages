@@ -1243,12 +1243,34 @@ def get_project_join_sources(id):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         t_ups = f'"user_project_status:{app_id}"'
+        t_cron = f'"cron_table:{app_id}"'
         pv_table = f'"Private_var:{app_id}"'
         t_history = f'"history:{app_id}"'
 
-        # Fetch active users in this project
-        cur.execute(f"SELECT DISTINCT user_id FROM {t_ups} WHERE project_id = %s AND LOWER(status) = 'active'", (id,))
-        active_uids = [r['user_id'] for r in cur.fetchall()]
+        # Fetch users in this project from user_project_status, cron_table, or journey_meta
+        uids_set = set()
+        try:
+            cur.execute(f"SELECT DISTINCT user_id FROM {t_ups} WHERE (project_id = %s OR project_id = %s) AND LOWER(COALESCE(status, '')) != 'deleted'", (id, str(id)))
+            for r in cur.fetchall():
+                if r.get('user_id'): uids_set.add(r['user_id'])
+        except Exception:
+            pass
+
+        try:
+            cur.execute(f"SELECT DISTINCT user_id FROM {t_cron} WHERE project_id = %s OR project_id = %s", (id, str(id)))
+            for r in cur.fetchall():
+                if r.get('user_id'): uids_set.add(r['user_id'])
+        except Exception:
+            pass
+
+        try:
+            cur.execute(f"SELECT DISTINCT user_id FROM {pv_table} WHERE name = %s", (f"journey_meta:{id}",))
+            for r in cur.fetchall():
+                if r.get('user_id'): uids_set.add(r['user_id'])
+        except Exception:
+            pass
+
+        active_uids = list(uids_set)
 
         if not active_uids:
             return jsonify({"journey_id": id, "total_users": 0, "sources": []})
@@ -1270,24 +1292,31 @@ def get_project_join_sources(id):
                 try:
                     cur.execute(f"""
                         SELECT category, content, "timestamp" FROM {t_history}
-                        WHERE user_id = %s ORDER BY "timestamp" DESC LIMIT 1
-                    """, (uid,))
+                        WHERE user_id = %s AND (
+                            content ILIKE %s OR 
+                            content ILIKE %s OR 
+                            category IN ('Follow', 'Message', 'Action', 'Batch')
+                        )
+                        ORDER BY "timestamp" DESC LIMIT 1
+                    """, (uid, f"%journey%:{id}%", f"%sys_bind%|{id}|%"))
                     h_row = cur.fetchone()
                     if h_row:
+                        cat = h_row.get('category') or ''
+                        cont = str(h_row.get('content') or '')
                         meta = {
-                            "source_type": "manual",
-                            "source_name": "歷程解構紀錄",
-                            "trigger_display": str(h_row.get('content', '歷史加入紀錄'))[:30],
+                            "source_type": "keyword" if cat == 'Message' else "manual",
+                            "source_name": "關鍵字觸發" if cat == 'Message' else "人工加入",
+                            "trigger_display": cont[:30] if cont else "歷史加入紀錄",
                             "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
-                            "setting_url": None
+                            "setting_url": "/rules" if cat == 'Message' else None
                         }
                 except: pass
 
             if not meta:
                 meta = {
                     "source_type": "manual",
-                    "source_name": "歷史資料（來源未明）",
-                    "trigger_display": "舊有系統狀態",
+                    "source_name": "人工操作",
+                    "trigger_display": "管理後台加入",
                     "occurred_at": None,
                     "setting_url": None
                 }

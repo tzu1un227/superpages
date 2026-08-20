@@ -1115,53 +1115,113 @@ def get_richmenu_apply_sources(rich_menu_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
         pv_table = f'"Private_var:{app_id}"'
         t_history = f'"history:{app_id}"'
+        t_metadata = f'"rich_menu_metadata:{app_id}"'
+        gv_table = f'"Global_var:{app_id}"'
 
-        # Fetch all users currently linked to this rich menu
-        cur.execute(f"SELECT user_id FROM {pv_table} WHERE name = 'rich_menu' AND value = %s", (rich_menu_id,))
-        uids = [r['user_id'] for r in cur.fetchall()]
+        # Resolve all possible identifiers for this rich menu (rich_menu_id, ui_uuid)
+        all_menu_ids = [str(rich_menu_id)]
+        try:
+            cur.execute(f"SELECT rich_menu_id, ui_uuid FROM {t_metadata} WHERE rich_menu_id = %s OR ui_uuid = %s", (str(rich_menu_id), str(rich_menu_id)))
+            m_rows = cur.fetchall()
+            for mr in m_rows:
+                if mr.get('rich_menu_id') and str(mr['rich_menu_id']) not in all_menu_ids:
+                    all_menu_ids.append(str(mr['rich_menu_id']))
+                if mr.get('ui_uuid') and str(mr['ui_uuid']) not in all_menu_ids:
+                    all_menu_ids.append(str(mr['ui_uuid']))
+        except Exception:
+            pass
 
-        if not uids:
+        # Check if this menu is the Global default rich menu
+        is_default = False
+        try:
+            cur.execute(f"SELECT value FROM {gv_table} WHERE name = 'default_rich_menu'")
+            gv_row = cur.fetchone()
+            if gv_row and str(gv_row.get('value')) in all_menu_ids:
+                is_default = True
+        except Exception:
+            pass
+
+        # Fetch explicitly linked users
+        cur.execute(f"SELECT DISTINCT user_id FROM {pv_table} WHERE name = 'rich_menu' AND value = ANY(%s)", (all_menu_ids,))
+        explicit_uids = [r['user_id'] for r in cur.fetchall()]
+
+        # If it's the default menu, also fetch users without an explicit rich_menu
+        default_uids = []
+        if is_default:
+            try:
+                cur.execute(f"""
+                    SELECT DISTINCT user_id FROM {pv_table}
+                    WHERE user_id NOT IN (
+                        SELECT user_id FROM {pv_table} WHERE name = 'rich_menu' AND value IS NOT NULL AND value != ''
+                    )
+                """)
+                default_uids = [r['user_id'] for r in cur.fetchall()]
+            except Exception:
+                pass
+
+        total_uids = list(set(explicit_uids + default_uids))
+
+        if not total_uids:
             return jsonify({"rich_menu_id": rich_menu_id, "total_users": 0, "sources": []})
 
-        # Fetch rich_menu_meta for these users
-        cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = 'rich_menu_meta' AND user_id = ANY(%s)", (uids,))
-        meta_rows = {r['user_id']: r['value'] for r in cur.fetchall()}
+        # Fetch rich_menu_meta for explicit users
+        meta_rows = {}
+        if explicit_uids:
+            cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = 'rich_menu_meta' AND user_id = ANY(%s)", (explicit_uids,))
+            meta_rows = {r['user_id']: r['value'] for r in cur.fetchall()}
 
         groups = {}
         import json
-        for uid in uids:
-            meta_str = meta_rows.get(uid)
-            meta = None
-            if meta_str:
-                try: meta = json.loads(meta_str)
-                except: pass
-
-            if not meta:
-                # Fallback: Live query from ht_view / history
-                try:
-                    cur.execute(f"""
-                        SELECT category, content, "timestamp" FROM {t_history}
-                        WHERE user_id = %s ORDER BY "timestamp" DESC LIMIT 1
-                    """, (uid,))
-                    h_row = cur.fetchone()
-                    if h_row:
-                        meta = {
-                            "source_type": "manual",
-                            "source_name": "歷程解構紀錄",
-                            "trigger_display": str(h_row.get('content', '歷史套用紀錄'))[:30],
-                            "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
-                            "setting_url": None
-                        }
-                except: pass
-
-            if not meta:
+        for uid in total_uids:
+            if uid in default_uids and uid not in explicit_uids:
                 meta = {
-                    "source_type": "manual",
-                    "source_name": "歷史資料（來源未明）",
-                    "trigger_display": "舊有系統狀態",
+                    "source_type": "default",
+                    "source_name": "系統預設",
+                    "trigger_display": "全域預設圖文選單",
                     "occurred_at": None,
-                    "setting_url": None
+                    "setting_url": "/richmenu"
                 }
+            else:
+                meta_str = meta_rows.get(uid)
+                meta = None
+                if meta_str:
+                    try: meta = json.loads(meta_str)
+                    except: pass
+
+                if not meta:
+                    # Fallback: Live query from history
+                    try:
+                        cur.execute(f"""
+                            SELECT category, content, "timestamp" FROM {t_history}
+                            WHERE user_id = %s AND (
+                                content ILIKE %s OR 
+                                content ILIKE '%%sys_bind%%' OR 
+                                content ILIKE '%%switch_rm%%' OR 
+                                category IN ('Follow', 'Message', 'Action', 'Batch')
+                            )
+                            ORDER BY "timestamp" DESC LIMIT 1
+                        """, (uid, f"%{rich_menu_id}%"))
+                        h_row = cur.fetchone()
+                        if h_row:
+                            cat = h_row.get('category') or ''
+                            cont = str(h_row.get('content') or '')
+                            meta = {
+                                "source_type": "keyword" if cat == 'Message' or 'sys_bind' in cont else "manual",
+                                "source_name": "關鍵字觸發" if cat == 'Message' or 'sys_bind' in cont else "人工操作",
+                                "trigger_display": cont[:30] if cont else "歷史套用紀錄",
+                                "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
+                                "setting_url": "/rules" if cat == 'Message' else None
+                            }
+                    except: pass
+
+                if not meta:
+                    meta = {
+                        "source_type": "manual",
+                        "source_name": "人工操作",
+                        "trigger_display": "管理後台手動套用",
+                        "occurred_at": None,
+                        "setting_url": None
+                    }
 
             key = (meta.get('source_type', 'manual'), meta.get('source_name', '人工操作'), meta.get('trigger_display', '手動套用'), meta.get('setting_url'))
             if key not in groups:
