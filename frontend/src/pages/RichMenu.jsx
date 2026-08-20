@@ -137,7 +137,7 @@ function RichMenu() {
     const [loadingApplySources, setLoadingApplySources] = useState(false);
 
     useEffect(() => {
-        const rid = currentMenu?.rich_menu_id || currentMenu?.richMenuId || currentMenu?.id;
+        const rid = currentMenu?.rich_menu_id || currentMenu?.richMenuId || currentMenu?.ui_uuid || currentMenu?.id;
         if (rid) {
             setLoadingApplySources(true);
             api.get(`/richmenu/${rid}/apply-sources`).then(res => {
@@ -1324,7 +1324,7 @@ function RichMenu() {
                         </div>
 
                         {/* 套用來源總覽 */}
-                        {(currentMenu?.rich_menu_id || currentMenu?.richMenuId || currentMenu?.id) && (
+                        {(currentMenu?.rich_menu_id || currentMenu?.richMenuId || currentMenu?.ui_uuid || currentMenu?.id) && (
                             <div className="card">
                                 <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary-yellow)' }}>
                                     <Layers size={18} /> 套用來源總覽

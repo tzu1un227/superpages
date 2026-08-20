@@ -1107,11 +1107,10 @@ def unlink_rich_menu_from_all(richMenuId):
 @richmenu_bp.route('/<rich_menu_id>/apply-sources', methods=['GET'])
 @token_required
 def get_richmenu_apply_sources(rich_menu_id):
-    app_id = get_current_app_id()
-    from db_utils import get_db_connection
+    from psycopg2.extras import RealDictCursor
     conn = None
     try:
-        conn = get_db_connection()
+        conn = get_tenant_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
         pv_table = get_t('Private_var')
