@@ -557,8 +557,9 @@ const CustomerCenter = () => {
   };
 
   const handleAddTagToGroup = async () => {
-    if (!tagInput || tagInput.length === 0 || filteredCustomers.length === 0) return;
-    const userIds = filteredCustomers.map(u => u.user_id).filter(Boolean);
+    if (!tagInput || tagInput.length === 0) return;
+    const userIds = selectedUserIds.length > 0 ? selectedUserIds : filteredCustomers.map(u => u.user_id).filter(Boolean);
+    if (userIds.length === 0) return;
     
     setIsProcessing(true);
     try {
@@ -569,6 +570,7 @@ const CustomerCenter = () => {
       setIsTagModalOpen(false);
       showToast(`成功為 ${userIds.length} 名用戶加入標籤: ${tagInput.join(', ')}`, 'success');
       setTagInput([]);
+      setSelectedUserIds([]);
       await refreshAllData();
     } catch (err) {
       showToast('加入標籤失敗', 'error');
@@ -580,24 +582,29 @@ const CustomerCenter = () => {
 
   const handleSidebarAddTag = async () => {
     if (!sidebarTagInput || sidebarTagInput.length === 0 || !selectedCustomerForSidebar) return;
-    const tagsStr = `[${sidebarTagInput.map(t => `'${t}'`).join(', ')}]`;
     const addedTags = [...sidebarTagInput];
     setSidebarTagInput([]);
     try {
-      await api.post('/trigger', {
-        user: selectedCustomerForSidebar.user_id,
-        message: `set_tag|${tagsStr}`,
-        type: 'Sensor',
-        api_index: 0
+      await api.post('/customers/tags/batch', {
+        tag_names: addedTags,
+        user_ids: [selectedCustomerForSidebar.user_id]
       });
       showToast(`已新增標籤: ${addedTags.join(', ')}`, 'success');
-      // Update local state to reflect UI change immediately
-      setSelectedCustomerForSidebar(prev => {
-        let currentTags = Array.isArray(prev.tag) ? prev.tag : (prev.tag ? prev.tag.split(/[,|]/) : []);
-        const newTags = [...new Set([...currentTags, ...addedTags])];
-        setCustomers(custs => custs.map(c => c.user_id === prev.user_id ? { ...c, tag: newTags } : c));
-        return { ...prev, tag: newTags };
-      });
+      
+      // 重新取得此用戶的最新詳情與來源 Meta
+      try {
+        const resp = await api.get(`/customers/${selectedCustomerForSidebar.user_id}/details`);
+        setSidebarDetails({
+          projects: resp.data.projects || [],
+          rich_menu: resp.data.rich_menu || null,
+          tags: resp.data.tags || [],
+          loading: false
+        });
+      } catch (e) {
+        console.error('Error refreshing sidebar details after add tag:', e);
+      }
+      
+      await refreshAllData();
     } catch (err) {
       showToast('新增標籤失敗', 'error');
       console.error(err);

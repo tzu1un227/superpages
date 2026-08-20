@@ -1,4 +1,6 @@
 ## [2026-08-20] CRM 共用來源透明化 MVP v1.2 (Source Transparency System)
+- **手動標籤來源寫入完善 (CustomerCenter.jsx & backend/app.py)**: 將側邊欄與多選加標籤流程全面改為標準 batch 標籤 API 寫入 `tag_meta`，並在 `/api/trigger` 接收 `set_tag` 時即時同步 `Private_var` 與 `tag_meta`，徹底解決手動打標籤後 Tooltip 誤顯「歷史資料」問題。
+- **自動旅程繁中提示 (backend/app.py & Projects.jsx)**: 將參與用戶分頁加入用戶時的後端回傳與前端 Toast 訊息改為統一繁體中文（「已成功將 X 名用戶加入自動旅程」）。
 - **客戶中心主表格 Tooltip 全面支援 (CustomerCenter.jsx & backend/endpoints/customers.py)**: 在客戶中心主列表表格中（客戶資訊一覽表），於「標籤」、「自動旅程」與「圖文選單」Chip/欄位旁全面渲染 ⓘ 圖示與 MUI Tooltip，hover 可直接檢視 4 行來源詳細資訊；同時於 `get_customers` 後端進行 Private_var 批量 Meta 查詢與組裝。
 - **黑畫面與 Tooltip 渲染修復 (CustomerCenter.jsx)**: 補齊未定義之 `renderSourceTooltip` 渲染函式，解除側邊欄開啟時發生的 React `ReferenceError: renderSourceTooltip is not defined` 崩潰黑畫面 Bug，並展現 4 行資訊 Tooltip。
 - **客戶中心優化 (CustomerCenter.jsx)**: 補齊 `setSidebarDetails` 之 `tags` 狀態儲存與預設值，加入自動旅程 `displayProjects` 備援渲染，並為 Lucide `<Info />` 圖示加上 DOM `<span>` 容器封裝，徹底修復 MUI Tooltip 無法懸浮觸發與自動旅程不呈現的 Bug。

@@ -1360,7 +1360,7 @@ def batch_restart_project_users(id):
 
     ok, err_msg = batch_enroll_journey_users_internal(id, user_ids, app_id)
     if ok:
-        return jsonify({"status": "success", "message": f"Successfully added {len(user_ids)} users to project."})
+        return jsonify({"status": "success", "message": f"已成功將 {len(user_ids)} 名用戶加入自動旅程。"})
     else:
         status_code = 404 if err_msg and "not found" in err_msg.lower() else 500
         return jsonify({"status": "error", "message": err_msg}), status_code
@@ -2256,13 +2256,63 @@ def trigger_socket_event_route():
     try:
         send_socket_event(data)
         
-        # 檢查 Rich Menu 分配
+        # 檢查 Rich Menu 分配與寫入 tag_meta
         msg = data.get('message', '')
         if msg.startswith('set_tag|'):
-            tag = msg.split('|', 1)[1]
+            raw_tag = msg.split('|', 1)[1]
             user_id = data.get('user')
             if user_id:
-                check_and_update_rich_menu(user_id, tag)
+                try:
+                    import ast, json
+                    from datetime import datetime
+                    tag_list = []
+                    try:
+                        parsed = ast.literal_eval(raw_tag)
+                        tag_list = parsed if isinstance(parsed, list) else [str(parsed)]
+                    except Exception:
+                        tag_list = [raw_tag.strip("['\"]")]
+
+                    app_id = get_current_app_id()
+                    if app_id:
+                        conn = get_db_connection()
+                        cur = conn.cursor()
+                        pv_table = f'"Private_var:{app_id}"'
+                        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        op_name = "管理員"
+                        if hasattr(g, 'user') and isinstance(g.user, dict):
+                            op_name = g.user.get('email') or g.user.get('name') or "管理員"
+
+                        # 同步 Private_var 中的 tag 陣列
+                        cur.execute(f"SELECT value FROM {pv_table} WHERE user_id = %s AND name = 'tag'", (user_id,))
+                        row = cur.fetchone()
+                        existing_tags = []
+                        if row and row[0]:
+                            try:
+                                ex_p = ast.literal_eval(row[0])
+                                existing_tags = ex_p if isinstance(ex_p, list) else [str(ex_p)]
+                            except:
+                                existing_tags = [row[0]]
+                        new_tags = list(dict.fromkeys(existing_tags + tag_list))
+                        cur.execute(f"UPDATE {pv_table} SET value = %s WHERE user_id = %s AND name = 'tag'", (str(new_tags), user_id))
+                        if cur.rowcount == 0:
+                            cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, 'tag', %s)", (user_id, str(new_tags)))
+
+                        # 寫入 tag_meta
+                        for t in tag_list:
+                            meta_val = json.dumps({
+                                "source_type": "manual", "source_name": "人工操作",
+                                "trigger_display": "手動新增標籤", "operator": op_name,
+                                "occurred_at": now_str, "setting_url": None
+                            }, ensure_ascii=False)
+                            cur.execute(f"DELETE FROM {pv_table} WHERE user_id = %s AND name = %s", (user_id, f"tag_meta:{t}"))
+                            cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, %s, %s)", (user_id, f"tag_meta:{t}", meta_val))
+                        conn.commit()
+                        cur.close()
+                        conn.close()
+                except Exception as pve:
+                    print("Error updating Private_var tag_meta in /trigger:", pve)
+
+                check_and_update_rich_menu(user_id, raw_tag)
                 
         return jsonify({"status": "success"})
     except Exception as e:
