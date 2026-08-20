@@ -642,10 +642,10 @@ def get_customer_details(user_id):
         cur.execute(f"""
             SELECT p.project_id as id, p.project_name as name, LOWER(ups.status) as status
             FROM {t_ups} ups
-            JOIN {t_projects} p ON ups.project_id = p.project_id
-            WHERE ups.user_id = %s
+            JOIN {t_projects} p ON ups.project_id::text = p.project_id::text
+            WHERE LOWER(ups.user_id) = LOWER(%s)
         """, (user_id,))
-        details["projects"] = cur.fetchall()
+        details["projects"] = [dict(r) for r in cur.fetchall()]
         cur.close()
         conn.close()
         conn = None

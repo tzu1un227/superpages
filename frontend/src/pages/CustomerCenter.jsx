@@ -167,16 +167,17 @@ const CustomerCenter = () => {
           setSidebarDetails({
             projects: resp.data.projects || [],
             rich_menu: resp.data.rich_menu || null,
+            tags: resp.data.tags || [],
             loading: false
           });
         } catch (err) {
           console.error('Failed to fetch sidebar details:', err);
-          setSidebarDetails({ projects: [], rich_menu: null, loading: false });
+          setSidebarDetails({ projects: [], rich_menu: null, tags: [], loading: false });
         }
       };
       fetchDetails();
     } else {
-      setSidebarDetails({ projects: [], rich_menu: null, loading: false });
+      setSidebarDetails({ projects: [], rich_menu: null, tags: [], loading: false });
       setSidebarTagInput([]);
     }
   }, [selectedCustomerForSidebar]);
@@ -1538,7 +1539,9 @@ const CustomerCenter = () => {
                       <span key={i} style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '16px', backgroundColor: '#333', fontSize: '13px', border: '1px solid #444', color: '#FFD700' }}>
                         <Tag size={12} style={{ marginRight: '6px' }} /> {tagObj.name}
                         <Tooltip title={renderSourceTooltip(tagObj.source_info)} arrow placement="top">
-                          <Info size={13} style={{ marginLeft: '4px', cursor: 'pointer', color: '#FFD700' }} />
+                          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            <Info size={13} style={{ marginLeft: '4px', cursor: 'pointer', color: '#FFD700' }} />
+                          </span>
                         </Tooltip>
                         <X size={12} style={{ marginLeft: '6px', cursor: 'pointer', color: '#888' }} onClick={() => handleSidebarDeleteTag(tagObj.name)} />
                       </span>
@@ -1577,24 +1580,35 @@ const CustomerCenter = () => {
                 <div style={{ backgroundColor: '#222', borderRadius: '8px', padding: '16px', border: '1px solid #333', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                   {sidebarDetails.loading ? (
                     <span style={{ color: '#666', fontSize: '14px' }}>載入中...</span>
-                  ) : sidebarDetails.projects.length > 0 ? (
-                    sidebarDetails.projects.map((p, i) => (
-                      <span key={i} style={{ 
-                        display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '6px', fontSize: '13px', 
-                        backgroundColor: p.status === 'active' ? 'rgba(0,200,0,0.1)' : p.status === 'completed' ? 'rgba(33,150,243,0.1)' : 'rgba(255,255,255,0.1)', 
-                        border: `1px solid ${p.status === 'active' ? '#00c800' : p.status === 'completed' ? '#2196F3' : '#444'}`, 
-                        color: p.status === 'active' ? '#00c800' : p.status === 'completed' ? '#2196F3' : '#ccc' 
-                      }}>
-                        {p.name} ({p.status === 'active' ? '進行中' : p.status === 'completed' ? '已完成' : p.status === 'paused' ? '已中斷' : p.status})
-                        <Tooltip title={renderSourceTooltip(p.source_info)} arrow placement="top">
-                          <Info size={13} style={{ marginLeft: '4px', cursor: 'pointer', color: p.status === 'active' ? '#00c800' : '#aaa' }} />
-                        </Tooltip>
-                        <X size={12} style={{ marginLeft: '6px', cursor: 'pointer', color: p.status === 'active' ? '#00c800' : p.status === 'completed' ? '#2196F3' : '#888' }} onClick={() => handleSidebarDeleteProject(p.id, p.name)} />
-                      </span>
-                    ))
-                  ) : (
-                    <span style={{ color: '#666', fontSize: '14px' }}>未加入任何旅程</span>
-                  )}
+                  ) : (() => {
+                    const displayProjects = (sidebarDetails.projects && sidebarDetails.projects.length > 0)
+                      ? sidebarDetails.projects
+                      : (selectedCustomerForSidebar.active_projects || selectedCustomerForSidebar.projects || []).map(p => ({
+                          id: p.project_id || p.id,
+                          name: p.project_name || p.name,
+                          status: p.status || 'active',
+                          source_info: p.source_info
+                        }));
+                    if (displayProjects.length > 0) {
+                      return displayProjects.map((p, i) => (
+                        <span key={i} style={{ 
+                          display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '6px', fontSize: '13px', 
+                          backgroundColor: p.status === 'active' ? 'rgba(0,200,0,0.1)' : p.status === 'completed' ? 'rgba(33,150,243,0.1)' : 'rgba(255,255,255,0.1)', 
+                          border: `1px solid ${p.status === 'active' ? '#00c800' : p.status === 'completed' ? '#2196F3' : '#444'}`, 
+                          color: p.status === 'active' ? '#00c800' : p.status === 'completed' ? '#2196F3' : '#ccc' 
+                        }}>
+                          {p.name} ({p.status === 'active' ? '進行中' : p.status === 'completed' ? '已完成' : p.status === 'paused' ? '已中斷' : p.status})
+                          <Tooltip title={renderSourceTooltip(p.source_info)} arrow placement="top">
+                            <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                              <Info size={13} style={{ marginLeft: '4px', cursor: 'pointer', color: p.status === 'active' ? '#00c800' : '#aaa' }} />
+                            </span>
+                          </Tooltip>
+                          <X size={12} style={{ marginLeft: '6px', cursor: 'pointer', color: p.status === 'active' ? '#00c800' : p.status === 'completed' ? '#2196F3' : '#888' }} onClick={() => handleSidebarDeleteProject(p.id, p.name)} />
+                        </span>
+                      ));
+                    }
+                    return <span style={{ color: '#666', fontSize: '14px' }}>未加入任何旅程</span>;
+                  })()}
                 </div>
               </div>
 
@@ -1608,7 +1622,9 @@ const CustomerCenter = () => {
                     <span style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '6px', backgroundColor: 'rgba(255,215,0,0.1)', fontSize: '13px', border: '1px solid #FFD700', color: '#FFD700' }}>
                       {sidebarDetails.rich_menu.name}
                       <Tooltip title={renderSourceTooltip(sidebarDetails.rich_menu.source_info)} arrow placement="top">
-                        <Info size={13} style={{ marginLeft: '4px', cursor: 'pointer', color: '#FFD700' }} />
+                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                          <Info size={13} style={{ marginLeft: '4px', cursor: 'pointer', color: '#FFD700' }} />
+                        </span>
                       </Tooltip>
                       <X size={12} style={{ marginLeft: '6px', cursor: 'pointer', color: '#FFD700' }} onClick={handleSidebarDeleteRichMenu} />
                     </span>
