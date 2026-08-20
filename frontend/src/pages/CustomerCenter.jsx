@@ -60,6 +60,27 @@ const CustomerCenter = () => {
   const { oaId } = useParams();
   const { showToast } = useToast();
 
+  const renderSourceTooltip = (info) => {
+    if (!info) return "無來源資訊";
+    return (
+      <div style={{ padding: '6px 4px', fontSize: '12px', lineHeight: '1.6', color: '#fff' }}>
+        <div><strong>來源：</strong>{info.source_name || '人工操作'}</div>
+        <div><strong>觸發：</strong>{info.trigger_display || '手動變更'}</div>
+        <div><strong>時間：</strong>{info.occurred_at || '無紀錄'}</div>
+        {info.setting_url && (
+          <div style={{ marginTop: '6px' }}>
+            <span 
+              onClick={(e) => { e.stopPropagation(); navigate(info.setting_url); }} 
+              style={{ color: '#FFD700', textDecoration: 'underline', cursor: 'pointer', fontWeight: 'bold' }}
+            >
+              前往設定 →
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const fetchCustomers = async (silent = false) => {
     if (!silent && customers.length === 0) setIsLoading(true);
     try {
