@@ -857,6 +857,12 @@ const cleanNoteTitle = (noteStr = '') => {
                         setShowFlexEditor(false);
                         setFlexEditorIndex(null);
                     }}
+                    sourceContext={{
+                        sourceType: 'welcome',
+                        sourceInfo: {
+                            title: '好友歡迎訊息'
+                        }
+                    }}
                 />
             )}
         </div>

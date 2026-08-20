@@ -23,7 +23,7 @@ const normalize = (obj) => {
     }
 };
 
-const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
+const FlexMessageEditor = ({ initialContent, initialJson, onSave, onCancel, onClose, readOnly, sourceContext }) => {
     // Modes
     const [mode, setMode] = useState('single'); // 'single' | 'carousel'
     const [currentCardIndex, setCurrentCardIndex] = useState(0);
@@ -74,27 +74,24 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
         if (oaId) fetchOAName();
     }, [oaId]);
 
-    // Cards State
-    // Card Schema:
-    // {
-    //   template: 'option' | 'image',
-    //   imageUrl: '',
-    //   imageAction: { type: 'none', label: '', value: '' }, // type: 'none' | 'uri' | 'message'
-    //   title: '',
-    //   description: '',
-    //   buttons: [ { text: '', action: 'uri' | 'message', value: '' } ]
-    // }
-    const defaultCard = {
-        template: 'option',
+    const createEmptyCard = (tpl = 'option') => ({
+        template: tpl,
         imageUrl: '',
-        imageAction: { type: 'none', value: '', tags: [], journey: '', menu: '' },
+        imageAction: {
+            type: 'none',
+            value: '',
+            tags: [],
+            journey: '',
+            menu: ''
+        },
         title: '',
         description: '',
-        buttons: [],
-        tags: [] // For legacy or top-level if needed, but per-button is better
-    };
+        buttons: [
+            { text: '按鈕 1', action: 'uri', value: '', tags: [], journey: '', menu: '' }
+        ]
+    });
 
-    const [cards, setCards] = useState([{ ...defaultCard }]);
+    const [cards, setCards] = useState([createEmptyCard('option')]);
     const [hasInitialized, setHasInitialized] = useState(false);
     
     // 用於追蹤本編輯器最後一次主動儲存的 JSON 狀態，避免父元件狀態回流導致的競態回溯問題
@@ -102,61 +99,36 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
     // 用於管理圖片上傳狀態，提供豐富的視覺載入特效與阻擋重複操作
     const [isUploading, setIsUploading] = useState(false);
 
-    // 初始與外部變更載入邏輯
+    // Initialize from props
     useEffect(() => {
-        if (!initialContent) {
-            setHasInitialized(true);
-            return;
-        }
-
-        try {
-            const incoming = typeof initialContent === 'string' ? JSON.parse(initialContent) : initialContent;
-            const normalizedIncoming = normalize(incoming);
-
-            // 若傳入內容與最後一次本機儲存的內容完全相同，則視為「自身儲存回流」，忽略以防競態回溯
-            if (hasInitialized && lastSavedJsonRef.current === normalizedIncoming) {
-                return;
-            }
-
-            const current = generateJson();
-            if (normalize(incoming) === normalize(current)) {
-                // 若內容語意上相同，僅標記已初始化即可
-                if (!hasInitialized) setHasInitialized(true);
-                return;
-            }
-
-            // 初始化邏輯：首次掛載時載入
-            // 或當外部傳入內容與當前本機狀態有根本性的顯著差異（例如在父元件切換了編輯的訊息）
-            const isExternalChange = !hasInitialized;
-            const isSignificantDiff = normalize(incoming) !== normalize(current);
-
-            if (isExternalChange || (hasInitialized && isSignificantDiff)) {
-                if (incoming.type === 'carousel') {
+        const rawContent = initialContent || (initialJson ? JSON.stringify(initialJson) : null);
+        if (rawContent) {
+            try {
+                const parsed = typeof rawContent === 'string' ? JSON.parse(rawContent) : rawContent;
+                if (parsed.type === 'carousel' && Array.isArray(parsed.contents)) {
                     setMode('carousel');
-                    const parsedCards = incoming.contents.map(b => parseBubbleToCard(b));
-                    if (parsedCards.length > 0) {
-                        const firstTemplate = parsedCards[0].template;
-                        parsedCards.forEach(c => c.template = firstTemplate);
-                    }
-                    setCards(parsedCards);
-                } else if (incoming.type === 'bubble') {
+                    const loadedCards = parsed.contents.map(c => parseBubbleToCard(c));
+                    setCards(loadedCards.length > 0 ? loadedCards : [createEmptyCard('option')]);
+                } else if (parsed.type === 'bubble') {
                     setMode('single');
-                    setCards([parseBubbleToCard(incoming)]);
+                    setCards([parseBubbleToCard(parsed)]);
                 }
-                if (!hasInitialized) setHasInitialized(true);
+            } catch (e) {
+                console.error('Failed to parse initial Flex JSON:', e);
             }
-        } catch (e) {
-            console.error("FlexEditor Load Error:", e);
+            setHasInitialized(true);
+        } else {
             setHasInitialized(true);
         }
-    }, [initialContent]);
+    }, [initialContent, initialJson]);
 
     // 自動儲存邏輯
     useEffect(() => {
         if (!hasInitialized) return;
 
         const currentJson = generateJson();
-        const incomingJson = typeof initialContent === 'string' ? JSON.parse(initialContent || '{}') : initialContent;
+        const incomingRaw = initialContent || (initialJson ? JSON.stringify(initialJson) : '{}');
+        const incomingJson = typeof incomingRaw === 'string' ? JSON.parse(incomingRaw || '{}') : incomingRaw;
 
         const normalizedCurrent = normalize(currentJson);
         const normalizedIncoming = normalize(incomingJson);
@@ -168,9 +140,9 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
             }
             // 儲存時同步更新 lastSavedJsonRef
             lastSavedJsonRef.current = normalizedCurrent;
-            onSave(JSON.stringify(currentJson));
+            if (onSave) onSave(typeof initialJson !== 'undefined' ? currentJson : JSON.stringify(currentJson));
         }
-    }, [cards, mode, hasInitialized]);
+    }, [cards, mode, hasInitialized, sourceContext]);
 
     // Validation helper
     const validateCards = () => {
@@ -218,7 +190,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
         const footer = bubble.footer || {};
 
         const extractBindData = (payload) => {
-            let bindData = { tag: [], journey: '', menu: '' };
+            let bindData = { tag: [], journey: '', menu: '', sourceType: '', sourceInfo: '' };
             if (!payload || typeof payload !== 'string') return bindData;
             
             const parseTagsStr = (tagStr) => {
@@ -231,6 +203,8 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                 if (parts[1]) bindData.tag = parseTagsStr(parts[1]);
                 if (parts[2]) bindData.journey = parts[2];
                 if (parts[3]) bindData.menu = parts[3];
+                if (parts[5]) bindData.sourceType = parts[5];
+                if (parts[6]) bindData.sourceInfo = parts[6];
                 return bindData;
             } else if (payload.includes('|sys_bind|')) {
                 const parts = payload.split('|sys_bind|');
@@ -239,6 +213,8 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                     if (params[0]) bindData.tag = parseTagsStr(params[0]);
                     if (params[1]) bindData.journey = params[1];
                     if (params[2]) bindData.menu = params[2];
+                    if (params[4]) bindData.sourceType = params[4];
+                    if (params[5]) bindData.sourceInfo = params[5];
                 }
                 return bindData;
             }
@@ -277,7 +253,8 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
         const cleanPayload = (payload) => {
             if (!payload || typeof payload !== 'string') return payload;
             if (payload.startsWith('sys_bind|')) {
-                return payload.split('|').slice(4).join('|');
+                const parts = payload.split('|');
+                return parts[4] || '';
             }
             if (payload.includes('|sys_bind|')) {
                 return payload.split('|sys_bind|')[0];
@@ -366,6 +343,10 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
             const menuStr = bindData.menu || '';
             const hasBind = tagsStr !== '[]' || journeyStr || menuStr;
 
+            const sourceTypeStr = sourceContext?.sourceType || '';
+            const sourceInfoStr = sourceContext?.sourceInfo ? JSON.stringify(sourceContext.sourceInfo) : '';
+            const hasSource = Boolean(sourceTypeStr || sourceInfoStr);
+
             if (type === 'uri') {
                 if (!val || !val.trim()) return { type: 'uri', label: 'action', uri: '' };
 
@@ -375,21 +356,25 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                     finalVal = 'https://' + val;
                 }
 
-                if (hasBind) {
+                if (hasBind || hasSource) {
                     const redirectBase = API_BASE_URL ? `${API_BASE_URL}/redirect` : '/api/redirect';
                     const absoluteRedirectBase = redirectBase.startsWith('/') ? window.location.origin + redirectBase : redirectBase;
                     
                     let finalTargetUrl = `${absoluteRedirectBase}?url=${encodeURIComponent(finalVal)}&oaId=${oaId}`;
-                    if (tagsStr) finalTargetUrl += `&tags=${encodeURIComponent(tagsStr)}`;
+                    if (tagsStr !== '[]') finalTargetUrl += `&tags=${encodeURIComponent(tagsStr)}`;
                     if (journeyStr) finalTargetUrl += `&journey=${encodeURIComponent(journeyStr)}`;
                     if (menuStr) finalTargetUrl += `&menu=${encodeURIComponent(menuStr)}`;
+                    if (sourceTypeStr) finalTargetUrl += `&source_type=${encodeURIComponent(sourceTypeStr)}`;
+                    if (sourceInfoStr) finalTargetUrl += `&source_info=${encodeURIComponent(sourceInfoStr)}`;
 
                     if (appName) {
                         const liffId = "2009851813-AgTeSa4r";
                         let liffUrl = `https://liff.line.me/${liffId}?bot=${appName}&redirect=${encodeURIComponent(finalVal)}`;
-                        if (tagsStr) liffUrl += `&tag=${encodeURIComponent(tagsStr)}`;
+                        if (tagsStr !== '[]') liffUrl += `&tag=${encodeURIComponent(tagsStr)}`;
                         if (journeyStr) liffUrl += `&journey=${encodeURIComponent(journeyStr)}`;
                         if (menuStr) liffUrl += `&menu=${encodeURIComponent(menuStr)}`;
+                        if (sourceTypeStr) liffUrl += `&source_type=${encodeURIComponent(sourceTypeStr)}`;
+                        if (sourceInfoStr) liffUrl += `&source_info=${encodeURIComponent(sourceInfoStr)}`;
                         return { type: 'uri', label: 'action', uri: liffUrl };
                     }
                     
@@ -406,10 +391,14 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                 return { type: 'postback', label: 'action', data: '', displayText: '' };
             }
 
+            const postbackData = hasSource
+                ? `sys_bind|${tagsStr}|${journeyStr}|${menuStr}|${val}|${sourceTypeStr}|${sourceInfoStr}`
+                : `sys_bind|${tagsStr}|${journeyStr}|${menuStr}|${val}`;
+
             return {
                 type: 'postback',
                 label: 'action',
-                data: `sys_bind|${tagsStr}|${journeyStr}|${menuStr}|${val}`,
+                data: postbackData,
                 displayText: val
             };
         };

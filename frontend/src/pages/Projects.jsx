@@ -2534,7 +2534,20 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                 )}
                                 {messages[activeMsgIndex].OTYPE === 'FlexSendMessage' && (
                                     <div style={{ height: '500px', border: '1px solid #444' }}>
-                                        <FlexMessageEditor key={activeMsgIndex} initialContent={messages[activeMsgIndex].contents} onSave={(val) => updateMessage(activeMsgIndex, 'contents', val)} onCancel={() => { }} />
+                                        <FlexMessageEditor 
+                                            key={activeMsgIndex} 
+                                            initialContent={messages[activeMsgIndex].contents} 
+                                            onSave={(val) => updateMessage(activeMsgIndex, 'contents', val)} 
+                                            onCancel={() => { }} 
+                                            sourceContext={{
+                                                sourceType: 'journey',
+                                                sourceInfo: {
+                                                    project_id: projectId,
+                                                    step_id: stepId,
+                                                    tag: tag
+                                                }
+                                            }}
+                                        />
                                     </div>
                                 )}
                             </div>

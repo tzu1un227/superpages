@@ -1531,9 +1531,16 @@ function RuleDesigner() {
                         <FlexMessageEditor 
                             initialContent={msgRpyList[flexEditorIndex]?.contents || msgRpyList[flexEditorIndex]?.Line?.contents}
                             onSave={(json) => {
-                                handleUpdateMessage(flexEditorIndex, 'contents', JSON.parse(json));
+                                handleUpdateMessage(flexEditorIndex, 'contents', typeof json === 'string' ? JSON.parse(json) : json);
                             }}
                             onCancel={() => setShowFlexEditor(false)}
+                            sourceContext={{
+                                sourceType: 'keyword',
+                                sourceInfo: {
+                                    keyword: editingRowIndex !== null ? (rules[editingRowIndex]?.key_word || rules[editingRowIndex]?.name || '關鍵字法則') : '關鍵字法則',
+                                    rule_id: editingRowIndex !== null ? (rules[editingRowIndex]?.id || editingRowIndex) : null
+                                }
+                            }}
                         />
                     </div>
                 </div>

@@ -1,4 +1,5 @@
 ## [2026-08-20] CRM 共用來源透明化 MVP v1.2 (Source Transparency System)
+- **6 段式 sys_bind 來源協定擴充 (FlexMessageEditor.jsx & 各模組)**: Flex 訊息按鈕與圖片點擊產生的 Postback 動作格式全面升級為 `sys_bind|<標籤列表>|<自動旅程ID>|<圖文選單ID>|<觸發關鍵字/回傳文字>|<來源變數名稱>|<來源資訊>`，並於 Projects、RuleDesigner、Broadcast、WelcomeMessage 等模組自動注入所屬來源 Context 與 JSON 資訊，供 Line-Bot-Main 直接解析與寫入來源中繼資料。
 - **進階訊息編輯器選單解鎖 (FlexMessageEditor.jsx)**: 移除切換圖文選單 dropdown 中對非 Superpages 產生選單的 `disabled={!m.ui_uuid}` 限制與禁用提示，使自動旅程、排程與關鍵字回覆中的所有有效圖文選單皆可正常被選擇與切換。
 - **側邊欄圖文選單即時同步 (backend/endpoints/customers.py & CustomerCenter.jsx)**: 修正 `get_customer_details` 於 LINE API 404 時誤刪 Private_var 選單紀錄的問題，加入資料庫與預設選單備援查詢，並於側邊欄中支援列表資料即時同步，確保關鍵字更換選單後側邊欄能 100% 正確呈現選單與關鍵字來源 Tooltip。
 - **手動標籤來源寫入完善 (CustomerCenter.jsx & backend/app.py)**: 將側邊欄與多選加標籤流程全面改為標準 batch 標籤 API 寫入 `tag_meta`，並在 `/api/trigger` 接收 `set_tag` 時即時同步 `Private_var` 與 `tag_meta`，徹底解決手動打標籤後 Tooltip 誤顯「歷史資料」問題。

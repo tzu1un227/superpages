@@ -1358,6 +1358,13 @@ function BroadcastContent() {
                             initialContent={formData.messages[editingMsgIndex]?.contents}
                             onSave={handleFlexSave}
                             readOnly={(formData.status === 'sent' || formData.status === 'scheduled')}
+                            sourceContext={{
+                                sourceType: 'broadcast',
+                                sourceInfo: {
+                                    title: formData.title || '群發廣播',
+                                    broadcast_id: selectedId || null
+                                }
+                            }}
                         />
                     </DialogContent>
                     <DialogActions sx={{ borderTop: '1px solid #333', p: 2 }}>
