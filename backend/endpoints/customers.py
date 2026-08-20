@@ -1227,10 +1227,6 @@ def batch_operation():
                         success_count += 1
                 else:
                     for uid in to_link_uids:
-                        results.append({"user_id": uid, "status": "success", "reason": None})
-                        success_count += 1
-                else:
-                    for uid in to_link_uids:
                         results.append({"user_id": uid, "status": "failed", "reason": "LINE API 套用圖文選單失敗"})
                         failed_count += 1
 

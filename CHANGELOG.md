@@ -1,4 +1,5 @@
 ## [2026-08-20] CRM 共用來源透明化 MVP v1.2 (Source Transparency System)
+- **語法修復 (backend/endpoints/customers.py)**: 修復 `apply_richmenu` 批次操作判斷中多餘重複的 `else:` 區塊導致之 Python `SyntaxError: invalid syntax` 語法錯誤。
 - **雙軌混合解構架構 (backend/endpoints/customers.py, richmenu.py, app.py, liff_questionnaire.py)**: 實現 `Private_var:<app_id>` JSON 寫入軌 (`tag_meta`, `rich_menu_meta`, `journey_meta`)、動態垃圾清理軌與 Live `ht_view:<app_id>` 解構讀取軌，實現 100% 來源透明無死角。
 - **客戶中心 Tooltip 提示 (frontend/src/pages/CustomerCenter.jsx)**: 於客戶詳情側邊欄中，為標籤、自動旅程、圖文選單 Chip 加入 MUI Tooltip 與 ⓘ 資訊圖示， hover 可展現 4 行詳細來源資訊（來源類型/名稱、Trigger 觸發時機、動作發生時間、前往設定按鈕）。
 - **自動旅程加入來源總覽 (backend/app.py & Projects.jsx)**: 新增 `GET /api/projects/<id>/join-sources` 端點與 Projects.jsx 頁面中的 `加入來源` 頁籤，提供 6 欄位來源統計表格與「合計 XX 人」統計列。
