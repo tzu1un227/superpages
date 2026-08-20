@@ -1221,62 +1221,56 @@ def get_richmenu_apply_sources(rich_menu_id):
         except Exception as e:
             print("Error scanning project_schedules for rich menu:", e)
 
-        for mid in all_menu_ids:
-            if not mid: continue
-            # 3. 主動掃描 Q_bank (關鍵字法則表)
-            try:
-                cur.execute(f"""
-                    SELECT * FROM {t_qbank}
-                    WHERE msg_rpy::text LIKE %s 
-                       OR function::text LIKE %s 
-                       OR state_out::text LIKE %s
-                       OR check::text LIKE %s
-                """, (f"%{mid}%", f"%{mid}%", f"%{mid}%", f"%{mid}%"))
-                for r in cur.fetchall():
+        # 3. 主動掃描 Q_bank (關鍵字法則表)
+        try:
+            cur.execute(f"SELECT * FROM {t_qbank}")
+            q_rows = cur.fetchall()
+            for r in q_rows:
+                r_text = f"{r.get('msg_rpy')} {r.get('function')} {r.get('check')} {r.get('state_out')} {r.get('note')}"
+                if any(mid in r_text for mid in all_menu_ids if mid):
                     kw_raw = r.get('content')
                     kw_disp = format_kw_display(kw_raw)
                     kw_clean = clean_rule_title(r.get('note'), kw_disp)
                     k = ("keyword", kw_clean, f"觸發關鍵字: {kw_disp}", "/rules")
                     if k not in sources_map:
                         sources_map[k] = {"current_count": 0, "last_applied_at": None}
-            except Exception as e:
-                print("Error scanning Q_bank for rich menu:", e)
+        except Exception as e:
+            print("Error scanning Q_bank for rich menu:", e)
 
-            # 4. 主動掃描 QA_bank (問答知識庫表，自動排除旅程自帶排程標籤)
-            try:
-                cur.execute(f"""
-                    SELECT * FROM {t_qabank}
-                    WHERE msg_rpy::text LIKE %s 
-                       OR function::text LIKE %s 
-                       OR state_out::text LIKE %s
-                       OR check::text LIKE %s
-                """, (f"%{mid}%", f"%{mid}%", f"%{mid}%", f"%{mid}%"))
-                for r in cur.fetchall():
-                    qa_tag = r.get('tag') or f"問答庫 #{r.get('id')}"
-                    if qa_tag in journey_sched_tags:
-                        continue  # 已歸入自動旅程排程
+        # 4. 主動掃描 QA_bank (問答知識庫表，自動排除旅程自帶排程標籤)
+        try:
+            cur.execute(f"SELECT * FROM {t_qabank}")
+            qa_rows = cur.fetchall()
+            for r in qa_rows:
+                qa_tag = r.get('tag') or f"問答庫 #{r.get('id')}"
+                if qa_tag in journey_sched_tags:
+                    continue  # 已歸入自動旅程排程
+                r_text = f"{r.get('msg_rpy')} {r.get('function')} {r.get('check')} {r.get('state_out')} {r.get('note')}"
+                if any(mid in r_text for mid in all_menu_ids if mid):
                     qa_clean = clean_rule_title(r.get('note'), qa_tag)
                     k = ("keyword", qa_clean, f"觸發標籤: {qa_tag}", "/rules")
                     if k not in sources_map:
                         sources_map[k] = {"current_count": 0, "last_applied_at": None}
-            except Exception as e:
-                print("Error scanning QA_bank for rich menu:", e)
+        except Exception as e:
+            print("Error scanning QA_bank for rich menu:", e)
 
-            # 5. 主動掃描 rich_menu_metadata (其他圖文選單按鈕切換)
-            try:
-                cur.execute(f"""
-                    SELECT rich_menu_id, ui_uuid, name, data 
-                    FROM {t_metadata}
-                    WHERE data::text LIKE %s
-                      AND rich_menu_id NOT IN %s AND ui_uuid NOT IN %s
-                """, (f"%{mid}%", tuple(all_menu_ids), tuple(all_menu_ids)))
-                for r in cur.fetchall():
+        # 5. 主動掃描 rich_menu_metadata (其他圖文選單按鈕切換)
+        try:
+            cur.execute(f"SELECT rich_menu_id, ui_uuid, name, data FROM {t_metadata}")
+            rm_rows = cur.fetchall()
+            for r in rm_rows:
+                r_mid = str(r.get('rich_menu_id') or '').strip()
+                r_uuid = str(r.get('ui_uuid') or '').strip()
+                if (r_mid and r_mid in all_menu_ids) or (r_uuid and r_uuid in all_menu_ids):
+                    continue
+                data_str = str(r.get('data') or '')
+                if any(mid in data_str for mid in all_menu_ids if mid):
                     rm_name = r.get('name') or "其他圖文選單"
                     k = ("richmenu", rm_name, "選單按鈕切換", "/richmenu")
                     if k not in sources_map:
                         sources_map[k] = {"current_count": 0, "last_applied_at": None}
-            except Exception as e:
-                print("Error scanning other rich menus:", e)
+        except Exception as e:
+            print("Error scanning other rich menus:", e)
 
         # 6. 統計現有用戶套用歸因
         cur.execute(f"SELECT DISTINCT user_id FROM {pv_table} WHERE name = 'rich_menu' AND value = ANY(%s)", (all_menu_ids,))
@@ -1419,7 +1413,7 @@ def get_richmenu_apply_sources(rich_menu_id):
         cur.close()
         return jsonify({
             "rich_menu_id": rich_menu_id,
-            "total_users": len(uids),
+            "total_users": len(total_uids),
             "sources": source_list
         })
     except Exception as e:
