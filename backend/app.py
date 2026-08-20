@@ -1248,11 +1248,18 @@ def get_project_join_sources(id):
         t_history = f'"history:{app_id}"'
         t_qbank = f'"Q_bank:{app_id}"'
         t_qabank = f'"QA_bank:{app_id}"'
-        t_schedules = f'"project_schedules:{app_id}"'
-        t_projects = f'"projects:{app_id}"'
+        t_schedules = get_suffixed_table('project_schedules')
+        t_projects = get_suffixed_table('projects')
         t_richmenu = f'"rich_menu_metadata:{app_id}"'
 
         sources_map = {}
+
+        def clean_rule_title(note_str, fallback="關鍵字法則"):
+            if not note_str:
+                return fallback
+            base = str(note_str).split('|UPDATED:')[0].strip()
+            clean = base.replace('關鍵字回覆 - ', '').replace(' - 關鍵字回覆', '').replace('問卷管理 - ', '').replace(' - 問卷管理', '').replace(' - 工程用法則', '').replace('工程用法則', '').strip()
+            return clean if clean else (base if base else fallback)
 
         def format_kw_display(content_val):
             if not content_val:
@@ -1275,9 +1282,8 @@ def get_project_join_sources(id):
             for r in cur.fetchall():
                 kw_raw = r.get('content')
                 kw_disp = format_kw_display(kw_raw)
-                kw_note = r.get('note')
-                kw_title = kw_note if kw_note else kw_disp
-                k = ("keyword", f"關鍵字: {kw_title}", f"觸發關鍵字: {kw_disp}", "/rules")
+                kw_clean = clean_rule_title(r.get('note'), kw_disp)
+                k = ("keyword", kw_clean, f"觸發關鍵字: {kw_disp}", "/rules")
                 if k not in sources_map:
                     sources_map[k] = {"current_count": 0, "last_joined_at": None}
         except Exception as e:
@@ -1294,9 +1300,8 @@ def get_project_join_sources(id):
             """, (f"%|{id}|%", f"%|{id}|%", f"%journey={id}%", f"%iup|{id}%"))
             for r in cur.fetchall():
                 qa_tag = r.get('tag') or f"問答庫 #{r.get('id')}"
-                qa_note = r.get('note')
-                qa_title = qa_note if qa_note else qa_tag
-                k = ("keyword", f"問答庫: {qa_title}", f"觸發標籤: {qa_tag}", "/rules")
+                qa_clean = clean_rule_title(r.get('note'), qa_tag)
+                k = ("keyword", qa_clean, f"觸發標籤: {qa_tag}", "/rules")
                 if k not in sources_map:
                     sources_map[k] = {"current_count": 0, "last_joined_at": None}
         except Exception as e:
@@ -1308,13 +1313,19 @@ def get_project_join_sources(id):
                 SELECT s.schedule_id, s.project_id, s.step_id, s.message_content, p.project_name
                 FROM {t_schedules} s
                 LEFT JOIN {t_projects} p ON s.project_id = p.project_id
-                WHERE (s.message_content::text LIKE %s OR s.message_content::text LIKE %s)
-                  AND s.project_id != %s
-            """, (f"%|{id}|%", f"%journey={id}%", id))
+                WHERE (
+                    s.message_content::text LIKE %s 
+                    OR s.message_content::text LIKE %s 
+                    OR s.message_content::text LIKE %s 
+                    OR s.message_content::text LIKE %s
+                    OR s.message_content::text LIKE %s
+                )
+                  AND s.project_id != %s AND s.project_id::text != %s
+            """, (f"%|{id}|%", f"%journey={id}%", f"%\"journey\":{id}%", f"%\"journey\":\"{id}\"%", f"%iup|{id}%", id, str(id)))
             for r in cur.fetchall():
                 p_name = r.get('project_name') or f"旅程 #{r.get('project_id')}"
                 step_idx = r.get('step_id') or 1
-                k = ("journey", f"自動旅程: {p_name}", f"步驟 {step_idx} 訊息按鈕點擊", f"/projects")
+                k = ("journey", p_name, f"步驟 {step_idx} 訊息按鈕點擊", f"/projects")
                 if k not in sources_map:
                     sources_map[k] = {"current_count": 0, "last_joined_at": None}
         except Exception as e:
@@ -1329,13 +1340,13 @@ def get_project_join_sources(id):
             """, (f"%|{id}|%", f"%journey={id}%"))
             for r in cur.fetchall():
                 rm_name = r.get('name') or "圖文選單"
-                k = ("richmenu", f"圖文選單: {rm_name}", "選單按鈕點擊", "/richmenu")
+                k = ("richmenu", rm_name, "選單按鈕點擊", "/richmenu")
                 if k not in sources_map:
                     sources_map[k] = {"current_count": 0, "last_joined_at": None}
         except Exception as e:
             print("Error scanning rich_menu_metadata:", e)
 
-        # 5. 掃描現有成員並進行歸因統計
+        # 5. 掃描現有成員並進行精確歸因統計
         uids_set = set()
         try:
             cur.execute(f"SELECT DISTINCT user_id FROM {t_ups} WHERE (project_id = %s OR project_id = %s) AND LOWER(COALESCE(status, '')) != 'deleted'", (id, str(id)))
@@ -1376,23 +1387,64 @@ def get_project_join_sources(id):
                         cur.execute(f"""
                             SELECT category, content, "timestamp" FROM {t_history}
                             WHERE user_id = %s AND (
-                                content ILIKE %s OR 
-                                content ILIKE %s OR 
-                                category IN ('Follow', 'Message', 'Action', 'Batch')
+                                content LIKE %s OR 
+                                content LIKE %s OR 
+                                content LIKE %s OR 
+                                content LIKE %s
                             )
                             ORDER BY "timestamp" DESC LIMIT 1
-                        """, (uid, f"%journey%:{id}%", f"%sys_bind%|{id}|%"))
+                        """, (uid, f"%|{id}|%", f"%journey={id}%", f"%iup|{id}%", f"%journey%:{id}%"))
                         h_row = cur.fetchone()
                         if h_row:
-                            cat = h_row.get('category') or ''
-                            cont = str(h_row.get('content') or '')
-                            meta = {
-                                "source_type": "keyword" if cat == 'Message' else "manual",
-                                "source_name": "關鍵字觸發" if cat == 'Message' else "人工操作",
-                                "trigger_display": cont[:30] if cont else "歷史加入紀錄",
-                                "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
-                                "setting_url": "/rules" if cat == 'Message' else None
-                            }
+                            # Check if matches an existing project schedule
+                            cur.execute(f"""
+                                SELECT s.project_id, s.step_id, p.project_name
+                                FROM {t_schedules} s
+                                LEFT JOIN {t_projects} p ON s.project_id = p.project_id
+                                WHERE (
+                                    s.message_content::text LIKE %s 
+                                    OR s.message_content::text LIKE %s
+                                    OR s.message_content::text LIKE %s
+                                )
+                                AND s.project_id != %s AND s.project_id::text != %s
+                                LIMIT 1
+                            """, (f"%|{id}|%", f"%journey={id}%", f"%iup|{id}%", id, str(id)))
+                            matched_sched = cur.fetchone()
+                            if matched_sched:
+                                p_name = matched_sched.get('project_name') or f"旅程 #{matched_sched.get('project_id')}"
+                                step_idx = matched_sched.get('step_id') or 1
+                                meta = {
+                                    "source_type": "journey",
+                                    "source_name": p_name,
+                                    "trigger_display": f"步驟 {step_idx} 訊息按鈕點擊",
+                                    "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
+                                    "setting_url": "/projects"
+                                }
+                            else:
+                                # Check if matches Q_bank
+                                cur.execute(f"""
+                                    SELECT id, content, note FROM {t_qbank}
+                                    WHERE msg_rpy::text LIKE %s OR function::text LIKE %s OR msg_rpy::text LIKE %s OR function::text LIKE %s
+                                    LIMIT 1
+                                """, (f"%|{id}|%", f"%|{id}|%", f"%journey={id}%", f"%iup|{id}%"))
+                                matched_q = cur.fetchone()
+                                if matched_q:
+                                    clean_t = clean_rule_title(matched_q.get('note'), format_kw_display(matched_q.get('content')))
+                                    meta = {
+                                        "source_type": "keyword",
+                                        "source_name": clean_t,
+                                        "trigger_display": f"觸發關鍵字: {format_kw_display(matched_q.get('content'))}",
+                                        "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
+                                        "setting_url": "/rules"
+                                    }
+                                else:
+                                    meta = {
+                                        "source_type": "manual",
+                                        "source_name": "人工操作",
+                                        "trigger_display": "管理後台加入",
+                                        "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
+                                        "setting_url": None
+                                    }
                     except: pass
 
                 if not meta:
@@ -1407,7 +1459,7 @@ def get_project_join_sources(id):
                 # Match with existing scanned sources or add new one
                 matched_key = None
                 m_type = meta.get('source_type', 'manual')
-                m_name = meta.get('source_name', '人工操作')
+                m_name = clean_rule_title(meta.get('source_name', '人工操作'))
                 m_trig = meta.get('trigger_display', '手動加入')
                 m_url = meta.get('setting_url')
 

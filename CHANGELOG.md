@@ -2,6 +2,8 @@
 - **主動設定表探測與來源地圖架構 (backend/app.py & backend/endpoints/richmenu.py)**:
   - 將自動旅程加入來源與圖文選單套用來源升級為「設定表主動探測 + 成員歸因統計」架構。
   - 主動掃描 `Q_bank`（關鍵字法則表）、`QA_bank`（問答庫）、`project_schedules`（其他自動旅程排程表）與 `rich_menu_metadata`（圖文選單按鈕），即使尚未有用戶觸發，也能完整列出所有指向該旅程/選單的有效觸發點與跳轉設定。
+  - 實作 `clean_rule_title`，去除 `|UPDATED:...` 與前綴後綴，來源名稱乾淨呈現前端設定的實際標題（如 `test`）。
+  - 修復跨旅程加入歸因邏輯：歷史查詢精準過濾旅程 ID，並優先匹配 `project_schedules` 訊息按鈕，確保從其他旅程加入的用戶正確歸屬至來源旅程名稱與步驟，而非誤判為關鍵字或人工操作。
   - 同步結合 `user_project_status`、`cron_table`、`Private_var` 與全域預設選單進行即時在席人數統計與歷史歷程回溯。
 - **6 段式 sys_bind 來源協定擴充 (FlexMessageEditor.jsx & 各模組)**: Flex 訊息按鈕與圖片點擊產生的 Postback 動作格式全面升級為 `sys_bind|<標籤列表>|<自動旅程ID>|<圖文選單ID>|<觸發關鍵字/回傳文字>|<來源變數名稱>|<來源資訊>`，並於 Projects、RuleDesigner、Broadcast、WelcomeMessage 等模組自動注入所屬來源 Context 與 JSON 資訊，供 Line-Bot-Main 直接解析與寫入來源中繼資料。
 - **進階訊息編輯器選單解鎖 (FlexMessageEditor.jsx)**: 移除切換圖文選單 dropdown 中對非 Superpages 產生選單的 `disabled={!m.ui_uuid}` 限制與禁用提示，使自動旅程、排程與關鍵字回覆中的所有有效圖文選單皆可正常被選擇與切換。

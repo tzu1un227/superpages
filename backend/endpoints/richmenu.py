@@ -1147,6 +1147,13 @@ def get_richmenu_apply_sources(rich_menu_id):
         if is_default:
             sources_map[("default", "系統預設", "全域預設圖文選單", "/richmenu")] = {"current_count": 0, "last_applied_at": None}
 
+        def clean_rule_title(note_str, fallback="關鍵字法則"):
+            if not note_str:
+                return fallback
+            base = str(note_str).split('|UPDATED:')[0].strip()
+            clean = base.replace('關鍵字回覆 - ', '').replace(' - 關鍵字回覆', '').replace('問卷管理 - ', '').replace(' - 問卷管理', '').replace(' - 工程用法則', '').replace('工程用法則', '').strip()
+            return clean if clean else (base if base else fallback)
+
         def format_kw_display(content_val):
             if not content_val:
                 return "*"
@@ -1157,10 +1164,11 @@ def get_richmenu_apply_sources(rich_menu_id):
             return s.replace("['", "").replace("']", "").replace('["', '').replace('"]', '')
 
         # 2. 主動掃描 Q_bank (關鍵字法則表)
+        from app import get_suffixed_table
         t_qbank = f'"Q_bank:{app_id}"'
         t_qabank = f'"QA_bank:{app_id}"'
-        t_schedules = f'"project_schedules:{app_id}"'
-        t_projects = f'"projects:{app_id}"'
+        t_schedules = get_suffixed_table('project_schedules')
+        t_projects = get_suffixed_table('projects')
 
         for mid in all_menu_ids:
             try:
@@ -1175,9 +1183,8 @@ def get_richmenu_apply_sources(rich_menu_id):
                 for r in cur.fetchall():
                     kw_raw = r.get('content')
                     kw_disp = format_kw_display(kw_raw)
-                    kw_note = r.get('note')
-                    kw_title = kw_note if kw_note else kw_disp
-                    k = ("keyword", f"關鍵字: {kw_title}", f"觸發關鍵字: {kw_disp}", "/rules")
+                    kw_clean = clean_rule_title(r.get('note'), kw_disp)
+                    k = ("keyword", kw_clean, f"觸發關鍵字: {kw_disp}", "/rules")
                     if k not in sources_map:
                         sources_map[k] = {"current_count": 0, "last_applied_at": None}
             except Exception as e:
@@ -1195,9 +1202,8 @@ def get_richmenu_apply_sources(rich_menu_id):
                 """, (f"%|{mid}|%", f"%|{mid}|%", f"%menu={mid}%", f"%rm|{mid}%", f"%switch_rm|{mid}%"))
                 for r in cur.fetchall():
                     qa_tag = r.get('tag') or f"問答庫 #{r.get('id')}"
-                    qa_note = r.get('note')
-                    qa_title = qa_note if qa_note else qa_tag
-                    k = ("keyword", f"問答庫: {qa_title}", f"觸發標籤: {qa_tag}", "/rules")
+                    qa_clean = clean_rule_title(r.get('note'), qa_tag)
+                    k = ("keyword", qa_clean, f"觸發標籤: {qa_tag}", "/rules")
                     if k not in sources_map:
                         sources_map[k] = {"current_count": 0, "last_applied_at": None}
             except Exception as e:
@@ -1214,7 +1220,7 @@ def get_richmenu_apply_sources(rich_menu_id):
                 for r in cur.fetchall():
                     p_name = r.get('project_name') or f"旅程 #{r.get('project_id')}"
                     step_idx = r.get('step_id') or 1
-                    k = ("journey", f"自動旅程: {p_name}", f"步驟 {step_idx} 訊息按鈕切換", f"/projects")
+                    k = ("journey", p_name, f"步驟 {step_idx} 訊息按鈕切換", f"/projects")
                     if k not in sources_map:
                         sources_map[k] = {"current_count": 0, "last_applied_at": None}
             except Exception as e:
@@ -1230,7 +1236,7 @@ def get_richmenu_apply_sources(rich_menu_id):
                 """, (f"%|{mid}|%", f"%switch_rm|{mid}%", f"%menu={mid}%", tuple(all_menu_ids), tuple(all_menu_ids)))
                 for r in cur.fetchall():
                     rm_name = r.get('name') or "其他圖文選單"
-                    k = ("richmenu", f"圖文選單: {rm_name}", "選單按鈕切換", "/richmenu")
+                    k = ("richmenu", rm_name, "選單按鈕切換", "/richmenu")
                     if k not in sources_map:
                         sources_map[k] = {"current_count": 0, "last_applied_at": None}
             except Exception as e:
