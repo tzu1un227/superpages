@@ -76,8 +76,11 @@ const CustomerCenter = () => {
                 if (url.startsWith('/oa/')) {
                   navigate(url);
                 } else {
-                  const cleanUrl = url.replace(/^\/rules/, 'ruledesigner').replace(/^\//, '');
-                  navigate(`/oa/${oaId}/${cleanUrl}`);
+                  let clean = url.trim().replace(/^\//, '');
+                  if (clean === 'rules' || clean.startsWith('rules/')) {
+                    clean = clean.replace(/^rules/, 'ruledesigner');
+                  }
+                  navigate(`/oa/${oaId}/${clean}`);
                 }
               }} 
               style={{ color: '#FFD700', textDecoration: 'underline', cursor: 'pointer', fontWeight: 'bold' }}

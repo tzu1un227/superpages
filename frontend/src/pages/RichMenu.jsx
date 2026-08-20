@@ -1369,8 +1369,11 @@ function RichMenu() {
                                                                             if (url.startsWith('/oa/')) {
                                                                                 navigate(url);
                                                                             } else {
-                                                                                const cleanUrl = url.replace(/^\/rules/, 'ruledesigner').replace(/^\//, '');
-                                                                                navigate(`/oa/${oaId}/${cleanUrl}`);
+                                                                                let clean = url.trim().replace(/^\//, '');
+                                                                                if (clean === 'rules' || clean.startsWith('rules/')) {
+                                                                                    clean = clean.replace(/^rules/, 'ruledesigner');
+                                                                                }
+                                                                                navigate(`/oa/${oaId}/${clean}`);
                                                                             }
                                                                         }} 
                                                                         style={{ padding: '2px 6px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
