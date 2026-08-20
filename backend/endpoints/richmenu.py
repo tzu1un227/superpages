@@ -1122,18 +1122,24 @@ def get_richmenu_apply_sources(rich_menu_id):
         t_schedules = get_t('project_schedules')
         t_projects = get_t('projects')
 
-        # Resolve all possible identifiers for this rich menu (rich_menu_id, ui_uuid, id)
-        all_menu_ids = [str(rich_menu_id).strip()]
+        # Resolve all possible identifiers for this rich menu (rich_menu_id, ui_uuid) - DO NOT use numeric id
+        all_menu_ids = []
+        if rich_menu_id and str(rich_menu_id).strip():
+            all_menu_ids.append(str(rich_menu_id).strip())
+
         try:
-            cur.execute(f"SELECT rich_menu_id, ui_uuid, id FROM {t_metadata} WHERE rich_menu_id = %s OR ui_uuid = %s OR id::text = %s", (str(rich_menu_id), str(rich_menu_id), str(rich_menu_id)))
+            cur.execute(f"SELECT rich_menu_id, ui_uuid FROM {t_metadata} WHERE rich_menu_id = %s OR ui_uuid = %s OR id::text = %s", (str(rich_menu_id), str(rich_menu_id), str(rich_menu_id)))
             m_rows = cur.fetchall()
             for mr in m_rows:
-                for k in ['rich_menu_id', 'ui_uuid', 'id']:
+                for k in ['rich_menu_id', 'ui_uuid']:
                     val = mr.get(k)
-                    if val and str(val).strip() and str(val).strip() not in all_menu_ids:
+                    if val and str(val).strip() and len(str(val).strip()) >= 6 and str(val).strip() not in all_menu_ids:
                         all_menu_ids.append(str(val).strip())
         except Exception as e:
             print("Error resolving all_menu_ids:", e)
+
+        # Filter all_menu_ids to only valid string IDs (length >= 6)
+        all_menu_ids = [mid for mid in all_menu_ids if mid and len(mid) >= 6]
 
         # Check if this menu is the Global default rich menu
         is_default = False
@@ -1166,6 +1172,12 @@ def get_richmenu_apply_sources(rich_menu_id):
                 return ", ".join(items) if items else "*"
             s = str(content_val).strip()
             return s.replace("['", "").replace("']", "").replace('["', '').replace('"]', '')
+
+        def is_menu_matched(text_to_search):
+            if not text_to_search or not all_menu_ids:
+                return False
+            t = str(text_to_search)
+            return any(mid in t for mid in all_menu_ids)
 
         journey_sched_tags = set()
         sched_lookup_by_content = []
@@ -1212,12 +1224,10 @@ def get_richmenu_apply_sources(rich_menu_id):
                     "q_fn_text": q_fn_text
                 })
 
-                for mid in all_menu_ids:
-                    if not mid: continue
-                    if mid in raw_mc or mid in q_msg_text or mid in q_fn_text:
-                        k = ("journey", p_name, f"步驟 {step_idx} 訊息按鈕切換", "/projects")
-                        if k not in sources_map:
-                            sources_map[k] = {"current_count": 0, "last_applied_at": None}
+                if is_menu_matched(raw_mc) or is_menu_matched(q_msg_text) or is_menu_matched(q_fn_text):
+                    k = ("journey", p_name, f"步驟 {step_idx} 訊息按鈕切換", "/projects")
+                    if k not in sources_map:
+                        sources_map[k] = {"current_count": 0, "last_applied_at": None}
         except Exception as e:
             print("Error scanning project_schedules for rich menu:", e)
 
@@ -1226,8 +1236,8 @@ def get_richmenu_apply_sources(rich_menu_id):
             cur.execute(f"SELECT * FROM {t_qbank}")
             q_rows = cur.fetchall()
             for r in q_rows:
-                r_text = f"{r.get('msg_rpy')} {r.get('function')} {r.get('check')} {r.get('state_out')} {r.get('note')}"
-                if any(mid in r_text for mid in all_menu_ids if mid):
+                r_text = f"{r.get('msg_rpy')} {r.get('function')} {r.get('check')} {r.get('state_out')}"
+                if is_menu_matched(r_text):
                     kw_raw = r.get('content')
                     kw_disp = format_kw_display(kw_raw)
                     kw_clean = clean_rule_title(r.get('note'), kw_disp)
@@ -1245,8 +1255,8 @@ def get_richmenu_apply_sources(rich_menu_id):
                 qa_tag = r.get('tag') or f"問答庫 #{r.get('id')}"
                 if qa_tag in journey_sched_tags:
                     continue  # 已歸入自動旅程排程
-                r_text = f"{r.get('msg_rpy')} {r.get('function')} {r.get('check')} {r.get('state_out')} {r.get('note')}"
-                if any(mid in r_text for mid in all_menu_ids if mid):
+                r_text = f"{r.get('msg_rpy')} {r.get('function')} {r.get('check')} {r.get('state_out')}"
+                if is_menu_matched(r_text):
                     qa_clean = clean_rule_title(r.get('note'), qa_tag)
                     k = ("keyword", qa_clean, f"觸發標籤: {qa_tag}", "/rules")
                     if k not in sources_map:
@@ -1264,7 +1274,7 @@ def get_richmenu_apply_sources(rich_menu_id):
                 if (r_mid and r_mid in all_menu_ids) or (r_uuid and r_uuid in all_menu_ids):
                     continue
                 data_str = str(r.get('data') or '')
-                if any(mid in data_str for mid in all_menu_ids if mid):
+                if is_menu_matched(data_str):
                     rm_name = r.get('name') or "其他圖文選單"
                     k = ("richmenu", rm_name, "選單按鈕切換", "/richmenu")
                     if k not in sources_map:
