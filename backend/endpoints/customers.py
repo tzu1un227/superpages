@@ -420,6 +420,8 @@ def delete_tag(tag_name):
             affected_uids = [u[0] for u in updates]
             cur.execute(f"DELETE FROM {pv_table} WHERE name = 'tag' AND user_id = ANY(%s)", (affected_uids,))
             execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", [(uid, 'tag', val) for uid, val in updates])
+            # 診斷 2 修復：同步清理已刪除標籤的 Meta
+            cur.execute(f"DELETE FROM {pv_table} WHERE name = %s AND user_id = ANY(%s)", (f"tag_meta:{tag_name}", affected_uids))
             
             # Send WebSocket events in background
             from utils.socket_utils import send_socket_events_batch
@@ -514,6 +516,26 @@ def add_tag_batch():
             affected_uids = [u[0] for u in updates]
             cur.execute(f"DELETE FROM {pv_table} WHERE name = 'tag' AND user_id = ANY(%s)", (affected_uids,))
             execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", [(uid, 'tag', val) for uid, val in updates])
+            
+            # 寫入人工打標籤 Meta 到 Private_var
+            import json, datetime
+            now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            op_name = "管理員"
+            if hasattr(g, 'user') and isinstance(g.user, dict):
+                op_name = g.user.get('email') or g.user.get('name') or "管理員"
+            meta_inserts = []
+            for uid in affected_uids:
+                for t in tag_names:
+                    meta_val = json.dumps({
+                        "source_type": "manual", "source_name": "人工操作",
+                        "trigger_display": "批次新增標籤", "operator": op_name,
+                        "occurred_at": now_str, "setting_url": None
+                    }, ensure_ascii=False)
+                    meta_inserts.append((uid, f"tag_meta:{t}", meta_val))
+            if meta_inserts:
+                for uid, n_key, _ in meta_inserts:
+                    cur.execute(f"DELETE FROM {pv_table} WHERE user_id = %s AND name = %s", (uid, n_key))
+                execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", meta_inserts)
             
             # Send WebSocket events in background
             from utils.socket_utils import send_socket_events_batch
@@ -671,13 +693,99 @@ def get_customer_details(user_id):
                     m_cur = m_conn.cursor()
                     pv_table = f'"Private_var:{app_id}"'
                     m_cur.execute(f"DELETE FROM {pv_table} WHERE user_id = %s AND name = 'rich_menu'", (user_id,))
+                    m_cur.execute(f"DELETE FROM {pv_table} WHERE user_id = %s AND name = 'rich_menu_meta'", (user_id,))
                     m_conn.commit()
                 except Exception as e:
                     print("Error syncing missing rich menu:", e)
                 finally:
                     m_cur.close()
                     m_conn.close()
-                        
+
+        # Fetch Private_var Metadata & Tags with Hybrid Fallback
+        from db_utils import get_db_connection
+        conn_pv = get_db_connection()
+        cur_pv = conn_pv.cursor(cursor_factory=RealDictCursor)
+        pv_table = f'"Private_var:{app_id}"'
+        t_history = f'"history:{app_id}"'
+        
+        cur_pv.execute(f"SELECT name, value FROM {pv_table} WHERE user_id = %s", (user_id,))
+        pv_rows = cur_pv.fetchall()
+        pv_dict = {r['name']: r['value'] for r in pv_rows}
+        
+        def get_fallback_ht_source(keyword_hint):
+            try:
+                cur_pv.execute(f"""
+                    SELECT category, content, "timestamp" FROM {t_history}
+                    WHERE user_id = %s AND (LOWER(category) = LOWER(%s) OR content ILIKE %s)
+                    ORDER BY "timestamp" DESC LIMIT 1
+                """, (user_id, str(keyword_hint), f"%{keyword_hint}%"))
+                h_row = cur_pv.fetchone()
+                if h_row:
+                    return {
+                        "source_type": "keyword" if "sys_bind" in str(h_row.get('content','')) or h_row.get('category') == 'Message' else "manual",
+                        "source_name": "歷程解構紀錄",
+                        "trigger_display": str(h_row.get('content', '歷史互動紀錄'))[:30],
+                        "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
+                        "setting_url": None
+                    }
+            except Exception:
+                pass
+            return {
+                "source_type": "manual",
+                "source_name": "歷史資料（來源未明）",
+                "trigger_display": "舊有系統狀態",
+                "occurred_at": None,
+                "setting_url": None
+            }
+
+        raw_tag_val = pv_dict.get('tag')
+        tag_list = []
+        if raw_tag_val:
+            import ast
+            try:
+                parsed = ast.literal_eval(raw_tag_val)
+                tag_list = parsed if isinstance(parsed, list) else [str(parsed)]
+            except:
+                tag_list = [raw_tag_val]
+
+        tags_with_meta = []
+        import json
+        for t in tag_list:
+            meta_val_raw = pv_dict.get(f"tag_meta:{t}")
+            source_info = None
+            if meta_val_raw:
+                try: source_info = json.loads(meta_val_raw)
+                except: pass
+            if not source_info:
+                source_info = get_fallback_ht_source(t)
+            tags_with_meta.append({"name": t, "source_info": source_info})
+            
+        details["tags"] = tags_with_meta
+
+        if details.get("rich_menu"):
+            rm_meta_raw = pv_dict.get("rich_menu_meta")
+            rm_source = None
+            if rm_meta_raw:
+                try: rm_source = json.loads(rm_meta_raw)
+                except: pass
+            if not rm_source:
+                rm_source = get_fallback_ht_source("rich_menu")
+            details["rich_menu"]["source_info"] = rm_source
+
+        for p in details.get("projects", []):
+            p_id = p.get("id")
+            p_meta_raw = pv_dict.get(f"journey_meta:{p_id}")
+            p_source = None
+            if p_meta_raw:
+                try: p_source = json.loads(p_meta_raw)
+                except: pass
+            if not p_source:
+                p_source = get_fallback_ht_source(p.get("name", "journey"))
+            p["source_info"] = p_source
+
+        cur_pv.close()
+        conn_pv.close()
+
         return jsonify(details)
     except Exception as e:
         if conn: conn.rollback()
@@ -963,6 +1071,26 @@ def batch_operation():
                 cur.execute(f"DELETE FROM {pv_table} WHERE name = 'tag' AND user_id = ANY(%s)", (affected_uids,))
                 execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", [(uid, 'tag', val) for uid, val in updates])
                 
+                # 寫入批次打標籤 Meta
+                import json, datetime
+                now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                op_name = "管理員"
+                if hasattr(g, 'user') and isinstance(g.user, dict):
+                    op_name = g.user.get('email') or g.user.get('name') or "管理員"
+                meta_inserts = []
+                for uid in affected_uids:
+                    for t in tag_names:
+                        meta_val = json.dumps({
+                            "source_type": "manual", "source_name": "人工操作",
+                            "trigger_display": "批次新增標籤", "operator": op_name,
+                            "occurred_at": now_str, "setting_url": None
+                        }, ensure_ascii=False)
+                        meta_inserts.append((uid, f"tag_meta:{t}", meta_val))
+                if meta_inserts:
+                    for uid, n_key, _ in meta_inserts:
+                        cur.execute(f"DELETE FROM {pv_table} WHERE user_id = %s AND name = %s", (uid, n_key))
+                    execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", meta_inserts)
+
                 # Background Sensor Event & Richmenu Update
                 from utils.socket_utils import send_socket_events_batch
                 import threading
@@ -1014,6 +1142,10 @@ def batch_operation():
             if updates:
                 cur.execute(f"DELETE FROM {pv_table} WHERE name = 'tag' AND user_id = ANY(%s)", (affected_uids,))
                 execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", [(uid, 'tag', val) for uid, val in updates])
+
+                # 清理移除標籤之 tag_meta
+                for t_rm in tag_names:
+                    cur.execute(f"DELETE FROM {pv_table} WHERE name = %s AND user_id = ANY(%s)", (f"tag_meta:{t_rm}", affected_uids))
 
                 # Background Sensor Event & Richmenu Update
                 from utils.socket_utils import send_socket_events_batch
@@ -1075,6 +1207,25 @@ def batch_operation():
                 if line_success:
                     cur.execute(f"DELETE FROM {pv_table} WHERE name = 'rich_menu' AND user_id = ANY(%s)", (to_link_uids,))
                     execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", [(uid, 'rich_menu', target_rm_id) for uid in to_link_uids])
+                    
+                    # 寫入 rich_menu_meta
+                    import json, datetime
+                    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    op_name = "管理員"
+                    if hasattr(g, 'user') and isinstance(g.user, dict):
+                        op_name = g.user.get('email') or g.user.get('name') or "管理員"
+                    rm_meta_val = json.dumps({
+                        "rich_menu_id": target_rm_id, "source_type": "manual",
+                        "source_name": "人工操作", "trigger_display": "批次套用個人選單",
+                        "operator": op_name, "occurred_at": now_str, "setting_url": None
+                    }, ensure_ascii=False)
+                    cur.execute(f"DELETE FROM {pv_table} WHERE name = 'rich_menu_meta' AND user_id = ANY(%s)", (to_link_uids,))
+                    execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", [(uid, 'rich_menu_meta', rm_meta_val) for uid in to_link_uids])
+
+                    for uid in to_link_uids:
+                        results.append({"user_id": uid, "status": "success", "reason": None})
+                        success_count += 1
+                else:
                     for uid in to_link_uids:
                         results.append({"user_id": uid, "status": "success", "reason": None})
                         success_count += 1
@@ -1112,6 +1263,7 @@ def batch_operation():
 
                 if line_success:
                     cur.execute(f"DELETE FROM {pv_table} WHERE name = 'rich_menu' AND user_id = ANY(%s)", (to_unlink_uids,))
+                    cur.execute(f"DELETE FROM {pv_table} WHERE name = 'rich_menu_meta' AND user_id = ANY(%s)", (to_unlink_uids,))
                     for uid in to_unlink_uids:
                         results.append({"user_id": uid, "status": "success", "reason": None})
                         success_count += 1

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Swal from 'sweetalert2';
-import { Search, Filter, Download, UserPlus, Users, Tag, Clock, Phone, Mail, MoreHorizontal, ArrowUpDown, ArrowUp, ArrowDown, X, MessageSquare, Plus, Edit2, Check, ChevronDown, Loader2 } from 'lucide-react';
+import { Search, Filter, Download, UserPlus, Users, Tag, Clock, Phone, Mail, MoreHorizontal, ArrowUpDown, ArrowUp, ArrowDown, X, MessageSquare, Plus, Edit2, Check, ChevronDown, Loader2, Info } from 'lucide-react';
+import Tooltip from '@mui/material/Tooltip';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../api';
 import { useToast } from '../contexts/ToastContext';
@@ -32,7 +33,7 @@ const CustomerCenter = () => {
   const [editingCustomer, setEditingCustomer] = useState(null);
   
   const [selectedCustomerForSidebar, setSelectedCustomerForSidebar] = useState(null);
-  const [sidebarDetails, setSidebarDetails] = useState({ projects: [], rich_menu: null, loading: false });
+  const [sidebarDetails, setSidebarDetails] = useState({ projects: [], rich_menu: null, tags: [], loading: false });
   const [sidebarTagInput, setSidebarTagInput] = useState([]);
 
   // Batch Operations State (MVP v1.2)
@@ -1532,7 +1533,17 @@ const CustomerCenter = () => {
                   </div>
                 </div>
                 <div style={{ backgroundColor: '#222', borderRadius: '8px', padding: '16px', border: '1px solid #333', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  {Array.isArray(selectedCustomerForSidebar.tag) && selectedCustomerForSidebar.tag.length > 0 ? (
+                  {Array.isArray(sidebarDetails.tags) && sidebarDetails.tags.length > 0 ? (
+                    sidebarDetails.tags.map((tagObj, i) => (
+                      <span key={i} style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '16px', backgroundColor: '#333', fontSize: '13px', border: '1px solid #444', color: '#FFD700' }}>
+                        <Tag size={12} style={{ marginRight: '6px' }} /> {tagObj.name}
+                        <Tooltip title={renderSourceTooltip(tagObj.source_info)} arrow placement="top">
+                          <Info size={13} style={{ marginLeft: '4px', cursor: 'pointer', color: '#FFD700' }} />
+                        </Tooltip>
+                        <X size={12} style={{ marginLeft: '6px', cursor: 'pointer', color: '#888' }} onClick={() => handleSidebarDeleteTag(tagObj.name)} />
+                      </span>
+                    ))
+                  ) : Array.isArray(selectedCustomerForSidebar.tag) && selectedCustomerForSidebar.tag.length > 0 ? (
                     selectedCustomerForSidebar.tag.map((t, i) => (
                       <span key={i} style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '16px', backgroundColor: '#333', fontSize: '13px', border: '1px solid #444', color: '#FFD700' }}>
                         <Tag size={12} style={{ marginRight: '6px' }} /> {t}
@@ -1575,6 +1586,9 @@ const CustomerCenter = () => {
                         color: p.status === 'active' ? '#00c800' : p.status === 'completed' ? '#2196F3' : '#ccc' 
                       }}>
                         {p.name} ({p.status === 'active' ? '進行中' : p.status === 'completed' ? '已完成' : p.status === 'paused' ? '已中斷' : p.status})
+                        <Tooltip title={renderSourceTooltip(p.source_info)} arrow placement="top">
+                          <Info size={13} style={{ marginLeft: '4px', cursor: 'pointer', color: p.status === 'active' ? '#00c800' : '#aaa' }} />
+                        </Tooltip>
                         <X size={12} style={{ marginLeft: '6px', cursor: 'pointer', color: p.status === 'active' ? '#00c800' : p.status === 'completed' ? '#2196F3' : '#888' }} onClick={() => handleSidebarDeleteProject(p.id, p.name)} />
                       </span>
                     ))
@@ -1593,6 +1607,9 @@ const CustomerCenter = () => {
                   ) : sidebarDetails.rich_menu ? (
                     <span style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '6px', backgroundColor: 'rgba(255,215,0,0.1)', fontSize: '13px', border: '1px solid #FFD700', color: '#FFD700' }}>
                       {sidebarDetails.rich_menu.name}
+                      <Tooltip title={renderSourceTooltip(sidebarDetails.rich_menu.source_info)} arrow placement="top">
+                        <Info size={13} style={{ marginLeft: '4px', cursor: 'pointer', color: '#FFD700' }} />
+                      </Tooltip>
                       <X size={12} style={{ marginLeft: '6px', cursor: 'pointer', color: '#FFD700' }} onClick={handleSidebarDeleteRichMenu} />
                     </span>
                   ) : (

@@ -1197,6 +1197,29 @@ def batch_enroll_journey_users_internal(project_id, user_ids, app_id):
                             (user_id, project_id, s_id, msg, current_push_time))
             cur.execute(f"INSERT INTO {t_ups} (user_id, project_id, status, updated_at) VALUES (%s, %s, 'active', %s) ON CONFLICT (user_id, project_id) DO UPDATE SET status = 'active', updated_at = %s",
                         (user_id, project_id, now_tw, now_tw))
+            
+            # 寫入 journey_meta:<project_id> 到 Private_var
+            if app_id:
+                try:
+                    pv_table = f'"Private_var:{app_id}"'
+                    cur.execute(f"SELECT project_name FROM {t_projects} WHERE project_id = %s", (project_id,))
+                    p_row = cur.fetchone()
+                    p_name = p_row['project_name'] if p_row and 'project_name' in p_row else f"自動旅程 #{project_id}"
+                    
+                    j_meta_json = json.dumps({
+                        "journey_id": project_id,
+                        "source_type": "manual",
+                        "source_name": "人工操作",
+                        "trigger_display": "加入自動旅程",
+                        "operator": "管理員",
+                        "occurred_at": now_tw.strftime("%Y-%m-%d %H:%M:%S"),
+                        "setting_url": f"/projects/{project_id}"
+                    }, ensure_ascii=False)
+                    cur.execute(f"DELETE FROM {pv_table} WHERE user_id = %s AND name = %s", (user_id, f"journey_meta:{project_id}"))
+                    cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, %s, %s)", (user_id, f"journey_meta:{project_id}", j_meta_json))
+                except Exception as ex_jm:
+                    print("Error writing journey_meta:", ex_jm)
+
             if app_id:
                 try: increment_project_stat(project_id, 'ttc', app_id)
                 except: pass
@@ -1208,6 +1231,90 @@ def batch_enroll_journey_users_internal(project_id, user_ids, app_id):
         print(f"Batch restart error: {e}")
         if conn: conn.rollback()
         return False, str(e)
+    finally:
+        if conn: conn.close()
+
+@app.route('/api/projects/<int:id>/join-sources', methods=['GET'])
+@token_required
+def get_project_join_sources(id):
+    conn = None
+    try:
+        app_id = get_current_app_id()
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        t_ups = f'"user_project_status:{app_id}"'
+        pv_table = f'"Private_var:{app_id}"'
+        t_history = f'"history:{app_id}"'
+
+        # Fetch active users in this project
+        cur.execute(f"SELECT DISTINCT user_id FROM {t_ups} WHERE project_id = %s AND LOWER(status) = 'active'", (id,))
+        active_uids = [r['user_id'] for r in cur.fetchall()]
+
+        if not active_uids:
+            return jsonify({"journey_id": id, "total_users": 0, "sources": []})
+
+        # Fetch journey_meta:<id> for active users
+        cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = %s AND user_id = ANY(%s)", (f"journey_meta:{id}", active_uids))
+        meta_rows = {r['user_id']: r['value'] for r in cur.fetchall()}
+
+        groups = {}
+        for uid in active_uids:
+            meta_str = meta_rows.get(uid)
+            meta = None
+            if meta_str:
+                try: meta = json.loads(meta_str)
+                except: pass
+
+            if not meta:
+                # Fallback: Live query from ht_view / history
+                try:
+                    cur.execute(f"""
+                        SELECT category, content, "timestamp" FROM {t_history}
+                        WHERE user_id = %s ORDER BY "timestamp" DESC LIMIT 1
+                    """, (uid,))
+                    h_row = cur.fetchone()
+                    if h_row:
+                        meta = {
+                            "source_type": "manual",
+                            "source_name": "歷程解構紀錄",
+                            "trigger_display": str(h_row.get('content', '歷史加入紀錄'))[:30],
+                            "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
+                            "setting_url": None
+                        }
+                except: pass
+
+            if not meta:
+                meta = {
+                    "source_type": "manual",
+                    "source_name": "歷史資料（來源未明）",
+                    "trigger_display": "舊有系統狀態",
+                    "occurred_at": None,
+                    "setting_url": None
+                }
+
+            key = (meta.get('source_type', 'manual'), meta.get('source_name', '人工操作'), meta.get('trigger_display', '手動加入'), meta.get('setting_url'))
+            if key not in groups:
+                groups[key] = {"current_count": 0, "last_joined_at": meta.get('occurred_at')}
+            groups[key]["current_count"] += 1
+            if meta.get('occurred_at') and (not groups[key]["last_joined_at"] or meta.get('occurred_at') > groups[key]["last_joined_at"]):
+                groups[key]["last_joined_at"] = meta.get('occurred_at')
+
+        source_list = [
+            {
+                "source_type": k[0], "source_name": k[1], "trigger_display": k[2], "setting_url": k[3],
+                "current_count": v["current_count"], "last_joined_at": v["last_joined_at"]
+            } for k, v in groups.items()
+        ]
+
+        cur.close()
+        return jsonify({
+            "journey_id": id,
+            "total_users": len(active_uids),
+            "sources": source_list
+        })
+    except Exception as e:
+        if conn: conn.rollback()
+        return jsonify({"error": str(e)}), 500
     finally:
         if conn: conn.close()
 

@@ -7,7 +7,7 @@ import {
     MousePointer2, Move, Maximize, Check, X, AlertCircle,
     ChevronDown, ChevronUp, ExternalLink, MessageSquare,
     CreditCard, Repeat, Eye, Edit2, RefreshCw, ChevronLeft, ChevronRight, LayoutGrid, Filter, Calendar, RotateCcw, Shield,
-    HelpCircle, Link as LinkIcon, Unlink, Clock, FileText, Send
+    HelpCircle, Link as LinkIcon, Unlink, Clock, FileText, Send, Layers
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useToast } from '../contexts/ToastContext';
@@ -132,6 +132,24 @@ function RichMenu() {
     const [selectedOAId, setSelectedOAId] = useState(oaId || 'all');
     const [dragState, setDragState] = useState(null);
     const imageContainerRef = useRef(null);
+
+    const [applySourcesData, setApplySourcesData] = useState({ total_users: 0, sources: [] });
+    const [loadingApplySources, setLoadingApplySources] = useState(false);
+
+    useEffect(() => {
+        const rid = currentMenu?.rich_menu_id || currentMenu?.richMenuId || currentMenu?.id;
+        if (rid) {
+            setLoadingApplySources(true);
+            api.get(`/richmenu/${rid}/apply-sources`).then(res => {
+                setApplySourcesData(res.data || { total_users: 0, sources: [] });
+            }).catch(err => {
+                console.error('Failed to fetch richmenu apply sources:', err);
+                setApplySourcesData({ total_users: 0, sources: [] });
+            }).finally(() => setLoadingApplySources(false));
+        } else {
+            setApplySourcesData({ total_users: 0, sources: [] });
+        }
+    }, [currentMenu?.rich_menu_id, currentMenu?.richMenuId, currentMenu?.id, currentMenu?.ui_uuid]);
 
     // Auto-fetch and set background image for currentMenu
     useEffect(() => {
@@ -1304,6 +1322,67 @@ function RichMenu() {
 
                             </div>
                         </div>
+
+                        {/* 套用來源總覽 */}
+                        {(currentMenu?.rich_menu_id || currentMenu?.richMenuId || currentMenu?.id) && (
+                            <div className="card">
+                                <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary-yellow)' }}>
+                                    <Layers size={18} /> 套用來源總覽
+                                </h3>
+                                <div style={{ marginTop: '15px' }}>
+                                    {loadingApplySources ? (
+                                        <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>載入套用來源中...</div>
+                                    ) : !applySourcesData.sources || applySourcesData.sources.length === 0 ? (
+                                        <div style={{ textAlign: 'center', padding: '20px', color: '#888', backgroundColor: '#111', borderRadius: '8px', border: '1px solid #222' }}>
+                                            目前尚無用戶套用此圖文選單。
+                                        </div>
+                                    ) : (
+                                        <div style={{ overflowX: 'auto' }}>
+                                            <table style={{ width: '100%', borderCollapse: 'collapse', color: '#fff', fontSize: '13px' }}>
+                                                <thead>
+                                                    <tr style={{ borderBottom: '1px solid #333', textAlign: 'left', color: '#888' }}>
+                                                        <th style={{ padding: '8px' }}>來源類型</th>
+                                                        <th style={{ padding: '8px' }}>來源名稱</th>
+                                                        <th style={{ padding: '8px' }}>Trigger</th>
+                                                        <th style={{ padding: '8px' }}>目前套用人數</th>
+                                                        <th style={{ padding: '8px' }}>最近套用</th>
+                                                        <th style={{ padding: '8px' }}>操作</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {applySourcesData.sources.map((row, idx) => (
+                                                        <tr key={idx} style={{ borderBottom: '1px solid #222' }}>
+                                                            <td style={{ padding: '8px' }}>
+                                                                <span style={{ padding: '2px 6px', borderRadius: '4px', backgroundColor: '#222', border: '1px solid #444', fontSize: '11px', color: '#FFD700' }}>
+                                                                    {row.source_type === 'manual' ? '人工操作' : row.source_type === 'keyword' ? '關鍵字規則' : row.source_type === 'broadcast' ? '群發訊息' : row.source_type === 'journey' ? '自動旅程' : row.source_type === 'form' ? '問卷' : row.source_type}
+                                                                </span>
+                                                            </td>
+                                                            <td style={{ padding: '8px' }}>{row.source_name || '-'}</td>
+                                                            <td style={{ padding: '8px' }}>{row.trigger_display || '-'}</td>
+                                                            <td style={{ padding: '8px', color: '#FFD700', fontWeight: 'bold' }}>{row.current_count} 人</td>
+                                                            <td style={{ padding: '8px', color: '#aaa' }}>{row.last_applied_at || '-'}</td>
+                                                            <td style={{ padding: '8px' }}>
+                                                                {row.setting_url && (
+                                                                    <button onClick={() => navigate(row.setting_url)} style={{ padding: '2px 6px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>
+                                                                        前往設定
+                                                                    </button>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                    <tr style={{ backgroundColor: '#222', fontWeight: 'bold', borderTop: '2px solid #444' }}>
+                                                        <td colSpan={3} style={{ padding: '10px 8px', color: '#fff' }}>合計</td>
+                                                        <td colSpan={3} style={{ padding: '10px 8px', color: '#FFD700', fontSize: '14px' }}>
+                                                            合計 {applySourcesData.total_users} 人
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
                         {currentMenu.publishStrategy !== 'hidden' && (
                             <div className="card">

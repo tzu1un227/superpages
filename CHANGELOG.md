@@ -1,3 +1,9 @@
+## [2026-08-20] CRM 共用來源透明化 MVP v1.2 (Source Transparency System)
+- **雙軌混合解構架構 (backend/endpoints/customers.py, richmenu.py, app.py, liff_questionnaire.py)**: 實現 `Private_var:<app_id>` JSON 寫入軌 (`tag_meta`, `rich_menu_meta`, `journey_meta`)、動態垃圾清理軌與 Live `ht_view:<app_id>` 解構讀取軌，實現 100% 來源透明無死角。
+- **客戶中心 Tooltip 提示 (frontend/src/pages/CustomerCenter.jsx)**: 於客戶詳情側邊欄中，為標籤、自動旅程、圖文選單 Chip 加入 MUI Tooltip 與 ⓘ 資訊圖示， hover 可展現 4 行詳細來源資訊（來源類型/名稱、Trigger 觸發時機、動作發生時間、前往設定按鈕）。
+- **自動旅程加入來源總覽 (backend/app.py & Projects.jsx)**: 新增 `GET /api/projects/<id>/join-sources` 端點與 Projects.jsx 頁面中的 `加入來源` 頁籤，提供 6 欄位來源統計表格與「合計 XX 人」統計列。
+- **圖文選單套用來源總覽 (backend/endpoints/richmenu.py & RichMenu.jsx)**: 新增 `GET /api/richmenu/<rich_menu_id>/apply-sources` 端點與 RichMenu.jsx 中的 `套用來源總覽` 卡片，精準呈現各來源類別之當前套用人數與跳轉按鈕。
+
 ## [2026-08-05] 修復圖文選單 400 錯誤與放著不動 503 爆發問題
 - **OAConfig 快取修復與權限 context 補完 (backend/app.py)**: 引入 `CachedOAConfig` 封裝快取資料，確保在 `load_oa_context` 快取命中時持續正確設定 `g.current_oa_config`，徹底修復圖文選單 API 因找不到 Token 回傳 400 (`Line token not configured`) 的重大 Bug。
 - **訊息中心輪購背景防護與頻率降低 (frontend/src/pages/MessageCenter.jsx)**: 為 `setInterval` 加入 `document.hidden` 判定（視窗於背景/隱藏時自動掛起所有 API 發送），並將歷史訊息輪詢週期改為 3 秒、側邊欄用戶列表改為 15 秒，消滅無人操作時佔滿 Heroku 連線池導致 503 的瓶頸。

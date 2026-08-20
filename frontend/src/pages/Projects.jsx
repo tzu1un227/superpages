@@ -3,7 +3,7 @@ import Swal from 'sweetalert2';
 import { useTask } from '../contexts/TaskContext';
 import { useLocation } from 'react-router-dom';
 import api from '../api';
-import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, User, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type, BarChart2, Download, Upload, Play, ExternalLink, TrendingUp, CheckCircle2, Circle, ChevronLeft, ChevronRight, BarChart3, RotateCcw, GripVertical, HelpCircle } from 'lucide-react';
+import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, User, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type, BarChart2, Download, Upload, Play, ExternalLink, TrendingUp, CheckCircle2, Circle, ChevronLeft, ChevronRight, BarChart3, RotateCcw, GripVertical, HelpCircle, Layers } from 'lucide-react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, CircularProgress, Tooltip as MuiTooltip } from '@mui/material';
 import FlexMessageEditor from '../components/FlexMessageEditor';
 import JourneyPreview from '../components/JourneyPreview';
@@ -177,7 +177,28 @@ const ProjectsManagement = () => {
     const [showAddScheduleForm, setShowAddScheduleForm] = useState(false);
 
     const [error, setError] = useState('');
-    const [activeTab, setActiveTab] = useState('projects'); // projects, schedules, users
+    const [activeTab, setActiveTab] = useState('projects'); // projects, schedules, join_sources, users
+
+    const [joinSourcesData, setJoinSourcesData] = useState({ total_users: 0, sources: [] });
+    const [loadingJoinSources, setLoadingJoinSources] = useState(false);
+
+    useEffect(() => {
+        if (activeTab === 'join_sources' && selectedProjectId) {
+            const fetchJoinSources = async () => {
+                setLoadingJoinSources(true);
+                try {
+                    const resp = await api.get(`/projects/${selectedProjectId}/join-sources`);
+                    setJoinSourcesData(resp.data || { total_users: 0, sources: [] });
+                } catch (err) {
+                    console.error('Failed to fetch join sources:', err);
+                    setJoinSourcesData({ total_users: 0, sources: [] });
+                } finally {
+                    setLoadingJoinSources(false);
+                }
+            };
+            fetchJoinSources();
+        }
+    }, [activeTab, selectedProjectId]);
 
     const [projectStats, setProjectStats] = useState({ tc: 0, cc: 0, ms: 0, mss: 0, msf: 0, completion_rate: 0 });
     const [isCreatingProject, setIsCreatingProject] = useState(false);
@@ -1275,6 +1296,18 @@ const ProjectsManagement = () => {
                     <Clock size={18} /> 排程設定
                 </button>
                 <button
+                    onClick={() => setActiveTab('join_sources')}
+                    style={{
+                        padding: '12px 25px',
+                        backgroundColor: activeTab === 'join_sources' ? 'var(--secondary-black)' : 'transparent',
+                        color: activeTab === 'join_sources' ? 'var(--primary-yellow)' : '#B0B0B0',
+                        borderBottom: activeTab === 'join_sources' ? '2px solid var(--primary-yellow)' : 'none',
+                        display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '8px 8px 0 0'
+                    }}
+                >
+                    <Layers size={18} /> 加入來源
+                </button>
+                <button
                     onClick={() => setActiveTab('users')}
                     style={{
                         padding: '12px 25px',
@@ -1864,6 +1897,77 @@ const ProjectsManagement = () => {
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
+                    )}
+                </div>
+            ) : activeTab === 'join_sources' ? (
+                <div className="card" style={{ padding: '25px', backgroundColor: 'var(--secondary-black)', borderRadius: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                        <h3 style={{ margin: 0, color: 'var(--primary-yellow)', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <Layers size={20} /> 自動旅程加入來源總覽
+                        </h3>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#111', padding: '5px 15px', borderRadius: '8px' }}>
+                            <Filter size={16} className="text-yellow" />
+                            <span style={{ fontSize: '14px' }}>選擇旅程:</span>
+                            <select
+                                value={selectedProjectId}
+                                onChange={e => setSelectedProjectId(e.target.value)}
+                                disabled={pageLoading}
+                                style={{ background: 'transparent', border: 'none', padding: '5px', color: '#fff', cursor: pageLoading ? 'not-allowed' : 'pointer' }}
+                            >
+                                <option value="" style={{ background: '#222' }}>請選擇旅程...</option>
+                                {Array.isArray(projects) && projects.map(p => <option key={p.project_id} value={p.project_id} style={{ background: '#222' }}>{p.project_name}</option>)}
+                            </select>
+                        </div>
+                    </div>
+                    {loadingJoinSources ? (
+                        <div style={{ textAlign: 'center', padding: '40px 0', color: '#888' }}>載入來源統計中...</div>
+                    ) : !joinSourcesData.sources || joinSourcesData.sources.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '40px 20px', color: '#888', backgroundColor: '#181818', borderRadius: '8px', border: '1px solid #282828' }}>
+                            目前沒有參與者可供來源統計。當使用者透過人工操作、關鍵字、群發、其他旅程或問卷加入後，來源將顯示於此。
+                        </div>
+                    ) : (
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', color: '#fff', fontSize: '14px' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid #333', textAlign: 'left', color: '#888' }}>
+                                        <th style={{ padding: '12px' }}>來源類型</th>
+                                        <th style={{ padding: '12px' }}>來源名稱</th>
+                                        <th style={{ padding: '12px' }}>Trigger</th>
+                                        <th style={{ padding: '12px' }}>目前人數</th>
+                                        <th style={{ padding: '12px' }}>最近加入</th>
+                                        <th style={{ padding: '12px' }}>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {joinSourcesData.sources.map((row, idx) => (
+                                        <tr key={idx} style={{ borderBottom: '1px solid #222' }}>
+                                            <td style={{ padding: '12px' }}>
+                                                <span style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: '#222', border: '1px solid #444', fontSize: '12px', color: '#FFD700' }}>
+                                                    {row.source_type === 'manual' ? '人工操作' : row.source_type === 'keyword' ? '關鍵字規則' : row.source_type === 'broadcast' ? '群發訊息' : row.source_type === 'journey' ? '自動旅程' : row.source_type === 'form' ? '問卷' : row.source_type}
+                                                </span>
+                                            </td>
+                                            <td style={{ padding: '12px' }}>{row.source_name || '-'}</td>
+                                            <td style={{ padding: '12px' }}>{row.trigger_display || '-'}</td>
+                                            <td style={{ padding: '12px', color: '#FFD700', fontWeight: 'bold' }}>{row.current_count} 人</td>
+                                            <td style={{ padding: '12px', color: '#aaa' }}>{row.last_joined_at || '-'}</td>
+                                            <td style={{ padding: '12px' }}>
+                                                {row.setting_url && (
+                                                    <button onClick={() => navigate(row.setting_url)} style={{ padding: '4px 10px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
+                                                        前往設定
+                                                    </button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    <tr style={{ backgroundColor: '#222', fontWeight: 'bold', borderTop: '2px solid #444' }}>
+                                        <td colSpan={3} style={{ padding: '14px 12px', color: '#fff' }}>合計</td>
+                                        <td colSpan={3} style={{ padding: '14px 12px', color: '#FFD700', fontSize: '16px' }}>
+                                            合計 {joinSourcesData.total_users} 人
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     )}
                 </div>

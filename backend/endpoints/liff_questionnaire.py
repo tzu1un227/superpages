@@ -316,6 +316,18 @@ def _merge_user_tags(conn, app_id, user_id, tags):
     merged = list(dict.fromkeys(existing + tags))
     cur.execute(f'DELETE FROM "{table}" WHERE user_id = %s AND name = %s', (user_id, "tag"))
     cur.execute(f'INSERT INTO "{table}" (user_id, name, value) VALUES (%s, %s, %s)', (user_id, "tag", json.dumps(merged, ensure_ascii=False)))
+    
+    # 寫入 tag_meta
+    import datetime
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    for t in tags:
+        meta_val = json.dumps({
+            "source_type": "form", "source_name": "LIFF問卷",
+            "trigger_display": "問卷完成", "occurred_at": now_str,
+            "operator": None, "setting_url": None
+        }, ensure_ascii=False)
+        cur.execute(f'DELETE FROM "{table}" WHERE user_id = %s AND name = %s', (user_id, f"tag_meta:{t}"))
+        cur.execute(f'INSERT INTO "{table}" (user_id, name, value) VALUES (%s, %s, %s)', (user_id, f"tag_meta:{t}", meta_val))
     cur.close()
 
 

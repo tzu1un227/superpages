@@ -1104,6 +1104,91 @@ def unlink_rich_menu_from_all(richMenuId):
             
     return jsonify({'status': 'success'})
 
+@richmenu_bp.route('/<rich_menu_id>/apply-sources', methods=['GET'])
+@token_required
+def get_richmenu_apply_sources(rich_menu_id):
+    app_id = get_current_app_id()
+    from db_utils import get_db_connection
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        pv_table = f'"Private_var:{app_id}"'
+        t_history = f'"history:{app_id}"'
+
+        # Fetch all users currently linked to this rich menu
+        cur.execute(f"SELECT user_id FROM {pv_table} WHERE name = 'rich_menu' AND value = %s", (rich_menu_id,))
+        uids = [r['user_id'] for r in cur.fetchall()]
+
+        if not uids:
+            return jsonify({"rich_menu_id": rich_menu_id, "total_users": 0, "sources": []})
+
+        # Fetch rich_menu_meta for these users
+        cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = 'rich_menu_meta' AND user_id = ANY(%s)", (uids,))
+        meta_rows = {r['user_id']: r['value'] for r in cur.fetchall()}
+
+        groups = {}
+        import json
+        for uid in uids:
+            meta_str = meta_rows.get(uid)
+            meta = None
+            if meta_str:
+                try: meta = json.loads(meta_str)
+                except: pass
+
+            if not meta:
+                # Fallback: Live query from ht_view / history
+                try:
+                    cur.execute(f"""
+                        SELECT category, content, "timestamp" FROM {t_history}
+                        WHERE user_id = %s ORDER BY "timestamp" DESC LIMIT 1
+                    """, (uid,))
+                    h_row = cur.fetchone()
+                    if h_row:
+                        meta = {
+                            "source_type": "manual",
+                            "source_name": "歷程解構紀錄",
+                            "trigger_display": str(h_row.get('content', '歷史套用紀錄'))[:30],
+                            "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
+                            "setting_url": None
+                        }
+                except: pass
+
+            if not meta:
+                meta = {
+                    "source_type": "manual",
+                    "source_name": "歷史資料（來源未明）",
+                    "trigger_display": "舊有系統狀態",
+                    "occurred_at": None,
+                    "setting_url": None
+                }
+
+            key = (meta.get('source_type', 'manual'), meta.get('source_name', '人工操作'), meta.get('trigger_display', '手動套用'), meta.get('setting_url'))
+            if key not in groups:
+                groups[key] = {"current_count": 0, "last_applied_at": meta.get('occurred_at')}
+            groups[key]["current_count"] += 1
+            if meta.get('occurred_at') and (not groups[key]["last_applied_at"] or meta.get('occurred_at') > groups[key]["last_applied_at"]):
+                groups[key]["last_applied_at"] = meta.get('occurred_at')
+
+        source_list = [
+            {
+                "source_type": k[0], "source_name": k[1], "trigger_display": k[2], "setting_url": k[3],
+                "current_count": v["current_count"], "last_applied_at": v["last_applied_at"]
+            } for k, v in groups.items()
+        ]
+
+        cur.close()
+        return jsonify({
+            "rich_menu_id": rich_menu_id,
+            "total_users": len(uids),
+            "sources": source_list
+        })
+    except Exception as e:
+        if conn: conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
+
 def bulk_check_and_update_rich_menu(app_name, user_ids=None):
     """
     Recalculates and updates the rich menu for specified users (or all users) 
