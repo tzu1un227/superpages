@@ -1113,30 +1113,35 @@ def get_richmenu_apply_sources(rich_menu_id):
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        pv_table = f'"Private_var:{app_id}"'
-        t_history = f'"history:{app_id}"'
-        t_metadata = f'"rich_menu_metadata:{app_id}"'
-        gv_table = f'"Global_var:{app_id}"'
+        
+        pv_table = get_t('Private_var')
+        t_history = get_t('history')
+        t_metadata = get_t('rich_menu_metadata')
+        gv_table = get_t('Global_var')
+        t_qbank = get_t('Q_bank')
+        t_qabank = get_t('QA_bank')
+        t_schedules = get_t('project_schedules')
+        t_projects = get_t('projects')
 
-        # Resolve all possible identifiers for this rich menu (rich_menu_id, ui_uuid)
-        all_menu_ids = [str(rich_menu_id)]
+        # Resolve all possible identifiers for this rich menu (rich_menu_id, ui_uuid, id)
+        all_menu_ids = [str(rich_menu_id).strip()]
         try:
-            cur.execute(f"SELECT rich_menu_id, ui_uuid FROM {t_metadata} WHERE rich_menu_id = %s OR ui_uuid = %s", (str(rich_menu_id), str(rich_menu_id)))
+            cur.execute(f"SELECT rich_menu_id, ui_uuid, id FROM {t_metadata} WHERE rich_menu_id = %s OR ui_uuid = %s OR id::text = %s", (str(rich_menu_id), str(rich_menu_id), str(rich_menu_id)))
             m_rows = cur.fetchall()
             for mr in m_rows:
-                if mr.get('rich_menu_id') and str(mr['rich_menu_id']) not in all_menu_ids:
-                    all_menu_ids.append(str(mr['rich_menu_id']))
-                if mr.get('ui_uuid') and str(mr['ui_uuid']) not in all_menu_ids:
-                    all_menu_ids.append(str(mr['ui_uuid']))
-        except Exception:
-            pass
+                for k in ['rich_menu_id', 'ui_uuid', 'id']:
+                    val = mr.get(k)
+                    if val and str(val).strip() and str(val).strip() not in all_menu_ids:
+                        all_menu_ids.append(str(val).strip())
+        except Exception as e:
+            print("Error resolving all_menu_ids:", e)
 
         # Check if this menu is the Global default rich menu
         is_default = False
         try:
             cur.execute(f"SELECT value FROM {gv_table} WHERE name = 'default_rich_menu'")
             gv_row = cur.fetchone()
-            if gv_row and str(gv_row.get('value')) in all_menu_ids:
+            if gv_row and str(gv_row.get('value')).strip() in all_menu_ids:
                 is_default = True
         except Exception:
             pass
@@ -1163,16 +1168,10 @@ def get_richmenu_apply_sources(rich_menu_id):
             s = str(content_val).strip()
             return s.replace("['", "").replace("']", "").replace('["', '').replace('"]', '')
 
-        from app import get_suffixed_table
-        t_qbank = f'"Q_bank:{app_id}"'
-        t_qabank = f'"QA_bank:{app_id}"'
-        t_schedules = get_suffixed_table('project_schedules')
-        t_projects = get_suffixed_table('projects')
-
         journey_sched_tags = set()
         sched_lookup_by_content = []
 
-        # 1. 深度掃描 project_schedules (自動旅程排程表)
+        # 2. 深度掃描 project_schedules (自動旅程排程表)
         try:
             cur.execute(f"""
                 SELECT s.schedule_id, s.project_id, s.step_id, s.message_content, p.project_name
@@ -1215,9 +1214,8 @@ def get_richmenu_apply_sources(rich_menu_id):
                 })
 
                 for mid in all_menu_ids:
-                    search_strs = [f"|{mid}|", f"menu={mid}", f"rm|{mid}", f"switch_rm|{mid}"]
-                    is_target = any(ss in raw_mc or ss in q_msg_text or ss in q_fn_text for ss in search_strs)
-                    if is_target:
+                    if not mid: continue
+                    if mid in raw_mc or mid in q_msg_text or mid in q_fn_text:
                         k = ("journey", p_name, f"步驟 {step_idx} 訊息按鈕切換", "/projects")
                         if k not in sources_map:
                             sources_map[k] = {"current_count": 0, "last_applied_at": None}
@@ -1225,16 +1223,16 @@ def get_richmenu_apply_sources(rich_menu_id):
             print("Error scanning project_schedules for rich menu:", e)
 
         for mid in all_menu_ids:
-            # 2. 主動掃描 Q_bank (關鍵字法則表)
+            if not mid: continue
+            # 3. 主動掃描 Q_bank (關鍵字法則表)
             try:
                 cur.execute(f"""
                     SELECT * FROM {t_qbank}
                     WHERE msg_rpy::text LIKE %s 
                        OR function::text LIKE %s 
-                       OR msg_rpy::text LIKE %s 
-                       OR function::text LIKE %s
-                       OR function::text LIKE %s
-                """, (f"%|{mid}|%", f"%|{mid}|%", f"%menu={mid}%", f"%rm|{mid}%", f"%switch_rm|{mid}%"))
+                       OR state_out::text LIKE %s
+                       OR check::text LIKE %s
+                """, (f"%{mid}%", f"%{mid}%", f"%{mid}%", f"%{mid}%"))
                 for r in cur.fetchall():
                     kw_raw = r.get('content')
                     kw_disp = format_kw_display(kw_raw)
@@ -1245,16 +1243,15 @@ def get_richmenu_apply_sources(rich_menu_id):
             except Exception as e:
                 print("Error scanning Q_bank for rich menu:", e)
 
-            # 3. 主動掃描 QA_bank (問答知識庫表，自動排除旅程自帶排程標籤)
+            # 4. 主動掃描 QA_bank (問答知識庫表，自動排除旅程自帶排程標籤)
             try:
                 cur.execute(f"""
                     SELECT * FROM {t_qabank}
                     WHERE msg_rpy::text LIKE %s 
                        OR function::text LIKE %s 
-                       OR msg_rpy::text LIKE %s 
-                       OR function::text LIKE %s
-                       OR function::text LIKE %s
-                """, (f"%|{mid}|%", f"%|{mid}|%", f"%menu={mid}%", f"%rm|{mid}%", f"%switch_rm|{mid}%"))
+                       OR state_out::text LIKE %s
+                       OR check::text LIKE %s
+                """, (f"%{mid}%", f"%{mid}%", f"%{mid}%", f"%{mid}%"))
                 for r in cur.fetchall():
                     qa_tag = r.get('tag') or f"問答庫 #{r.get('id')}"
                     if qa_tag in journey_sched_tags:
@@ -1266,14 +1263,14 @@ def get_richmenu_apply_sources(rich_menu_id):
             except Exception as e:
                 print("Error scanning QA_bank for rich menu:", e)
 
-            # 4. 主動掃描 rich_menu_metadata (其他圖文選單按鈕切換)
+            # 5. 主動掃描 rich_menu_metadata (其他圖文選單按鈕切換)
             try:
                 cur.execute(f"""
                     SELECT rich_menu_id, ui_uuid, name, data 
                     FROM {t_metadata}
-                    WHERE (data::text LIKE %s OR data::text LIKE %s OR data::text LIKE %s)
+                    WHERE data::text LIKE %s
                       AND rich_menu_id NOT IN %s AND ui_uuid NOT IN %s
-                """, (f"%|{mid}|%", f"%switch_rm|{mid}%", f"%menu={mid}%", tuple(all_menu_ids), tuple(all_menu_ids)))
+                """, (f"%{mid}%", tuple(all_menu_ids), tuple(all_menu_ids)))
                 for r in cur.fetchall():
                     rm_name = r.get('name') or "其他圖文選單"
                     k = ("richmenu", rm_name, "選單按鈕切換", "/richmenu")
@@ -1282,7 +1279,7 @@ def get_richmenu_apply_sources(rich_menu_id):
             except Exception as e:
                 print("Error scanning other rich menus:", e)
 
-        # 5. 統計現有用戶套用歸因
+        # 6. 統計現有用戶套用歸因
         cur.execute(f"SELECT DISTINCT user_id FROM {pv_table} WHERE name = 'rich_menu' AND value = ANY(%s)", (all_menu_ids,))
         explicit_uids = [r['user_id'] for r in cur.fetchall()]
 
@@ -1330,22 +1327,55 @@ def get_richmenu_apply_sources(rich_menu_id):
                             WHERE user_id = %s AND (
                                 content ILIKE %s OR 
                                 content ILIKE '%%sys_bind%%' OR 
-                                content ILIKE '%%switch_rm%%' OR 
-                                category IN ('Follow', 'Message', 'Action', 'Batch')
+                                content ILIKE '%%switch_rm%%'
                             )
                             ORDER BY "timestamp" DESC LIMIT 1
                         """, (uid, f"%{rich_menu_id}%"))
                         h_row = cur.fetchone()
                         if h_row:
-                            cat = h_row.get('category') or ''
-                            cont = str(h_row.get('content') or '')
-                            meta = {
-                                "source_type": "keyword" if cat == 'Message' or 'sys_bind' in cont else "manual",
-                                "source_name": "關鍵字觸發" if cat == 'Message' or 'sys_bind' in cont else "人工操作",
-                                "trigger_display": cont[:30] if cont else "歷史套用紀錄",
-                                "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
-                                "setting_url": "/rules" if cat == 'Message' else None
-                            }
+                            h_content = str(h_row.get('content') or '')
+                            
+                            # Check journey schedule match
+                            matched_sched = None
+                            for item in sched_lookup_by_content:
+                                for mid in all_menu_ids:
+                                    if mid and (mid in item['raw_mc'] or mid in item['q_msg_text'] or mid in item['q_fn_text']):
+                                        matched_sched = item
+                                        break
+                                if matched_sched: break
+                            
+                            if matched_sched:
+                                meta = {
+                                    "source_type": "journey",
+                                    "source_name": matched_sched['project_name'],
+                                    "trigger_display": f"步驟 {matched_sched['step_id']} 訊息按鈕切換",
+                                    "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
+                                    "setting_url": "/projects"
+                                }
+                            else:
+                                cur.execute(f"""
+                                    SELECT id, content, note FROM {t_qbank}
+                                    WHERE msg_rpy::text LIKE %s OR function::text LIKE %s
+                                    LIMIT 1
+                                """, (f"%{rich_menu_id}%", f"%{rich_menu_id}%"))
+                                matched_q = cur.fetchone()
+                                if matched_q:
+                                    clean_t = clean_rule_title(matched_q.get('note'), format_kw_display(matched_q.get('content')))
+                                    meta = {
+                                        "source_type": "keyword",
+                                        "source_name": clean_t,
+                                        "trigger_display": f"觸發關鍵字: {format_kw_display(matched_q.get('content'))}",
+                                        "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
+                                        "setting_url": "/rules"
+                                    }
+                                else:
+                                    meta = {
+                                        "source_type": "manual",
+                                        "source_name": "人工操作",
+                                        "trigger_display": "管理後台手動套用",
+                                        "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
+                                        "setting_url": None
+                                    }
                     except: pass
 
                 if not meta:
@@ -1359,7 +1389,7 @@ def get_richmenu_apply_sources(rich_menu_id):
 
             matched_key = None
             m_type = meta.get('source_type', 'manual')
-            m_name = meta.get('source_name', '人工操作')
+            m_name = clean_rule_title(meta.get('source_name', '人工操作'))
             m_trig = meta.get('trigger_display', '手動套用')
             m_url = meta.get('setting_url')
 
