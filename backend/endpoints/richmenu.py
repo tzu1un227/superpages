@@ -1141,11 +1141,93 @@ def get_richmenu_apply_sources(rich_menu_id):
         except Exception:
             pass
 
-        # Fetch explicitly linked users
+        sources_map = {}
+
+        # 1. 如果此選單是全域預設選單，加入系統預設入口
+        if is_default:
+            sources_map[("default", "系統預設", "全域預設圖文選單", "/richmenu")] = {"current_count": 0, "last_applied_at": None}
+
+        # 2. 主動掃描 Q_bank (關鍵字法則表)
+        t_qbank = f'"Q_bank:{app_id}"'
+        t_qabank = f'"QA_bank:{app_id}"'
+        t_schedules = f'"project_schedules:{app_id}"'
+        t_projects = f'"projects:{app_id}"'
+
+        for mid in all_menu_ids:
+            try:
+                cur.execute(f"""
+                    SELECT id, key_word, note, msg_rpy, function 
+                    FROM {t_qbank}
+                    WHERE msg_rpy::text LIKE %s 
+                       OR function::text LIKE %s 
+                       OR msg_rpy::text LIKE %s 
+                       OR function::text LIKE %s
+                       OR function::text LIKE %s
+                """, (f"%|{mid}|%", f"%|{mid}|%", f"%menu={mid}%", f"%rm|{mid}%", f"%switch_rm|{mid}%"))
+                for r in cur.fetchall():
+                    kw_name = r.get('note') or r.get('key_word') or f"關鍵字 #{r.get('id')}"
+                    k = ("keyword", f"關鍵字: {kw_name}", f"觸發關鍵字: {r.get('key_word') or kw_name}", "/rules")
+                    if k not in sources_map:
+                        sources_map[k] = {"current_count": 0, "last_applied_at": None}
+            except Exception as e:
+                print("Error scanning Q_bank for rich menu:", e)
+
+            # 3. 主動掃描 QA_bank (問答知識庫表)
+            try:
+                cur.execute(f"""
+                    SELECT id, tag, msg_rpy, function 
+                    FROM {t_qabank}
+                    WHERE msg_rpy::text LIKE %s 
+                       OR function::text LIKE %s 
+                       OR msg_rpy::text LIKE %s 
+                       OR function::text LIKE %s
+                       OR function::text LIKE %s
+                """, (f"%|{mid}|%", f"%|{mid}|%", f"%menu={mid}%", f"%rm|{mid}%", f"%switch_rm|{mid}%"))
+                for r in cur.fetchall():
+                    qa_tag = r.get('tag') or f"問答庫 #{r.get('id')}"
+                    k = ("keyword", f"問答庫: {qa_tag}", f"觸發標籤: {qa_tag}", "/rules")
+                    if k not in sources_map:
+                        sources_map[k] = {"current_count": 0, "last_applied_at": None}
+            except Exception as e:
+                print("Error scanning QA_bank for rich menu:", e)
+
+            # 4. 主動掃描 project_schedules (自動旅程排程表)
+            try:
+                cur.execute(f"""
+                    SELECT s.schedule_id, s.project_id, s.step_id, s.message_content, p.project_name
+                    FROM {t_schedules} s
+                    LEFT JOIN {t_projects} p ON s.project_id = p.project_id
+                    WHERE s.message_content::text LIKE %s OR s.message_content::text LIKE %s
+                """, (f"%|{mid}|%", f"%menu={mid}%"))
+                for r in cur.fetchall():
+                    p_name = r.get('project_name') or f"旅程 #{r.get('project_id')}"
+                    step_idx = r.get('step_id') or 1
+                    k = ("journey", f"自動旅程: {p_name}", f"步驟 {step_idx} 訊息按鈕切換", f"/projects")
+                    if k not in sources_map:
+                        sources_map[k] = {"current_count": 0, "last_applied_at": None}
+            except Exception as e:
+                print("Error scanning project_schedules for rich menu:", e)
+
+            # 5. 主動掃描 rich_menu_metadata (其他圖文選單按鈕切換)
+            try:
+                cur.execute(f"""
+                    SELECT rich_menu_id, ui_uuid, name, data 
+                    FROM {t_metadata}
+                    WHERE (data::text LIKE %s OR data::text LIKE %s OR data::text LIKE %s)
+                      AND rich_menu_id NOT IN %s AND ui_uuid NOT IN %s
+                """, (f"%|{mid}|%", f"%switch_rm|{mid}%", f"%menu={mid}%", tuple(all_menu_ids), tuple(all_menu_ids)))
+                for r in cur.fetchall():
+                    rm_name = r.get('name') or "其他圖文選單"
+                    k = ("richmenu", f"圖文選單: {rm_name}", "選單按鈕切換", "/richmenu")
+                    if k not in sources_map:
+                        sources_map[k] = {"current_count": 0, "last_applied_at": None}
+            except Exception as e:
+                print("Error scanning other rich menus:", e)
+
+        # 6. 統計現有用戶套用歸因
         cur.execute(f"SELECT DISTINCT user_id FROM {pv_table} WHERE name = 'rich_menu' AND value = ANY(%s)", (all_menu_ids,))
         explicit_uids = [r['user_id'] for r in cur.fetchall()]
 
-        # If it's the default menu, also fetch users without an explicit rich_menu
         default_uids = []
         if is_default:
             try:
@@ -1161,16 +1243,11 @@ def get_richmenu_apply_sources(rich_menu_id):
 
         total_uids = list(set(explicit_uids + default_uids))
 
-        if not total_uids:
-            return jsonify({"rich_menu_id": rich_menu_id, "total_users": 0, "sources": []})
-
-        # Fetch rich_menu_meta for explicit users
         meta_rows = {}
         if explicit_uids:
             cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = 'rich_menu_meta' AND user_id = ANY(%s)", (explicit_uids,))
             meta_rows = {r['user_id']: r['value'] for r in cur.fetchall()}
 
-        groups = {}
         import json
         for uid in total_uids:
             if uid in default_uids and uid not in explicit_uids:
@@ -1189,7 +1266,6 @@ def get_richmenu_apply_sources(rich_menu_id):
                     except: pass
 
                 if not meta:
-                    # Fallback: Live query from history
                     try:
                         cur.execute(f"""
                             SELECT category, content, "timestamp" FROM {t_history}
@@ -1223,18 +1299,34 @@ def get_richmenu_apply_sources(rich_menu_id):
                         "setting_url": None
                     }
 
-            key = (meta.get('source_type', 'manual'), meta.get('source_name', '人工操作'), meta.get('trigger_display', '手動套用'), meta.get('setting_url'))
-            if key not in groups:
-                groups[key] = {"current_count": 0, "last_applied_at": meta.get('occurred_at')}
-            groups[key]["current_count"] += 1
-            if meta.get('occurred_at') and (not groups[key]["last_applied_at"] or meta.get('occurred_at') > groups[key]["last_applied_at"]):
-                groups[key]["last_applied_at"] = meta.get('occurred_at')
+            matched_key = None
+            m_type = meta.get('source_type', 'manual')
+            m_name = meta.get('source_name', '人工操作')
+            m_trig = meta.get('trigger_display', '手動套用')
+            m_url = meta.get('setting_url')
+
+            for sk in sources_map.keys():
+                if sk[0] == m_type and (m_name in sk[1] or sk[1] in m_name or m_trig in sk[2]):
+                    matched_key = sk
+                    break
+
+            target_key = matched_key if matched_key else (m_type, m_name, m_trig, m_url)
+            if target_key not in sources_map:
+                sources_map[target_key] = {"current_count": 0, "last_applied_at": meta.get('occurred_at')}
+            
+            sources_map[target_key]["current_count"] += 1
+            if meta.get('occurred_at') and (not sources_map[target_key]["last_applied_at"] or meta.get('occurred_at') > sources_map[target_key]["last_applied_at"]):
+                sources_map[target_key]["last_applied_at"] = meta.get('occurred_at')
+
+        # If no config sources and no users, provide friendly empty placeholder
+        if not sources_map:
+            sources_map[("manual", "人工操作", "管理後台手動套用", None)] = {"current_count": 0, "last_applied_at": None}
 
         source_list = [
             {
                 "source_type": k[0], "source_name": k[1], "trigger_display": k[2], "setting_url": k[3],
                 "current_count": v["current_count"], "last_applied_at": v["last_applied_at"]
-            } for k, v in groups.items()
+            } for k, v in sources_map.items()
         ]
 
         cur.close()

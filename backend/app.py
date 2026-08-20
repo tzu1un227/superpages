@@ -1246,8 +1246,84 @@ def get_project_join_sources(id):
         t_cron = f'"cron_table:{app_id}"'
         pv_table = f'"Private_var:{app_id}"'
         t_history = f'"history:{app_id}"'
+        t_qbank = f'"Q_bank:{app_id}"'
+        t_qabank = f'"QA_bank:{app_id}"'
+        t_schedules = f'"project_schedules:{app_id}"'
+        t_projects = f'"projects:{app_id}"'
+        t_richmenu = f'"rich_menu_metadata:{app_id}"'
 
-        # Fetch users in this project from user_project_status, cron_table, or journey_meta
+        sources_map = {}
+
+        # 1. 主動掃描 Q_bank (關鍵字法則表)
+        try:
+            cur.execute(f"""
+                SELECT id, key_word, note, msg_rpy, function 
+                FROM {t_qbank}
+                WHERE msg_rpy::text LIKE %s 
+                   OR function::text LIKE %s 
+                   OR msg_rpy::text LIKE %s 
+                   OR function::text LIKE %s
+            """, (f"%|{id}|%", f"%|{id}|%", f"%journey={id}%", f"%iup|{id}%"))
+            for r in cur.fetchall():
+                kw_name = r.get('note') or r.get('key_word') or f"關鍵字 #{r.get('id')}"
+                k = ("keyword", f"關鍵字: {kw_name}", f"觸發關鍵字: {r.get('key_word') or kw_name}", "/rules")
+                if k not in sources_map:
+                    sources_map[k] = {"current_count": 0, "last_joined_at": None}
+        except Exception as e:
+            print("Error scanning Q_bank:", e)
+
+        # 2. 主動掃描 QA_bank (問答知識庫表)
+        try:
+            cur.execute(f"""
+                SELECT id, tag, msg_rpy, function 
+                FROM {t_qabank}
+                WHERE msg_rpy::text LIKE %s 
+                   OR function::text LIKE %s 
+                   OR msg_rpy::text LIKE %s 
+                   OR function::text LIKE %s
+            """, (f"%|{id}|%", f"%|{id}|%", f"%journey={id}%", f"%iup|{id}%"))
+            for r in cur.fetchall():
+                qa_tag = r.get('tag') or f"問答庫 #{r.get('id')}"
+                k = ("keyword", f"問答庫: {qa_tag}", f"觸發標籤: {qa_tag}", "/rules")
+                if k not in sources_map:
+                    sources_map[k] = {"current_count": 0, "last_joined_at": None}
+        except Exception as e:
+            print("Error scanning QA_bank:", e)
+
+        # 3. 主動掃描 project_schedules (其他自動旅程排程表)
+        try:
+            cur.execute(f"""
+                SELECT s.schedule_id, s.project_id, s.step_id, s.message_content, p.project_name
+                FROM {t_schedules} s
+                LEFT JOIN {t_projects} p ON s.project_id = p.project_id
+                WHERE (s.message_content::text LIKE %s OR s.message_content::text LIKE %s)
+                  AND s.project_id != %s
+            """, (f"%|{id}|%", f"%journey={id}%", id))
+            for r in cur.fetchall():
+                p_name = r.get('project_name') or f"旅程 #{r.get('project_id')}"
+                step_idx = r.get('step_id') or 1
+                k = ("journey", f"自動旅程: {p_name}", f"步驟 {step_idx} 訊息按鈕點擊", f"/projects")
+                if k not in sources_map:
+                    sources_map[k] = {"current_count": 0, "last_joined_at": None}
+        except Exception as e:
+            print("Error scanning project_schedules:", e)
+
+        # 4. 主動掃描 rich_menu_metadata (圖文選單按鈕)
+        try:
+            cur.execute(f"""
+                SELECT rich_menu_id, ui_uuid, name, data 
+                FROM {t_richmenu}
+                WHERE data::text LIKE %s OR data::text LIKE %s
+            """, (f"%|{id}|%", f"%journey={id}%"))
+            for r in cur.fetchall():
+                rm_name = r.get('name') or "圖文選單"
+                k = ("richmenu", f"圖文選單: {rm_name}", "選單按鈕點擊", "/richmenu")
+                if k not in sources_map:
+                    sources_map[k] = {"current_count": 0, "last_joined_at": None}
+        except Exception as e:
+            print("Error scanning rich_menu_metadata:", e)
+
+        # 5. 掃描現有成員並進行歸因統計
         uids_set = set()
         try:
             cur.execute(f"SELECT DISTINCT user_id FROM {t_ups} WHERE (project_id = %s OR project_id = %s) AND LOWER(COALESCE(status, '')) != 'deleted'", (id, str(id)))
@@ -1272,67 +1348,79 @@ def get_project_join_sources(id):
 
         active_uids = list(uids_set)
 
-        if not active_uids:
-            return jsonify({"journey_id": id, "total_users": 0, "sources": []})
+        if active_uids:
+            cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = %s AND user_id = ANY(%s)", (f"journey_meta:{id}", active_uids))
+            meta_rows = {r['user_id']: r['value'] for r in cur.fetchall()}
 
-        # Fetch journey_meta:<id> for active users
-        cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = %s AND user_id = ANY(%s)", (f"journey_meta:{id}", active_uids))
-        meta_rows = {r['user_id']: r['value'] for r in cur.fetchall()}
+            for uid in active_uids:
+                meta_str = meta_rows.get(uid)
+                meta = None
+                if meta_str:
+                    try: meta = json.loads(meta_str)
+                    except: pass
 
-        groups = {}
-        for uid in active_uids:
-            meta_str = meta_rows.get(uid)
-            meta = None
-            if meta_str:
-                try: meta = json.loads(meta_str)
-                except: pass
+                if not meta:
+                    try:
+                        cur.execute(f"""
+                            SELECT category, content, "timestamp" FROM {t_history}
+                            WHERE user_id = %s AND (
+                                content ILIKE %s OR 
+                                content ILIKE %s OR 
+                                category IN ('Follow', 'Message', 'Action', 'Batch')
+                            )
+                            ORDER BY "timestamp" DESC LIMIT 1
+                        """, (uid, f"%journey%:{id}%", f"%sys_bind%|{id}|%"))
+                        h_row = cur.fetchone()
+                        if h_row:
+                            cat = h_row.get('category') or ''
+                            cont = str(h_row.get('content') or '')
+                            meta = {
+                                "source_type": "keyword" if cat == 'Message' else "manual",
+                                "source_name": "關鍵字觸發" if cat == 'Message' else "人工操作",
+                                "trigger_display": cont[:30] if cont else "歷史加入紀錄",
+                                "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
+                                "setting_url": "/rules" if cat == 'Message' else None
+                            }
+                    except: pass
 
-            if not meta:
-                # Fallback: Live query from ht_view / history
-                try:
-                    cur.execute(f"""
-                        SELECT category, content, "timestamp" FROM {t_history}
-                        WHERE user_id = %s AND (
-                            content ILIKE %s OR 
-                            content ILIKE %s OR 
-                            category IN ('Follow', 'Message', 'Action', 'Batch')
-                        )
-                        ORDER BY "timestamp" DESC LIMIT 1
-                    """, (uid, f"%journey%:{id}%", f"%sys_bind%|{id}|%"))
-                    h_row = cur.fetchone()
-                    if h_row:
-                        cat = h_row.get('category') or ''
-                        cont = str(h_row.get('content') or '')
-                        meta = {
-                            "source_type": "keyword" if cat == 'Message' else "manual",
-                            "source_name": "關鍵字觸發" if cat == 'Message' else "人工加入",
-                            "trigger_display": cont[:30] if cont else "歷史加入紀錄",
-                            "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
-                            "setting_url": "/rules" if cat == 'Message' else None
-                        }
-                except: pass
+                if not meta:
+                    meta = {
+                        "source_type": "manual",
+                        "source_name": "人工操作",
+                        "trigger_display": "管理後台加入",
+                        "occurred_at": None,
+                        "setting_url": None
+                    }
 
-            if not meta:
-                meta = {
-                    "source_type": "manual",
-                    "source_name": "人工操作",
-                    "trigger_display": "管理後台加入",
-                    "occurred_at": None,
-                    "setting_url": None
-                }
+                # Match with existing scanned sources or add new one
+                matched_key = None
+                m_type = meta.get('source_type', 'manual')
+                m_name = meta.get('source_name', '人工操作')
+                m_trig = meta.get('trigger_display', '手動加入')
+                m_url = meta.get('setting_url')
 
-            key = (meta.get('source_type', 'manual'), meta.get('source_name', '人工操作'), meta.get('trigger_display', '手動加入'), meta.get('setting_url'))
-            if key not in groups:
-                groups[key] = {"current_count": 0, "last_joined_at": meta.get('occurred_at')}
-            groups[key]["current_count"] += 1
-            if meta.get('occurred_at') and (not groups[key]["last_joined_at"] or meta.get('occurred_at') > groups[key]["last_joined_at"]):
-                groups[key]["last_joined_at"] = meta.get('occurred_at')
+                for sk in sources_map.keys():
+                    if sk[0] == m_type and (m_name in sk[1] or sk[1] in m_name or m_trig in sk[2]):
+                        matched_key = sk
+                        break
+
+                target_key = matched_key if matched_key else (m_type, m_name, m_trig, m_url)
+                if target_key not in sources_map:
+                    sources_map[target_key] = {"current_count": 0, "last_joined_at": meta.get('occurred_at')}
+                
+                sources_map[target_key]["current_count"] += 1
+                if meta.get('occurred_at') and (not sources_map[target_key]["last_joined_at"] or meta.get('occurred_at') > sources_map[target_key]["last_joined_at"]):
+                    sources_map[target_key]["last_joined_at"] = meta.get('occurred_at')
+
+        # If no config sources and no users, provide friendly empty placeholder
+        if not sources_map:
+            sources_map[("manual", "人工操作", "管理後台手動加入", None)] = {"current_count": 0, "last_joined_at": None}
 
         source_list = [
             {
                 "source_type": k[0], "source_name": k[1], "trigger_display": k[2], "setting_url": k[3],
                 "current_count": v["current_count"], "last_joined_at": v["last_joined_at"]
-            } for k, v in groups.items()
+            } for k, v in sources_map.items()
         ]
 
         cur.close()
