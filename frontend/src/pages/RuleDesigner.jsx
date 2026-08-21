@@ -362,43 +362,46 @@ const stringifyFunction = (data, note = '', content = '') => {
         const formattedTags = `[${tags.map(t => `'${t}'`).join(', ')}]`;
         parts.push(`update(f"set_tag|${formattedTags}")`);
         
-        // 寫入 tag_meta:<tag> 到 Private_var
+        // 寫入 tag_meta:<tag> 到 Private_var (包含動態觸發時間 sys.now)
         tags.forEach(t => {
-            const metaJson = JSON.stringify({
+            const baseJson = JSON.stringify({
                 source_type: "keyword",
                 source_name: cleanNote,
                 trigger_display: triggerDisp,
                 setting_url: "/ruledesigner"
             });
-            const escapedJson = metaJson.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-            parts.push(`pri_set("tag_meta:${t}", '${escapedJson}')`);
+            const prefix = baseJson.slice(0, -1);
+            const escapedPrefix = prefix.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            parts.push(`pri_set("tag_meta:${t}", '${escapedPrefix},"occurred_at":"\' + sys.now(\'%Y-%m-%d %H:%M:%S\') + \'"}')`);
         });
     }
     if (journey && journey.trim()) {
         parts.push(`update("iup|${journey.trim()}")`);
         
-        // 寫入 journey_meta:<journey_id> 到 Private_var
-        const metaJson = JSON.stringify({
+        // 寫入 journey_meta:<journey_id> 到 Private_var (包含動態觸發時間 sys.now)
+        const baseJson = JSON.stringify({
             source_type: "keyword",
             source_name: cleanNote,
             trigger_display: triggerDisp,
             setting_url: "/ruledesigner"
         });
-        const escapedJson = metaJson.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-        parts.push(`pri_set("journey_meta:${journey.trim()}", '${escapedJson}')`);
+        const prefix = baseJson.slice(0, -1);
+        const escapedPrefix = prefix.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        parts.push(`pri_set("journey_meta:${journey.trim()}", '${escapedPrefix},"occurred_at":"\' + sys.now(\'%Y-%m-%d %H:%M:%S\') + \'"}')`);
     }
     if (richMenu && richMenu.trim()) {
         parts.push(`update("switch_rm|${richMenu.trim()}")`);
         
-        // 寫入 rich_menu_meta 到 Private_var
-        const metaJson = JSON.stringify({
+        // 寫入 rich_menu_meta 到 Private_var (包含動態觸發時間 sys.now)
+        const baseJson = JSON.stringify({
             source_type: "keyword",
             source_name: cleanNote,
             trigger_display: triggerDisp,
             setting_url: "/ruledesigner"
         });
-        const escapedJson = metaJson.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-        parts.push(`pri_set("rich_menu_meta", '${escapedJson}')`);
+        const prefix = baseJson.slice(0, -1);
+        const escapedPrefix = prefix.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        parts.push(`pri_set("rich_menu_meta", '${escapedPrefix},"occurred_at":"\' + sys.now(\'%Y-%m-%d %H:%M:%S\') + \'"}')`);
     }
     return parts.join(',');
 };

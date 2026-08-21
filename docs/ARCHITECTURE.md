@@ -197,14 +197,16 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
   - 防止單一查詢異常導致連線進入 `InFailedSqlTransaction` 交易中止狀態，確保後續來源分析與歸因比對流程 100% 穩定執行。
 
 ## 16. 關鍵字回覆來源歸因與 Private_var Metadata 注入機制 (2026-08-21 新增)
-- **Message 事件來源 Metadata 注入 (`pri_set`)**:
-  - 當使用者於「關鍵字回覆 (`RuleDesigner.jsx`)」中設定附加動作（自動上標、加入自動旅程、連結圖文選單）時，系統會自動在 `Message` 類型規則的 `function` 欄位中注入寫入 `Private_var` 來源 metadata 的 `pri_set` 語法：
-    - **自動上標 (Tags)**：針對每個標籤注入 `pri_set("tag_meta:<tag_name>", '{"source_type":"keyword","source_name":"<規則備註>","trigger_display":"觸發關鍵字: <關鍵字>","setting_url":"/ruledesigner"}')`。
-    - **連結圖文選單 (Rich Menu)**：注入 `pri_set("rich_menu_meta", '{"source_type":"keyword","source_name":"<規則備註>","trigger_display":"觸發關鍵字: <關鍵字>","setting_url":"/ruledesigner"}')`。
-    - **加入自動旅程 (Journey)**：注入 `pri_set("journey_meta:<project_id>", '{"source_type":"keyword","source_name":"<規則備註>","trigger_display":"觸發關鍵字: <關鍵字>","setting_url":"/ruledesigner"}')`。
+- **Message 事件來源 Metadata 注入 (`pri_set`) 與動態時間 (`sys.now`)**:
+  - 當使用者於「關鍵字回覆 (`RuleDesigner.jsx`)」中設定附加動作（自動上標、加入自動旅程、連結圖文選單）時，系統會自動在 `Message` 類型規則的 `function` 欄位中注入寫入 `Private_var` 來源 metadata 的 `pri_set` 語法，並透過 Line-Bot-Main 內建的 `sys.now('%Y-%m-%d %H:%M:%S')` 於執行當下即時記錄精準觸發時間：
+    - **自動上標 (Tags)**：針對每個標籤注入 `pri_set("tag_meta:<tag_name>", '{"source_type":"keyword","source_name":"<規則備註>","trigger_display":"觸發關鍵字: <關鍵字>","setting_url":"/ruledesigner","occurred_at":"' + sys.now('%Y-%m-%d %H:%M:%S') + '"}')`。
+    - **連結圖文選單 (Rich Menu)**：注入 `pri_set("rich_menu_meta", '{"source_type":"keyword","source_name":"<規則備註>","trigger_display":"觸發關鍵字: <關鍵字>","setting_url":"/ruledesigner","occurred_at":"' + sys.now('%Y-%m-%d %H:%M:%S') + '"}')`。
+    - **加入自動旅程 (Journey)**：注入 `pri_set("journey_meta:<project_id>", '{"source_type":"keyword","source_name":"<規則備註>","trigger_display":"觸發關鍵字: <關鍵字>","setting_url":"/ruledesigner","occurred_at":"' + sys.now('%Y-%m-%d %H:%M:%S') + '"}')`。
 - **成對 Sensor 規則純淨動作隔離 (`strip_pri_set_meta`)**:
   - 後端 `rule_designer.py` 在 `create_rule` 與 `update_rule` 建立/更新成對的 `Sensor` 規則時，自動透過 `strip_pri_set_meta` 解析器過濾移除所有 `pri_set` 來源語法，保留乾淨的動作語法（如 `update(...)`），防止 Sensor 事件非預期覆蓋 Message 來源。
-- **客戶中心 Tooltip 無縫呈現**:
-  - 當用戶命中關鍵字回覆並觸發動作後，客戶中心 (`CustomerCenter.jsx`) 與客戶詳情 API (`customers.py`) 讀取 `Private_var` 中的 `tag_meta:*`、`rich_menu_meta`、`journey_meta:*` 時，可直接解析顯示明確的關鍵字規則來源名稱、觸發關鍵字與快速跳轉至 `/ruledesigner` 之設定連結。
+- **客戶中心 Tooltip 與歷史時間 Fallback**:
+  - 當用戶命中關鍵字回覆並觸發動作後，客戶中心 (`CustomerCenter.jsx`) 與客戶詳情 API (`customers.py`) 讀取 `Private_var` 中的 `tag_meta:*`、`rich_menu_meta`、`journey_meta:*` 時，可直接解析顯示明確的關鍵字規則來源名稱、觸發關鍵字、精確發生時間與快速跳轉至 `/ruledesigner` 之設定連結。
+  - 對於先前已觸發但未帶時間戳記之既有舊資料，後端 API 會自動 fallback 關聯該用戶在 `history` 互動歷程或最後互動時間作為 `occurred_at`，確保畫面上無「無紀錄」之缺漏。
+
 
 

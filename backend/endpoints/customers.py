@@ -156,7 +156,9 @@ def get_customers():
                         try: s_info = json.loads(m_val)
                         except: pass
                     if not s_info:
-                        s_info = {"source_type": "manual", "source_name": "歷史資料（來源未明）", "trigger_display": "舊有系統標籤", "occurred_at": None, "setting_url": None}
+                        s_info = {"source_type": "manual", "source_name": "歷史資料（來源未明）", "trigger_display": "舊有系統標籤", "occurred_at": r.get('last_message_time') or r.get('join_time'), "setting_url": None}
+                    elif not s_info.get('occurred_at'):
+                        s_info['occurred_at'] = r.get('last_message_time') or r.get('join_time')
                     tag_objs.append({"name": t, "source_info": s_info})
                 r['tag_objects'] = tag_objs
 
@@ -169,7 +171,9 @@ def get_customers():
                         try: s_info = json.loads(m_val)
                         except: pass
                     if not s_info:
-                        s_info = {"source_type": "manual", "source_name": "歷史資料（來源未明）", "trigger_display": "舊有旅程紀錄", "occurred_at": None, "setting_url": None}
+                        s_info = {"source_type": "manual", "source_name": "歷史資料（來源未明）", "trigger_display": "舊有旅程紀錄", "occurred_at": r.get('last_message_time') or r.get('join_time'), "setting_url": None}
+                    elif not s_info.get('occurred_at'):
+                        s_info['occurred_at'] = r.get('last_message_time') or r.get('join_time')
                     p['source_info'] = s_info
 
                 # 圖文選單來源
@@ -180,7 +184,9 @@ def get_customers():
                         try: s_info = json.loads(m_val)
                         except: pass
                     if not s_info:
-                        s_info = {"source_type": "manual", "source_name": "歷史資料（來源未明）", "trigger_display": "舊有圖文選單紀錄", "occurred_at": None, "setting_url": None}
+                        s_info = {"source_type": "manual", "source_name": "歷史資料（來源未明）", "trigger_display": "舊有圖文選單紀錄", "occurred_at": r.get('last_message_time') or r.get('join_time'), "setting_url": None}
+                    elif not s_info.get('occurred_at'):
+                        s_info['occurred_at'] = r.get('last_message_time') or r.get('join_time')
                     r['rich_menu']['source_info'] = s_info
 
         cur.close()
@@ -816,6 +822,10 @@ def get_customer_details(user_id):
                 except: pass
             if not source_info:
                 source_info = get_fallback_ht_source(t)
+            elif not source_info.get('occurred_at'):
+                fb = get_fallback_ht_source(t)
+                if fb and fb.get('occurred_at'):
+                    source_info['occurred_at'] = fb.get('occurred_at')
             tags_with_meta.append({"name": t, "source_info": source_info})
             
         details["tags"] = tags_with_meta
@@ -828,6 +838,10 @@ def get_customer_details(user_id):
                 except: pass
             if not rm_source:
                 rm_source = get_fallback_ht_source("rich_menu")
+            elif not rm_source.get('occurred_at'):
+                fb = get_fallback_ht_source("rich_menu")
+                if fb and fb.get('occurred_at'):
+                    rm_source['occurred_at'] = fb.get('occurred_at')
             details["rich_menu"]["source_info"] = rm_source
 
         for p in details.get("projects", []):
@@ -839,6 +853,10 @@ def get_customer_details(user_id):
                 except: pass
             if not p_source:
                 p_source = get_fallback_ht_source(p.get("name", "journey"))
+            elif not p_source.get('occurred_at'):
+                fb = get_fallback_ht_source(p.get("name", "journey"))
+                if fb and fb.get('occurred_at'):
+                    p_source['occurred_at'] = fb.get('occurred_at')
             p["source_info"] = p_source
 
         cur_pv.close()
