@@ -1484,6 +1484,9 @@ def get_richmenu_apply_sources(rich_menu_id):
             "sources": source_list
         })
     except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"Error in get_richmenu_apply_sources for {rich_menu_id}: {e}")
         if conn: conn.rollback()
         return jsonify({"error": str(e)}), 500
     finally:
