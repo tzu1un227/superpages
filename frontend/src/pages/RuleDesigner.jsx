@@ -327,23 +327,78 @@ const parseFunction = (funcStr) => {
     return result;
 };
 
-const stringifyFunction = (data) => {
+const stringifyFunction = (data, note = '', content = '') => {
     // If it's a string, we assume it's just the tag (backward compatibility)
     const tags = typeof data === 'string' ? [data] : (data.tags || []);
     const journey = data.journey;
     const richMenu = data.richMenu;
     
+    // Clean note for source_name
+    let cleanNote = (note || '')
+        .replace(/^關鍵字回覆 \- /, '')
+        .replace(/ \- 關鍵字回覆$/, '')
+        .replace(/ \- 問卷管理$/, '')
+        .replace(/^問卷管理 \- /, '')
+        .replace(/ \- 工程用法則$/, '')
+        .replace(/工程用法則$/, '')
+        .split('|UPDATED:')[0]
+        .trim();
+
+    // Clean content for trigger_display
+    let kwDisplay = '';
+    if (Array.isArray(content)) {
+        kwDisplay = content.map(c => String(c || '').trim()).filter(Boolean).join(', ');
+    } else if (typeof content === 'string') {
+        kwDisplay = content.trim();
+    }
+    if (!cleanNote) {
+        cleanNote = kwDisplay || '關鍵字回覆';
+    }
+    const triggerDisp = kwDisplay ? `觸發關鍵字: ${kwDisplay}` : '關鍵字觸發';
+
     const parts = [];
     if (tags && tags.length > 0) {
         // Output format: ['A', 'B'] (Python list format)
         const formattedTags = `[${tags.map(t => `'${t}'`).join(', ')}]`;
         parts.push(`update(f"set_tag|${formattedTags}")`);
+        
+        // 寫入 tag_meta:<tag> 到 Private_var
+        tags.forEach(t => {
+            const metaJson = JSON.stringify({
+                source_type: "keyword",
+                source_name: cleanNote,
+                trigger_display: triggerDisp,
+                setting_url: "/ruledesigner"
+            });
+            const escapedJson = metaJson.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            parts.push(`pri_set("tag_meta:${t}", '${escapedJson}')`);
+        });
     }
     if (journey && journey.trim()) {
         parts.push(`update("iup|${journey.trim()}")`);
+        
+        // 寫入 journey_meta:<journey_id> 到 Private_var
+        const metaJson = JSON.stringify({
+            source_type: "keyword",
+            source_name: cleanNote,
+            trigger_display: triggerDisp,
+            setting_url: "/ruledesigner"
+        });
+        const escapedJson = metaJson.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        parts.push(`pri_set("journey_meta:${journey.trim()}", '${escapedJson}')`);
     }
     if (richMenu && richMenu.trim()) {
         parts.push(`update("switch_rm|${richMenu.trim()}")`);
+        
+        // 寫入 rich_menu_meta 到 Private_var
+        const metaJson = JSON.stringify({
+            source_type: "keyword",
+            source_name: cleanNote,
+            trigger_display: triggerDisp,
+            setting_url: "/ruledesigner"
+        });
+        const escapedJson = metaJson.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        parts.push(`pri_set("rich_menu_meta", '${escapedJson}')`);
     }
     return parts.join(',');
 };
@@ -674,6 +729,12 @@ function RuleDesigner() {
         ruleToSave.note = `${baseNote}|UPDATED:${nowIso}`;
         delete ruleToSave._originalNote;
         delete ruleToSave._updatedAt;
+
+        // 簡易模式下根據最新 note 與 content 重新組裝包含來源 metadata 的 function 欄位
+        if (designMode === 'simple') {
+            const funcData = parseFunction(ruleToSave.function);
+            ruleToSave.function = stringifyFunction(funcData, ruleToSave.note, ruleToSave.content);
+        }
 
         try {
             let res;
@@ -1062,7 +1123,7 @@ function RuleDesigner() {
                                                     <TagInput
                                                         tags={funcData.tags || []}
                                                         onChange={newTags => {
-                                                            handleFieldChange(idx, 'function', stringifyFunction({ ...funcData, tags: newTags }));
+                                                            handleFieldChange(idx, 'function', stringifyFunction({ ...funcData, tags: newTags }, rule.note, rule.content));
                                                         }}
                                                         placeholder="請選擇或輸入標籤 (例如: 已互動)"
                                                     />
@@ -1072,12 +1133,12 @@ function RuleDesigner() {
                                                     <select 
                                                         disabled={deletingIndex === idx}
                                                         value={funcData.journey || ''}
-                                                        onChange={e => handleFieldChange(idx, 'function', stringifyFunction({ ...funcData, journey: e.target.value }))}
+                                                        onChange={e => handleFieldChange(idx, 'function', stringifyFunction({ ...funcData, journey: e.target.value }, rule.note, rule.content))}
                                                         style={{ width: '100%', padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }}
                                                     >
                                                         <option value="">-- 不加入旅程 --</option>
                                                         {projectsList.map(p => (
-                                                            <option key={p.project_id || p.id} value={p.project_id || p.id}>{p.project_name}</option>
+                                                             <option key={p.project_id || p.id} value={p.project_id || p.id}>{p.project_name}</option>
                                                         ))}
                                                     </select>
                                                 </div>
@@ -1086,7 +1147,7 @@ function RuleDesigner() {
                                                     <select 
                                                         disabled={deletingIndex === idx}
                                                         value={funcData.richMenu || ''}
-                                                        onChange={e => handleFieldChange(idx, 'function', stringifyFunction({ ...funcData, richMenu: e.target.value }))}
+                                                        onChange={e => handleFieldChange(idx, 'function', stringifyFunction({ ...funcData, richMenu: e.target.value }, rule.note, rule.content))}
                                                         style={{ width: '100%', padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }}
                                                     >
                                                         <option value="">-- 不切換圖文選單 --</option>

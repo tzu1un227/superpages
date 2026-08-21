@@ -1,6 +1,13 @@
 # CHANGELOG
 
-## [2026-07-31] 加入好友法則 Q_bank 寫入欄位規格修正
+## [2026-08-21] 關鍵字回覆 Message 事件注入 Private_var 來源 Metadata
+- **前端 (`frontend/src/pages/RuleDesigner.jsx`)**:
+  - 擴充 `stringifyFunction`，當使用者設定動作時，自動為 Message 規則產生對應動作之 `pri_set` 來源 metadata（包含 `tag_meta:<tag_name>`、`rich_menu_meta`、`journey_meta:<project_id>`），確保帶入最新的規則備註名稱 (`source_name`)、觸發關鍵字 (`trigger_display`) 與 `/ruledesigner` 跳轉路徑。
+  - 在 `handleSaveRow` 儲存時自動結合最新 `note` 與 `content` 重新組裝 `function`。
+- **後端 (`backend/endpoints/rule_designer.py`)**:
+  - 新增 `strip_pri_set_meta` 解析輔助函數，在 `create_rule` 與 `update_rule` 建立/更新成對的 `Sensor` 規則時，自動過濾移除 `pri_set` 來源語法，確保 Sensor 規則僅保留執行動作。
+- **客戶中心聯動 (`CustomerCenter.jsx`)**:
+  - 用戶透過關鍵字觸發動作後，客戶中心標籤、圖文選單、自動旅程的 Tooltip 能正確讀取並顯示關鍵字規則名稱與觸發關鍵字。
 - **後端 (`backend/endpoints/rule_designer.py`)**: 修正 `get_follow_rules` (預設法則建立/更新)、`create_follow_rule` (新增法則) 與 `update_follow_rule` (更新法則) 寫入 `Q_bank` 資料表時，將 `state_out` 欄位固定寫入 `'00000'`，並明確帶入 `history` 欄位寫入 `TRUE` (`True`)。
 
 ## [2026-07-31] 預設加入好友法則條件式圖文選單切換優化

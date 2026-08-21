@@ -48,6 +48,46 @@ def trigger_sql_reload():
     except Exception as e:
         print(f"[RULE_DESIGNER] SQL reload trigger failed: {e}")
 
+def strip_pri_set_meta(func_str):
+    """
+    Remove pri_set metadata expressions (tag_meta, rich_menu_meta, journey_meta)
+    from a function string, keeping only actions (like update(...)).
+    """
+    if not func_str or not isinstance(func_str, str) or not func_str.strip():
+        return ''
+    
+    merged_parts = []
+    buf = []
+    bracket_level = 0
+    in_single_quote = False
+    in_double_quote = False
+    
+    for ch in func_str:
+        if ch == "'" and not in_double_quote:
+            in_single_quote = not in_single_quote
+        elif ch == '"' and not in_single_quote:
+            in_double_quote = not in_double_quote
+        elif not in_single_quote and not in_double_quote:
+            if ch in '([{': bracket_level += 1
+            elif ch in ')]}': bracket_level -= 1
+            elif ch == ',' and bracket_level == 0:
+                stmt = ''.join(buf).strip()
+                if stmt: merged_parts.append(stmt)
+                buf = []
+                continue
+        buf.append(ch)
+    if buf:
+        stmt = ''.join(buf).strip()
+        if stmt: merged_parts.append(stmt)
+        
+    filtered = []
+    for p in merged_parts:
+        if p.startswith('pri_set(') and ('tag_meta:' in p or 'rich_menu_meta' in p or 'journey_meta:' in p):
+            continue
+        filtered.append(p)
+        
+    return ','.join(filtered)
+
 def validate_python_syntax(code_str, field_name):
     """
     Validate a Python expression/statement string using ast.parse.
@@ -255,6 +295,8 @@ def create_rule():
         if rule_data.get('type') == 'Message':
             sensor_rule_data = rule_data.copy()
             sensor_rule_data['type'] = 'Sensor'
+            if 'function' in sensor_rule_data and isinstance(sensor_rule_data['function'], str):
+                sensor_rule_data['function'] = strip_pri_set_meta(sensor_rule_data['function'])
             sensor_fields = []
             sensor_placeholders = []
             sensor_values = []
@@ -363,16 +405,20 @@ def update_rule(rule_id):
                 if key not in existing_cols: continue
                 if key == 'type': continue # Keep 'Sensor'
                 
-                if isinstance(value, list):
+                sensor_val = value
+                if key == 'function' and isinstance(value, str):
+                    sensor_val = strip_pri_set_meta(value)
+                
+                if isinstance(sensor_val, list):
                     if key == 'msg_rpy':
                         sensor_updates.append(f"\"{key}\" = %s::json[]")
-                        sensor_values.append(format_msg_rpy_list(value))
+                        sensor_values.append(format_msg_rpy_list(sensor_val))
                     else:
                         sensor_updates.append(f"\"{key}\" = %s")
-                        sensor_values.append(value)
+                        sensor_values.append(sensor_val)
                 else:
                     sensor_updates.append(f"\"{key}\" = %s")
-                    sensor_values.append(value)
+                    sensor_values.append(sensor_val)
                     
             sensor_values.append('Sensor')
             sensor_values.append(old_rule['content'])
