@@ -208,5 +208,16 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
   - 當用戶命中關鍵字回覆並觸發動作後，客戶中心 (`CustomerCenter.jsx`) 與客戶詳情 API (`customers.py`) 讀取 `Private_var` 中的 `tag_meta:*`、`rich_menu_meta`、`journey_meta:*` 時，可直接解析顯示明確的關鍵字規則來源名稱、觸發關鍵字、精確發生時間與快速跳轉至 `/ruledesigner` 之設定連結。
   - 對於先前已觸發但未帶時間戳記之既有舊資料，後端 API 會自動 fallback 關聯該用戶在 `history` 互動歷程或最後互動時間作為 `occurred_at`，確保畫面上無「無紀錄」之缺漏。
 
+## 17. 圖文選單權限切換雙向相容與防呆機制 (2026-08-21 新增)
+- **多識別碼雙向比對 (`ui_uuid` 與 `rich_menu_id`)**:
+  - 在 LINE Bot 工程用法則 `switch_rm|*` (Postback/Sensor) 中，全面升級為雙向智慧查詢：
+    - 若傳入為 `richmenu-` 前綴之原生 LINE ID，優先透過 `rich_menu_id` 欄位查詢 metadata。
+    - 若傳入為系統自訂 `ui_uuid`，則透過 `ui_uuid` 查詢，查無資料時自動 fallback 比對 `rich_menu_id`。
+- **查詢防呆與零例外防護 (Zero IndexError Guard)**:
+  - 將原本寫死之 `[0]` 下標索引用 Lambda 結構封裝：`(lambda res: ... if res else "")(...)`。
+  - 當查無任何對應圖文選單記錄時，優雅返回空操作，徹底根除 `IndexError: list index out of range` 錯誤。
+  - 安全解析標籤集合 `eval(pri('tag') or '[]')`，避免空值引發語法例外。
+
+
 
 

@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## [2026-08-21] 圖文選單權限切換 switch_rm 雙向相容與 IndexError 防呆優化
+- **Q_bank 工程用法則 (`switch_rm|*`)**:
+  - 全面升級 `switch_rm|*` (Postback/Sensor) 法則語法，同時支援以原生 `richmenu-...` (LINE ID) 與系統自訂 `ui_uuid` 作為切換目標。
+  - 將原本寫死之 `[0]` 下標索引用 Lambda 結構封裝 `(lambda res: ... if res else "")`，當查無圖文選單記錄時安全略過，徹底杜絕 `IndexError: list index out of range` 錯誤。
+  - 加入 `eval(pri('tag') or '[]')` 空標籤字串安全防護。
+  - 已同步將 `Q_bank:5013` 與 `Q_bank:yzulabuse` 的 `switch_rm|*` 規則更新完畢。
+
 ## [2026-08-21] 關鍵字回覆 Message 事件注入 Private_var 來源 Metadata (含 sys.now 動態時間)
 - **前端 (`frontend/src/pages/RuleDesigner.jsx`)**:
   - 擴充 `stringifyFunction`，當使用者設定動作時，自動為 Message 規則產生對應動作之 `pri_set` 來源 metadata（包含 `tag_meta:<tag_name>`、`rich_menu_meta`、`journey_meta:<project_id>`）。
