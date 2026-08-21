@@ -1115,19 +1115,34 @@ def unlink_rich_menu_from_all(richMenuId):
 @token_required
 def get_richmenu_apply_sources(rich_menu_id):
     from psycopg2.extras import RealDictCursor
+    from db_utils import get_db_connection
     conn = None
     try:
-        conn = get_tenant_conn()
+        conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
-        pv_table = get_t('Private_var')
-        t_history = get_t('history')
-        t_metadata = get_t('rich_menu_metadata')
-        gv_table = get_t('Global_var')
-        t_qbank = get_t('Q_bank')
-        t_qabank = get_t('QA_bank')
-        t_schedules = get_t('project_schedules')
-        t_projects = get_t('projects')
+        def get_t_safe(base_name):
+            app_name = getattr(g, 'current_app_name', 'default')
+            suffixed = f"{base_name}:{app_name}"
+            try:
+                cur.execute("SELECT 1 FROM information_schema.tables WHERE table_name = %s", (suffixed,))
+                if cur.fetchone():
+                    return f'"{suffixed}"'
+                cur.execute("SELECT 1 FROM information_schema.tables WHERE table_name = %s", (base_name,))
+                if cur.fetchone():
+                    return f'"{base_name}"'
+            except Exception:
+                pass
+            return f'"{suffixed}"'
+
+        pv_table = get_t_safe('Private_var')
+        t_history = get_t_safe('history')
+        t_metadata = get_t_safe('rich_menu_metadata')
+        gv_table = get_t_safe('Global_var')
+        t_qbank = get_t_safe('Q_bank')
+        t_qabank = get_t_safe('QA_bank')
+        t_schedules = get_t_safe('project_schedules')
+        t_projects = get_t_safe('projects')
 
         # Resolve all possible identifiers for this rich menu (rich_menu_id, ui_uuid) - DO NOT use numeric id
         all_menu_ids = []
@@ -1193,12 +1208,19 @@ def get_richmenu_apply_sources(rich_menu_id):
 
         # 2. 深度掃描 project_schedules (自動旅程排程表)
         try:
-            cur.execute(f"""
-                SELECT s.schedule_id, s.project_id, s.step_id, s.message_content, p.project_name
-                FROM {t_schedules} s
-                LEFT JOIN {t_projects} p ON s.project_id = p.project_id
-            """)
-            all_sched_rows = cur.fetchall()
+            try:
+                cur.execute(f"""
+                    SELECT s.schedule_id, s.project_id, s.step_id, s.message_content, p.project_name
+                    FROM {t_schedules} s
+                    LEFT JOIN {t_projects} p ON s.project_id = p.project_id
+                """)
+                all_sched_rows = cur.fetchall()
+            except Exception:
+                cur.execute(f"""
+                    SELECT s.schedule_id, s.project_id, s.step_id, s.message_content
+                    FROM {t_schedules} s
+                """)
+                all_sched_rows = cur.fetchall()
 
             for s in all_sched_rows:
                 s_pid = str(s.get('project_id') or '')
@@ -1245,7 +1267,6 @@ def get_richmenu_apply_sources(rich_menu_id):
         except Exception as e:
             print("Error scanning project_schedules for rich menu:", e)
 
-        matching_q_rows = []
         # 3. 主動掃描 Q_bank (關鍵字法則表)
         try:
             cur.execute(f"SELECT * FROM {t_qbank}")
@@ -1300,8 +1321,13 @@ def get_richmenu_apply_sources(rich_menu_id):
             print("Error scanning other rich menus:", e)
 
         # 6. 統計現有用戶套用歸因
-        cur.execute(f"SELECT DISTINCT user_id FROM {pv_table} WHERE name = 'rich_menu' AND value = ANY(%s)", (all_menu_ids,))
-        explicit_uids = [r['user_id'] for r in cur.fetchall()]
+        explicit_uids = []
+        if all_menu_ids:
+            try:
+                cur.execute(f"SELECT DISTINCT user_id FROM {pv_table} WHERE name = 'rich_menu' AND value = ANY(%s)", (all_menu_ids,))
+                explicit_uids = [r['user_id'] for r in cur.fetchall()]
+            except Exception as e:
+                print("Error querying explicit uids:", e)
 
         default_uids = []
         if is_default:
@@ -1320,8 +1346,11 @@ def get_richmenu_apply_sources(rich_menu_id):
 
         meta_rows = {}
         if explicit_uids:
-            cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = 'rich_menu_meta' AND user_id = ANY(%s)", (explicit_uids,))
-            meta_rows = {r['user_id']: r['value'] for r in cur.fetchall()}
+            try:
+                cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = 'rich_menu_meta' AND user_id = ANY(%s)", (explicit_uids,))
+                meta_rows = {r['user_id']: r['value'] for r in cur.fetchall()}
+            except Exception as e:
+                print("Error querying rich_menu_meta:", e)
 
         import json
         for uid in total_uids:
@@ -1397,7 +1426,16 @@ def get_richmenu_apply_sources(rich_menu_id):
 
                         # C. 若歷程無直接比對，但系統有明確探測出單一關鍵字/旅程設定，自動歸屬至設定源
                         if not found_meta:
-                            if matching_q_rows:
+                            if matching_sched_rows:
+                                item = matching_sched_rows[0]
+                                found_meta = {
+                                    "source_type": "journey",
+                                    "source_name": item['project_name'],
+                                    "trigger_display": f"步驟 {item['step_id']} 訊息按鈕切換",
+                                    "occurred_at": str(h_rows[0]['timestamp'])[:19] if h_rows and h_rows[0].get('timestamp') else None,
+                                    "setting_url": f"/projects?projectId={item['project_id']}"
+                                }
+                            elif matching_q_rows:
                                 r = matching_q_rows[0]
                                 kw_raw = r.get('content')
                                 clean_t = clean_rule_title(r.get('note'), format_kw_display(kw_raw))
@@ -1407,15 +1445,6 @@ def get_richmenu_apply_sources(rich_menu_id):
                                     "trigger_display": f"觸發關鍵字: {format_kw_display(kw_raw)}",
                                     "occurred_at": str(h_rows[0]['timestamp'])[:19] if h_rows and h_rows[0].get('timestamp') else None,
                                     "setting_url": "/ruledesigner"
-                                }
-                            elif matching_sched_rows:
-                                item = matching_sched_rows[0]
-                                found_meta = {
-                                    "source_type": "journey",
-                                    "source_name": item['project_name'],
-                                    "trigger_display": f"步驟 {item['step_id']} 訊息按鈕切換",
-                                    "occurred_at": str(h_rows[0]['timestamp'])[:19] if h_rows and h_rows[0].get('timestamp') else None,
-                                    "setting_url": f"/projects?projectId={item['project_id']}"
                                 }
 
                         if found_meta:
