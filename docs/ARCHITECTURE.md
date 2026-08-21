@@ -185,7 +185,14 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 - **前端整合 (`Statistics.jsx` & `RuleDesigner.jsx`)**:
   - `Statistics.jsx` 重構為頂部三大指標卡片 + 雙頁籤切換表格與全方位 CSV 匯出（單一檔案包含規則命中與未命中排行兩大區塊）。
   - `RuleDesigner.jsx` 支援讀取 URL 關鍵字參數，開啟時自動創建預填 draft rule。
-
-
-
+## 15. 圖文選單套用來源解析與資料庫交易防禦機制 (2026-08-21 新增)
+- **多來源探測與歸因架構 (`endpoints/richmenu.py`)**:
+  - `GET /api/richmenu/<rich_menu_id>/apply-sources` 端點提供圖文選單套用來源透明化分析。
+  - 深度解析自動旅程排程表 (`project_schedules`)、關鍵字規則表 (`Q_bank`)、問答庫表 (`QA_bank`) 與其他圖文選單 (`rich_menu_metadata`) 中指向目標選單 (`rich_menu_id` 或 `ui_uuid`) 的所有設定。
+  - 同步結合用戶 `Private_var` 套用紀錄與 `history` 歷史互動歷程進行精準歸因比對。
+- **資料表欄位精確對齊與防禦性查詢**:
+  - 嚴格分離 `Q_bank`（具 `state_out` 欄位）與 `QA_bank`（無 `state_out` 欄位）的查詢結構，避免因無效欄位引發資料庫例外。
+- **PostgreSQL 交易回滾保護 (Transaction Rollback Guard)**:
+  - 在所有資料表探測與歷史檢索的 `try...except` 區塊中，一律加入 `if conn: conn.rollback()` 保護。
+  - 防止單一查詢異常導致連線進入 `InFailedSqlTransaction` 交易中止狀態，確保後續來源分析與歸因比對流程 100% 穩定執行。
 

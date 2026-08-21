@@ -1132,7 +1132,7 @@ def get_richmenu_apply_sources(rich_menu_id):
                 if cur.fetchone():
                     return f'"{base_name}"'
             except Exception:
-                pass
+                if conn: conn.rollback()
             return f'"{suffixed}"'
 
         pv_table = get_t_safe('Private_var')
@@ -1158,6 +1158,7 @@ def get_richmenu_apply_sources(rich_menu_id):
                     if val and str(val).strip() and len(str(val).strip()) >= 6 and str(val).strip() not in all_menu_ids:
                         all_menu_ids.append(str(val).strip())
         except Exception as e:
+            if conn: conn.rollback()
             print("Error resolving all_menu_ids:", e)
 
         # Filter all_menu_ids to only valid string IDs (length >= 6)
@@ -1171,7 +1172,7 @@ def get_richmenu_apply_sources(rich_menu_id):
             if gv_row and str(gv_row.get('value')).strip() in all_menu_ids:
                 is_default = True
         except Exception:
-            pass
+            if conn: conn.rollback()
 
         sources_map = {}
 
@@ -1216,6 +1217,7 @@ def get_richmenu_apply_sources(rich_menu_id):
                 """)
                 all_sched_rows = cur.fetchall()
             except Exception:
+                if conn: conn.rollback()
                 cur.execute(f"""
                     SELECT s.schedule_id, s.project_id, s.step_id, s.message_content
                     FROM {t_schedules} s
@@ -1238,14 +1240,14 @@ def get_richmenu_apply_sources(rich_menu_id):
                     tag_name = parts[-1]
                     journey_sched_tags.add(tag_name)
                     try:
-                        cur.execute(f'SELECT msg_rpy, function, "check", state_out FROM {t_qabank} WHERE tag = %s', (tag_name,))
+                        cur.execute(f'SELECT msg_rpy, function, "check" FROM {t_qabank} WHERE tag = %s', (tag_name,))
                         q_row = cur.fetchone()
                         if q_row:
                             q_msg_text = str(q_row.get('msg_rpy') or '')
                             q_fn_text = str(q_row.get('function') or '')
-                            q_check_text = str(q_row.get('check') or '') + " " + str(q_row.get('state_out') or '')
+                            q_check_text = str(q_row.get('check') or '')
                     except Exception:
-                        pass
+                        if conn: conn.rollback()
 
                 item = {
                     "project_id": s_pid,
@@ -1265,6 +1267,7 @@ def get_richmenu_apply_sources(rich_menu_id):
                     if k not in sources_map:
                         sources_map[k] = {"current_count": 0, "last_applied_at": None}
         except Exception as e:
+            if conn: conn.rollback()
             print("Error scanning project_schedules for rich menu:", e)
 
         # 3. 主動掃描 Q_bank (關鍵字法則表)
@@ -1282,6 +1285,7 @@ def get_richmenu_apply_sources(rich_menu_id):
                     if k not in sources_map:
                         sources_map[k] = {"current_count": 0, "last_applied_at": None}
         except Exception as e:
+            if conn: conn.rollback()
             print("Error scanning Q_bank for rich menu:", e)
 
         # 4. 主動掃描 QA_bank (問答知識庫表，自動排除旅程自帶排程標籤)
@@ -1292,7 +1296,7 @@ def get_richmenu_apply_sources(rich_menu_id):
                 qa_tag = r.get('tag') or f"問答庫 #{r.get('id')}"
                 if qa_tag in journey_sched_tags:
                     continue  # 已歸入自動旅程排程
-                r_text = f"{r.get('msg_rpy')} {r.get('function')} {r.get('check')} {r.get('state_out')}"
+                r_text = f"{r.get('msg_rpy')} {r.get('function')} {r.get('check')}"
                 if is_menu_matched(r_text):
                     matching_q_rows.append(r)
                     qa_clean = clean_rule_title(r.get('note'), qa_tag)
@@ -1300,6 +1304,7 @@ def get_richmenu_apply_sources(rich_menu_id):
                     if k not in sources_map:
                         sources_map[k] = {"current_count": 0, "last_applied_at": None}
         except Exception as e:
+            if conn: conn.rollback()
             print("Error scanning QA_bank for rich menu:", e)
 
         # 5. 主動掃描 rich_menu_metadata (其他圖文選單按鈕切換)
@@ -1318,6 +1323,7 @@ def get_richmenu_apply_sources(rich_menu_id):
                     if k not in sources_map:
                         sources_map[k] = {"current_count": 0, "last_applied_at": None}
         except Exception as e:
+            if conn: conn.rollback()
             print("Error scanning other rich menus:", e)
 
         # 6. 統計現有用戶套用歸因
@@ -1327,6 +1333,7 @@ def get_richmenu_apply_sources(rich_menu_id):
                 cur.execute(f"SELECT DISTINCT user_id FROM {pv_table} WHERE name = 'rich_menu' AND value = ANY(%s)", (all_menu_ids,))
                 explicit_uids = [r['user_id'] for r in cur.fetchall()]
             except Exception as e:
+                if conn: conn.rollback()
                 print("Error querying explicit uids:", e)
 
         default_uids = []
@@ -1340,7 +1347,7 @@ def get_richmenu_apply_sources(rich_menu_id):
                 """)
                 default_uids = [r['user_id'] for r in cur.fetchall()]
             except Exception:
-                pass
+                if conn: conn.rollback()
 
         total_uids = list(set(explicit_uids + default_uids))
 
@@ -1350,6 +1357,7 @@ def get_richmenu_apply_sources(rich_menu_id):
                 cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = 'rich_menu_meta' AND user_id = ANY(%s)", (explicit_uids,))
                 meta_rows = {r['user_id']: r['value'] for r in cur.fetchall()}
             except Exception as e:
+                if conn: conn.rollback()
                 print("Error querying rich_menu_meta:", e)
 
         import json
@@ -1450,6 +1458,7 @@ def get_richmenu_apply_sources(rich_menu_id):
                         if found_meta:
                             meta = found_meta
                     except Exception as e:
+                        if conn: conn.rollback()
                         print("Error resolving user rich menu source:", e)
 
                 if not meta:

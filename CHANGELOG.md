@@ -1,3 +1,11 @@
+## [2026-08-21] 圖文選單來源解析 QA_bank 查詢與交易回滾修復 (RichMenu Apply Sources Query & Rollback Fixes)
+- **QA_bank 查詢欄位修正 (backend/endpoints/richmenu.py)**:
+  - 修正 `get_richmenu_apply_sources` 解析旅程排程時對 `QA_bank` 查詢不存在的 `state_out` 欄位錯誤（`state_out` 僅存在於 `Q_bank`），改為精準選取 `msg_rpy, function, "check"`。
+- **PostgreSQL 交易回滾防護 (Transaction Rollback Guards) (backend/endpoints/richmenu.py)**:
+  - 為 `get_t_safe` 及各個設定表探測、用戶套用統計、歷程比對的 `try...except` 區塊補齊 `if conn: conn.rollback()`，徹底杜絕單一查詢失敗導致連線交易中止（`InFailedSqlTransaction`）引發所有來源 fallback 誤判為人工操作的問題。
+- **旅程與關鍵字圖文選單來源探測驗證**:
+  - 驗證並確保自動旅程 Flex 按鈕切換之圖文選單與關鍵字回覆切換之圖文選單均能 100% 正確呈現來源類型、名稱、Trigger 與設定連結。
+
 ## [2026-08-21] CRM 來源跳轉與自動旅程跨旅程切換 (Cross-Journey Navigation Fixes)
 - **自動旅程跨旅程來源前往設定修復 (frontend/src/pages/Projects.jsx & backend/app.py, richmenu.py)**:
   - 修正當自動旅程來源為另一自動旅程時，點擊「前往設定」因留在同個 URL 導致無反應的問題。
