@@ -343,24 +343,14 @@ const FlexMessageEditor = ({ initialContent, initialJson, onSave, onCancel, onCl
             const menuStr = bindData.menu || '';
             const hasBind = tagsStr !== '[]' || journeyStr || menuStr;
 
-            // 構建選項 B 的 Meta Keys 清單與來源 Metadata JSON
-            const metaKeys = [];
-            if (bindData.tag && bindData.tag.length > 0) {
-                bindData.tag.forEach(t => metaKeys.push(`tag_meta:${t}`));
-            }
-            if (journeyStr) {
-                metaKeys.push(`journey_meta:${journeyStr}`);
-            }
-            if (menuStr) {
-                metaKeys.push('rich_menu_meta');
-            }
+            // 構建獨立 Meta Keys (tagKey, journeyKey, menuKey) 與來源 Metadata JSON
+            const tagKey = (bindData.tag && bindData.tag.length > 0) ? `tag_meta:${bindData.tag[0]}` : '';
+            const journeyKey = journeyStr ? `journey_meta:${journeyStr}` : '';
+            const menuKey = menuStr ? 'rich_menu_meta' : '';
+            const hasAnyMeta = Boolean(tagKey || journeyKey || menuKey);
 
-            let metaKeysStr = '';
             let metaValStr = '';
-
-            if (metaKeys.length > 0) {
-                metaKeysStr = `[${metaKeys.map(k => `'${k}'`).join(', ')}]`;
-
+            if (hasAnyMeta) {
                 const sType = sourceContext?.sourceType || 'journey';
                 let sName = sourceContext?.sourceInfo?.name || sourceContext?.sourceInfo?.title || '旅程訊息';
                 let sUrl = '/projects';
@@ -393,7 +383,7 @@ const FlexMessageEditor = ({ initialContent, initialJson, onSave, onCancel, onCl
                     finalVal = 'https://' + val;
                 }
 
-                if (hasBind || (metaKeysStr && metaValStr)) {
+                if (hasBind || hasAnyMeta) {
                     const redirectBase = API_BASE_URL ? `${API_BASE_URL}/redirect` : '/api/redirect';
                     const absoluteRedirectBase = redirectBase.startsWith('/') ? window.location.origin + redirectBase : redirectBase;
                     
@@ -401,7 +391,9 @@ const FlexMessageEditor = ({ initialContent, initialJson, onSave, onCancel, onCl
                     if (tagsStr !== '[]') finalTargetUrl += `&tags=${encodeURIComponent(tagsStr)}`;
                     if (journeyStr) finalTargetUrl += `&journey=${encodeURIComponent(journeyStr)}`;
                     if (menuStr) finalTargetUrl += `&menu=${encodeURIComponent(menuStr)}`;
-                    if (metaKeysStr) finalTargetUrl += `&meta_keys=${encodeURIComponent(metaKeysStr)}`;
+                    if (tagKey) finalTargetUrl += `&tag_key=${encodeURIComponent(tagKey)}`;
+                    if (journeyKey) finalTargetUrl += `&journey_key=${encodeURIComponent(journeyKey)}`;
+                    if (menuKey) finalTargetUrl += `&menu_key=${encodeURIComponent(menuKey)}`;
                     if (metaValStr) finalTargetUrl += `&meta_val=${encodeURIComponent(metaValStr)}`;
 
                     if (appName) {
@@ -410,7 +402,9 @@ const FlexMessageEditor = ({ initialContent, initialJson, onSave, onCancel, onCl
                         if (tagsStr !== '[]') liffUrl += `&tag=${encodeURIComponent(tagsStr)}`;
                         if (journeyStr) liffUrl += `&journey=${encodeURIComponent(journeyStr)}`;
                         if (menuStr) liffUrl += `&menu=${encodeURIComponent(menuStr)}`;
-                        if (metaKeysStr) liffUrl += `&meta_keys=${encodeURIComponent(metaKeysStr)}`;
+                        if (tagKey) liffUrl += `&tag_key=${encodeURIComponent(tagKey)}`;
+                        if (journeyKey) liffUrl += `&journey_key=${encodeURIComponent(journeyKey)}`;
+                        if (menuKey) liffUrl += `&menu_key=${encodeURIComponent(menuKey)}`;
                         if (metaValStr) liffUrl += `&meta_val=${encodeURIComponent(metaValStr)}`;
                         return { type: 'uri', label: 'action', uri: liffUrl };
                     }
@@ -428,8 +422,8 @@ const FlexMessageEditor = ({ initialContent, initialJson, onSave, onCancel, onCl
                 return { type: 'postback', label: 'action', data: '', displayText: '' };
             }
 
-            const postbackData = metaKeysStr && metaValStr
-                ? `sys_bind|${tagsStr}|${journeyStr}|${menuStr}|${val}|${metaKeysStr}|${metaValStr}`
+            const postbackData = hasAnyMeta
+                ? `sys_bind|${tagsStr}|${journeyStr}|${menuStr}|${val}|${tagKey}|${journeyKey}|${menuKey}|${metaValStr}`
                 : `sys_bind|${tagsStr}|${journeyStr}|${menuStr}|${val}`;
 
             return {

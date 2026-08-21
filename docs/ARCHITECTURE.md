@@ -218,16 +218,28 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
   - 當查無任何對應圖文選單記錄時，優雅返回空操作，徹底根除 `IndexError: list index out of range` 錯誤。
   - 安全解析標籤集合 `eval(pri('tag') or '[]')`，避免空值引發語法例外。
 
-## 18. Flex 訊息按鈕 sys_bind 來源 Metadata 結構化傳遞規範 (2026-08-21 新增)
-- **`sys_bind` 來源 Key/Value 結構化解耦 (選項 B 規格)**:
-  - 在前端 `FlexMessageEditor.jsx` 中，按鈕 Postback / URI 的 `sys_bind` payload 第 5 欄與第 6 欄升級為標準結構化格式：
-    - **`c_cut(5)` (Meta Keys)**：傳遞需要寫入 `Private_var` 的鍵名陣列字串，如 `['tag_meta:標籤1', 'rich_menu_meta', 'journey_meta:4']`。
-    - **`c_cut(6)` (Meta Value JSON)**：傳遞標準來源資訊 JSON 字串，包含 `source_type`（`journey`/`broadcast`/`welcome`）、`source_name`（旅程/廣播主題名稱）、`trigger_display`（`點擊: <按鈕文字>`）與 `setting_url`（如 `/projects`、`/broadcast`）。
-- **Q_bank 簡潔批次寫入語法**:
-  - 在 Q_bank 的 `sys_bind|*` 法則中，可直接透過列表推導式或條件判斷完成 Private_var 寫入：
-    ```python
-    [pri_set(k, c_cut(6)) for k in eval(c_cut(5))] if c_cut(5) and c_cut(5).startswith('[') else pri_set(c_cut(5), c_cut(6)) if c_cut(5) else ""
-    ```
+## 18. Flex 訊息按鈕 sys_bind 來源 Metadata 獨立欄位傳遞規範 (2026-08-21 升級)
+- **`sys_bind` 獨立鍵名與單一 Metadata JSON (避免列表生成式 Local Scope 問題與長度超標)**:
+  - 格式定義：`sys_bind|tags|journey|menu|val|tag_key|journey_key|menu_key|meta_json`
+    - `c_cut(1)`: 標籤清單字串（如 `['標籤1']`）
+    - `c_cut(2)`: 旅程 ID 字串（如 `6`）
+    - `c_cut(3)`: 圖文選單 UUID（如 `mt16zcwfg2kbwbuj1dm`）
+    - `c_cut(4)`: 顯示文字（如 `查看詳情`）
+    - `c_cut(5)`: 標籤 Meta Key（如 `tag_meta:標籤1`，無標籤時為空字串）
+    - `c_cut(6)`: 旅程 Meta Key（如 `journey_meta:6`，無旅程時為空字串）
+    - `c_cut(7)`: 圖文選單 Meta Key（如 `rich_menu_meta`，無選單時為空字串）
+    - `c_cut(8)`: 來源資訊 JSON（包含 `source_type`、`source_name`、`trigger_display`、`setting_url`）
+- **Q_bank 標準單行寫入語法**:
+  ```python
+  pri_push('tag', eval(c_cut(1)), nd=True) if c_cut(1) else "",
+  update(f"iup|{c_cut(2)}") if c_cut(2) else "",
+  update(f"switch_rm|{c_cut(3)}") if c_cut(3) else "",
+  update(c_cut(4)) if c_cut(4) else "",
+  pri_set(c_cut(5), c_cut(8)) if c_cut(5) else "",
+  pri_set(c_cut(6), c_cut(8)) if c_cut(6) else "",
+  pri_set(c_cut(7), c_cut(8)) if c_cut(7) else ""
+  ```
+
 
 
 

@@ -1,13 +1,18 @@
 # CHANGELOG
 
-## [2026-08-21] FlexMessageEditor sys_bind 來源 Metadata 結構化傳遞升級 (選項 B 規格)
+## [2026-08-21] FlexMessageEditor sys_bind 來源 Metadata 獨立欄位傳遞升級
 - **前端 (`frontend/src/components/FlexMessageEditor.jsx`)**:
-  - 升級 `sys_bind` payload 組裝：
-    - `c_cut(5)` 輸出包含所有目標動作之 Key 陣列（如 `['tag_meta:<tag>', 'rich_menu_meta', 'journey_meta:<id>']`）。
-    - `c_cut(6)` 輸出完整標準之來源資訊 JSON（包含 `source_type`、`source_name`、`trigger_display`、`setting_url`）。
-  - 同步支援 URI redirect 格式（帶入 `meta_keys` 與 `meta_val`）。
+  - 重構 `sys_bind` payload 為獨立欄位架構：
+    `sys_bind|tags|journey|menu|val|tag_key|journey_key|menu_key|meta_json`
+    - `c_cut(5)`: 標籤 Meta Key（`tag_meta:<tag>`）
+    - `c_cut(6)`: 旅程 Meta Key（`journey_meta:<id>`）
+    - `c_cut(7)`: 圖文選單 Meta Key（`rich_menu_meta`）
+    - `c_cut(8)`: 來源資訊 JSON（`{"source_type":"journey",...}`）
+  - 避免重複 JSON 導致超過 LINE 300 字元上限，並解決 Python 列表推導式引發之 `NameError: pri_set is not defined`。
 - **Q_bank 支援規範**:
-  - 支援 Q_bank `sys_bind|*` 法則使用 `[pri_set(k, c_cut(6)) for k in eval(c_cut(5))] if c_cut(5) and c_cut(5).startswith('[') else pri_set(c_cut(5), c_cut(6)) if c_cut(5) else ""` 進行簡潔的批次寫入。
+  - 支援以標準單行語法執行：
+    `pri_set(c_cut(5), c_cut(8)) if c_cut(5) else "", pri_set(c_cut(6), c_cut(8)) if c_cut(6) else "", pri_set(c_cut(7), c_cut(8)) if c_cut(7) else ""`。
+
 
 ## [2026-08-21] 圖文選單權限切換 switch_rm 雙向相容與 IndexError 防呆優化
 - **Q_bank 工程用法則 (`switch_rm|*`)**:
