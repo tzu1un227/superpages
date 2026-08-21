@@ -1179,6 +1179,8 @@ def get_richmenu_apply_sources(rich_menu_id):
             t = str(text_to_search)
             return any(mid in t for mid in all_menu_ids)
 
+        matching_sched_rows = []
+        matching_q_rows = []
         journey_sched_tags = set()
         sched_lookup_by_content = []
 
@@ -1200,31 +1202,35 @@ def get_richmenu_apply_sources(rich_menu_id):
                 tag_name = None
                 q_msg_text = ""
                 q_fn_text = ""
+                q_check_text = ""
 
                 if raw_mc.startswith('QA|'):
                     parts = raw_mc.split('|')
                     tag_name = parts[-1]
                     journey_sched_tags.add(tag_name)
                     try:
-                        cur.execute(f'SELECT msg_rpy, function FROM {t_qabank} WHERE tag = %s', (tag_name,))
+                        cur.execute(f'SELECT msg_rpy, function, "check", state_out FROM {t_qabank} WHERE tag = %s', (tag_name,))
                         q_row = cur.fetchone()
                         if q_row:
                             q_msg_text = str(q_row.get('msg_rpy') or '')
                             q_fn_text = str(q_row.get('function') or '')
+                            q_check_text = str(q_row.get('check') or '') + " " + str(q_row.get('state_out') or '')
                     except Exception:
                         pass
 
-                sched_lookup_by_content.append({
+                item = {
                     "project_id": s_pid,
                     "project_name": p_name,
                     "step_id": step_idx,
                     "tag": tag_name,
                     "raw_mc": raw_mc,
                     "q_msg_text": q_msg_text,
-                    "q_fn_text": q_fn_text
-                })
+                    "q_fn_text": q_fn_text,
+                    "q_check_text": q_check_text
+                }
+                sched_lookup_by_content.append(item)
 
-                if is_menu_matched(raw_mc) or is_menu_matched(q_msg_text) or is_menu_matched(q_fn_text):
+                if is_menu_matched(raw_mc) or is_menu_matched(q_msg_text) or is_menu_matched(q_fn_text) or is_menu_matched(q_check_text):
                     matching_sched_rows.append(item)
                     k = ("journey", p_name, f"步驟 {step_idx} 訊息按鈕切換", f"/projects?projectId={s_pid}")
                     if k not in sources_map:
@@ -1343,7 +1349,9 @@ def get_richmenu_apply_sources(rich_menu_id):
                         for h in h_rows:
                             h_content = str(h.get('content') or '')
                             for item in matching_sched_rows:
-                                if (item['raw_mc'] and item['raw_mc'] in h_content) or (item['tag'] and item['tag'] in h_content):
+                                if (item['raw_mc'] and item['raw_mc'] in h_content) or \
+                                   (item['tag'] and item['tag'] in h_content) or \
+                                   any(mid in h_content for mid in all_menu_ids):
                                     found_meta = {
                                         "source_type": "journey",
                                         "source_name": item['project_name'],
