@@ -1,3 +1,13 @@
+## [2026-08-21] CRM 來源跳轉與自動旅程跨旅程切換 (Cross-Journey Navigation Fixes)
+- **自動旅程跨旅程來源前往設定修復 (frontend/src/pages/Projects.jsx & backend/app.py, richmenu.py)**:
+  - 修正當自動旅程來源為另一自動旅程時，點擊「前往設定」因留在同個 URL 導致無反應的問題。
+  - 後端 `get_project_join_sources` 與 `get_richmenu_apply_sources` 自動在 `setting_url` 中注入目標旅程參數 `f"/projects?projectId={s_pid}"`。
+  - 前端 `Projects.jsx` 實作 `handleNavigateToSetting` 與 `location.search` 監聽，點擊後自動切換當前選取的旅程 ID (`setSelectedProjectId`) 並切換至 `schedules` 排程設定頁籤，精準呈現來源旅程的排程訊息與設定步驟。
+- **前往設定路由正則表達式重複疊加修復 (CustomerCenter.jsx, Projects.jsx, RichMenu.jsx)**:
+  - 修復前端 `replace(/^\/rules/, 'ruledesigner')` 遇到 `/ruledesigner` 時誤替換為 `ruledesignerdesigner` 的路由錯誤，改用嚴格正規化邏輯，保證跳轉 100% 成功。
+- **圖文選單關鍵字歸因覆蓋與計數修復 (backend/endpoints/richmenu.py)**:
+  - 在使用者歸因掃描時，針對舊有 `manual` 殘留狀態強制進行關鍵字與 Message 發話歷程重新檢驗，精準歸因至關鍵字規則（套用人數 1 人），並自動過濾 0 人的手動操作列。
+
 ## [2026-08-20] CRM 共用來源透明化 MVP v1.2 (Source Transparency System)
 - **圖文選單套用來源精準探測與 500 錯誤修復 (backend/endpoints/richmenu.py & RichMenu.jsx)**:
   - 修正前端 `RichMenu.jsx` 於選單為 `ui_uuid` 時未發送來源查詢 API 的問題，全面補齊 `ui_uuid` 識別支援。
