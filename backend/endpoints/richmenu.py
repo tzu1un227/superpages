@@ -51,26 +51,33 @@ def get_line_token(app_name=None):
 
 def get_tenant_db_url(app_name=None, oa_id=None):
     """
-    Get the tenant-specific db_url from permission_settings.
+    Get the tenant-specific db_url from permission_settings in the main DB.
     """
     if not app_name and not oa_id:
-        if hasattr(g, 'current_oa_config') and g.current_oa_config.db_url:
+        if hasattr(g, 'current_oa_config') and g.current_oa_config and hasattr(g.current_oa_config, 'db_url') and g.current_oa_config.db_url:
             return g.current_oa_config.db_url
-        return None
+        oa_id = getattr(g, 'current_oa_id', None)
+        if not oa_id and hasattr(g, 'current_oa_config') and g.current_oa_config and hasattr(g.current_oa_config, 'id'):
+            oa_id = g.current_oa_config.id
 
-    conn = get_tenant_conn()
+    from db_utils import get_main_db_connection
+    conn = get_main_db_connection()
     if conn:
         try:
             cur = conn.cursor()
             if oa_id:
-                cur.execute("SELECT db_url FROM permission_settings WHERE id = %s", (oa_id,))
-            else:
+                try:
+                    int_id = int(oa_id)
+                    cur.execute("SELECT db_url FROM permission_settings WHERE id = %s", (int_id,))
+                except (ValueError, TypeError):
+                    cur.execute("SELECT db_url FROM permission_settings WHERE oa_name = %s", (str(oa_id),))
+            elif app_name:
                 cur.execute("SELECT db_url FROM permission_settings WHERE oa_name = %s OR (other_settings::jsonb ->> 'app_name') = %s LIMIT 1", (app_name, app_name))
             row = cur.fetchone()
             if row and row[0]:
                 return row[0]
         except Exception as e:
-            print(f"Error getting tenant db_url: {e}")
+            print(f"Error getting tenant db_url from main DB: {e}")
         finally:
             conn.close()
     return None
