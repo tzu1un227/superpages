@@ -343,9 +343,46 @@ const FlexMessageEditor = ({ initialContent, initialJson, onSave, onCancel, onCl
             const menuStr = bindData.menu || '';
             const hasBind = tagsStr !== '[]' || journeyStr || menuStr;
 
-            const sourceTypeStr = sourceContext?.sourceType || '';
-            const sourceInfoStr = sourceContext?.sourceInfo ? JSON.stringify(sourceContext.sourceInfo) : '';
-            const hasSource = Boolean(sourceTypeStr || sourceInfoStr);
+            // 構建選項 B 的 Meta Keys 清單與來源 Metadata JSON
+            const metaKeys = [];
+            if (bindData.tag && bindData.tag.length > 0) {
+                bindData.tag.forEach(t => metaKeys.push(`tag_meta:${t}`));
+            }
+            if (journeyStr) {
+                metaKeys.push(`journey_meta:${journeyStr}`);
+            }
+            if (menuStr) {
+                metaKeys.push('rich_menu_meta');
+            }
+
+            let metaKeysStr = '';
+            let metaValStr = '';
+
+            if (metaKeys.length > 0) {
+                metaKeysStr = `[${metaKeys.map(k => `'${k}'`).join(', ')}]`;
+
+                const sType = sourceContext?.sourceType || 'journey';
+                let sName = sourceContext?.sourceInfo?.name || sourceContext?.sourceInfo?.title || '旅程訊息';
+                let sUrl = '/projects';
+                if (sType === 'broadcast') {
+                    sName = sourceContext?.sourceInfo?.title || '群發訊息';
+                    sUrl = '/broadcast';
+                } else if (sType === 'welcome') {
+                    sName = '加入好友訊息';
+                    sUrl = '/welcome-message';
+                } else if (sType === 'keyword') {
+                    sName = sourceContext?.sourceInfo?.title || '關鍵字回覆';
+                    sUrl = '/ruledesigner';
+                }
+
+                const metaValObj = {
+                    source_type: sType,
+                    source_name: sName,
+                    trigger_display: `點擊: ${val || '按鈕'}`,
+                    setting_url: sUrl
+                };
+                metaValStr = JSON.stringify(metaValObj);
+            }
 
             if (type === 'uri') {
                 if (!val || !val.trim()) return { type: 'uri', label: 'action', uri: '' };
@@ -356,7 +393,7 @@ const FlexMessageEditor = ({ initialContent, initialJson, onSave, onCancel, onCl
                     finalVal = 'https://' + val;
                 }
 
-                if (hasBind || hasSource) {
+                if (hasBind || (metaKeysStr && metaValStr)) {
                     const redirectBase = API_BASE_URL ? `${API_BASE_URL}/redirect` : '/api/redirect';
                     const absoluteRedirectBase = redirectBase.startsWith('/') ? window.location.origin + redirectBase : redirectBase;
                     
@@ -364,8 +401,8 @@ const FlexMessageEditor = ({ initialContent, initialJson, onSave, onCancel, onCl
                     if (tagsStr !== '[]') finalTargetUrl += `&tags=${encodeURIComponent(tagsStr)}`;
                     if (journeyStr) finalTargetUrl += `&journey=${encodeURIComponent(journeyStr)}`;
                     if (menuStr) finalTargetUrl += `&menu=${encodeURIComponent(menuStr)}`;
-                    if (sourceTypeStr) finalTargetUrl += `&source_type=${encodeURIComponent(sourceTypeStr)}`;
-                    if (sourceInfoStr) finalTargetUrl += `&source_info=${encodeURIComponent(sourceInfoStr)}`;
+                    if (metaKeysStr) finalTargetUrl += `&meta_keys=${encodeURIComponent(metaKeysStr)}`;
+                    if (metaValStr) finalTargetUrl += `&meta_val=${encodeURIComponent(metaValStr)}`;
 
                     if (appName) {
                         const liffId = "2009851813-AgTeSa4r";
@@ -373,8 +410,8 @@ const FlexMessageEditor = ({ initialContent, initialJson, onSave, onCancel, onCl
                         if (tagsStr !== '[]') liffUrl += `&tag=${encodeURIComponent(tagsStr)}`;
                         if (journeyStr) liffUrl += `&journey=${encodeURIComponent(journeyStr)}`;
                         if (menuStr) liffUrl += `&menu=${encodeURIComponent(menuStr)}`;
-                        if (sourceTypeStr) liffUrl += `&source_type=${encodeURIComponent(sourceTypeStr)}`;
-                        if (sourceInfoStr) liffUrl += `&source_info=${encodeURIComponent(sourceInfoStr)}`;
+                        if (metaKeysStr) liffUrl += `&meta_keys=${encodeURIComponent(metaKeysStr)}`;
+                        if (metaValStr) liffUrl += `&meta_val=${encodeURIComponent(metaValStr)}`;
                         return { type: 'uri', label: 'action', uri: liffUrl };
                     }
                     
@@ -391,8 +428,8 @@ const FlexMessageEditor = ({ initialContent, initialJson, onSave, onCancel, onCl
                 return { type: 'postback', label: 'action', data: '', displayText: '' };
             }
 
-            const postbackData = hasSource
-                ? `sys_bind|${tagsStr}|${journeyStr}|${menuStr}|${val}|${sourceTypeStr}|${sourceInfoStr}`
+            const postbackData = metaKeysStr && metaValStr
+                ? `sys_bind|${tagsStr}|${journeyStr}|${menuStr}|${val}|${metaKeysStr}|${metaValStr}`
                 : `sys_bind|${tagsStr}|${journeyStr}|${menuStr}|${val}`;
 
             return {

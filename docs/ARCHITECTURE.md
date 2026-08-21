@@ -218,6 +218,18 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
   - 當查無任何對應圖文選單記錄時，優雅返回空操作，徹底根除 `IndexError: list index out of range` 錯誤。
   - 安全解析標籤集合 `eval(pri('tag') or '[]')`，避免空值引發語法例外。
 
+## 18. Flex 訊息按鈕 sys_bind 來源 Metadata 結構化傳遞規範 (2026-08-21 新增)
+- **`sys_bind` 來源 Key/Value 結構化解耦 (選項 B 規格)**:
+  - 在前端 `FlexMessageEditor.jsx` 中，按鈕 Postback / URI 的 `sys_bind` payload 第 5 欄與第 6 欄升級為標準結構化格式：
+    - **`c_cut(5)` (Meta Keys)**：傳遞需要寫入 `Private_var` 的鍵名陣列字串，如 `['tag_meta:標籤1', 'rich_menu_meta', 'journey_meta:4']`。
+    - **`c_cut(6)` (Meta Value JSON)**：傳遞標準來源資訊 JSON 字串，包含 `source_type`（`journey`/`broadcast`/`welcome`）、`source_name`（旅程/廣播主題名稱）、`trigger_display`（`點擊: <按鈕文字>`）與 `setting_url`（如 `/projects`、`/broadcast`）。
+- **Q_bank 簡潔批次寫入語法**:
+  - 在 Q_bank 的 `sys_bind|*` 法則中，可直接透過列表推導式或條件判斷完成 Private_var 寫入：
+    ```python
+    [pri_set(k, c_cut(6)) for k in eval(c_cut(5))] if c_cut(5) and c_cut(5).startswith('[') else pri_set(c_cut(5), c_cut(6)) if c_cut(5) else ""
+    ```
+
+
 
 
 

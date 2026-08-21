@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## [2026-08-21] FlexMessageEditor sys_bind 來源 Metadata 結構化傳遞升級 (選項 B 規格)
+- **前端 (`frontend/src/components/FlexMessageEditor.jsx`)**:
+  - 升級 `sys_bind` payload 組裝：
+    - `c_cut(5)` 輸出包含所有目標動作之 Key 陣列（如 `['tag_meta:<tag>', 'rich_menu_meta', 'journey_meta:<id>']`）。
+    - `c_cut(6)` 輸出完整標準之來源資訊 JSON（包含 `source_type`、`source_name`、`trigger_display`、`setting_url`）。
+  - 同步支援 URI redirect 格式（帶入 `meta_keys` 與 `meta_val`）。
+- **Q_bank 支援規範**:
+  - 支援 Q_bank `sys_bind|*` 法則使用 `[pri_set(k, c_cut(6)) for k in eval(c_cut(5))] if c_cut(5) and c_cut(5).startswith('[') else pri_set(c_cut(5), c_cut(6)) if c_cut(5) else ""` 進行簡潔的批次寫入。
+
 ## [2026-08-21] 圖文選單權限切換 switch_rm 雙向相容與 IndexError 防呆優化
 - **Q_bank 工程用法則 (`switch_rm|*`)**:
   - 全面升級 `switch_rm|*` (Postback/Sensor) 法則語法，同時支援以原生 `richmenu-...` (LINE ID) 與系統自訂 `ui_uuid` 作為切換目標。
