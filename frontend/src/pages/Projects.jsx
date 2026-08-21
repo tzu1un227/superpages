@@ -202,6 +202,35 @@ const ProjectsManagement = () => {
         }
     }, [activeTab, selectedProjectId]);
 
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const pid = params.get('projectId');
+        if (pid) {
+            setSelectedProjectId(pid);
+            setActiveTab('schedules');
+        }
+    }, [location.search]);
+
+    const handleNavigateToSetting = (url) => {
+        if (!url) return;
+        const matchPid = url.match(/[?&]projectId=([^&#]+)/);
+        if (matchPid) {
+            const targetPid = matchPid[1];
+            setSelectedProjectId(targetPid);
+            setActiveTab('schedules');
+            return;
+        }
+        if (url.startsWith('/oa/')) {
+            navigate(url);
+            return;
+        }
+        let clean = url.trim().replace(/^\//, '');
+        if (clean === 'rules' || clean.startsWith('rules/')) {
+            clean = clean.replace(/^rules/, 'ruledesigner');
+        }
+        navigate(`/oa/${oaId}/${clean}`);
+    };
+
     const [projectStats, setProjectStats] = useState({ tc: 0, cc: 0, ms: 0, mss: 0, msf: 0, completion_rate: 0 });
     const [isCreatingProject, setIsCreatingProject] = useState(false);
     const [draggedItemIndex, setDraggedItemIndex] = useState(null);
@@ -1956,18 +1985,7 @@ const ProjectsManagement = () => {
                                             <td style={{ padding: '12px' }}>
                                                 {row.setting_url && (
                                                     <button 
-                                                        onClick={() => {
-                                                            const url = row.setting_url;
-                                                            if (url.startsWith('/oa/')) {
-                                                                navigate(url);
-                                                            } else {
-                                                                let clean = url.trim().replace(/^\//, '');
-                                                                if (clean === 'rules' || clean.startsWith('rules/')) {
-                                                                    clean = clean.replace(/^rules/, 'ruledesigner');
-                                                                }
-                                                                navigate(`/oa/${oaId}/${clean}`);
-                                                            }
-                                                        }} 
+                                                        onClick={() => handleNavigateToSetting(row.setting_url)} 
                                                         style={{ padding: '4px 10px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
                                                     >
                                                         前往設定

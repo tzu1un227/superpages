@@ -1323,7 +1323,7 @@ def get_project_join_sources(id):
                             is_target = True
                             break
                     if is_target:
-                        k = ("journey", p_name, f"步驟 {step_idx} 訊息按鈕點擊", "/projects")
+                        k = ("journey", p_name, f"步驟 {step_idx} 訊息按鈕點擊", f"/projects?projectId={s_pid}")
                         if k not in sources_map:
                             sources_map[k] = {"current_count": 0, "last_joined_at": None}
         except Exception as e:
@@ -1429,7 +1429,7 @@ def get_project_join_sources(id):
                             if item['project_id'] == src_pid:
                                 meta['source_name'] = item['project_name']
                                 meta['trigger_display'] = f"步驟 {step_idx} 訊息按鈕點擊"
-                                meta['setting_url'] = "/projects"
+                                meta['setting_url'] = f"/projects?projectId={src_pid}"
                                 break
 
                 if not meta:
@@ -1465,7 +1465,7 @@ def get_project_join_sources(id):
                                     "source_name": matched_sched_item['project_name'],
                                     "trigger_display": f"步驟 {matched_sched_item['step_id']} 訊息按鈕點擊",
                                     "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
-                                    "setting_url": "/projects"
+                                    "setting_url": f"/projects?projectId={matched_sched_item['project_id']}"
                                 }
                             else:
                                 # 2. 檢查是否匹配 Q_bank (關鍵字法則)

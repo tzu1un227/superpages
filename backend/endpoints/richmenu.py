@@ -1226,7 +1226,7 @@ def get_richmenu_apply_sources(rich_menu_id):
 
                 if is_menu_matched(raw_mc) or is_menu_matched(q_msg_text) or is_menu_matched(q_fn_text):
                     matching_sched_rows.append(item)
-                    k = ("journey", p_name, f"步驟 {step_idx} 訊息按鈕切換", "/projects")
+                    k = ("journey", p_name, f"步驟 {step_idx} 訊息按鈕切換", f"/projects?projectId={s_pid}")
                     if k not in sources_map:
                         sources_map[k] = {"current_count": 0, "last_applied_at": None}
         except Exception as e:
@@ -1349,7 +1349,7 @@ def get_richmenu_apply_sources(rich_menu_id):
                                         "source_name": item['project_name'],
                                         "trigger_display": f"步驟 {item['step_id']} 訊息按鈕切換",
                                         "occurred_at": str(h['timestamp'])[:19] if h.get('timestamp') else None,
-                                        "setting_url": "/projects"
+                                        "setting_url": f"/projects?projectId={item['project_id']}"
                                     }
                                     break
                             if found_meta: break
@@ -1400,7 +1400,7 @@ def get_richmenu_apply_sources(rich_menu_id):
                                     "source_name": item['project_name'],
                                     "trigger_display": f"步驟 {item['step_id']} 訊息按鈕切換",
                                     "occurred_at": str(h_rows[0]['timestamp'])[:19] if h_rows and h_rows[0].get('timestamp') else None,
-                                    "setting_url": "/projects"
+                                    "setting_url": f"/projects?projectId={item['project_id']}"
                                 }
 
                         if found_meta:
