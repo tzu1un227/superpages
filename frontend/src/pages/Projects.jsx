@@ -189,7 +189,7 @@ const ProjectsManagement = () => {
             const fetchJoinSources = async () => {
                 setLoadingJoinSources(true);
                 try {
-                    const resp = await api.get(`/projects/${selectedProjectId}/join-sources`);
+                    const resp = await api.get(`/projects/${selectedProjectId}/join-sources`, { params: { _t: Date.now() }, _bypassCache: true });
                     setJoinSourcesData(resp.data || { total_users: 0, sources: [] });
                 } catch (err) {
                     console.error('Failed to fetch join sources:', err);
@@ -2126,6 +2126,7 @@ const ProjectsManagement = () => {
                 initialText={richModalConfig.initialText}
                 projectId={richModalConfig.projectId}
                 stepId={richModalConfig.stepId}
+                projectName={projects.find(p => String(p.project_id) === String(richModalConfig.projectId))?.project_name || ''}
             />
             {/* User Select Modal */}
             <UserSelectModal
@@ -2173,7 +2174,7 @@ const ProjectsManagement = () => {
 };
 
 // Rich Message Editor Modal
-const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, projectId, stepId }) => {
+const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, projectId, stepId, projectName }) => {
     const { showToast } = useToast();
     const [tag, setTag] = useState(initialTag || '');
     const [messages, setMessages] = useState([]);
@@ -2577,6 +2578,8 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                                 sourceType: 'journey',
                                                 sourceInfo: {
                                                     project_id: projectId,
+                                                    project_name: projectName || '自動旅程',
+                                                    name: projectName || '自動旅程',
                                                     step_id: stepId,
                                                     tag: tag
                                                 }

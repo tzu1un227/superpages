@@ -1420,17 +1420,27 @@ def get_project_join_sources(id):
                     except: pass
 
                 if meta:
-                    # Enrich journey project name if available
-                    if meta.get('source_type') == 'journey' and meta.get('source_info'):
+                    if meta.get('source_type') == 'journey':
                         s_info = meta.get('source_info', {})
                         src_pid = str(s_info.get('project_id') or '')
                         step_idx = s_info.get('step_id') or 1
-                        for item in sched_lookup_by_content:
-                            if item['project_id'] == src_pid:
-                                meta['source_name'] = item['project_name']
-                                meta['trigger_display'] = f"步驟 {step_idx} 訊息按鈕點擊"
-                                meta['setting_url'] = f"/projects?projectId={src_pid}"
-                                break
+                        matched_item = None
+                        if src_pid:
+                            for item in sched_lookup_by_content:
+                                if item['project_id'] == src_pid:
+                                    matched_item = item
+                                    break
+                        if not matched_item:
+                            m_trig_text = meta.get('trigger_display', '').replace('點擊: ', '').strip()
+                            for item in sched_lookup_by_content:
+                                if item['project_id'] != str(id):
+                                    if (m_trig_text and m_trig_text in item['q_msg_text']) or (f"|{id}|" in item['q_msg_text']) or (f"journey={id}" in item['q_msg_text']):
+                                        matched_item = item
+                                        break
+                        if matched_item:
+                            meta['source_name'] = matched_item['project_name']
+                            meta['trigger_display'] = f"步驟 {matched_item['step_id']} 訊息按鈕點擊"
+                            meta['setting_url'] = f"/projects?projectId={matched_item['project_id']}"
 
                 if not meta:
                     try:
@@ -1512,9 +1522,19 @@ def get_project_join_sources(id):
                 m_url = meta.get('setting_url')
 
                 for sk in sources_map.keys():
-                    if sk[0] == m_type and (m_name in sk[1] or sk[1] in m_name or m_trig in sk[2]):
+                    if sk[0] == m_type and (m_name == sk[1] or m_name in sk[1] or sk[1] in m_name or m_trig in sk[2] or sk[2] in m_trig):
                         matched_key = sk
                         break
+
+                if not matched_key and m_type == 'journey':
+                    j_keys = [sk for sk in sources_map.keys() if sk[0] == 'journey']
+                    if len(j_keys) == 1 or m_name in ('旅程訊息', '自動旅程', '旅程', 'flex訊息', 'Flex訊息'):
+                        matched_key = j_keys[0] if j_keys else None
+
+                if not matched_key and m_type == 'keyword':
+                    kw_keys = [sk for sk in sources_map.keys() if sk[0] == 'keyword']
+                    if len(kw_keys) == 1 or m_name in ('關鍵字回覆', '關鍵字', '關鍵字法則'):
+                        matched_key = kw_keys[0] if kw_keys else None
 
                 target_key = matched_key if matched_key else (m_type, m_name, m_trig, m_url)
                 if target_key not in sources_map:
@@ -1524,9 +1544,15 @@ def get_project_join_sources(id):
                 if meta.get('occurred_at') and (not sources_map[target_key]["last_joined_at"] or meta.get('occurred_at') > sources_map[target_key]["last_joined_at"]):
                     sources_map[target_key]["last_joined_at"] = meta.get('occurred_at')
 
+        # Clean up empty manual key if other sources exist
+        has_config_sources = any(k[0] in ('keyword', 'journey', 'richmenu', 'broadcast', 'form') for k in sources_map.keys())
+        manual_key = ("manual", "人工操作", "管理後台手動加入", None)
+        if has_config_sources and manual_key in sources_map and sources_map[manual_key]["current_count"] == 0:
+            del sources_map[manual_key]
+
         # If no config sources and no users, provide friendly empty placeholder
         if not sources_map:
-            sources_map[("manual", "人工操作", "管理後台手動加入", None)] = {"current_count": 0, "last_joined_at": None}
+            sources_map[manual_key] = {"current_count": 0, "last_joined_at": None}
 
         source_list = [
             {

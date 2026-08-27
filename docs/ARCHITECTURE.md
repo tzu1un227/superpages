@@ -237,8 +237,25 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
   update(c_cut(4)) if c_cut(4) else "",
   pri_set(c_cut(5), c_cut(8)) if c_cut(5) else "",
   pri_set(c_cut(6), c_cut(8)) if c_cut(6) else "",
-  pri_set(c_cut(7), c_cut(8)) if c_cut(7) else ""
-  ```
+### 4.7 來源透明化與智慧歸因系統升級 (2026-08-27)
+- **自動旅程來源智慧歸因與去重 (backend/app.py & frontend/src/pages/Projects.jsx, FlexMessageEditor.jsx)**:
+  - 徹底解決跨旅程 Flex 按鈕加入時來源分裂為「測試旅程」與「旅程訊息/flex訊息」兩行的問題。
+  - 前端 `Projects.jsx` 在開啟 `ScheduleMessageEditorModal` 與 `FlexMessageEditor` 時完整傳遞 `project_name` 與 `step_id` 至 `sourceContext`。
+  - 前端 `FlexMessageEditor.jsx` 在產生 `sys_bind` 與 `redirect` 之 Metadata 時，將完整來源上下文（旅程名稱、步驟編號）封裝進 `source_info` 物件。
+  - 後端 `get_project_join_sources` 強化智慧比對邏輯：優先比對 `source_info` 與排程設定，若用戶端中繼資料為通用名稱（如「旅程訊息」），自動關聯至已掃描到的排程來源，杜絕重複未合併列產生。
+  - 在存在具體配置來源時，自動清理計數為 0 的「人工操作」列。
+- **圖文選單套用來源全庫主動掃描與歸因 (backend/endpoints/richmenu.py & frontend/src/pages/RichMenu.jsx)**:
+  - 後端 `get_richmenu_apply_sources` 全面升級為全庫主動掃描架構：
+    1. 關鍵字法則表 (`Q_bank`)：主動過濾系統工程法則 (`switch_rm|*` 等)，納入一般關鍵字規則與歡迎訊息 (`Follow`)。
+    2. 自動旅程排程 (`project_schedules` + `QA_bank`)：深度解構 `QA|` 指標，完整掃描所有帶有此選單切換的步驟。
+    3. 問答庫與群發 (`QA_bank`)：涵蓋群發訊息 (`bc_*`) 與問卷填寫後切換 (`form_*`)。
+    4. 其他圖文選單 (`rich_menu_metadata`)：掃描所有設定了此選單按鈕切換的其他圖文選單。
+    5. 全域預設選單 (`Global_var:default_rich_menu`)。
+  - 即使尚無用戶套用，所有在資料庫中已配置的來源亦會完整列出於來源總覽中。
+  - 前端 `RichMenu.jsx` 於請求 `/apply-sources` 時注入 `_bypassCache: true`，確保即時反映最新資料庫狀態，並完善支援所有來源標籤與跳轉設定。
+- **群發廣播 ReferenceError 修復 (frontend/src/pages/Broadcast.jsx)**:
+  - 修正建立群發訊息時開啟 Flex 訊息編輯器引用未定義變數 `selectedId` 導致之 `ReferenceError: selectedId is not defined` 錯誤，改為使用 `formData.id` 與 `formData.name`。
+
 
 
 

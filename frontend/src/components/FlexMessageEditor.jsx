@@ -352,24 +352,37 @@ const FlexMessageEditor = ({ initialContent, initialJson, onSave, onCancel, onCl
             let metaValStr = '';
             if (hasAnyMeta) {
                 const sType = sourceContext?.sourceType || 'journey';
-                let sName = sourceContext?.sourceInfo?.name || sourceContext?.sourceInfo?.title || '旅程訊息';
+                let sName = sourceContext?.sourceInfo?.project_name || sourceContext?.sourceInfo?.name || sourceContext?.sourceInfo?.title || '自動旅程';
                 let sUrl = '/projects';
-                if (sType === 'broadcast') {
-                    sName = sourceContext?.sourceInfo?.title || '群發訊息';
+                let sTrigger = `點擊: ${val || '按鈕'}`;
+
+                if (sType === 'journey') {
+                    sName = sourceContext?.sourceInfo?.project_name || sourceContext?.sourceInfo?.name || sourceContext?.sourceInfo?.title || '自動旅程';
+                    const pid = sourceContext?.sourceInfo?.project_id || '';
+                    sUrl = pid ? `/projects?projectId=${pid}` : '/projects';
+                    if (sourceContext?.sourceInfo?.step_id) {
+                        sTrigger = `步驟 ${sourceContext.sourceInfo.step_id} 訊息按鈕點擊`;
+                    }
+                } else if (sType === 'broadcast') {
+                    sName = sourceContext?.sourceInfo?.title || sourceContext?.sourceInfo?.name || '群發廣播';
                     sUrl = '/broadcast';
+                    sTrigger = `群發廣播按鈕點擊`;
                 } else if (sType === 'welcome') {
                     sName = '加入好友訊息';
                     sUrl = '/welcome-message';
+                    sTrigger = `加入好友按鈕點擊`;
                 } else if (sType === 'keyword') {
-                    sName = sourceContext?.sourceInfo?.title || '關鍵字回覆';
+                    sName = sourceContext?.sourceInfo?.title || sourceContext?.sourceInfo?.keyword || '關鍵字回覆';
                     sUrl = '/ruledesigner';
+                    sTrigger = `關鍵字訊息按鈕點擊`;
                 }
 
                 const metaValObj = {
                     source_type: sType,
                     source_name: sName,
-                    trigger_display: `點擊: ${val || '按鈕'}`,
-                    setting_url: sUrl
+                    trigger_display: sTrigger,
+                    setting_url: sUrl,
+                    source_info: sourceContext?.sourceInfo || {}
                 };
                 metaValStr = JSON.stringify(metaValObj);
             }

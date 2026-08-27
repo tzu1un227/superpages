@@ -1361,8 +1361,9 @@ function BroadcastContent() {
                             sourceContext={{
                                 sourceType: 'broadcast',
                                 sourceInfo: {
-                                    title: formData.title || '群發廣播',
-                                    broadcast_id: selectedId || null
+                                    title: formData.name || formData.title || '群發廣播',
+                                    name: formData.name || formData.title || '群發廣播',
+                                    broadcast_id: formData.id || null
                                 }
                             }}
                         />

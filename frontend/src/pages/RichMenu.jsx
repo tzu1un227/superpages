@@ -140,7 +140,7 @@ function RichMenu() {
         const rid = currentMenu?.rich_menu_id || currentMenu?.richMenuId || currentMenu?.ui_uuid || currentMenu?.id;
         if (rid) {
             setLoadingApplySources(true);
-            api.get(`/richmenu/${rid}/apply-sources`).then(res => {
+            api.get(`/richmenu/${rid}/apply-sources`, { params: { _t: Date.now() }, _bypassCache: true }).then(res => {
                 setApplySourcesData(res.data || { total_users: 0, sources: [] });
             }).catch(err => {
                 console.error('Failed to fetch richmenu apply sources:', err);
@@ -1354,7 +1354,7 @@ function RichMenu() {
                                                         <tr key={idx} style={{ borderBottom: '1px solid #222' }}>
                                                             <td style={{ padding: '8px' }}>
                                                                 <span style={{ padding: '2px 6px', borderRadius: '4px', backgroundColor: '#222', border: '1px solid #444', fontSize: '11px', color: '#FFD700' }}>
-                                                                    {row.source_type === 'manual' ? '人工操作' : row.source_type === 'keyword' ? '關鍵字規則' : row.source_type === 'broadcast' ? '群發訊息' : row.source_type === 'journey' ? '自動旅程' : row.source_type === 'form' ? '問卷' : row.source_type}
+                                                                    {row.source_type === 'manual' ? '人工操作' : row.source_type === 'keyword' ? '關鍵字規則' : row.source_type === 'broadcast' ? '群發訊息' : row.source_type === 'journey' ? '自動旅程' : row.source_type === 'form' ? '問卷' : row.source_type === 'welcome' ? '歡迎訊息' : row.source_type === 'default' ? '系統預設' : row.source_type === 'richmenu' ? '圖文選單' : row.source_type}
                                                                 </span>
                                                             </td>
                                                             <td style={{ padding: '8px' }}>{row.source_name || '-'}</td>

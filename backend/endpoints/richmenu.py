@@ -1144,13 +1144,10 @@ def get_richmenu_apply_sources(rich_menu_id):
         t_schedules = get_t_safe('project_schedules')
         t_projects = get_t_safe('projects')
 
-        # Resolve all possible identifiers for this rich menu (rich_menu_id, ui_uuid) - DO NOT use numeric id
+        # 1. Resolve all possible identifiers for this rich menu (rich_menu_id, ui_uuid)
         all_menu_ids = []
-        if rich_menu_id and str(rich_menu_id).strip():
-            all_menu_ids.append(str(rich_menu_id).strip())
-
         try:
-            cur.execute(f"SELECT rich_menu_id, ui_uuid FROM {t_metadata} WHERE rich_menu_id = %s OR ui_uuid = %s OR id::text = %s", (str(rich_menu_id), str(rich_menu_id), str(rich_menu_id)))
+            cur.execute(f"SELECT * FROM {t_metadata} WHERE rich_menu_id = %s OR ui_uuid = %s OR id::text = %s", (str(rich_menu_id), str(rich_menu_id), str(rich_menu_id)))
             m_rows = cur.fetchall()
             for mr in m_rows:
                 for k in ['rich_menu_id', 'ui_uuid']:
@@ -1159,10 +1156,10 @@ def get_richmenu_apply_sources(rich_menu_id):
                         all_menu_ids.append(str(val).strip())
         except Exception as e:
             if conn: conn.rollback()
-            print("Error resolving all_menu_ids:", e)
+            print("Error resolving all_menu_ids from metadata:", e)
 
-        # Filter all_menu_ids to only valid string IDs (length >= 6)
-        all_menu_ids = [mid for mid in all_menu_ids if mid and len(mid) >= 6]
+        if rich_menu_id and len(str(rich_menu_id).strip()) >= 6 and str(rich_menu_id).strip() not in all_menu_ids:
+            all_menu_ids.append(str(rich_menu_id).strip())
 
         # Check if this menu is the Global default rich menu
         is_default = False
@@ -1270,25 +1267,34 @@ def get_richmenu_apply_sources(rich_menu_id):
             if conn: conn.rollback()
             print("Error scanning project_schedules for rich menu:", e)
 
-        # 3. 主動掃描 Q_bank (關鍵字法則表)
+        # 3. 主動掃描 Q_bank (關鍵字法則表與歡迎訊息，過濾內部工程法則)
         try:
             cur.execute(f"SELECT * FROM {t_qbank}")
             q_rows = cur.fetchall()
             for r in q_rows:
+                note = str(r.get('note') or '')
+                content_str = str(r.get('content') or '')
+                if note == '工程用法則' or content_str in ("['switch_rm|*']", "['set_menu']", "['sys_bind|*']", "['fallback']", "['iup|*']", "['cron|QA|*']"):
+                    continue
+
                 r_text = f"{r.get('msg_rpy')} {r.get('function')} {r.get('check')} {r.get('state_out')}"
                 if is_menu_matched(r_text):
                     matching_q_rows.append(r)
-                    kw_raw = r.get('content')
-                    kw_disp = format_kw_display(kw_raw)
-                    kw_clean = clean_rule_title(r.get('note'), kw_disp)
-                    k = ("keyword", kw_clean, f"觸發關鍵字: {kw_disp}", "/ruledesigner")
+                    r_type = r.get('type') or 'Message'
+                    if r_type == 'Follow' or 'follow' in content_str.lower():
+                        k = ("welcome", "加入好友訊息", "加入好友歡迎訊息", "/welcome-message")
+                    else:
+                        kw_raw = r.get('content')
+                        kw_disp = format_kw_display(kw_raw)
+                        kw_clean = clean_rule_title(r.get('note'), kw_disp)
+                        k = ("keyword", kw_clean, f"觸發關鍵字: {kw_disp}", "/ruledesigner")
                     if k not in sources_map:
                         sources_map[k] = {"current_count": 0, "last_applied_at": None}
         except Exception as e:
             if conn: conn.rollback()
             print("Error scanning Q_bank for rich menu:", e)
 
-        # 4. 主動掃描 QA_bank (問答知識庫表，自動排除旅程自帶排程標籤)
+        # 4. 主動掃描 QA_bank (問答知識庫表、群發廣播與問卷，自動排除旅程自帶排程標籤)
         try:
             cur.execute(f"SELECT * FROM {t_qabank}")
             qa_rows = cur.fetchall()
@@ -1299,8 +1305,15 @@ def get_richmenu_apply_sources(rich_menu_id):
                 r_text = f"{r.get('msg_rpy')} {r.get('function')} {r.get('check')}"
                 if is_menu_matched(r_text):
                     matching_q_rows.append(r)
-                    qa_clean = clean_rule_title(r.get('note'), qa_tag)
-                    k = ("keyword", qa_clean, f"觸發標籤: {qa_tag}", "/ruledesigner")
+                    if qa_tag.startswith('bc_'):
+                        clean_t = clean_rule_title(r.get('note'), '群發訊息')
+                        k = ("broadcast", clean_t, "群發訊息按鈕點擊", "/broadcast")
+                    elif qa_tag.startswith('form_') or qa_tag.startswith('survey_'):
+                        clean_t = clean_rule_title(r.get('note'), '問卷管理')
+                        k = ("form", clean_t, "問卷填寫完畢切換", "/questionnaires")
+                    else:
+                        qa_clean = clean_rule_title(r.get('note'), qa_tag)
+                        k = ("keyword", qa_clean, f"觸發標籤: {qa_tag}", "/ruledesigner")
                     if k not in sources_map:
                         sources_map[k] = {"current_count": 0, "last_applied_at": None}
         except Exception as e:
@@ -1309,7 +1322,7 @@ def get_richmenu_apply_sources(rich_menu_id):
 
         # 5. 主動掃描 rich_menu_metadata (其他圖文選單按鈕切換)
         try:
-            cur.execute(f"SELECT rich_menu_id, ui_uuid, name, data FROM {t_metadata}")
+            cur.execute(f"SELECT * FROM {t_metadata}")
             rm_rows = cur.fetchall()
             for r in rm_rows:
                 r_mid = str(r.get('rich_menu_id') or '').strip()
@@ -1376,6 +1389,27 @@ def get_richmenu_apply_sources(rich_menu_id):
                 if meta_str:
                     try: meta = json.loads(meta_str)
                     except: pass
+
+                if meta and meta.get('source_type') == 'journey':
+                    # Enrich journey project name if available
+                    s_info = meta.get('source_info', {})
+                    src_pid = str(s_info.get('project_id') or '')
+                    matched_item = None
+                    if src_pid:
+                        for item in sched_lookup_by_content:
+                            if item['project_id'] == src_pid:
+                                matched_item = item
+                                break
+                    if not matched_item:
+                        m_trig_text = meta.get('trigger_display', '').replace('點擊: ', '').strip()
+                        for item in sched_lookup_by_content:
+                            if (m_trig_text and m_trig_text in item['q_msg_text']) or any(mid in item['q_msg_text'] for mid in all_menu_ids):
+                                matched_item = item
+                                break
+                    if matched_item:
+                        meta['source_name'] = matched_item['project_name']
+                        meta['trigger_display'] = f"步驟 {matched_item['step_id']} 訊息按鈕切換"
+                        meta['setting_url'] = f"/projects?projectId={matched_item['project_id']}"
 
                 # 若沒有 meta 或 meta 為 manual（可能是過去舊資料），強制重新檢驗是否符合關鍵字或自動旅程設定
                 if not meta or meta.get('source_type') == 'manual':
@@ -1473,24 +1507,24 @@ def get_richmenu_apply_sources(rich_menu_id):
             matched_key = None
             m_type = meta.get('source_type', 'manual')
             m_name = clean_rule_title(meta.get('source_name', '人工操作'))
-            m_trig = meta.get('trigger_display', '手動套用')
+            m_trig = meta.get('trigger_display', '管理後台手動套用')
             m_url = meta.get('setting_url')
 
             for sk in sources_map.keys():
                 if sk[0] == m_type:
-                    if (m_name in sk[1] or sk[1] in m_name or m_trig in sk[2] or sk[2] in m_trig):
+                    if (m_name == sk[1] or m_name in sk[1] or sk[1] in m_name or m_trig in sk[2] or sk[2] in m_trig):
                         matched_key = sk
                         break
 
-            if not matched_key and m_type == 'keyword':
-                kw_keys = [sk for sk in sources_map.keys() if sk[0] == 'keyword']
-                if kw_keys:
-                    matched_key = kw_keys[0]
-
             if not matched_key and m_type == 'journey':
                 j_keys = [sk for sk in sources_map.keys() if sk[0] == 'journey']
-                if j_keys:
-                    matched_key = j_keys[0]
+                if len(j_keys) == 1 or m_name in ('旅程訊息', '自動旅程', '旅程'):
+                    matched_key = j_keys[0] if j_keys else None
+
+            if not matched_key and m_type == 'keyword':
+                kw_keys = [sk for sk in sources_map.keys() if sk[0] == 'keyword']
+                if len(kw_keys) == 1 or m_name in ('關鍵字回覆', '關鍵字', '關鍵字法則'):
+                    matched_key = kw_keys[0] if kw_keys else None
 
             target_key = matched_key if matched_key else (m_type, m_name, m_trig, m_url)
             if target_key not in sources_map:
@@ -1501,7 +1535,7 @@ def get_richmenu_apply_sources(rich_menu_id):
                 sources_map[target_key]["last_applied_at"] = meta.get('occurred_at')
 
         # 整理輸出清單：若已有設定的來源，且人工操作為 0 人，則不必顯示空白的人工操作列
-        has_config_sources = any(k[0] in ('keyword', 'journey', 'richmenu', 'broadcast', 'form') for k in sources_map.keys())
+        has_config_sources = any(k[0] in ('keyword', 'journey', 'richmenu', 'broadcast', 'form', 'welcome', 'default') for k in sources_map.keys())
         manual_key = ("manual", "人工操作", "管理後台手動套用", None)
         if has_config_sources and manual_key in sources_map and sources_map[manual_key]["current_count"] == 0:
             del sources_map[manual_key]
