@@ -1,3 +1,13 @@
+## [2026-08-27] 問卷填寫結束自動化動作 (上標籤、切換圖文選單、加入自動旅程)
+- **問卷管理 (文字問卷) 完成動作 (backend/endpoints/questionnaire.py & frontend/src/pages/Questionnaire.jsx)**:
+  - 於問卷表單步驟一與編輯時，新增「問卷完成後動作」設定（完成後標籤、加入自動旅程、切換圖文選單）。
+  - 問卷生成核心 `build_questionnaire_direct` 於結尾規則中自動組合 `set_tag`、`iup`、`switch_rm` 指令與對應 `Private_var` 之 Meta 紀錄。
+  - 問卷詳情讀取端點 `get_questionnaire_detail` 支援解析完成規則之 `function` 並正確回填至前端介面。
+- **LIFF 問卷完成動作 (backend/endpoints/liff_questionnaire.py & frontend/src/pages/LiffQuestionnaire.jsx)**:
+  - 資料庫遷移：`liff_questionnaires:<app_id>` 表新增 `finish_tags`, `finish_journey`, `finish_menu` 欄位。
+  - 前端 `LiffQuestionnaire.jsx` 支援設定完成後標籤、加入自動旅程、切換圖文選單，並於問卷列表中清晰呈現狀態 Chip。
+  - 作答提交端點 `public_submit_response` 在作答儲存後，自動執行標籤寫入 (`_merge_user_tags`)、加入自動旅程排程 (`batch_enroll_journey_users_internal`) 以及發送 WebSocket 即時切換圖文選單 (`switch_rm`)。
+
 ## [2026-08-27] 自動旅程來源去重、圖文選單套用來源全庫掃描與群發廣播錯誤修復
 - **自動旅程來源去重與智慧歸因 (backend/app.py & frontend/src/pages/Projects.jsx, FlexMessageEditor.jsx)**:
   - 修正當自動旅程來源為其他旅程之 Flex 訊息按鈕時，來源總覽重複分裂為「測試旅程」與「旅程訊息/flex訊息」兩行的問題。

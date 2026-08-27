@@ -256,6 +256,23 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 - **群發廣播 ReferenceError 修復 (frontend/src/pages/Broadcast.jsx)**:
   - 修正建立群發訊息時開啟 Flex 訊息編輯器引用未定義變數 `selectedId` 導致之 `ReferenceError: selectedId is not defined` 錯誤，改為使用 `formData.id` 與 `formData.name`。
 
+### 4.8 問卷填寫結束自動化動作升級 (2026-08-27)
+- **問卷管理 (文字問卷) 完成後動作架構 (backend/endpoints/questionnaire.py & frontend/src/pages/Questionnaire.jsx)**:
+  - 前端 `Questionnaire.jsx` 表單與編輯介面新增「問卷完成後動作」設定（完成後標籤 `finish_tags`、加入自動旅程 `finish_journey`、切換圖文選單 `finish_menu`）。
+  - 後端 `questionnaire.py` 之 `build_questionnaire_direct` 於問卷結束規則（無 review 之最後一題答對規則，或有 review 之 `Q__99`「確認送出/1」規則）生成標準執行指令：
+    - `update(f"set_tag|{formatted_tags}")`
+    - `update(f"iup|{finish_journey}")`
+    - `update(f"switch_rm|{finish_menu}")`
+    - 自動寫入 `Private_var` 之 `tag_meta:<tag>`, `journey_meta:<journey>`, `rich_menu_meta`，並標準化記錄來源 `source_type: "form"`, `source_name: note`, `trigger_display: "問卷完成"`, `setting_url: "/questionnaire"`。
+  - 後端 `get_questionnaire_detail` 端點實作反向解析，從完成規則中萃取完成後動作回傳給前端正確回填。
+- **LIFF 問卷完成後動作架構 (backend/endpoints/liff_questionnaire.py & frontend/src/pages/LiffQuestionnaire.jsx)**:
+  - 資料庫自動遷移：`liff_questionnaires:<app_id>` 表新增 `finish_tags` (JSONB), `finish_journey` (TEXT), `finish_menu` (TEXT) 欄位。
+  - 前端 `LiffQuestionnaire.jsx` 新增完成後動作設定區塊與列表卡片狀態展示（完成標籤 Chip、旅程 Chip、選單 Chip）。
+  - 作答提交端點 `public_submit_response` 全自動觸發：
+    1. **標籤寫入**：合併完成標籤與各題標籤至 `Private_var`，並寫入 `tag_meta`（來源標記為 `LIFF問卷完成`）。
+    2. **自動加入旅程**：直接呼叫 `batch_enroll_journey_users_internal` 將用戶加入旅程排程，並寫入 `journey_meta`。
+    3. **切換圖文選單**：寫入 `rich_menu_meta` 並發送 WebSocket 事件 `switch_rm|{finish_menu}` 觸發 Bot 即時切換用戶選單。
+
 
 
 

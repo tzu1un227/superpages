@@ -122,9 +122,12 @@ def _ensure_tables(conn, app_id):
     # 遷移舊資料表：如果存在 liff_id 欄位則將其移除
     cur.execute(f'ALTER TABLE "{t["questionnaires"]}" DROP COLUMN IF EXISTS liff_id')
     
-    # 新增 theme_color 欄位
+    # 新增 theme_color, bg_image 欄位
     cur.execute(f'ALTER TABLE "{t["questionnaires"]}" ADD COLUMN IF NOT EXISTS theme_color TEXT')
     cur.execute(f'ALTER TABLE "{t["questionnaires"]}" ADD COLUMN IF NOT EXISTS bg_image TEXT')
+    cur.execute(f'ALTER TABLE "{t["questionnaires"]}" ADD COLUMN IF NOT EXISTS finish_tags JSONB NOT NULL DEFAULT \'[]\'::jsonb')
+    cur.execute(f'ALTER TABLE "{t["questionnaires"]}" ADD COLUMN IF NOT EXISTS finish_journey TEXT')
+    cur.execute(f'ALTER TABLE "{t["questionnaires"]}" ADD COLUMN IF NOT EXISTS finish_menu TEXT')
 
     # 建立平面化 VIEW 供方便的一鍵查詢作答結果
     view_name = f"v_liff_questionnaire_results:{app_id}"
@@ -298,7 +301,7 @@ def _verify_line_identity(data):
     }
 
 
-def _merge_user_tags(conn, app_id, user_id, tags):
+def _merge_user_tags(conn, app_id, user_id, tags, survey_title=None):
     tags = [tag for tag in dict.fromkeys(_json_list(tags)) if tag]
     if not tags:
         return
@@ -320,11 +323,12 @@ def _merge_user_tags(conn, app_id, user_id, tags):
     # 寫入 tag_meta
     import datetime
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    source_name = survey_title or "LIFF問卷"
     for t in tags:
         meta_val = json.dumps({
-            "source_type": "form", "source_name": "LIFF問卷",
-            "trigger_display": "問卷完成", "occurred_at": now_str,
-            "operator": None, "setting_url": None
+            "source_type": "form", "source_name": source_name,
+            "trigger_display": "LIFF問卷完成", "occurred_at": now_str,
+            "operator": None, "setting_url": "/liff-questionnaires"
         }, ensure_ascii=False)
         cur.execute(f'DELETE FROM "{table}" WHERE user_id = %s AND name = %s', (user_id, f"tag_meta:{t}"))
         cur.execute(f'INSERT INTO "{table}" (user_id, name, value) VALUES (%s, %s, %s)', (user_id, f"tag_meta:{t}", meta_val))
@@ -332,13 +336,19 @@ def _merge_user_tags(conn, app_id, user_id, tags):
 
 
 def _survey_payload(survey, questions):
+    finish_tags = survey.get("finish_tags")
+    if finish_tags is None:
+        finish_tags = survey.get("default_tags") or []
     return {
         "id": survey["id"],
         "survey_key": survey["survey_key"],
         "title": survey["title"],
         "description": survey["description"] or "",
         "status": survey["status"],
-        "default_tags": survey["default_tags"] or [],
+        "default_tags": survey.get("default_tags") or [],
+        "finish_tags": finish_tags,
+        "finish_journey": survey.get("finish_journey") or "",
+        "finish_menu": survey.get("finish_menu") or "",
         "bot_app_name": survey["bot_app_name"] or "",
         "liff_id": "",
         "start_time": survey["start_time"].isoformat(timespec="minutes") if survey["start_time"] else "",
@@ -435,9 +445,9 @@ def create_survey():
         cur.execute(
             f'''
             INSERT INTO "{t["questionnaires"]}"
-                (survey_key, title, description, status, default_tags, bot_app_name,
+                (survey_key, title, description, status, default_tags, finish_tags, finish_journey, finish_menu, bot_app_name,
                  start_time, end_time, allow_multiple, finish_message, theme_color, bg_image, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
             RETURNING *
             ''',
             (
@@ -446,6 +456,9 @@ def create_survey():
                 data.get("description") or "",
                 data.get("status") or "published",
                 Json(_json_list(data.get("default_tags"))),
+                Json(_json_list(data.get("finish_tags") if data.get("finish_tags") is not None else data.get("default_tags"))),
+                str(data.get("finish_journey") or "").strip(),
+                str(data.get("finish_menu") or "").strip(),
                 data.get("bot_app_name") or app_id,
                 _parse_time(data.get("start_time")),
                 _parse_time(data.get("end_time")),
@@ -572,6 +585,9 @@ def update_survey(survey_key):
                 description = %s,
                 status = %s,
                 default_tags = %s,
+                finish_tags = %s,
+                finish_journey = %s,
+                finish_menu = %s,
                 start_time = %s,
                 end_time = %s,
                 allow_multiple = %s,
@@ -587,6 +603,9 @@ def update_survey(survey_key):
                 data.get("description") or "",
                 data.get("status") or "published",
                 Json(_json_list(data.get("default_tags"))),
+                Json(_json_list(data.get("finish_tags") if data.get("finish_tags") is not None else data.get("default_tags"))),
+                str(data.get("finish_journey") or "").strip(),
+                str(data.get("finish_menu") or "").strip(),
                 _parse_time(data.get("start_time")),
                 _parse_time(data.get("end_time")),
                 bool(data.get("allow_multiple", True)),
@@ -901,7 +920,7 @@ def public_submit_response(survey_key):
 
         query_tags = _json_list(request.args.get("defaultTags"))
         body_tags = _json_list(data.get("default_tags"))
-        stored_tags = survey["default_tags"] or []
+        stored_tags = (survey.get("finish_tags") or []) if survey.get("finish_tags") is not None else (survey.get("default_tags") or [])
         collected_tags = list(dict.fromkeys(stored_tags + query_tags + body_tags + collected_tags))
 
         source_meta = {
@@ -934,7 +953,62 @@ def public_submit_response(survey_key):
                 ''',
                 (response["id"], question["id"], question["question_no"], value),
             )
-        _merge_user_tags(conn, app_id, identity["line_user_id"], collected_tags)
+        
+        # 1. 寫入標籤與 tag_meta
+        _merge_user_tags(conn, app_id, identity["line_user_id"], collected_tags, survey_title=survey.get("title"))
+
+        # 2. 自動加入旅程 (Finish Journey)
+        finish_journey = survey.get("finish_journey")
+        if finish_journey and str(finish_journey).strip():
+            try:
+                from app import batch_enroll_journey_users_internal
+                proj_id = int(str(finish_journey).strip())
+                batch_enroll_journey_users_internal(proj_id, [identity["line_user_id"]], app_id)
+
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                j_meta = json.dumps({
+                    "source_type": "form",
+                    "source_name": survey.get("title") or "LIFF問卷",
+                    "trigger_display": "LIFF問卷完成",
+                    "occurred_at": now_str,
+                    "operator": None,
+                    "setting_url": "/liff-questionnaires"
+                }, ensure_ascii=False)
+                pv_table = _tables(app_id)["private_var"]
+                cur.execute(f'DELETE FROM "{pv_table}" WHERE user_id = %s AND name = %s', (identity["line_user_id"], f"journey_meta:{proj_id}"))
+                cur.execute(f'INSERT INTO "{pv_table}" (user_id, name, value) VALUES (%s, %s, %s)', (identity["line_user_id"], f"journey_meta:{proj_id}", j_meta))
+            except Exception as ej:
+                print(f"[liff_questionnaire] Enroll journey failed: {ej}")
+
+        # 3. 自動切換圖文選單 (Finish Rich Menu)
+        finish_menu = survey.get("finish_menu")
+        if finish_menu and str(finish_menu).strip():
+            try:
+                menu_val = str(finish_menu).strip()
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                rm_meta = json.dumps({
+                    "source_type": "form",
+                    "source_name": survey.get("title") or "LIFF問卷",
+                    "trigger_display": "LIFF問卷完成",
+                    "occurred_at": now_str,
+                    "operator": None,
+                    "setting_url": "/liff-questionnaires"
+                }, ensure_ascii=False)
+                pv_table = _tables(app_id)["private_var"]
+                cur.execute(f'DELETE FROM "{pv_table}" WHERE user_id = %s AND name = %s', (identity["line_user_id"], "rich_menu_meta"))
+                cur.execute(f'INSERT INTO "{pv_table}" (user_id, name, value) VALUES (%s, %s, %s)', (identity["line_user_id"], "rich_menu_meta", rm_meta))
+
+                from utils.socket_utils import send_socket_event
+                target_bot = request.args.get("botAppName") or data.get("bot_app_name") or survey.get("bot_app_name") or app_id
+                send_socket_event({
+                    "type": "Postback",
+                    "message": f"switch_rm|{menu_val}",
+                    "user": identity["line_user_id"],
+                    "bot_name": target_bot,
+                })
+            except Exception as em:
+                print(f"[liff_questionnaire] Switch rich menu failed: {em}")
+
         conn.commit()
         cur.close()
         return jsonify({

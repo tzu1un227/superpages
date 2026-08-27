@@ -334,6 +334,92 @@ def _extract_questionnaire_questions(rows):
     return entry_rule, questions
 
 
+def _build_finish_function(finish_tags=None, finish_journey=None, finish_menu=None, note=""):
+    parts = []
+    clean_note = (note or "").replace("關鍵字回覆 - ", "").replace(" - 問卷管理", "").replace("問卷管理 - ", "").replace(" - 關鍵字回覆", "").replace(" - 工程用法則", "").split("|UPDATED:")[0].strip()
+    if not clean_note:
+        clean_note = "問卷管理"
+
+    valid_tags = [str(t).strip() for t in (finish_tags or []) if str(t).strip()]
+    if valid_tags:
+        formatted_tags = "[" + ", ".join([repr(t) for t in valid_tags]) + "]"
+        parts.append(f'update(f"set_tag|{formatted_tags}")')
+        for t in valid_tags:
+            base_json = json.dumps({
+                "source_type": "form",
+                "source_name": clean_note,
+                "trigger_display": "問卷完成",
+                "setting_url": "/questionnaire"
+            }, ensure_ascii=False)
+            prefix = base_json[:-1]
+            escaped_prefix = prefix.replace("\\", "\\\\").replace("'", "\\'")
+            parts.append('pri_set("tag_meta:' + t + '", \'' + escaped_prefix + ',"occurred_at":"\' + sys.now(\'%Y-%m-%d %H:%M:%S\') + \'}")')
+
+    if finish_journey and str(finish_journey).strip():
+        j_str = str(finish_journey).strip()
+        parts.append(f'update("iup|{j_str}")')
+        j_meta = json.dumps({
+            "source_type": "form",
+            "source_name": clean_note,
+            "trigger_display": "問卷完成",
+            "setting_url": "/questionnaire"
+        }, ensure_ascii=False)
+        prefix = j_meta[:-1]
+        escaped_prefix = prefix.replace("\\", "\\\\").replace("'", "\\'")
+        parts.append('pri_set("journey_meta:' + j_str + '", \'' + escaped_prefix + ',"occurred_at":"\' + sys.now(\'%Y-%m-%d %H:%M:%S\') + \'}")')
+
+    if finish_menu and str(finish_menu).strip():
+        m_str = str(finish_menu).strip()
+        parts.append(f'update("switch_rm|{m_str}")')
+        m_meta = json.dumps({
+            "source_type": "form",
+            "source_name": clean_note,
+            "trigger_display": "問卷完成",
+            "setting_url": "/questionnaire"
+        }, ensure_ascii=False)
+        prefix = m_meta[:-1]
+        escaped_prefix = prefix.replace("\\", "\\\\").replace("'", "\\'")
+        parts.append('pri_set("rich_menu_meta", \'' + escaped_prefix + ',"occurred_at":"\' + sys.now(\'%Y-%m-%d %H:%M:%S\') + \'}")')
+
+    return ",".join(parts)
+
+
+def _extract_finish_actions_from_fn(fn_str):
+    if not fn_str:
+        return {"finish_tags": [], "finish_journey": "", "finish_menu": ""}
+
+    tags = []
+    tag_match = re.search(r'set_tag\|(\[.*?\]|[^,\)]+)', fn_str)
+    if tag_match:
+        tag_str = tag_match.group(1).strip()
+        if tag_str.startswith('[') and tag_str.endswith(']'):
+            try:
+                import ast
+                parsed = ast.literal_eval(tag_str)
+                if isinstance(parsed, list):
+                    tags = [str(t).strip() for t in parsed if str(t).strip()]
+            except Exception:
+                pass
+        else:
+            tags = [t.strip().replace("'", "").replace('"', '') for t in tag_str.split('|') if t.strip()]
+
+    journey = ""
+    j_match = re.search(r'update\(\s*f?[\'"]iup\|([^\'"]+)[\'"]\s*\)', fn_str)
+    if j_match:
+        journey = j_match.group(1).strip()
+
+    menu = ""
+    m_match = re.search(r'update\(\s*f?[\'"]switch_rm\|([^\'"]+)[\'"]\s*\)', fn_str)
+    if m_match:
+        menu = m_match.group(1).strip()
+
+    return {
+        "finish_tags": list(dict.fromkeys(tags)),
+        "finish_journey": journey,
+        "finish_menu": menu
+    }
+
+
 def build_questionnaire_direct(data, app_id, conn, quest_id):
     note = data.get("note", "未命名問卷")
     trigger = data.get("trigger", "").strip()
@@ -342,6 +428,9 @@ def build_questionnaire_direct(data, app_id, conn, quest_id):
     enable_review = bool(data.get("enable_review", False))
     start_time = data.get("start_time", "").strip()
     end_time = data.get("end_time", "").strip()
+    finish_tags = data.get("finish_tags") or []
+    finish_journey = data.get("finish_journey") or ""
+    finish_menu = data.get("finish_menu") or ""
 
     table = _table_names(app_id)["q_bank"]
     cur = conn.cursor()
@@ -374,6 +463,8 @@ def build_questionnaire_direct(data, app_id, conn, quest_id):
             note,
         ),
     )
+
+    finish_fn = _build_finish_function(finish_tags, finish_journey, finish_menu, note)
 
     for i, question in enumerate(questions):
         current_index = i + 1
@@ -417,6 +508,10 @@ def build_questionnaire_direct(data, app_id, conn, quest_id):
                     ),
                 )
             else:
+                last_fn_parts = [save_fn]
+                if finish_fn:
+                    last_fn_parts.append(finish_fn)
+                final_save_fn = ",".join(last_fn_parts)
                 cur.execute(
                     f'''
                     INSERT INTO "{table}" (state_in, type, content, "check", msg_rpy, state_out, function, history, note)
@@ -429,7 +524,7 @@ def build_questionnaire_direct(data, app_id, conn, quest_id):
                         [check_str],
                         [_text_msg_json(finish_msg)],
                         "00000",
-                        save_fn,
+                        final_save_fn,
                         True,
                         note,
                     ),
@@ -492,7 +587,7 @@ def build_questionnaire_direct(data, app_id, conn, quest_id):
                 [""],
                 [_text_msg_json(finish_msg)],
                 "00000",
-                "",
+                finish_fn,
                 True,
                 note,
             ),
@@ -696,8 +791,10 @@ def get_questionnaire_detail(note):
 
         finish_rule = next((row for row in rows if row.get("state_out") == "00000"), None)
         finish_msg = "感謝您的填寫！"
+        finish_actions = {"finish_tags": [], "finish_journey": "", "finish_menu": ""}
         if finish_rule:
             finish_msg = _extract_text_from_msg((finish_rule.get("msg_rpy") or [None])[0]) or finish_msg
+            finish_actions = _extract_finish_actions_from_fn(finish_rule.get("function") or "")
 
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
@@ -720,6 +817,9 @@ def get_questionnaire_detail(note):
                 "end_time": end_time,
                 "enable_review": enable_review,
                 "finish_msg": finish_msg,
+                "finish_tags": finish_actions["finish_tags"],
+                "finish_journey": finish_actions["finish_journey"],
+                "finish_menu": finish_actions["finish_menu"],
                 "questions": questions,
                 "group_id": meta_row["group_id"] if meta_row else None,
                 "group_name": meta_row["group_name"] if meta_row else None,
