@@ -7,6 +7,11 @@
   - 資料庫遷移：`liff_questionnaires:<app_id>` 表新增 `finish_tags`, `finish_journey`, `finish_menu` 欄位。
   - 前端 `LiffQuestionnaire.jsx` 支援設定完成後標籤、加入自動旅程、切換圖文選單，並於問卷列表中清晰呈現狀態 Chip。
   - 作答提交端點 `public_submit_response` 在作答儲存後，自動執行標籤寫入 (`_merge_user_tags`)、加入自動旅程排程 (`batch_enroll_journey_users_internal`) 以及發送 WebSocket 即時切換圖文選單 (`switch_rm`)。
+- **來源透明化與主動探測升級 (backend/app.py & backend/endpoints/richmenu.py)**:
+  - 自動旅程來源端點 `get_project_join_sources` 與圖文選單套用來源端點 `get_richmenu_apply_sources` 全面升級：
+    - 主動探測文字問卷（`Q_bank` / `QA_bank`）中帶有旅程加入或選單切換的規則，歸類為 `form`（問卷管理）來源。
+    - 主動掃描 `liff_questionnaires:<app_id>` 資料表，即使尚未有用戶填寫，也能在來源總覽完整列出設定了該旅程/該圖文選單的 LIFF 問卷名稱、觸發時機與跳轉按鈕。
+    - 在客戶中心（`CustomerCenter.jsx`）的標籤、旅程、選單 Tooltip 中，完整呈現問卷來源名稱、完成時機、精確時間與「前往設定」跳轉至 `/questionnaire` 或 `/liff-questionnaires`。
 
 ## [2026-08-27] 自動旅程來源去重、圖文選單套用來源全庫掃描與群發廣播錯誤修復
 - **自動旅程來源去重與智慧歸因 (backend/app.py & frontend/src/pages/Projects.jsx, FlexMessageEditor.jsx)**:

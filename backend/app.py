@@ -1329,7 +1329,7 @@ def get_project_join_sources(id):
         except Exception as e:
             print("Error scanning project_schedules:", e)
 
-        # 2. 主動掃描 Q_bank (關鍵字法則表)
+        # 2. 主動掃描 Q_bank (關鍵字法則表與問卷管理法則)
         try:
             cur.execute(f"""
                 SELECT * FROM {t_qbank}
@@ -1339,10 +1339,14 @@ def get_project_join_sources(id):
                    OR function::text LIKE %s
             """, (f"%|{id}|%", f"%|{id}|%", f"%journey={id}%", f"%iup|{id}%"))
             for r in cur.fetchall():
+                note_str = str(r.get('note') or '')
                 kw_raw = r.get('content')
                 kw_disp = format_kw_display(kw_raw)
-                kw_clean = clean_rule_title(r.get('note'), kw_disp)
-                k = ("keyword", kw_clean, f"觸發關鍵字: {kw_disp}", "/ruledesigner")
+                kw_clean = clean_rule_title(note_str, kw_disp)
+                if '問卷管理' in note_str or r.get('state_in', '').startswith('Q__') or r.get('state_out', '').startswith('Q__'):
+                    k = ("form", kw_clean, "問卷填寫完成加入", "/questionnaire")
+                else:
+                    k = ("keyword", kw_clean, f"觸發關鍵字: {kw_disp}", "/ruledesigner")
                 if k not in sources_map:
                     sources_map[k] = {"current_count": 0, "last_joined_at": None}
         except Exception as e:
@@ -1361,14 +1365,32 @@ def get_project_join_sources(id):
                 qa_tag = r.get('tag') or f"問答庫 #{r.get('id')}"
                 if qa_tag in journey_sched_tags:
                     continue  # 已歸入自動旅程，不重複列為問答庫關鍵字
-                qa_clean = clean_rule_title(r.get('note'), qa_tag)
-                k = ("keyword", qa_clean, f"觸發標籤: {qa_tag}", "/ruledesigner")
+                note_str = str(r.get('note') or '')
+                qa_clean = clean_rule_title(note_str, qa_tag)
+                if '問卷管理' in note_str or qa_tag.startswith('form_') or qa_tag.startswith('survey_'):
+                    k = ("form", qa_clean, "問卷填寫完成加入", "/questionnaire")
+                else:
+                    k = ("keyword", qa_clean, f"觸發標籤: {qa_tag}", "/ruledesigner")
                 if k not in sources_map:
                     sources_map[k] = {"current_count": 0, "last_joined_at": None}
         except Exception as e:
             print("Error scanning QA_bank:", e)
 
-        # 4. 主動掃描 rich_menu_metadata (圖文選單按鈕)
+        # 4. 主動掃描 liff_questionnaires (LIFF 問卷表)
+        try:
+            t_liff = f'"liff_questionnaires:{app_id}"'
+            cur.execute("SELECT 1 FROM information_schema.tables WHERE table_name = %s", (f"liff_questionnaires:{app_id}",))
+            if cur.fetchone():
+                cur.execute(f"SELECT title, finish_journey FROM {t_liff} WHERE finish_journey = %s", (str(id),))
+                for r in cur.fetchall():
+                    s_title = r.get('title') or "LIFF問卷"
+                    k = ("form", s_title, "LIFF問卷完成加入", "/liff-questionnaires")
+                    if k not in sources_map:
+                        sources_map[k] = {"current_count": 0, "last_joined_at": None}
+        except Exception as e:
+            print("Error scanning liff_questionnaires for journey:", e)
+
+        # 5. 主動掃描 rich_menu_metadata (圖文選單按鈕)
         try:
             cur.execute(f"""
                 SELECT rich_menu_id, ui_uuid, name, data 

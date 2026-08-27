@@ -272,6 +272,11 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
     1. **標籤寫入**：合併完成標籤與各題標籤至 `Private_var`，並寫入 `tag_meta`（來源標記為 `LIFF問卷完成`）。
     2. **自動加入旅程**：直接呼叫 `batch_enroll_journey_users_internal` 將用戶加入旅程排程，並寫入 `journey_meta`。
     3. **切換圖文選單**：寫入 `rich_menu_meta` 並發送 WebSocket 事件 `switch_rm|{finish_menu}` 觸發 Bot 即時切換用戶選單。
+- **來源透明化與主動探測升級 (backend/app.py & backend/endpoints/richmenu.py)**:
+  - 自動旅程來源端點 `get_project_join_sources` 與圖文選單套用來源端點 `get_richmenu_apply_sources` 全面升級：
+    - 主動探測文字問卷（`Q_bank` / `QA_bank`）中帶有旅程加入或選單切換的規則，歸類為 `form`（問卷管理）來源。
+    - 主動掃描 `liff_questionnaires:<app_id>` 資料表，即使尚未有用戶填寫，也能在來源總覽完整列出設定了該旅程/該圖文選單的 LIFF 問卷名稱、觸發時機與跳轉按鈕。
+    - 在客戶中心（`CustomerCenter.jsx`）的標籤、旅程、選單 Tooltip 中，完整呈現問卷來源名稱、完成時機、精確時間與「前往設定」跳轉至 `/questionnaire` 或 `/liff-questionnaires`。
 
 
 

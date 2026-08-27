@@ -1283,6 +1283,9 @@ def get_richmenu_apply_sources(rich_menu_id):
                     r_type = r.get('type') or 'Message'
                     if r_type == 'Follow' or 'follow' in content_str.lower():
                         k = ("welcome", "加入好友訊息", "加入好友歡迎訊息", "/welcome-message")
+                    elif '問卷管理' in note or r.get('state_in', '').startswith('Q__') or r.get('state_out', '').startswith('Q__'):
+                        clean_t = clean_rule_title(r.get('note'), '問卷管理')
+                        k = ("form", clean_t, "問卷填寫完畢切換", "/questionnaire")
                     else:
                         kw_raw = r.get('content')
                         kw_disp = format_kw_display(kw_raw)
@@ -1308,9 +1311,9 @@ def get_richmenu_apply_sources(rich_menu_id):
                     if qa_tag.startswith('bc_'):
                         clean_t = clean_rule_title(r.get('note'), '群發訊息')
                         k = ("broadcast", clean_t, "群發訊息按鈕點擊", "/broadcast")
-                    elif qa_tag.startswith('form_') or qa_tag.startswith('survey_'):
+                    elif qa_tag.startswith('form_') or qa_tag.startswith('survey_') or '問卷' in str(r.get('note') or ''):
                         clean_t = clean_rule_title(r.get('note'), '問卷管理')
-                        k = ("form", clean_t, "問卷填寫完畢切換", "/questionnaires")
+                        k = ("form", clean_t, "問卷填寫完畢切換", "/questionnaire")
                     else:
                         qa_clean = clean_rule_title(r.get('note'), qa_tag)
                         k = ("keyword", qa_clean, f"觸發標籤: {qa_tag}", "/ruledesigner")
@@ -1320,7 +1323,23 @@ def get_richmenu_apply_sources(rich_menu_id):
             if conn: conn.rollback()
             print("Error scanning QA_bank for rich menu:", e)
 
-        # 5. 主動掃描 rich_menu_metadata (其他圖文選單按鈕切換)
+        # 5. 主動掃描 liff_questionnaires (LIFF 問卷表)
+        try:
+            t_liff = get_t_safe('liff_questionnaires')
+            cur.execute(f"SELECT * FROM {t_liff}")
+            liff_rows = cur.fetchall()
+            for r in liff_rows:
+                f_menu = str(r.get('finish_menu') or '').strip()
+                if is_menu_matched(f_menu):
+                    s_title = r.get('title') or "LIFF問卷"
+                    k = ("form", s_title, "LIFF問卷完成切換", "/liff-questionnaires")
+                    if k not in sources_map:
+                        sources_map[k] = {"current_count": 0, "last_applied_at": None}
+        except Exception as e:
+            if conn: conn.rollback()
+            print("Error scanning liff_questionnaires for rich menu:", e)
+
+        # 6. 主動掃描 rich_menu_metadata (其他圖文選單按鈕切換)
         try:
             cur.execute(f"SELECT * FROM {t_metadata}")
             rm_rows = cur.fetchall()
