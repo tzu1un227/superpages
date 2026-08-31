@@ -712,10 +712,10 @@ def execute_broadcast(id):
                     func_content = f"sys.bmcast(m, qa('{msg_tag}'))"
                 elif bc['target_type'] == 'tag':
                     t_val = bc['target_value']
-                    func_content = f"sys.bmcast(m, qa('{msg_tag}'), dboperation.g_opr(m, [('name', 'tag', 'like'), ('value', '%\\'{t_val}\\'%', 'like')]))"
+                    func_content = f"sys.bmcast(m, qa('{msg_tag}'), dboperation.g_opr(m, [('name', 'tag', 'like'), ('value', '%\\'{t_val}\\'%', 'like')], use_db=True))"
                 elif bc['target_type'] == 'group':
                     g_val = bc['target_value']
-                    func_content = f"sys.bmcast(m, qa('{msg_tag}'), dboperation.g_opr(m, [('name', 'g_group', 'like'), ('value', '%\\'{g_val}\\'%', 'like')]))"
+                    func_content = f"sys.bmcast(m, qa('{msg_tag}'), dboperation.g_opr(m, [('name', 'g_group', 'like'), ('value', '%\\'{g_val}\\'%', 'like')], use_db=True))"
                 elif bc['target_type'] == 'ids':
                     func_content = f"sys.bmcast(m, qa('{msg_tag}'), {json.dumps(user_ids)})"
                 else:
