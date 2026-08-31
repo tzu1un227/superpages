@@ -6,7 +6,10 @@
   - 優化 `get_schedules` 與 `get_rule_sources` 訊息解析邏輯，同時相容 `get_out(qa('<tag>'))` 與 `QA|<tag>` 格式以提取 QA 內容並正確預覽。
 - **排程群發訊息 (`backend/endpoints/broadcast.py`)**:
   - 重構 `execute_broadcast` 排程發送邏輯：不再對每位受眾個別插入 `cron_table`，改為插入單筆 `user_id = 'yzuadmin'` 的系統排程任務，`message_content` 填入 `sys.bmcast(m, qa('<tag>'), ...)`（結合 `dboperation.g_opr` 動態篩選名單）。
+  - 將標籤與群組之 `g_opr` 篩選條件升級為帶單引號邊界的防呆版本（`[('name', 'tag', 'like'), ('value', "%'標籤名'%", 'like')]`），徹底防範 `VIP` 與 `SUPER_VIP` 等母子標籤被誤判命中的風險。
   - 同步更新 `delete_broadcast` 與 `get_broadcasts` (狀態對齊) 的查詢與刪除條件。
+- **LIFF 問卷標籤寫入 (`backend/endpoints/liff_questionnaire.py`)**:
+  - 統一標籤寫入格式為標準 Python List 字串 `str(merged)`（單引號格式），確保全系統標籤寫入引號格式一致。
 - **資料庫遷移腳本 (`backend/scratch/migrate_cron_table_to_functions.py`)**:
   - 新增自動遷移腳本，可批次掃描所有 OA 資料庫並將 `cron_table` 中未執行的舊版 `QA|<tag>` 任務無損升級為函式格式。
 - **前端 (`frontend/src/components/FlexMessageEditor.jsx`)**:
