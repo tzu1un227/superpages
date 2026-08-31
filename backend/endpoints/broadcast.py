@@ -369,7 +369,10 @@ def list_broadcasts():
                     
                     # Check if still in RDS cron_table
                     for bc in to_check:
-                        cur_rds.execute(f"SELECT 1 FROM {t_cron} WHERE message_content = %s LIMIT 1", (f"QA|{bc['message_tag']}",))
+                        cur_rds.execute(
+                            f"SELECT 1 FROM {t_cron} WHERE ((user_id = 'yzuadmin' AND message_content LIKE %s) OR message_content = %s) LIMIT 1",
+                            (f"%qa('{bc['message_tag']}')%", f"QA|{bc['message_tag']}")
+                        )
                         if not cur_rds.fetchone():
                             cur_rds.execute(f"UPDATE {t_broadcasts} SET status = 'sent' WHERE id = %s", (bc['id'],))
                             bc['status'] = 'sent'
@@ -564,8 +567,10 @@ def delete_broadcast(id):
         # 1. If scheduled, remove from cron_table
         if bc['status'] == 'scheduled' or bc['status'] == 'active':
             try:
-                msg_content = f"QA|{bc['message_tag']}"
-                cur.execute(f"DELETE FROM {t_cron} WHERE message_content = %s", (msg_content,))
+                cur.execute(
+                    f"DELETE FROM {t_cron} WHERE (user_id = 'yzuadmin' AND message_content LIKE %s) OR message_content = %s",
+                    (f"%qa('{bc['message_tag']}')%", f"QA|{bc['message_tag']}")
+                )
             except Exception as e:
                 print(f"Error deleting from cron_table: {e}")
 
@@ -668,8 +673,9 @@ def execute_broadcast(id):
                 conn_rds.commit()
                 return jsonify({'status': 'success', 'method': 'websocket', 'targets': len(user_ids)})
 
-            # 2. Scheduled send via cron_table
+            # 2. Scheduled send via cron_table (以 yzuadmin 寫入單一推播 Function，於推播當下動態取名單)
             try:
+                # 評估預估受眾名單（用於寫入快照與前端統計）
                 user_ids = []
                 if bc.get('audience_mode') == 'lock' and bc.get('locked_recipients'):
                     try:
@@ -698,29 +704,48 @@ def execute_broadcast(id):
                     elif bc['target_type'] == 'ids':
                         user_ids = [i.strip() for i in bc['target_value'].split(',') if i.strip()]
                 
-                if not user_ids:
-                    return jsonify({'status': 'success', 'targets': 0, 'message': '沒有找到符合條件的受眾'}), 200
+                # 組裝 message_content 的 Python Function 語法
+                msg_tag = bc['message_tag']
+                if bc.get('audience_mode') == 'lock' and user_ids:
+                    func_content = f"sys.bmcast(m, qa('{msg_tag}'), {json.dumps(user_ids)})"
+                elif bc['target_type'] == 'all':
+                    func_content = f"sys.bmcast(m, qa('{msg_tag}'))"
+                elif bc['target_type'] == 'tag':
+                    t_val = bc['target_value']
+                    func_content = f"sys.bmcast(m, qa('{msg_tag}'), dboperation.g_opr(m, [('name', 'tag', 'like'), ('value', '%{t_val}%', 'like')]))"
+                elif bc['target_type'] == 'group':
+                    g_val = bc['target_value']
+                    func_content = f"sys.bmcast(m, qa('{msg_tag}'), dboperation.g_opr(m, [('name', 'g_group', 'like'), ('value', '%{g_val}%', 'like')]))"
+                elif bc['target_type'] == 'ids':
+                    func_content = f"sys.bmcast(m, qa('{msg_tag}'), {json.dumps(user_ids)})"
+                else:
+                    func_content = f"sys.bmcast(m, qa('{msg_tag}'))"
 
                 push_time = bc['scheduled_at'] if bc['scheduled_at'] else datetime.now(timezone(timedelta(hours=8))).replace(tzinfo=None)
-                msg_content = f"QA|{bc['message_tag']}"
                 
-                insert_data = [(uid, msg_content, push_time, 'active') for uid in user_ids]
+                # 刪除既有同 tag 的未執行排程任務（防止重複排程）
+                cur_rds.execute(
+                    f"DELETE FROM {t_cron} WHERE (user_id = 'yzuadmin' AND message_content LIKE %s) OR message_content = %s",
+                    (f"%qa('{msg_tag}')%", f"QA|{msg_tag}")
+                )
                 
-                sql = f"INSERT INTO {t_cron} (user_id, message_content, push_time, status) VALUES %s"
-                execute_values(cur_rds, sql, insert_data)
+                # 插入單筆 yzuadmin 排程任務
+                sql = f"INSERT INTO {t_cron} (user_id, message_content, push_time, status) VALUES (%s, %s, %s, 'active')"
+                cur_rds.execute(sql, ('yzuadmin', func_content, push_time))
                 
                 # 寫入受眾快照
                 try:
                     t_recipients = get_t('broadcast_recipients')
-                    rec_insert_data = [(id, uid, 'scheduled') for uid in user_ids]
-                    execute_values(cur_rds, f"INSERT INTO {t_recipients} (broadcast_id, user_id, send_status) VALUES %s", rec_insert_data)
+                    if user_ids:
+                        rec_insert_data = [(id, uid, 'scheduled') for uid in user_ids]
+                        execute_values(cur_rds, f"INSERT INTO {t_recipients} (broadcast_id, user_id, send_status) VALUES %s", rec_insert_data)
                 except Exception as rec_e:
                     logger.error(f"Failed to record recipient snapshot for broadcast {id}: {rec_e}")
 
                 cur_rds.execute(f"UPDATE {t_broadcasts} SET status = 'scheduled', sent_recipient_count = %s WHERE id = %s", (len(user_ids), id))
                 conn_rds.commit()
                 
-                logger.info(f"Successfully scheduled broadcast {id} for {len(user_ids)} users using bulk insert.")
+                logger.info(f"Successfully scheduled broadcast {id} for yzuadmin: {func_content} (estimated {len(user_ids)} targets).")
                 
                 return jsonify({'status': 'success', 'targets': len(user_ids), 'method': 'cron'})
             except Exception as ex:

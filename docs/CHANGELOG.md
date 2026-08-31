@@ -1,6 +1,14 @@
 # CHANGELOG
 
-## [2026-08-21] FlexMessageEditor sys_bind 來源 Metadata 獨立欄位傳遞升級
+## [2026-08-31] cron_table 排程任務全面函式化與排程群發單一任務升級
+- **自動旅程 (`backend/app.py`)**:
+  - `batch_enroll_journey_users_internal` (批次加入旅程) 與 `restart_project_user` (重啟旅程步驟) 寫入 `cron_table` 時，將原本的 `QA|<tag>` 標籤字串改寫為合法的 Python 函式呼叫 `get_out(qa('<tag>'))`。
+  - 優化 `get_schedules` 與 `get_rule_sources` 訊息解析邏輯，同時相容 `get_out(qa('<tag>'))` 與 `QA|<tag>` 格式以提取 QA 內容並正確預覽。
+- **排程群發訊息 (`backend/endpoints/broadcast.py`)**:
+  - 重構 `execute_broadcast` 排程發送邏輯：不再對每位受眾個別插入 `cron_table`，改為插入單筆 `user_id = 'yzuadmin'` 的系統排程任務，`message_content` 填入 `sys.bmcast(m, qa('<tag>'), ...)`（結合 `dboperation.g_opr` 動態篩選名單）。
+  - 同步更新 `delete_broadcast` 與 `get_broadcasts` (狀態對齊) 的查詢與刪除條件。
+- **資料庫遷移腳本 (`backend/scratch/migrate_cron_table_to_functions.py`)**:
+  - 新增自動遷移腳本，可批次掃描所有 OA 資料庫並將 `cron_table` 中未執行的舊版 `QA|<tag>` 任務無損升級為函式格式。
 - **前端 (`frontend/src/components/FlexMessageEditor.jsx`)**:
   - 重構 `sys_bind` payload 為獨立欄位架構：
     `sys_bind|tags|journey|menu|val|tag_key|journey_key|menu_key|meta_json`

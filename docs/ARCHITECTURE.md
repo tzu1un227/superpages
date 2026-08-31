@@ -21,18 +21,20 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 主要使用 PostgreSQL 儲存業務與設定資料：
 - **`projects`**: 儲存自動化專案定義 (如：開始/結束時間、啟用狀態、配置等)。
 - **`project_schedules`**: 定義專案內的不同階段 (Steps) 與對應發送的訊息設定。
-- **`cron_table`**: 紀錄每個參與專案的使用者當前狀態 (如：進行到的 `step_id`、下次執行的 `scheduled_at` 及狀態)。
+- **`cron_table`**: 紀錄自動化旅程任務與系統排程任務。`message_content` 全面採用 Python 函式語法（自動旅程填入 `get_out(qa('<tag>'))`；系統群發以 `user_id = 'yzuadmin'` 填入 `sys.bmcast(m, qa('<tag>'), ...)` 結合 `dboperation.g_opr` 於推播當下即時篩選名單）。
 - **`qa_bank`**: 儲存複雜結構的訊息 (例如：Flex Message, 圖片等)，並透過 `QA|` 前綴標籤供系統引用。
 - **`users`**: 系統管理員及已授權的使用者清單。
 - **`OAConfig`**: 系統管理的多個不同官方帳號 (Official Accounts) 配置參數。
 
 ## 4. 核心系統模組
 ### 4.1 自動化排程引擎 (Scheduled Event Management)
-排程機制完全由 `projects` 與 `cron_table` 驅動，取代了舊有的 `scheduled_events` 表格：
-1. **背景輪詢 (Polling)**：背景 Daemon 執行緒每 10 秒喚醒一次。
-2. **篩選任務 (Selection)**：查詢 `cron_table` 中狀態為 `active` 且 `scheduled_at` 早於或等於當前時間的紀錄。
-3. **觸發發送 (Trigger)**：從 `project_schedules` 提取訊息內容，並透過 Socket.IO 發送事件給目標用戶.
-4. **推進階段 (Advancement)**：計算下一次執行的時間 (`interval_hours`)，並更新 `cron_table`。若無下一階段，則依據 `is_recurring` 設定將狀態改為完成 (`completed`) 或重新循環。
+排程機制完全由 `projects` 與 `cron_table` 驅動，底層回訊引擎 (`Line-Bot-Main`) 由 `sensors/cronjobs.py` 的 `run_cron_tasks` 透過 `smart_eval` 安全環境直接執行 `cron_table.message_content` 中的 Python 函式：
+1. **背景輪詢 (Polling)**：Superpages 每分鐘發送 `check_cron_table` 事件，`Line-Bot-Main` 每分鐘喚醒一次。
+2. **篩選任務 (Selection)**：查詢 `cron_table` 中狀態為 `active` 且 `push_time` 早於或等於當前時間的紀錄。
+3. **函式化執行 (Execution)**：
+   - **系統群發 (`user_id == 'yzuadmin'`)**：直接執行 `sys.bmcast(m, qa('<tag>'), dboperation.g_opr(m, ...))`，在推播當下動態查詢受眾名單並發送。
+   - **個人旅程 (`user_id != 'yzuadmin'`)**：執行 `get_out(qa('<tag>'))` 取得 QA 訊息，透過 `send_message` 送出給該用戶並記錄歷史與專案統計。
+4. **任務清理與推進 (Advancement)**：單次任務執行後自 `cron_table` 刪除；若為旅程最後步驟則更新用戶狀態為 `completed`。
 
 ### 4.2 圖文選單管理 (Rich Menu Management)
 - 透過視覺化編輯器進行圖文選單的創建與修改。

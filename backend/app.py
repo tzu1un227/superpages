@@ -1075,8 +1075,15 @@ def restart_project_user(id, user_id):
                 else: # hours
                     current_push_time += timedelta(hours=interval_val)
                 
+                formatted_msg = msg
+                if msg and msg.startswith('QA|'):
+                    tag = msg.split('|')[-1]
+                    formatted_msg = f"get_out(qa('{tag}'))"
+                elif msg and not msg.startswith('get_out(') and not msg.startswith('sys.') and '(' not in msg:
+                    formatted_msg = f"get_out(qa('{msg}'))"
+
                 cur.execute(f"INSERT INTO {t_cron} (user_id, project_id, step_id, message_content, push_time, status) VALUES (%s, %s, %s, %s, %s, 'active')",
-                            (user_id, id, s_id, msg, current_push_time))
+                            (user_id, id, s_id, formatted_msg, current_push_time))
             
             # 6. Update status
             cur.execute(f"INSERT INTO {t_ups} (user_id, project_id, status, updated_at) VALUES (%s, %s, 'active', NOW()) ON CONFLICT (user_id, project_id) DO UPDATE SET status = 'active', updated_at = NOW()",
@@ -1193,8 +1200,15 @@ def batch_enroll_journey_users_internal(project_id, user_ids, app_id):
                 else: # hours
                     current_push_time += timedelta(hours=interval_val)
                     
+                formatted_msg = msg
+                if msg and msg.startswith('QA|'):
+                    tag = msg.split('|')[-1]
+                    formatted_msg = f"get_out(qa('{tag}'))"
+                elif msg and not msg.startswith('get_out(') and not msg.startswith('sys.') and '(' not in msg:
+                    formatted_msg = f"get_out(qa('{msg}'))"
+
                 cur.execute(f"INSERT INTO {t_cron} (user_id, project_id, step_id, message_content, push_time, status) VALUES (%s, %s, %s, %s, %s, 'active')",
-                            (user_id, project_id, s_id, msg, current_push_time))
+                            (user_id, project_id, s_id, formatted_msg, current_push_time))
             cur.execute(f"INSERT INTO {t_ups} (user_id, project_id, status, updated_at) VALUES (%s, %s, 'active', %s) ON CONFLICT (user_id, project_id) DO UPDATE SET status = 'active', updated_at = %s",
                         (user_id, project_id, now_tw, now_tw))
             
@@ -1294,6 +1308,12 @@ def get_project_join_sources(id):
                 if raw_mc.startswith('QA|'):
                     parts = raw_mc.split('|')
                     tag_name = parts[-1]
+                else:
+                    m_tag = re.search(r"qa\(['\"]([^'\"]+)['\"]\)", raw_mc)
+                    if m_tag:
+                        tag_name = m_tag.group(1)
+
+                if tag_name:
                     journey_sched_tags.add(tag_name)
                     try:
                         cur.execute(f'SELECT msg_rpy, function FROM {t_qabank} WHERE tag = %s', (tag_name,))
@@ -1682,12 +1702,18 @@ def get_schedules():
         for s in schedules:
             content = s.get('message_content')
             s['message_preview'] = None
-            if content and content.startswith('QA|'):
-                try:
-                    # Parse tag: "QA|tag_name" or "QA|123|tag_name"
+            tag = None
+            if content:
+                if content.startswith('QA|'):
                     parts = content.split('|')
                     tag = parts[-1]
-                    
+                else:
+                    m_tag = re.search(r"qa\(['\"]([^'\"]+)['\"]\)", content)
+                    if m_tag:
+                        tag = m_tag.group(1)
+
+            if tag:
+                try:
                     cur.execute(f'SELECT msg_rpy FROM "QA_bank:{app_id}" WHERE tag = %s', (tag,))
                     res = cur.fetchone()
                     if res and res.get('msg_rpy'):
