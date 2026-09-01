@@ -353,7 +353,7 @@ def _build_finish_function(finish_tags=None, finish_journey=None, finish_menu=No
             }, ensure_ascii=False)
             prefix = base_json[:-1]
             escaped_prefix = prefix.replace("\\", "\\\\").replace("'", "\\'")
-            parts.append('pri_set("tag_meta:' + t + '", \'' + escaped_prefix + ',"occurred_at":"\' + sys.now(\'%Y-%m-%d %H:%M:%S\') + \'}")')
+            parts.append('pri_set("tag_meta:' + t + '", \'' + escaped_prefix + ',"occurred_at":"\' + sys.now(\'%Y-%m-%d %H:%M:%S\') + \'"}\')')
 
     if finish_journey and str(finish_journey).strip():
         j_str = str(finish_journey).strip()
@@ -366,7 +366,7 @@ def _build_finish_function(finish_tags=None, finish_journey=None, finish_menu=No
         }, ensure_ascii=False)
         prefix = j_meta[:-1]
         escaped_prefix = prefix.replace("\\", "\\\\").replace("'", "\\'")
-        parts.append('pri_set("journey_meta:' + j_str + '", \'' + escaped_prefix + ',"occurred_at":"\' + sys.now(\'%Y-%m-%d %H:%M:%S\') + \'}")')
+        parts.append('pri_set("journey_meta:' + j_str + '", \'' + escaped_prefix + ',"occurred_at":"\' + sys.now(\'%Y-%m-%d %H:%M:%S\') + \'"}\')')
 
     if finish_menu and str(finish_menu).strip():
         m_str = str(finish_menu).strip()
@@ -379,7 +379,7 @@ def _build_finish_function(finish_tags=None, finish_journey=None, finish_menu=No
         }, ensure_ascii=False)
         prefix = m_meta[:-1]
         escaped_prefix = prefix.replace("\\", "\\\\").replace("'", "\\'")
-        parts.append('pri_set("rich_menu_meta", \'' + escaped_prefix + ',"occurred_at":"\' + sys.now(\'%Y-%m-%d %H:%M:%S\') + \'}")')
+        parts.append('pri_set("rich_menu_meta", \'' + escaped_prefix + ',"occurred_at":"\' + sys.now(\'%Y-%m-%d %H:%M:%S\') + \'"}\')')
 
     return ",".join(parts)
 

@@ -1,6 +1,8 @@
 # CHANGELOG
 
-## [2026-09-01] 訊息中心 JSON 與 Flex/圖文訊息通用解析優化
+## [2026-09-01] 訊息中心 JSON 通用解析與問卷管理完成動作 Function 語法修復
+- **問卷管理 (`backend/endpoints/questionnaire.py`)**:
+  - 修復 `_build_finish_function` 在組裝 `tag_meta`、`journey_meta` 與 `rich_menu_meta` 之 `occurred_at` 時間戳記時產生的未封閉引號語法錯誤（`+ '}"` 修正為 `+ '"}'`），排除填寫完成時觸發之 `SyntaxError: unterminated string literal`。
 - **訊息中心 (`frontend/src/pages/MessageCenter.jsx`)**:
   - 重構 `renderMessageContent`、`renderParsedItem`、`formatSidebarMessage` 與 `getSearchableText`：不再僅限定 `sys_reply` 類別才進行 JSON 解析，擴展至所有訊息分類（如 `Message`、`Response` 等）。
   - 當系統或旅程存入之 `content` 為包含 `type: "flex"` 或 `type: "text"` 的 JSON 格式（物件或陣列）時，前端自動解析並完整呈現為富文本文字與 Flex 預覽卡片，徹底消除直接顯示生硬 JSON 字串的問題。
