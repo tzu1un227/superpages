@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [2026-09-01] 訊息中心 JSON 與 Flex/圖文訊息通用解析優化
+- **訊息中心 (`frontend/src/pages/MessageCenter.jsx`)**:
+  - 重構 `renderMessageContent`、`renderParsedItem`、`formatSidebarMessage` 與 `getSearchableText`：不再僅限定 `sys_reply` 類別才進行 JSON 解析，擴展至所有訊息分類（如 `Message`、`Response` 等）。
+  - 當系統或旅程存入之 `content` 為包含 `type: "flex"` 或 `type: "text"` 的 JSON 格式（物件或陣列）時，前端自動解析並完整呈現為富文本文字與 Flex 預覽卡片，徹底消除直接顯示生硬 JSON 字串的問題。
+
 ## [2026-08-31] cron_table 排程任務全面函式化與排程群發單一任務升級
 - **自動旅程 (`backend/app.py`)**:
   - `batch_enroll_journey_users_internal` (批次加入旅程) 與 `restart_project_user` (重啟旅程步驟) 寫入 `cron_table` 時，將原本的 `QA|<tag>` 標籤字串改寫為合法的 Python 函式呼叫 `get_out(qa('<tag>'))`。

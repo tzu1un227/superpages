@@ -431,19 +431,20 @@ function MessageCenter() {
         if (!msgString) return '';
         try {
             const parsed = JSON.parse(msgString);
-            if (parsed && typeof parsed === 'object' && parsed.type) {
-                switch (parsed.type) {
-                    case 'text': return parsed.text || '[文字訊息]';
+            const targetObj = Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : parsed;
+            if (targetObj && typeof targetObj === 'object' && targetObj.type) {
+                switch (targetObj.type) {
+                    case 'text': return targetObj.text || '[文字訊息]';
                     case 'image': return '[圖片訊息]';
                     case 'video': return '[影片訊息]';
                     case 'audio': return '[語音訊息]';
                     case 'location': return '[位置訊息]';
                     case 'sticker': return '[貼圖訊息]';
-                    case 'flex': return '圖文訊息';
+                    case 'flex': return targetObj.altText || '圖文訊息';
                     case 'template': return '[樣板訊息]';
                     case 'carousel': return '[輪播訊息]';
                     case 'imagemap': return '[圖片選單]';
-                    default: return `[${parsed.type}]`;
+                    default: return `[${targetObj.type}]`;
                 }
             }
         } catch (e) {
@@ -966,10 +967,17 @@ function MessageCenter() {
         let content = m.content || '';
         if (typeof content !== 'string') return '';
 
-        // 如果是 sys_reply 類別，通常是 JSON
-        if (m.category === 'sys_reply') {
+        // 嘗試解析 JSON 訊息文本
+        if (content.startsWith('{') || content.startsWith('[')) {
             try {
                 const parsed = JSON.parse(content);
+                if (Array.isArray(parsed)) {
+                    return parsed.map(item => {
+                        if (item.type === 'text') return item.text || '';
+                        if (item.altText) return item.altText;
+                        return '';
+                    }).filter(Boolean).join(' ');
+                }
                 if (parsed.type === 'text') return parsed.text || '';
                 if (parsed.altText) return parsed.altText;
                 // 如果是 Flex 訊息，嘗試抓取 body 內容
@@ -1458,6 +1466,83 @@ function MessageCenter() {
                                         }
                                     };
 
+                                    const renderParsedItem = (parsed) => {
+                                        if (!parsed || typeof parsed !== 'object') {
+                                            return highlightText(String(parsed || ''));
+                                        }
+                                        if (parsed.type === 'text' && parsed.text !== undefined) {
+                                            return highlightText(parsed.text);
+                                        }
+                                        if (parsed.type === 'image') {
+                                            return (
+                                                <LazyImage
+                                                    src={parsed.previewImageUrl || parsed.originalContentUrl}
+                                                    style={{ maxWidth: '200px', borderRadius: '8px', cursor: 'pointer' }}
+                                                    onClick={() => window.open(parsed.originalContentUrl, '_blank')}
+                                                    onLoad={handleMediaLoad}
+                                                />
+                                            );
+                                        }
+                                        if (parsed.type === 'video') {
+                                            return (
+                                                <div style={{ maxWidth: '200px' }}>
+                                                    <video src={parsed.originalContentUrl} controls poster={parsed.previewImageUrl} style={{ width: '100%', borderRadius: '8px' }} onLoadedData={handleMediaLoad} />
+                                                </div>
+                                            );
+                                        }
+                                        if (parsed.type === 'audio') {
+                                            return (
+                                                <audio controls src={parsed.originalContentUrl} style={{ maxWidth: '200px' }} />
+                                            );
+                                        }
+                                        if (parsed.type === 'sticker' && parsed.stickerId) {
+                                            return (
+                                                <LazyImage
+                                                    src={`https://stickershop.line-scdn.net/stickershop/v1/sticker/${parsed.stickerId}/android/sticker.png`}
+                                                    style={{ width: '120px' }}
+                                                    alt="Sticker"
+                                                    onLoad={handleMediaLoad}
+                                                />
+                                            );
+                                        }
+                                        if (parsed.type === 'flex' && parsed.contents) {
+                                            const renderFlexBubble = (bubble) => {
+                                                const hero = bubble.hero || {};
+                                                const body = bubble.body || {};
+                                                const title = body.contents?.find(c => c.size === 'xl' || c.weight === 'bold')?.text || bubble.altText || 'Flex Message';
+                                                const imageUrl = hero.url;
+                                                return (
+                                                    <div style={{ backgroundColor: '#fff', color: '#000', borderRadius: '8px', overflow: 'hidden', width: '200px', fontSize: '12px' }}>
+                                                        {imageUrl && (
+                                                            <LazyImage
+                                                                src={imageUrl}
+                                                                style={{ width: '100%', height: '100px', objectFit: 'cover' }}
+                                                                onLoad={handleMediaLoad}
+                                                            />
+                                                        )}
+                                                        <div style={{ padding: '8px' }}>
+                                                            {title && <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{typeof title === 'object' ? JSON.stringify(title) : String(title)}</div>}
+                                                            <div style={{ color: '#666' }}>[Flex 訊息]</div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            };
+
+                                            if (parsed.contents.type === 'carousel' && Array.isArray(parsed.contents.contents)) {
+                                                return (
+                                                    <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '5px', maxWidth: '300px' }}>
+                                                        {parsed.contents.contents.map((b, idx) => (
+                                                            <div key={idx} style={{ flexShrink: 0 }}>{renderFlexBubble(b)}</div>
+                                                        ))}
+                                                    </div>
+                                                );
+                                            } else {
+                                                return renderFlexBubble(parsed.contents);
+                                            }
+                                        }
+                                        return `[${typeof parsed.type === 'object' ? JSON.stringify(parsed.type) : String(parsed.type || '未知格式')}]`;
+                                    };
+
                                     const renderMessageContent = () => {
                                       try {
                                         if (m.category === 'Postback') {
@@ -1499,64 +1584,28 @@ function MessageCenter() {
                                             return <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'inherit' }}><Smile size={16} /> [貼圖訊息]</div>;
                                         }
 
-                                        if (m.category === 'sys_reply') {
+                                        // 嘗試解析 JSON 格式訊息 (包含 sys_reply, Message, Response 等所有分類中存入的 JSON 物件或陣列)
+                                        if (typeof displayContent === 'string' && (displayContent.startsWith('{') || displayContent.startsWith('['))) {
                                             try {
-                                                const parsed = typeof m.content === 'string' ? JSON.parse(m.content) : m.content;
-                                                if (parsed.type === 'text' && parsed.text) return highlightText(parsed.text);
-                                                if (parsed.type === 'image') return (
-                                                    <LazyImage
-                                                        src={parsed.previewImageUrl || parsed.originalContentUrl}
-                                                        style={{ maxWidth: '200px', borderRadius: '8px', cursor: 'pointer' }}
-                                                        onClick={() => window.open(parsed.originalContentUrl, '_blank')}
-                                                        onLoad={handleMediaLoad}
-                                                    />
-                                                );
-                                                if (parsed.type === 'video') return (
-                                                    <div style={{ maxWidth: '200px' }}>
-                                                        <video src={parsed.originalContentUrl} controls poster={parsed.previewImageUrl} style={{ width: '100%', borderRadius: '8px' }} onLoadedData={handleMediaLoad} />
-                                                    </div>
-                                                );
-                                                if (parsed.type === 'audio') return (
-                                                    <audio controls src={parsed.originalContentUrl} style={{ maxWidth: '200px' }} />
-                                                );
-                                                if (parsed.type === 'flex' && parsed.contents) {
-                                                    const renderFlexBubble = (bubble) => {
-                                                        const hero = bubble.hero || {};
-                                                        const body = bubble.body || {};
-                                                        const title = body.contents?.find(c => c.size === 'xl' || c.weight === 'bold')?.text || bubble.altText || 'Flex Message';
-                                                        const imageUrl = hero.url;
-                                                        return (
-                                                            <div style={{ backgroundColor: '#fff', color: '#000', borderRadius: '8px', overflow: 'hidden', width: '200px', fontSize: '12px' }}>
-                                                                {imageUrl && (
-                                                                    <LazyImage
-                                                                        src={imageUrl}
-                                                                        style={{ width: '100%', height: '100px', objectFit: 'cover' }}
-                                                                        onLoad={handleMediaLoad}
-                                                                    />
-                                                                )}
-                                                                <div style={{ padding: '8px' }}>
-                                                                    {title && <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{typeof title === 'object' ? JSON.stringify(title) : String(title)}</div>}
-                                                                    <div style={{ color: '#666' }}>[Flex 訊息]</div>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    };
-
-                                                    if (parsed.contents.type === 'carousel') {
-                                                        return (
-                                                            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '5px', maxWidth: '300px' }}>
-                                                                {parsed.contents.contents.map((b, idx) => (
-                                                                    <div key={idx} style={{ flexShrink: 0 }}>{renderFlexBubble(b)}</div>
-                                                                ))}
-                                                            </div>
-                                                        );
-                                                    } else {
-                                                        return renderFlexBubble(parsed.contents);
-                                                    }
+                                                const parsed = JSON.parse(displayContent);
+                                                if (Array.isArray(parsed)) {
+                                                    return (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                            {parsed.map((item, idx) => (
+                                                                <div key={idx}>{renderParsedItem(item)}</div>
+                                                            ))}
+                                                        </div>
+                                                    );
+                                                } else if (parsed && typeof parsed === 'object' && parsed.type) {
+                                                    return renderParsedItem(parsed);
                                                 }
-                                                return `[${typeof parsed.type === 'object' ? JSON.stringify(parsed.type) : String(parsed.type)}]`;
-                                            } catch (e) { return highlightText(displayContent); }
+                                            } catch (e) {
+                                                // 非標準 JSON 或解析失敗，降級為純文字
+                                            }
+                                        } else if (typeof displayContent === 'object' && displayContent !== null && displayContent.type) {
+                                            return renderParsedItem(displayContent);
                                         }
+
                                         return highlightText(displayContent);
                                       } catch (err) {
                                         console.error("Render message error:", err, m);
