@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [2026-09-02] 修復對話問卷起訖時間時區轉換問題 (UTC+8)
+- **問卷管理 (`backend/endpoints/questionnaire.py`)**:
+  - 修復 `_parse_time` 與 `_parse_time_bounds` 函式在轉換時間戳記時未指定時區的問題。
+  - 明確綁定台灣時區 `UTC+8` (`timezone(timedelta(hours=8))`)，防止伺服器在 UTC 環境下將本地時間解析為 UTC 時間而產生 8 小時（28,800 秒）偏差，確保 LINE Bot 的 `sys.now()` 能在正確時間觸發問卷。
+
 ## [2026-09-01] 訊息中心 JSON 通用解析與問卷管理完成動作 Function 語法修復
 - **問卷管理 (`backend/endpoints/questionnaire.py`)**:
   - 修復 `_build_finish_function` 在組裝 `tag_meta`、`journey_meta` 與 `rich_menu_meta` 之 `occurred_at` 時間戳記時產生的未封閉引號語法錯誤（`+ '}"` 修正為 `+ '"}'`），排除填寫完成時觸發之 `SyntaxError: unterminated string literal`。

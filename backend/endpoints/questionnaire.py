@@ -1,7 +1,9 @@
 from utils.syslogger import syslog_action
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import json
 import re
+
+TW_TZ = timezone(timedelta(hours=8))
 
 import psycopg2
 from flask import Blueprint, g, jsonify, request
@@ -239,7 +241,8 @@ def _parse_time(value):
         return None
     for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
         try:
-            return int(datetime.strptime(value, fmt).timestamp())
+            dt = datetime.strptime(value, fmt).replace(tzinfo=TW_TZ)
+            return int(dt.timestamp())
         except ValueError:
             continue
     return None
@@ -252,9 +255,9 @@ def _parse_time_bounds(check_str):
         start_match = re.findall(r">= (\d+)", check_str)
         end_match = re.findall(r"<= (\d+)", check_str)
         if start_match:
-            start_time = datetime.fromtimestamp(int(start_match[0])).strftime("%Y-%m-%dT%H:%M")
+            start_time = datetime.fromtimestamp(int(start_match[0]), tz=TW_TZ).strftime("%Y-%m-%dT%H:%M")
         if end_match:
-            end_time = datetime.fromtimestamp(int(end_match[0])).strftime("%Y-%m-%dT%H:%M")
+            end_time = datetime.fromtimestamp(int(end_match[0]), tz=TW_TZ).strftime("%Y-%m-%dT%H:%M")
     return start_time, end_time
 
 

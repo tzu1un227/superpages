@@ -278,7 +278,9 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
   - 自動旅程來源端點 `get_project_join_sources` 與圖文選單套用來源端點 `get_richmenu_apply_sources` 全面升級：
     - 主動探測文字問卷（`Q_bank` / `QA_bank`）中帶有旅程加入或選單切換的規則，歸類為 `form`（問卷管理）來源。
     - 主動掃描 `liff_questionnaires:<app_id>` 資料表，即使尚未有用戶填寫，也能在來源總覽完整列出設定了該旅程/該圖文選單的 LIFF 問卷名稱、觸發時機與跳轉按鈕。
-    - 在客戶中心（`CustomerCenter.jsx`）的標籤、旅程、選單 Tooltip 中，完整呈現問卷來源名稱、完成時機、精確時間與「前往設定」跳轉至 `/questionnaire` 或 `/liff-questionnaires`。
+### 4.9 對話問卷時區處理規範 (2026-09-02 新增)
+- **台灣時區 (UTC+8) 強制綁定**：在 `backend/endpoints/questionnaire.py` 中，將前端傳入的無時區時間字串轉換為 Unix Timestamp (`sys.now()` 比對條件) 時，強制綁定台灣時區 `UTC+8` (`timezone(timedelta(hours=8))`)。避免因伺服器預設為 UTC 時區導致轉出的 Timestamp 延遲 8 小時（28,800 秒）。反向解析回前端時間選擇器時亦統一使用 `tz=TW_TZ`，確保起訖時間精確對齊台灣時間。
+
 
 
 
