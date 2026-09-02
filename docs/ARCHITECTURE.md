@@ -147,3 +147,7 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 - **權限設定連線隔離 (`app_name`)**：系統全面廢除舊有硬編碼 namespace (`/websoc`) 或過時之 `socket_name` 欄位，WebSocket 連線與事件觸發發送 (含 `send_socket_event` 與 `send_socket_events_batch`) 統一從權限設定 (`OAConfig.other_settings`) 優先解析 `app_name` 作為 Namespace (`/{app_name}`) 與訊息事件名稱 (`{app_name}_message`)，實現各機器人平台即時連線的嚴格隔離與動態綁定。
 - **預設測試標籤注入 (`is_test`)**：發送所有 WebSocket 事件時，`socket_utils` 模組會自動檢查並為 Payload 字典注入 `"is_test": False` 預設屬性（除非呼叫端已明確指定），以利後端機器人引擎進行測試與正式連線之識別與區隔。
 
+## 12. 對話問卷時區處理規範 (2026-09-02 新增)
+- **台灣時區 (UTC+8) 強制綁定**：在 `backend/endpoints/questionnaire.py` 中，將前端傳入的無時區時間字串轉換為 Unix Timestamp (`sys.now()` 比對條件) 時，強制綁定台灣時區 `UTC+8` (`timezone(timedelta(hours=8))`)。避免因伺服器預設為 UTC 時區導致轉出的 Timestamp 延遲 8 小時（28,800 秒）。反向解析回前端時間選擇器時亦統一使用 `tz=TW_TZ`，確保起訖時間精確對齊台灣時間。
+
+

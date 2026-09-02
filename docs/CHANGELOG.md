@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [2026-09-02] 修復對話問卷起訖時間時區轉換問題 (UTC+8)
+- **後端 (`backend/endpoints/questionnaire.py`)**: 
+  - 修復 `_parse_time` 與 `_parse_time_bounds` 函式在轉換時間戳記時未指定時區的問題。
+  - 明確綁定台灣時區 `UTC+8` (`timezone(timedelta(hours=8))`)，防止伺服器在 UTC 環境下將本地時間解析為 UTC 時間而產生 8 小時（28,800 秒）偏差，確保 LINE Bot 的 `sys.now()` 能在正確時間觸發問卷。
+
 ## [2026-07-21] 問卷管理 note 欄位前綴格式變更
 - **後端/前端 (`frontend/src/pages/RuleDesigner.jsx`, `frontend/src/pages/Questionnaire.jsx`, `backend/endpoints/questionnaire.py`)**: 變更問卷管理頁面寫入 DB 時 `note` 欄位的格式，將後綴 ` - 問卷管理` 更改為前綴 `問卷管理 - `。
 
