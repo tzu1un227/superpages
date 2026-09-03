@@ -233,8 +233,8 @@ function MessageCenter() {
                     setUsers(prev => prev.map(u => u.user_id === selectedUser ? { ...u, unread_count: 0 } : u));
                 }).catch(e => console.error("Failed to mark as read", e));
                 
-                // 註：這時候不用呼叫 fetchHistory(selectedUser)，因為背景每秒輪詢機制
-                // 會立刻利用這個 cachedMessages 裡最新的 timestamp，自動透過 `after=...` 補齊這段期間的新訊息
+                // 背景補齊完整歷史紀錄（包含群發訊息 bc_）
+                fetchHistory(selectedUser);
             } else {
                 setMessages([]); // 切換用戶時立即清空舊訊息，避免畫面殘留與捲軸誤判
                 fetchHistory(selectedUser);
@@ -273,7 +273,7 @@ function MessageCenter() {
             if (tags.length > 0) params.tag = tags.join(',');
             const resp = await api.get('/users', { params });
             let newUsers = Array.isArray(resp.data) ? resp.data : [];
-            newUsers = newUsers.filter(u => u.user_id !== 'yzuadmin' && u.name !== 'yzuadmin');
+            newUsers = newUsers.filter(u => u.user_id && !u.user_id.startsWith('bc_') && !['yzuadmin', 'all', 'system'].includes(u.user_id) && u.name !== 'yzuadmin');
             
             // 預先寫入最新 10 筆歷史訊息的快取，確保點擊時瞬間載入
             newUsers.forEach(u => {

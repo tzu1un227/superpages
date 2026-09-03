@@ -2460,7 +2460,7 @@ def get_users_list():
                     SELECT user_id,
                            MAX(timestamp) as last_time
                     FROM "history:{app_id}"
-                    WHERE TRUE
+                    WHERE user_id LIKE 'U%%' AND length(user_id) = 33
                       {visible_message_filter}
                     GROUP BY user_id
                 ) sub
