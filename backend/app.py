@@ -2232,36 +2232,71 @@ def get_user_history(user_id):
             AND (content IS NULL OR (content != '[text]' AND content NOT LIKE 'bmcast|%%' AND content NOT LIKE 'QA|%%' AND content NOT LIKE 'set_tag|%%' AND content NOT LIKE 'del_tag|%%' AND content NOT LIKE 'cron|%%'))
         """
         
+        user_condition = "(user_id = %s OR user_id = 'all' OR user_id LIKE 'bc_%%')"
+        
         if after:
             # Incremental polling: only fetch messages newer than the given timestamp
             cur.execute(
-                f'SELECT * FROM "history:{app_id}" WHERE user_id = %s AND timestamp > %s {visible_message_filter} ORDER BY timestamp ASC',
+                f'SELECT * FROM "history:{app_id}" WHERE {user_condition} AND timestamp > %s {visible_message_filter} ORDER BY timestamp ASC',
                 (user_id, after)
             )
-            history = cur.fetchall()
+            raw_history = cur.fetchall()
         elif limit:
             if before:
                 # Paginated load: fetch older messages before the given timestamp
                 cur.execute(
-                    f'SELECT * FROM "history:{app_id}" WHERE user_id = %s AND timestamp < %s {visible_message_filter} ORDER BY timestamp DESC LIMIT %s',
+                    f'SELECT * FROM "history:{app_id}" WHERE {user_condition} AND timestamp < %s {visible_message_filter} ORDER BY timestamp DESC LIMIT %s',
                     (user_id, before, limit)
                 )
-                history = cur.fetchall()
-                history.reverse()  # Return in chronological order
+                raw_history = cur.fetchall()
+                raw_history.reverse()  # Return in chronological order
             else:
                 # Initial load: fetch the latest N messages
                 cur.execute(
-                    f'SELECT * FROM "history:{app_id}" WHERE user_id = %s {visible_message_filter} ORDER BY timestamp DESC LIMIT %s',
+                    f'SELECT * FROM "history:{app_id}" WHERE {user_condition} {visible_message_filter} ORDER BY timestamp DESC LIMIT %s',
                     (user_id, limit)
                 )
-                history = cur.fetchall()
-                history.reverse()
+                raw_history = cur.fetchall()
+                raw_history.reverse()
         else:
             cur.execute(
-                f'SELECT * FROM "history:{app_id}" WHERE user_id = %s {visible_message_filter} ORDER BY timestamp ASC',
+                f'SELECT * FROM "history:{app_id}" WHERE {user_condition} {visible_message_filter} ORDER BY timestamp ASC',
                 (user_id,)
             )
-            history = cur.fetchall()
+            raw_history = cur.fetchall()
+
+        # Filter broadcast messages to ensure user is in the audience list
+        history = []
+        bc_cache = {}
+        for row in raw_history:
+            row_uid = row.get('user_id')
+            if row_uid == user_id or row_uid == 'all' or row_uid == 'yzuadmin':
+                history.append(row)
+            elif row_uid and row_uid.startswith('bc_'):
+                if row_uid not in bc_cache:
+                    try:
+                        cur.execute(f'SELECT value FROM "Global_var:{app_id}" WHERE name = %s LIMIT 1', (row_uid,))
+                        g_row = cur.fetchone()
+                        if g_row and g_row['value']:
+                            val = g_row['value']
+                            if isinstance(val, str):
+                                import ast, json
+                                try:
+                                    parsed_ids = set(json.loads(val))
+                                except Exception:
+                                    parsed_ids = set(ast.literal_eval(val))
+                            elif isinstance(val, (list, tuple, set)):
+                                parsed_ids = set(val)
+                            else:
+                                parsed_ids = set()
+                            bc_cache[row_uid] = parsed_ids
+                        else:
+                            bc_cache[row_uid] = set()
+                    except Exception:
+                        bc_cache[row_uid] = set()
+                
+                if user_id in bc_cache[row_uid]:
+                    history.append(row)
             
         cur.close()
         return json_response(history)

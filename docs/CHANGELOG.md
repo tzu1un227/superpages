@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [2026-09-03] 訊息中心支援動態合併廣播與 Global_var 群發訊息 (bc_ 指標)
+- **訊息中心 (`backend/app.py`)**:
+  - `get_user_history` (`/api/history/<user_id>`): 查詢擴展為同時檢索專屬對話、全體廣播 (`user_id = 'all'`) 與群發推播 (`user_id LIKE 'bc_%'`)。
+  - 針對 `bc_` 指標記錄，自動查詢 `Global_var` 取得受眾清單並進行記憶體快取比對（`set`），當該使用者命中群發名單時動態合併呈現為官方帳號訊息，精準呈現在對話時間軸中。
+
 ## [2026-09-02] 修復對話問卷起訖時間時區轉換問題 (UTC+8)
 - **問卷管理 (`backend/endpoints/questionnaire.py`)**:
   - 修復 `_parse_time` 與 `_parse_time_bounds` 函式在轉換時間戳記時未指定時區的問題。
