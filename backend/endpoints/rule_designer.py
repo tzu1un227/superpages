@@ -89,12 +89,79 @@ def validate_rule_fields(rule_data, bank_type, design_mode='engineering'):
             msg = 'state_in 不能為空：請設定至少一個輸入狀態（例如 * 代表任意狀態）' if design_mode == 'engineering' else '標籤狀態不能為空'
             errors.append(msg)
     
-    # 2. msg_rpy validation (warn if empty — rule has no response)
+    # 2. msg_rpy validation (warn if empty — rule has no response, and validate FlexSendMessage structure)
     msg_rpy = rule_data.get('msg_rpy')
     function_val = rule_data.get('function', '')
     if (not msg_rpy or (isinstance(msg_rpy, list) and len(msg_rpy) == 0)) and not function_val:
         msg = '回覆訊息與執行動作皆為空：此規則觸發後既不會回覆訊息，也不會執行動作' if design_mode == 'engineering' else '請設定至少一則回覆訊息，讓機器人知道該回覆什麼內容唷！'
         errors.append(msg)
+    elif isinstance(msg_rpy, list):
+        for idx, item in enumerate(msg_rpy):
+            msg_obj = item
+            if isinstance(item, str):
+                try:
+                    msg_obj = json.loads(item)
+                except Exception:
+                    continue
+            if isinstance(msg_obj, dict):
+                inner = msg_obj.get('Line', msg_obj)
+                otype = inner.get('OTYPE') or inner.get('type')
+                if otype == 'FlexSendMessage':
+                    contents = inner.get('contents', {})
+                    if isinstance(contents, str):
+                        try:
+                            contents = json.loads(contents)
+                        except Exception:
+                            contents = {}
+                    if isinstance(contents, dict):
+                        bubbles = contents.get('contents', []) if contents.get('type') == 'carousel' else [contents]
+                        for b_idx, bubble in enumerate(bubbles):
+                            if not isinstance(bubble, dict):
+                                continue
+                            card_prefix = f"卡片 #{b_idx + 1}：" if contents.get('type') == 'carousel' else ""
+                            # 檢查圖片點擊動作
+                            hero = bubble.get('hero')
+                            if isinstance(hero, dict) and hero.get('action'):
+                                h_act = hero.get('action', {})
+                                if isinstance(h_act, dict):
+                                    h_type = h_act.get('type')
+                                    if h_type == 'uri':
+                                        uri = (h_act.get('uri') or '').strip()
+                                        if not uri or uri in ('http://', 'https://'):
+                                            errors.append(f"第 {idx + 1} 則圖文訊息 {card_prefix}圖片點擊連結不可為空白")
+                                    elif h_type in ('message', 'postback'):
+                                        val = (h_act.get('displayText') or h_act.get('text') or '').strip()
+                                        if not val:
+                                            errors.append(f"第 {idx + 1} 則圖文訊息 {card_prefix}圖片點擊回傳文字不可為空白")
+                            # 檢查按鈕
+                            footer = bubble.get('footer')
+                            if isinstance(footer, dict):
+                                footer_contents = footer.get('contents', [])
+                                if isinstance(footer_contents, list):
+                                    btn_num = 1
+                                    for c in footer_contents:
+                                        if isinstance(c, dict) and c.get('type') == 'button':
+                                            btn_act = c.get('action', {})
+                                            if isinstance(btn_act, dict):
+                                                label = (btn_act.get('label') or btn_act.get('text') or '').strip()
+                                                if not label:
+                                                    errors.append(f"第 {idx + 1} 則圖文訊息 {card_prefix}按鈕 #{btn_num} 名稱不可為空白")
+                                                b_type = btn_act.get('type')
+                                                if b_type == 'uri':
+                                                    uri = (btn_act.get('uri') or '').strip()
+                                                    if not uri or uri in ('http://', 'https://'):
+                                                        errors.append(f"第 {idx + 1} 則圖文訊息 {card_prefix}按鈕 #{btn_num} 連結不可為空白")
+                                                elif b_type in ('message', 'postback'):
+                                                    val = (btn_act.get('displayText') or btn_act.get('text') or '').strip()
+                                                    if not val and btn_act.get('data'):
+                                                        d = btn_act.get('data')
+                                                        if isinstance(d, str) and d.startswith('sys_bind|'):
+                                                            parts = d.split('|')
+                                                            if len(parts) >= 5:
+                                                                val = '|'.join(parts[4:]).strip()
+                                                    if not val:
+                                                        errors.append(f"第 {idx + 1} 則圖文訊息 {card_prefix}按鈕 #{btn_num} 的回傳文字不可為空白")
+                                            btn_num += 1
     
     # 3. check field Python syntax validation
     check_val = rule_data.get('check')

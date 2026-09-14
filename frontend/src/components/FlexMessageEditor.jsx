@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Plus, X, Image as ImageIcon, Link as LinkIcon, MessageSquare, Upload } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, X, Image as ImageIcon, Link as LinkIcon, MessageSquare, Upload, AlertCircle } from 'lucide-react';
 import api, { API_BASE_URL } from '../api';
 import JourneyPreview from './JourneyPreview';
 import TagInput from './TagInput';
@@ -23,11 +23,12 @@ const normalize = (obj) => {
     }
 };
 
-const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
+const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly, showFooter = false, onConfirm }) => {
     // Modes
     const [mode, setMode] = useState('single'); // 'single' | 'carousel'
     const [currentCardIndex, setCurrentCardIndex] = useState(0);
     const [appName, setAppName] = useState('');
+    const [validationError, setValidationError] = useState('');
     const [menus, setMenus] = useState([]);
     const [projects, setProjects] = useState([]);
 
@@ -151,9 +152,10 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
         }
     }, [initialContent]);
 
-    // 自動儲存邏輯
+    // 自動儲存邏輯 (在手動確認模式下不自動同步至外部，避免未驗證或半成品污染父層)
     useEffect(() => {
         if (!hasInitialized) return;
+        if (showFooter) return;
 
         const currentJson = generateJson();
         const incomingJson = typeof initialContent === 'string' ? JSON.parse(initialContent || '{}') : initialContent;
@@ -168,9 +170,14 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
             }
             // 儲存時同步更新 lastSavedJsonRef
             lastSavedJsonRef.current = normalizedCurrent;
-            onSave(JSON.stringify(currentJson));
+            if (onSave) onSave(JSON.stringify(currentJson));
         }
-    }, [cards, mode, hasInitialized]);
+    }, [cards, mode, hasInitialized, showFooter]);
+
+    // 當卡片內容或模式變更時，自動清除先前的驗證錯誤提示
+    useEffect(() => {
+        if (validationError) setValidationError('');
+    }, [cards, mode]);
 
     // Validation helper
     const validateCards = () => {
@@ -188,8 +195,11 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                     const btn = card.buttons[j];
                     const btnNum = j + 1;
                     if (!btn.text?.trim()) return `${cardPrefix}按鈕 #${btnNum} 文字不可為空白`;
-                    if (btn.action === 'uri' && !btn.value?.trim()) {
-                        return `${cardPrefix}按鈕 #${btnNum} 的連結連結 (URL) 不可為空白`;
+                    if (btn.action === 'uri') {
+                        const val = btn.value?.trim();
+                        if (!val || val === 'https://' || val === 'http://') {
+                            return `${cardPrefix}按鈕 #${btnNum} 的連結網址 (URL) 不可為空白`;
+                        }
                     }
                     if (btn.action === 'message' && !btn.value?.trim()) {
                         return `${cardPrefix}按鈕 #${btnNum} 的回傳文字不可為空白`;
@@ -198,9 +208,12 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
             } else {
                 // Image template
                 if (!card.imageUrl?.trim()) return `${cardPrefix}圖片網址不可為空白`;
-                if (card.imageAction.type !== 'none') {
-                    if (card.imageAction.type === 'uri' && !card.imageAction.value?.trim()) {
-                        return `${cardPrefix}圖片點擊的連結連結 (URL) 不可為空白`;
+                if (card.imageAction && card.imageAction.type !== 'none') {
+                    if (card.imageAction.type === 'uri') {
+                        const val = card.imageAction.value?.trim();
+                        if (!val || val === 'https://' || val === 'http://') {
+                            return `${cardPrefix}圖片點擊的連結網址 (URL) 不可為空白`;
+                        }
                     }
                     if (card.imageAction.type === 'message' && !card.imageAction.value?.trim()) {
                         return `${cardPrefix}圖片點擊的回傳文字不可為空白`;
@@ -209,6 +222,25 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
             }
         }
         return null;
+    };
+
+    const handleConfirm = () => {
+        const error = validateCards();
+        if (error) {
+            setValidationError(error);
+            return;
+        }
+        setValidationError('');
+        const currentJson = generateJson();
+        const jsonStr = JSON.stringify(currentJson);
+        if (onConfirm) {
+            onConfirm(jsonStr);
+        } else if (onSave) {
+            onSave(jsonStr);
+        }
+        if (onCancel) {
+            onCancel();
+        }
     };
 
     // Helper: Parse Bubble back to internal Card state
@@ -639,7 +671,7 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                     <div style={{ fontSize: '12px', color: '#888', display: 'flex', alignItems: 'center' }}>
                         {payloadSize > 9000 ? (
                             <span style={{ color: '#FF4D4D' }}>⚠️ Payload 接近上限</span>
-                        ) : <span>自動儲存中...</span>}
+                        ) : (showFooter ? null : <span>自動儲存中...</span>)}
                     </div>
                 </div>
             </div>
@@ -1004,6 +1036,71 @@ const FlexMessageEditor = ({ initialContent, onSave, onCancel, readOnly }) => {
                     </div>
                 </div>
             </div>
+
+            {/* Action Footer Bar */}
+            {showFooter && (
+                <div style={{
+                    padding: '14px 20px',
+                    borderTop: '1px solid #333',
+                    backgroundColor: '#1a1a1a',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexShrink: 0,
+                    zIndex: 10
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0, marginRight: '15px' }}>
+                        {validationError && (
+                            <span style={{ color: '#FF4D4D', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold' }}>
+                                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{validationError}</span>
+                            </span>
+                        )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexShrink: 0 }}>
+                        <button
+                            type="button"
+                            onClick={onCancel}
+                            style={{
+                                padding: '8px 20px',
+                                borderRadius: '6px',
+                                border: '1px solid #444',
+                                backgroundColor: '#2a2a2a',
+                                color: '#ccc',
+                                cursor: 'pointer',
+                                fontSize: '13px',
+                                transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#383838'}
+                            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#2a2a2a'}
+                        >
+                            取消
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleConfirm}
+                            style={{
+                                padding: '8px 22px',
+                                borderRadius: '6px',
+                                border: 'none',
+                                backgroundColor: 'var(--primary-yellow)',
+                                color: '#000',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                fontSize: '13px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
+                            onMouseLeave={e => e.currentTarget.style.filter = 'none'}
+                        >
+                            完成並儲存
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
