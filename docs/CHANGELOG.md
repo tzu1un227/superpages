@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## [2026-09-14] 關鍵字回覆圖文訊息防呆強化與儲存按鈕機制 (Issue #38)
+- **前端圖文訊息編輯器 (`frontend/src/components/FlexMessageEditor.jsx`)**:
+  - 新增 `showFooter` 與 `onConfirm` 屬性支援手動確認模式。手動模式下抑制背景 auto-save 即時向父層同步未驗證內容。
+  - 於彈窗底部固定新增操作列（「取消」與「完成並儲存」按鈕），並在左側即時呈現驗證錯誤提示橫幅 (`AlertCircle`)。
+  - 啟用並增強 `validateCards()` 防呆機制：嚴格檢查卡片圖片網址、選項型標題/說明文字、按鈕名稱、傳送訊息回傳文字、連結網址不得為空；若有任何欄位未填妥，即時報錯並阻擋關閉與儲存。
+- **關鍵字回覆頁面 (`frontend/src/pages/RuleDesigner.jsx`)**:
+  - 圖文訊息彈窗啟用手動確認模式 (`showFooter={true}`)，點擊「取消」或右上角 `X` 時不保留未確認的暫存修改，點擊「完成並儲存」通過防呆後才正式寫入訊息列表。
+  - 於外層回應訊息列表的 `handleSaveMsgModal` 中補齊 `FlexSendMessage` 的資料結構防呆檢驗，避免不完整 Flex 訊息被儲存至規則。
+- **後端規則驗證 (`backend/endpoints/rule_designer.py`)**:
+  - 在 `validate_rule` 函式中擴充對 `msg_rpy` 陣列內所有 `FlexSendMessage` 的深層檢驗，防止空的按鈕動作、連結或回傳文字寫入資料庫，徹底杜絕 LINE 送出空訊息錯誤。
+
 ## [2026-09-03] 訊息中心支援動態合併廣播與 Global_var 群發訊息 (bc_ 指標)
 - **訊息中心 (`backend/app.py` & `frontend/src/pages/MessageCenter.jsx`)**:
   - `get_user_history` (`/api/history/<user_id>`): 查詢擴展為同時檢索專屬對話、全體廣播 (`user_id = 'all'`) 與群發推播 (`user_id LIKE 'bc_%'`)。針對 `bc_` 指標記錄，自動查詢 `Global_var` 取得受眾清單並進行記憶體快取比對（`set`），當該使用者命中群發名單時動態合併呈現為官方帳號訊息，精準呈現在對話時間軸中。

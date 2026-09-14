@@ -281,6 +281,21 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 ### 4.9 對話問卷時區處理規範 (2026-09-02 新增)
 - **台灣時區 (UTC+8) 強制綁定**：在 `backend/endpoints/questionnaire.py` 中，將前端傳入的無時區時間字串轉換為 Unix Timestamp (`sys.now()` 比對條件) 時，強制綁定台灣時區 `UTC+8` (`timezone(timedelta(hours=8))`)。避免因伺服器預設為 UTC 時區導致轉出的 Timestamp 延遲 8 小時（28,800 秒）。反向解析回前端時間選擇器時亦統一使用 `tz=TW_TZ`，確保起訖時間精確對齊台灣時間。
 
+## 13. 關鍵字回覆圖文訊息 (Flex Message) 編輯與防禦機制 (2026-09-14 新增，Issue #38)
+- **手動確認與防呆攔截模式 (Manual Confirmation Mode)**：
+  - `FlexMessageEditor` 支援 `showFooter={true}` 與 `onConfirm` 回呼。在手動確認模式下，抑制背景自動儲存 (`auto-save`) 對父層狀態的覆蓋，防止未填寫完成的暫存資料污染父元件的 `msgRpyList`。
+  - 彈窗底部固定提供「取消」與「完成並儲存」操作欄，並實作即時錯誤提示橫幅 (`validationError`)。
+  - 點擊「完成並儲存」時強制執行 `validateCards()` 嚴格校驗：
+    - 選項型模板：檢驗圖片網址、標題、說明文字不能為空白；按鈕名稱不可為空白；連結動作之網址不可為空白；傳送訊息動作之回傳文字不可為空白。
+    - 圖片型模板：檢驗圖片網址不能為空白；圖片點擊動作若非無動作，其連結或回傳文字不可為空白。
+    - 若有任何欄位未通過校驗，即時顯示警告訊息並阻擋關閉與儲存。
+  - 點擊「取消」或彈窗右上角 `X` 關閉時，放棄未確認之修改並還原為開啟前的狀態，徹底杜絕半成品寫入。
+- **訊息清單外層防呆 (Defense-in-Depth in Message Modal)**：
+  - 在 `RuleDesigner.jsx` 的 `handleSaveMsgModal`（編輯回應訊息彈窗之確認並儲存）中，補齊對 `FlexSendMessage` 的資料結構遍歷檢查。若存在任何按鈕未設定名稱或回傳文字/網址為空，直接阻擋儲存並彈出 Toast 提示，防範舊資料或異常狀態繞過。
+- **後端規則儲存防呆校驗 (`validate_rule`)**：
+  - 在 `backend/endpoints/rule_designer.py` 的 `validate_rule` 函式中，深入解析 `msg_rpy` 陣列中所有 `FlexSendMessage` 的 bubble 與 carousel 內容，對圖片點擊動作 (`hero.action`) 與按鈕動作 (`footer.contents[].action`) 進行全面檢驗，嚴格禁止空的 `displayText`、`data` 或 `uri`，杜絕送出空訊息與 LINE 400 Bad Request 錯誤。
+
+
 
 
 

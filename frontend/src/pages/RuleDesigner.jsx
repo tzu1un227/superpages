@@ -630,6 +630,68 @@ function RuleDesigner() {
                     showToast('圖片訊息網址不能為空白', 'error');
                     return;
                 }
+            } else if (msg.OTYPE === 'FlexSendMessage') {
+                const contents = msg.contents;
+                if (!contents) {
+                    showToast(`第 ${i + 1} 則圖文訊息內容不能為空白`, 'error');
+                    return;
+                }
+                let parsedContents = contents;
+                if (typeof contents === 'string') {
+                    try {
+                        parsedContents = JSON.parse(contents);
+                    } catch (e) {
+                        showToast(`第 ${i + 1} 則圖文訊息格式無效`, 'error');
+                        return;
+                    }
+                }
+                const bubbles = parsedContents.type === 'carousel' ? (parsedContents.contents || []) : [parsedContents];
+                if (bubbles.length === 0) {
+                    showToast(`第 ${i + 1} 則圖文訊息必須包含至少一張卡片`, 'error');
+                    return;
+                }
+                for (let j = 0; j < bubbles.length; j++) {
+                    const bubble = bubbles[j];
+                    if (!bubble) continue;
+                    const cardNum = j + 1;
+                    const cardPrefix = parsedContents.type === 'carousel' ? `卡片 #${cardNum}: ` : '';
+
+                    if (bubble.hero?.action) {
+                        const action = bubble.hero.action;
+                        const val = (action.displayText || action.text || action.uri || '').trim();
+                        if (!val || val === 'https://' || val === 'http://') {
+                            const typeLabel = action.type === 'uri' ? '連結網址' : '回傳文字';
+                            showToast(`第 ${i + 1} 則圖文訊息 ${cardPrefix}圖片點擊的${typeLabel}不能為空白`, 'error');
+                            return;
+                        }
+                    }
+
+                    const footerContents = bubble.footer?.contents || [];
+                    const buttons = footerContents.filter(c => c && c.type === 'button');
+                    for (let k = 0; k < buttons.length; k++) {
+                        const btn = buttons[k];
+                        const label = (btn.action?.label || btn.action?.text || '').trim();
+                        if (!label) {
+                            showToast(`第 ${i + 1} 則圖文訊息 ${cardPrefix}按鈕 #${k + 1} 的名稱不能為空白`, 'error');
+                            return;
+                        }
+                        let val = (btn.action?.displayText || btn.action?.text || btn.action?.uri || '').trim();
+                        if (!val && btn.action?.data) {
+                            const d = btn.action.data;
+                            if (typeof d === 'string' && d.startsWith('sys_bind|')) {
+                                const parts = d.split('|');
+                                if (parts.length >= 5) val = parts.slice(4).join('|').trim();
+                            } else {
+                                val = d.trim();
+                            }
+                        }
+                        if (!val || val === 'https://' || val === 'http://') {
+                            const typeLabel = btn.action?.type === 'uri' ? '連結網址' : '回傳文字';
+                            showToast(`第 ${i + 1} 則圖文訊息 ${cardPrefix}按鈕 #${k + 1} 的${typeLabel}不能為空白`, 'error');
+                            return;
+                        }
+                    }
+                }
             }
         }
         
@@ -1589,13 +1651,16 @@ function RuleDesigner() {
                         <button 
                             onClick={() => setShowFlexEditor(false)}
                             style={{ position: 'absolute', top: '15px', right: '15px', background: '#333', border: 'none', color: '#fff', borderRadius: '50%', padding: '8px', cursor: 'pointer', zIndex: 10 }}
+                            title="取消並關閉"
                         >
                             <X size={20} />
                         </button>
                         <FlexMessageEditor 
                             initialContent={msgRpyList[flexEditorIndex]?.contents || msgRpyList[flexEditorIndex]?.Line?.contents}
-                            onSave={(json) => {
+                            showFooter={true}
+                            onConfirm={(json) => {
                                 handleUpdateMessage(flexEditorIndex, 'contents', typeof json === 'string' ? JSON.parse(json) : json);
+                                setShowFlexEditor(false);
                             }}
                             onCancel={() => setShowFlexEditor(false)}
                             sourceContext={{
