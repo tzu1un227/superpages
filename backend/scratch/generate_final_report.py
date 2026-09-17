@@ -1,4 +1,42 @@
-<!DOCTYPE html>
+import json
+import os
+
+def generate_report():
+    with open('backend/scratch/stress_results.json', 'r', encoding='utf-8') as f:
+        stress_data = json.load(f)
+
+    # Build stress test table rows
+    stress_rows = []
+    for item in stress_data:
+        concurrency = item.get('concurrency', 0)
+        qps = item.get('qps', 0)
+        avg = item.get('avg_ms', 0)
+        p50 = item.get('p50_ms', 0)
+        p90 = item.get('p90_ms', 0)
+        p99 = item.get('p99_ms', 0)
+        total = item.get('total_requests', 0)
+        success = item.get('success_count', 0)
+        fail = item.get('fail_count', 0)
+        rate = (success / total * 100) if total > 0 else 100
+        rate_badge = f"<span class='badge badge-success'>{rate:.1f}%</span>" if fail == 0 else f"<span class='badge badge-warning'>{rate:.1f}%</span>"
+        
+        stress_rows.append(f"""
+        <tr>
+            <td><strong>{item.get('name')}</strong><br><code style="font-size: 0.75rem; color: #94a3b8;">{item.get('endpoint')}</code></td>
+            <td style="text-align: center;"><span class="badge badge-info">{concurrency}</span></td>
+            <td style="text-align: right; font-weight: bold; color: #38bdf8;">{qps:.1f} req/s</td>
+            <td style="text-align: right;">{avg:.1f} ms</td>
+            <td style="text-align: right; color: #34d399;">{p50:.1f} ms</td>
+            <td style="text-align: right;">{p90:.1f} ms</td>
+            <td style="text-align: right; color: #fbbf24;">{p99:.1f} ms</td>
+            <td style="text-align: center;">{rate_badge} ({success}/{total})</td>
+        </tr>
+        """)
+
+    stress_table_body = "\n".join(stress_rows)
+
+    # Read base template if exists or construct full html
+    html_content = f"""<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -8,7 +46,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
     <style>
-        :root {
+        :root {{
             --bg-primary: #0f172a;
             --bg-secondary: #1e293b;
             --bg-card: #1e293b;
@@ -29,38 +67,38 @@
             --purple: #a855f7;
             --font-main: 'Plus Jakarta Sans', 'Noto Sans TC', sans-serif;
             --font-mono: 'JetBrains Mono', monospace;
-        }
+        }}
 
-        * {
+        * {{
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-        }
+        }}
 
-        body {
+        body {{
             font-family: var(--font-main);
             background-color: var(--bg-primary);
             color: var(--text-main);
             line-height: 1.6;
             padding-bottom: 80px;
-        }
+        }}
 
-        .container {
+        .container {{
             max-width: 1400px;
             margin: 0 auto;
             padding: 0 24px;
-        }
+        }}
 
         /* Header Banner */
-        .header-banner {
+        .header-banner {{
             background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 50%, #082f49 100%);
             border-bottom: 1px solid var(--border-color);
             padding: 50px 0 40px;
             position: relative;
             overflow: hidden;
-        }
+        }}
 
-        .header-banner::after {
+        .header-banner::after {{
             content: '';
             position: absolute;
             top: -50%;
@@ -69,17 +107,17 @@
             height: 600px;
             background: radial-gradient(circle, rgba(99, 102, 241, 0.18) 0%, rgba(15, 23, 42, 0) 70%);
             pointer-events: none;
-        }
+        }}
 
-        .header-meta {
+        .header-meta {{
             display: flex;
             gap: 12px;
             align-items: center;
             margin-bottom: 16px;
             flex-wrap: wrap;
-        }
+        }}
 
-        .badge {
+        .badge {{
             display: inline-flex;
             align-items: center;
             gap: 6px;
@@ -89,15 +127,15 @@
             font-weight: 700;
             letter-spacing: 0.5px;
             text-transform: uppercase;
-        }
+        }}
 
-        .badge-critical { background: rgba(220, 38, 38, 0.2); color: #f87171; border: 1px solid rgba(220, 38, 38, 0.4); }
-        .badge-warning { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
-        .badge-success { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
-        .badge-info { background: rgba(56, 189, 248, 0.2); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.4); }
-        .badge-purple { background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); }
+        .badge-critical {{ background: rgba(220, 38, 38, 0.2); color: #f87171; border: 1px solid rgba(220, 38, 38, 0.4); }}
+        .badge-warning {{ background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }}
+        .badge-success {{ background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }}
+        .badge-info {{ background: rgba(56, 189, 248, 0.2); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.4); }}
+        .badge-purple {{ background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); }}
 
-        h1.report-title {
+        h1.report-title {{
             font-size: 2.3rem;
             font-weight: 800;
             letter-spacing: -0.5px;
@@ -105,25 +143,25 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 12px;
-        }
+        }}
 
-        p.report-subtitle {
+        p.report-subtitle {{
             font-size: 1.05rem;
             color: var(--text-muted);
             max-width: 950px;
-        }
+        }}
 
         /* Navigation Pills */
-        .nav-tabs {
+        .nav-tabs {{
             display: flex;
             gap: 12px;
             margin: 30px 0 40px;
             border-bottom: 1px solid var(--border-color);
             padding-bottom: 16px;
             overflow-x: auto;
-        }
+        }}
 
-        .nav-tab {
+        .nav-tab {{
             padding: 8px 18px;
             border-radius: 8px;
             font-size: 0.9rem;
@@ -134,30 +172,30 @@
             text-decoration: none;
             transition: all 0.2s ease;
             white-space: nowrap;
-        }
+        }}
 
-        .nav-tab:hover {
+        .nav-tab:hover {{
             color: var(--text-main);
             background: var(--border-color);
             border-color: var(--border-light);
-        }
+        }}
 
-        .nav-tab.active {
+        .nav-tab.active {{
             background: var(--primary);
             color: #ffffff;
             border-color: var(--primary-light);
             box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-        }
+        }}
 
         /* Stats Grid */
-        .stats-grid {
+        .stats-grid {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
             gap: 20px;
             margin-bottom: 40px;
-        }
+        }}
 
-        .stat-card {
+        .stat-card {{
             background: var(--bg-card);
             border: 1px solid var(--border-color);
             border-radius: 14px;
@@ -166,63 +204,63 @@
             overflow: hidden;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
             transition: transform 0.2s ease;
-        }
+        }}
 
-        .stat-card:hover {
+        .stat-card:hover {{
             transform: translateY(-3px);
             border-color: var(--border-light);
-        }
+        }}
 
-        .stat-card::before {
+        .stat-card::before {{
             content: '';
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
             height: 4px;
-        }
+        }}
 
-        .stat-card.critical::before { background: var(--critical); }
-        .stat-card.warning::before { background: var(--warning); }
-        .stat-card.success::before { background: var(--success); }
-        .stat-card.info::before { background: var(--accent); }
-        .stat-card.purple::before { background: var(--purple); }
+        .stat-card.critical::before {{ background: var(--critical); }}
+        .stat-card.warning::before {{ background: var(--warning); }}
+        .stat-card.success::before {{ background: var(--success); }}
+        .stat-card.info::before {{ background: var(--accent); }}
+        .stat-card.purple::before {{ background: var(--purple); }}
 
-        .stat-title {
+        .stat-title {{
             font-size: 0.85rem;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.5px;
             font-weight: 700;
             margin-bottom: 8px;
-        }
+        }}
 
-        .stat-value {
+        .stat-value {{
             font-size: 2.2rem;
             font-weight: 800;
             color: var(--text-main);
             line-height: 1;
             margin-bottom: 8px;
-        }
+        }}
 
-        .stat-desc {
+        .stat-desc {{
             font-size: 0.85rem;
             color: var(--text-muted);
-        }
+        }}
 
         /* Section Layout */
-        section {
+        section {{
             margin-bottom: 50px;
-        }
+        }}
 
-        .section-header {
+        .section-header {{
             display: flex;
             align-items: center;
             gap: 12px;
             margin-bottom: 24px;
-        }
+        }}
 
-        .section-number {
+        .section-number {{
             display: flex;
             align-items: center;
             justify-content: center;
@@ -233,25 +271,25 @@
             color: #fff;
             font-weight: 800;
             font-size: 0.95rem;
-        }
+        }}
 
-        .section-title {
+        .section-title {{
             font-size: 1.5rem;
             font-weight: 700;
             color: var(--text-main);
-        }
+        }}
 
         /* Content Card */
-        .content-card {
+        .content-card {{
             background: var(--bg-card);
             border: 1px solid var(--border-color);
             border-radius: 14px;
             padding: 28px;
             margin-bottom: 24px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
-        }
+        }}
 
-        .card-title {
+        .card-title {{
             font-size: 1.2rem;
             font-weight: 700;
             color: var(--text-main);
@@ -259,23 +297,23 @@
             display: flex;
             align-items: center;
             gap: 10px;
-        }
+        }}
 
         /* Table Styling */
-        .table-container {
+        .table-container {{
             overflow-x: auto;
             border: 1px solid var(--border-color);
             border-radius: 10px;
-        }
+        }}
 
-        table {
+        table {{
             width: 100%;
             border-collapse: collapse;
             font-size: 0.9rem;
             text-align: left;
-        }
+        }}
 
-        th {
+        th {{
             background: var(--bg-card-alt);
             color: var(--text-muted);
             font-weight: 700;
@@ -284,24 +322,24 @@
             text-transform: uppercase;
             font-size: 0.78rem;
             letter-spacing: 0.5px;
-        }
+        }}
 
-        td {
+        td {{
             padding: 14px 16px;
             border-bottom: 1px solid var(--border-color);
             color: var(--text-main);
             vertical-align: middle;
-        }
+        }}
 
-        tr:last-child td {
+        tr:last-child td {{
             border-bottom: none;
-        }
+        }}
 
-        tr:hover td {
+        tr:hover td {{
             background: rgba(255, 255, 255, 0.02);
-        }
+        }}
 
-        code {
+        code {{
             font-family: var(--font-mono);
             background: rgba(0, 0, 0, 0.4);
             padding: 2px 6px;
@@ -309,9 +347,9 @@
             font-size: 0.85em;
             color: #38bdf8;
             border: 1px solid rgba(255, 255, 255, 0.05);
-        }
+        }}
 
-        pre {
+        pre {{
             background: #090d16;
             border: 1px solid var(--border-color);
             border-radius: 8px;
@@ -322,16 +360,16 @@
             color: #e2e8f0;
             line-height: 1.5;
             margin-top: 10px;
-        }
+        }}
 
         /* Module Grid */
-        .module-grid {
+        .module-grid {{
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
             gap: 20px;
-        }
+        }}
 
-        .module-card {
+        .module-card {{
             background: var(--bg-card-alt);
             border: 1px solid var(--border-color);
             border-radius: 10px;
@@ -339,9 +377,9 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-        }
+        }}
 
-        .module-card h4 {
+        .module-card h4 {{
             font-size: 1.05rem;
             font-weight: 700;
             color: var(--text-main);
@@ -349,39 +387,39 @@
             display: flex;
             align-items: center;
             gap: 8px;
-        }
+        }}
 
-        .module-card p {
+        .module-card p {{
             font-size: 0.85rem;
             color: var(--text-muted);
             margin-bottom: 14px;
             line-height: 1.5;
-        }
+        }}
 
-        .module-tags {
+        .module-tags {{
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
-        }
+        }}
 
-        .module-tag {
+        .module-tag {{
             font-size: 0.72rem;
             padding: 2px 8px;
             border-radius: 4px;
             background: rgba(255, 255, 255, 0.05);
             color: var(--text-muted);
             font-family: var(--font-mono);
-        }
+        }}
 
         /* Roadmap List */
-        .roadmap-item {
+        .roadmap-item {{
             display: flex;
             gap: 20px;
             margin-bottom: 24px;
             position: relative;
-        }
+        }}
 
-        .roadmap-item:not(:last-child)::after {
+        .roadmap-item:not(:last-child)::after {{
             content: '';
             position: absolute;
             top: 40px;
@@ -389,9 +427,9 @@
             bottom: -15px;
             width: 2px;
             background: var(--border-color);
-        }
+        }}
 
-        .roadmap-dot {
+        .roadmap-dot {{
             width: 36px;
             height: 36px;
             border-radius: 50%;
@@ -402,50 +440,50 @@
             font-size: 0.85rem;
             flex-shrink: 0;
             z-index: 1;
-        }
+        }}
 
-        .dot-p0 { background: rgba(220, 38, 38, 0.2); color: #f87171; border: 2px solid #ef4444; }
-        .dot-p1 { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 2px solid #f59e0b; }
-        .dot-p2 { background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 2px solid #38bdf8; }
-        .dot-done { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 2px solid #10b981; }
+        .dot-p0 {{ background: rgba(220, 38, 38, 0.2); color: #f87171; border: 2px solid #ef4444; }}
+        .dot-p1 {{ background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 2px solid #f59e0b; }}
+        .dot-p2 {{ background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 2px solid #38bdf8; }}
+        .dot-done {{ background: rgba(16, 185, 129, 0.2); color: #34d399; border: 2px solid #10b981; }}
 
-        .roadmap-body {
+        .roadmap-body {{
             background: var(--bg-card-alt);
             border: 1px solid var(--border-color);
             border-radius: 10px;
             padding: 20px;
             flex-grow: 1;
-        }
+        }}
 
-        .roadmap-title {
+        .roadmap-title {{
             font-size: 1.1rem;
             font-weight: 700;
             margin-bottom: 6px;
-        }
+        }}
 
-        .solution-box {
+        .solution-box {{
             background: rgba(16, 185, 129, 0.08);
             border-left: 4px solid var(--success);
             padding: 14px 16px;
             border-radius: 0 8px 8px 0;
             margin-top: 12px;
-        }
+        }}
 
-        .solution-box-title {
+        .solution-box-title {{
             font-size: 0.9rem;
             font-weight: 700;
             color: #34d399;
             margin-bottom: 6px;
-        }
+        }}
 
         /* Footer */
-        .footer {
+        .footer {{
             text-align: center;
             padding-top: 40px;
             border-top: 1px solid var(--border-color);
             color: var(--text-muted);
             font-size: 0.85rem;
-        }
+        }}
     </style>
 </head>
 <body>
@@ -894,138 +932,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            
-        <tr>
-            <td><strong>旅程列表 (Projects)</strong><br><code style="font-size: 0.75rem; color: #94a3b8;">/api/projects</code></td>
-            <td style="text-align: center;"><span class="badge badge-info">5</span></td>
-            <td style="text-align: right; font-weight: bold; color: #38bdf8;">38.9 req/s</td>
-            <td style="text-align: right;">127.4 ms</td>
-            <td style="text-align: right; color: #34d399;">138.2 ms</td>
-            <td style="text-align: right;">168.2 ms</td>
-            <td style="text-align: right; color: #fbbf24;">239.4 ms</td>
-            <td style="text-align: center;"><span class='badge badge-success'>100.0%</span> (316/316)</td>
-        </tr>
-        
-
-        <tr>
-            <td><strong>旅程列表 (Projects)</strong><br><code style="font-size: 0.75rem; color: #94a3b8;">/api/projects</code></td>
-            <td style="text-align: center;"><span class="badge badge-info">15</span></td>
-            <td style="text-align: right; font-weight: bold; color: #38bdf8;">58.5 req/s</td>
-            <td style="text-align: right;">251.4 ms</td>
-            <td style="text-align: right; color: #34d399;">251.3 ms</td>
-            <td style="text-align: right;">274.5 ms</td>
-            <td style="text-align: right; color: #fbbf24;">295.7 ms</td>
-            <td style="text-align: center;"><span class='badge badge-success'>100.0%</span> (485/485)</td>
-        </tr>
-        
-
-        <tr>
-            <td><strong>旅程列表 (Projects)</strong><br><code style="font-size: 0.75rem; color: #94a3b8;">/api/projects</code></td>
-            <td style="text-align: center;"><span class="badge badge-info">30</span></td>
-            <td style="text-align: right; font-weight: bold; color: #38bdf8;">57.6 req/s</td>
-            <td style="text-align: right;">505.8 ms</td>
-            <td style="text-align: right; color: #34d399;">515.1 ms</td>
-            <td style="text-align: right;">540.1 ms</td>
-            <td style="text-align: right; color: #fbbf24;">574.4 ms</td>
-            <td style="text-align: center;"><span class='badge badge-success'>100.0%</span> (489/489)</td>
-        </tr>
-        
-
-        <tr>
-            <td><strong>旅程列表 (Projects)</strong><br><code style="font-size: 0.75rem; color: #94a3b8;">/api/projects</code></td>
-            <td style="text-align: center;"><span class="badge badge-info">50</span></td>
-            <td style="text-align: right; font-weight: bold; color: #38bdf8;">56.0 req/s</td>
-            <td style="text-align: right;">848.7 ms</td>
-            <td style="text-align: right; color: #34d399;">880.9 ms</td>
-            <td style="text-align: right;">943.0 ms</td>
-            <td style="text-align: right; color: #fbbf24;">964.7 ms</td>
-            <td style="text-align: center;"><span class='badge badge-success'>100.0%</span> (496/496)</td>
-        </tr>
-        
-
-        <tr>
-            <td><strong>旅程列表 (Projects)</strong><br><code style="font-size: 0.75rem; color: #94a3b8;">/api/projects</code></td>
-            <td style="text-align: center;"><span class="badge badge-info">80</span></td>
-            <td style="text-align: right; font-weight: bold; color: #38bdf8;">58.5 req/s</td>
-            <td style="text-align: right;">1266.7 ms</td>
-            <td style="text-align: right; color: #34d399;">1342.2 ms</td>
-            <td style="text-align: right;">1403.6 ms</td>
-            <td style="text-align: right; color: #fbbf24;">1547.7 ms</td>
-            <td style="text-align: center;"><span class='badge badge-success'>100.0%</span> (545/545)</td>
-        </tr>
-        
-
-        <tr>
-            <td><strong>客戶列表 (Customers 50)</strong><br><code style="font-size: 0.75rem; color: #94a3b8;">/api/customers?limit=50</code></td>
-            <td style="text-align: center;"><span class="badge badge-info">10</span></td>
-            <td style="text-align: right; font-weight: bold; color: #38bdf8;">57.0 req/s</td>
-            <td style="text-align: right;">173.7 ms</td>
-            <td style="text-align: right; color: #34d399;">161.8 ms</td>
-            <td style="text-align: right;">209.5 ms</td>
-            <td style="text-align: right; color: #fbbf24;">409.0 ms</td>
-            <td style="text-align: center;"><span class='badge badge-success'>100.0%</span> (464/464)</td>
-        </tr>
-        
-
-        <tr>
-            <td><strong>客戶列表 (Customers 50)</strong><br><code style="font-size: 0.75rem; color: #94a3b8;">/api/customers?limit=50</code></td>
-            <td style="text-align: center;"><span class="badge badge-info">30</span></td>
-            <td style="text-align: right; font-weight: bold; color: #38bdf8;">59.5 req/s</td>
-            <td style="text-align: right;">489.1 ms</td>
-            <td style="text-align: right; color: #34d399;">491.1 ms</td>
-            <td style="text-align: right;">549.0 ms</td>
-            <td style="text-align: right; color: #fbbf24;">728.9 ms</td>
-            <td style="text-align: center;"><span class='badge badge-success'>100.0%</span> (505/505)</td>
-        </tr>
-        
-
-        <tr>
-            <td><strong>客戶列表 (Customers 50)</strong><br><code style="font-size: 0.75rem; color: #94a3b8;">/api/customers?limit=50</code></td>
-            <td style="text-align: center;"><span class="badge badge-info">60</span></td>
-            <td style="text-align: right; font-weight: bold; color: #38bdf8;">59.2 req/s</td>
-            <td style="text-align: right;">956.2 ms</td>
-            <td style="text-align: right; color: #34d399;">994.6 ms</td>
-            <td style="text-align: right;">1061.2 ms</td>
-            <td style="text-align: right; color: #fbbf24;">1217.4 ms</td>
-            <td style="text-align: center;"><span class='badge badge-success'>100.0%</span> (525/525)</td>
-        </tr>
-        
-
-        <tr>
-            <td><strong>關鍵字統計 (Keywords Stats)</strong><br><code style="font-size: 0.75rem; color: #94a3b8;">/api/statistics/keywords</code></td>
-            <td style="text-align: center;"><span class="badge badge-info">5</span></td>
-            <td style="text-align: right; font-weight: bold; color: #38bdf8;">36.0 req/s</td>
-            <td style="text-align: right;">138.0 ms</td>
-            <td style="text-align: right; color: #34d399;">144.9 ms</td>
-            <td style="text-align: right;">190.2 ms</td>
-            <td style="text-align: right; color: #fbbf24;">263.8 ms</td>
-            <td style="text-align: center;"><span class='badge badge-success'>100.0%</span> (292/292)</td>
-        </tr>
-        
-
-        <tr>
-            <td><strong>關鍵字統計 (Keywords Stats)</strong><br><code style="font-size: 0.75rem; color: #94a3b8;">/api/statistics/keywords</code></td>
-            <td style="text-align: center;"><span class="badge badge-info">15</span></td>
-            <td style="text-align: right; font-weight: bold; color: #38bdf8;">57.4 req/s</td>
-            <td style="text-align: right;">256.6 ms</td>
-            <td style="text-align: right; color: #34d399;">254.3 ms</td>
-            <td style="text-align: right;">291.3 ms</td>
-            <td style="text-align: right; color: #fbbf24;">340.6 ms</td>
-            <td style="text-align: center;"><span class='badge badge-success'>100.0%</span> (474/474)</td>
-        </tr>
-        
-
-        <tr>
-            <td><strong>關鍵字統計 (Keywords Stats)</strong><br><code style="font-size: 0.75rem; color: #94a3b8;">/api/statistics/keywords</code></td>
-            <td style="text-align: center;"><span class="badge badge-info">30</span></td>
-            <td style="text-align: right; font-weight: bold; color: #38bdf8;">57.4 req/s</td>
-            <td style="text-align: right;">505.9 ms</td>
-            <td style="text-align: right; color: #34d399;">515.8 ms</td>
-            <td style="text-align: right;">550.1 ms</td>
-            <td style="text-align: right; color: #fbbf24;">583.2 ms</td>
-            <td style="text-align: center;"><span class='badge badge-success'>100.0%</span> (487/487)</td>
-        </tr>
-        
+                            {stress_table_body}
                         </tbody>
                     </table>
                 </div>
@@ -1124,7 +1031,7 @@
                         <h4 style="color: var(--accent); font-size: 1.1rem; margin-bottom: 8px;">⏱️ 時間維度 (響應延遲與查詢優化)</h4>
                         <ul style="color: var(--text-muted); font-size: 0.88rem; line-height: 1.7; padding-left: 20px;">
                             <li><strong>已具備優秀機制</strong>：圖文選單採用「前端 Blob URL + 後端記憶體」雙層快取，選單切換響應達 0ms。</li>
-                            <li><strong>推薦優化點</strong>：<code>/api/history/&lt;user_id&gt;</code> 在對話筆數達數萬筆時，對 <code>history:{app_id}</code> 的 <code>(user_id, timestamp DESC)</code> 複合索引可將檢索耗時由數百毫秒壓低至 5ms 內。</li>
+                            <li><strong>推薦優化點</strong>：<code>/api/history/&lt;user_id&gt;</code> 在對話筆數達數萬筆時，對 <code>history:{{app_id}}</code> 的 <code>(user_id, timestamp DESC)</code> 複合索引可將檢索耗時由數百毫秒壓低至 5ms 內。</li>
                         </ul>
                     </div>
 
@@ -1157,3 +1064,21 @@
 
 </body>
 </html>
+"""
+
+    # Write to target locations
+    target_desktop = r'C:\Users\70640\Desktop\html報告\Superpages_System_Audit_Report.html'
+    target_docs = r'c:\Users\70640\Documents\GitHub\superpages\docs\Superpages_System_Audit_Report.html'
+
+    os.makedirs(os.path.dirname(target_desktop), exist_ok=True)
+    with open(target_desktop, 'w', encoding='utf-8') as f:
+        f.write(html_content)
+    print("Written to Desktop:", target_desktop)
+
+    os.makedirs(os.path.dirname(target_docs), exist_ok=True)
+    with open(target_docs, 'w', encoding='utf-8') as f:
+        f.write(html_content)
+    print("Written to Docs:", target_docs)
+
+if __name__ == '__main__':
+    generate_report()
