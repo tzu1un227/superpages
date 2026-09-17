@@ -15,6 +15,7 @@ questionnaire_bp = Blueprint("questionnaire", __name__)
 
 
 from db_utils import get_db_connection
+from auth import token_required
 
 
 def get_app_id():
@@ -635,6 +636,7 @@ def build_questionnaire_direct(data, app_id, conn, quest_id):
 
 
 @questionnaire_bp.route("/groups", methods=["GET"], strict_slashes=False)
+@token_required
 def list_questionnaire_groups():
     conn = None
     try:
@@ -662,6 +664,7 @@ def list_questionnaire_groups():
 
 
 @questionnaire_bp.route("/groups", methods=["POST"], strict_slashes=False)
+@token_required
 @syslog_action('QUESTIONNAIRE_GROUP_CREATE')
 def create_questionnaire_group():
     data = request.get_json() or {}
@@ -694,6 +697,7 @@ def create_questionnaire_group():
 
 
 @questionnaire_bp.route("/groups/<int:group_id>", methods=["DELETE"], strict_slashes=False)
+@token_required
 @syslog_action('QUESTIONNAIRE_GROUP_DELETE')
 def delete_questionnaire_group(group_id):
     conn = None
@@ -722,6 +726,7 @@ def delete_questionnaire_group(group_id):
 
 
 @questionnaire_bp.route("/list", methods=["GET"], strict_slashes=False)
+@token_required
 def list_questionnaires():
     conn = None
     try:
@@ -776,6 +781,7 @@ def list_questionnaires():
 
 
 @questionnaire_bp.route("/detail/<note>", methods=["GET"], strict_slashes=False)
+@token_required
 def get_questionnaire_detail(note):
     conn = None
     try:
@@ -835,6 +841,7 @@ def get_questionnaire_detail(note):
 
 
 @questionnaire_bp.route("/responses/<note>", methods=["GET"], strict_slashes=False)
+@token_required
 def get_questionnaire_responses(note):
     conn = None
     try:
@@ -914,6 +921,7 @@ def get_questionnaire_responses(note):
 
 
 @questionnaire_bp.route("/build", methods=["POST"], strict_slashes=False)
+@token_required
 @syslog_action('QUESTIONNAIRE_BUILD')
 def build_questionnaire():
     data = request.get_json()
@@ -981,6 +989,7 @@ def build_questionnaire():
 
 
 @questionnaire_bp.route("/<note>", methods=["DELETE"], strict_slashes=False)
+@token_required
 @syslog_action('QUESTIONNAIRE_DELETE')
 def delete_questionnaire(note):
     conn = None

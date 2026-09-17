@@ -9,6 +9,7 @@ import re
 rule_designer_bp = Blueprint('rule_designer', __name__)
 
 from db_utils import get_db_connection
+from auth import token_required
 
 def get_app_id():
     if hasattr(g, 'current_app_name') and g.current_app_name:
@@ -241,6 +242,7 @@ def validate_rule_fields(rule_data, bank_type, design_mode='engineering'):
     return errors
 
 @rule_designer_bp.route('/validate-syntax', methods=['POST'])
+@token_required
 def validate_syntax():
     """Validate Python syntax for check/function fields."""
     data = request.json
@@ -253,6 +255,7 @@ def validate_syntax():
     return jsonify({'valid': True, 'errors': []})
 
 @rule_designer_bp.route('/rules', methods=['GET'])
+@token_required
 def list_rules():
     """List rules from both Q_bank and QA_bank."""
     bank_type = request.args.get('type', 'q_bank') # 'q_bank' or 'qa_bank'
@@ -294,6 +297,7 @@ def list_rules():
             conn.close()
 
 @rule_designer_bp.route('/rules', methods=['POST'])
+@token_required
 @syslog_action('RULE_CREATE')
 def create_rule():
     data = request.json
@@ -325,9 +329,11 @@ def create_rule():
         else:
             table_name = f"QA_bank:{app_id}"
         
-        # Get actual columns to filter out invalid fields (like 'note' if missing)
-        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = %s", (table_name,))
-        existing_cols = [r['column_name'] for r in cur.fetchall()]
+        # Get actual columns and types to filter out invalid fields and adapt types
+        cur.execute("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = %s", (table_name,))
+        col_rows = cur.fetchall()
+        col_info = {r['column_name']: (r.get('data_type') or '') for r in col_rows}
+        existing_cols = set(col_info.keys())
         
         fields = []
         placeholders = []
@@ -341,15 +347,18 @@ def create_rule():
                 continue
             
             fields.append(f"\"{key}\"")
+            col_type = col_info.get(key, '')
+            is_array_col = ('ARRAY' in col_type.upper() or col_type == 'ARRAY')
+            
+            if is_array_col and not isinstance(value, list):
+                value = [value] if value is not None else []
+            elif not is_array_col and isinstance(value, list):
+                value = value[0] if len(value) > 0 else ''
             
             # Special handling for arrays and JSON
-            if isinstance(value, list):
-                if key == 'msg_rpy':
-                    placeholders.append("%s::json[]")
-                    values.append(format_msg_rpy_list(value))
-                else:
-                    placeholders.append("%s")
-                    values.append(value)
+            if key == 'msg_rpy':
+                placeholders.append("%s::json[]")
+                values.append(format_msg_rpy_list(value))
             else:
                 placeholders.append("%s")
                 values.append(value)
@@ -371,13 +380,16 @@ def create_rule():
                 if key == 'id': continue
                 if key not in existing_cols: continue
                 sensor_fields.append(f"\"{key}\"")
-                if isinstance(value, list):
-                    if key == 'msg_rpy':
-                        sensor_placeholders.append("%s::json[]")
-                        sensor_values.append(format_msg_rpy_list(value))
-                    else:
-                        sensor_placeholders.append("%s")
-                        sensor_values.append(value)
+                col_type = col_info.get(key, '')
+                is_array_col = ('ARRAY' in col_type.upper() or col_type == 'ARRAY')
+                if is_array_col and not isinstance(value, list):
+                    value = [value] if value is not None else []
+                elif not is_array_col and isinstance(value, list):
+                    value = value[0] if len(value) > 0 else ''
+                
+                if key == 'msg_rpy':
+                    sensor_placeholders.append("%s::json[]")
+                    sensor_values.append(format_msg_rpy_list(value))
                 else:
                     sensor_placeholders.append("%s")
                     sensor_values.append(value)
@@ -399,6 +411,7 @@ def create_rule():
         if conn: conn.close()
 
 @rule_designer_bp.route('/rules/<int:rule_id>', methods=['PUT', 'POST']) # POST for compatibility with some clients
+@token_required
 @syslog_action('RULE_UPDATE')
 def update_rule(rule_id):
     data = request.json
@@ -431,9 +444,11 @@ def update_rule(rule_id):
         else:
             table_name = f"QA_bank:{app_id}"
         
-        # Get actual columns
-        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = %s", (table_name,))
-        existing_cols = [r['column_name'] for r in cur.fetchall()]
+        # Get actual columns and types
+        cur.execute("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = %s", (table_name,))
+        col_rows = cur.fetchall()
+        col_info = {r['column_name']: (r.get('data_type') or '') for r in col_rows}
+        existing_cols = set(col_info.keys())
         
         updates = []
         values = []
@@ -444,13 +459,16 @@ def update_rule(rule_id):
                 print(f"[RULE_DESIGNER] Skipping non-existent column: {key}")
                 continue
             
-            if isinstance(value, list):
-                if key == 'msg_rpy':
-                    updates.append(f"\"{key}\" = %s::json[]")
-                    values.append(format_msg_rpy_list(value))
-                else:
-                    updates.append(f"\"{key}\" = %s")
-                    values.append(value)
+            col_type = col_info.get(key, '')
+            is_array_col = ('ARRAY' in col_type.upper() or col_type == 'ARRAY')
+            if is_array_col and not isinstance(value, list):
+                value = [value] if value is not None else []
+            elif not is_array_col and isinstance(value, list):
+                value = value[0] if len(value) > 0 else ''
+                
+            if key == 'msg_rpy':
+                updates.append(f"\"{key}\" = %s::json[]")
+                values.append(format_msg_rpy_list(value))
             else:
                 updates.append(f"\"{key}\" = %s")
                 values.append(value)
@@ -476,13 +494,16 @@ def update_rule(rule_id):
                 if key == 'function' and isinstance(value, str):
                     sensor_val = strip_pri_set_meta(value)
                 
-                if isinstance(sensor_val, list):
-                    if key == 'msg_rpy':
-                        sensor_updates.append(f"\"{key}\" = %s::json[]")
-                        sensor_values.append(format_msg_rpy_list(sensor_val))
-                    else:
-                        sensor_updates.append(f"\"{key}\" = %s")
-                        sensor_values.append(sensor_val)
+                col_type = col_info.get(key, '')
+                is_array_col = ('ARRAY' in col_type.upper() or col_type == 'ARRAY')
+                if is_array_col and not isinstance(sensor_val, list):
+                    sensor_val = [sensor_val] if sensor_val is not None else []
+                elif not is_array_col and isinstance(sensor_val, list):
+                    sensor_val = sensor_val[0] if len(sensor_val) > 0 else ''
+                
+                if key == 'msg_rpy':
+                    sensor_updates.append(f"\"{key}\" = %s::json[]")
+                    sensor_values.append(format_msg_rpy_list(sensor_val))
                 else:
                     sensor_updates.append(f"\"{key}\" = %s")
                     sensor_values.append(sensor_val)
@@ -509,6 +530,7 @@ def update_rule(rule_id):
         if conn: conn.close()
 
 @rule_designer_bp.route('/rules/<int:rule_id>', methods=['DELETE'])
+@token_required
 @syslog_action('RULE_DELETE')
 def delete_rule(rule_id):
     bank_type = request.args.get('type', 'q_bank')
@@ -661,6 +683,7 @@ def is_content_active(content_val):
     return content_val == '*' or content_val == "['*']"
 
 @rule_designer_bp.route('/follow-rules', methods=['GET'])
+@token_required
 def get_follow_rules():
     """Get all follow rules for current app and auto-initialize default rule if none are active."""
     conn = None
@@ -742,6 +765,7 @@ def get_follow_rules():
         if conn: conn.close()
 
 @rule_designer_bp.route('/follow-rules', methods=['POST'])
+@token_required
 @syslog_action('FOLLOW_RULE_CREATE')
 def create_follow_rule():
     """Create a new follow rule with single-active check and note tagging."""
@@ -818,6 +842,7 @@ def create_follow_rule():
         if conn: conn.close()
 
 @rule_designer_bp.route('/follow-rules/<int:rule_id>', methods=['PUT', 'POST'])
+@token_required
 @syslog_action('FOLLOW_RULE_UPDATE')
 def update_follow_rule(rule_id):
     """Update an existing follow rule with single-active check and note tagging."""
@@ -879,6 +904,7 @@ def update_follow_rule(rule_id):
         if conn: conn.close()
 
 @rule_designer_bp.route('/follow-rules/<int:rule_id>/toggle', methods=['POST'])
+@token_required
 @syslog_action('FOLLOW_RULE_TOGGLE')
 def toggle_follow_rule(rule_id):
     """Toggle follow rule enabled/disabled state (content='*' or 'OFF')."""

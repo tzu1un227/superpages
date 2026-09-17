@@ -196,6 +196,15 @@ api.interceptors.response.use(
             if (typeof window !== 'undefined') {
                 window.dispatchEvent(new Event('auth:expired'));
             }
+        } else if (!error.response || [502, 503, 504].includes(error.response?.status)) {
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('network:error', {
+                    detail: {
+                        status: error.response?.status || 0,
+                        message: error.message || '伺服器或網路連線異常，請稍後再試'
+                    }
+                }));
+            }
         }
         return Promise.reject(error);
     }

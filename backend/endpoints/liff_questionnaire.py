@@ -10,6 +10,7 @@ from psycopg2.extras import RealDictCursor, Json
 
 from db_utils import get_db_connection
 from models import OAConfig
+from auth import token_required
 
 
 liff_questionnaire_bp = Blueprint("liff_questionnaire", __name__)
@@ -379,6 +380,7 @@ def _survey_list_payload(row):
 
 
 @liff_questionnaire_bp.route("/", methods=["GET"], strict_slashes=False)
+@token_required
 def list_surveys():
     conn = None
     try:
@@ -423,6 +425,7 @@ def list_surveys():
 
 
 @liff_questionnaire_bp.route("/", methods=["POST"], strict_slashes=False)
+@token_required
 @syslog_action('LIFF_CREATE_FORM')
 def create_survey():
     data = request.get_json() or {}
@@ -505,6 +508,7 @@ def create_survey():
 
 
 @liff_questionnaire_bp.route("/<survey_key>", methods=["GET"], strict_slashes=False)
+@token_required
 def get_survey(survey_key):
     conn = None
     try:
@@ -524,6 +528,7 @@ def get_survey(survey_key):
 
 
 @liff_questionnaire_bp.route("/<survey_key>", methods=["DELETE"], strict_slashes=False)
+@token_required
 @syslog_action('LIFF_DELETE_FORM')
 def delete_survey(survey_key):
     conn = None
@@ -554,6 +559,7 @@ def delete_survey(survey_key):
 
 
 @liff_questionnaire_bp.route("/<survey_key>", methods=["PUT"], strict_slashes=False)
+@token_required
 @syslog_action('LIFF_UPDATE_FORM')
 def update_survey(survey_key):
     data = request.get_json() or {}
@@ -699,6 +705,7 @@ def update_survey(survey_key):
 
 
 @liff_questionnaire_bp.route("/<survey_key>/responses", methods=["GET"], strict_slashes=False)
+@token_required
 def get_responses(survey_key):
     conn = None
     try:
@@ -761,6 +768,7 @@ def get_responses(survey_key):
 
 
 @liff_questionnaire_bp.route("/<survey_key>/download", methods=["GET"], strict_slashes=False)
+@token_required
 def download_responses(survey_key):
     conn = None
     try:

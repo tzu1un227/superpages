@@ -5,8 +5,11 @@ import psycopg2
 db_viewer_bp = Blueprint('db_viewer', __name__)
 
 from db_utils import get_db_connection
+from auth import token_required, admin_required
 
 @db_viewer_bp.route('/tables', methods=['GET'])
+@token_required
+@admin_required
 def list_tables():
     """List all available tables and views in the current database."""
     conn = None
@@ -32,6 +35,8 @@ def list_tables():
         if conn: conn.close()
 
 @db_viewer_bp.route('/data', methods=['GET'])
+@token_required
+@admin_required
 def get_table_data():
     """Fetch data from a specific table with chunking and optional search."""
     table_name = request.args.get('table')

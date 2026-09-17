@@ -298,8 +298,34 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 
 
 
+## 14. 系統全方位資安強化與正確性優化架構 (2026-09-17 新增)
 
+### 14.1 全面端點身分鑑權與權限隔離 (Authentication & RBAC)
+- **40 個未鑑權 API 端點全面防護**：
+  - 涵蓋規則設計師 (`rule_designer.py`)、問卷管理 (`questionnaire.py`)、LIFF 後台問卷 (`liff_questionnaire.py`)、資料庫檢視器 (`db_viewer.py`)、統計分析與系統觸發核心 (`app.py`)。
+  - 所有後台業務端點全面掛載 `@token_required` 裝飾器，非登入訪客強制阻擋 (HTTP 401 Unauthorized)。
+  - 高機敏資料庫結構檢視 (`/api/db/tables`, `/api/db/data`) 與系統排程觸發器 (`/api/trigger`) 掛載 `@admin_required` 裝飾器，嚴禁一般使用者與未授權角色越權操作 (HTTP 403 Forbidden)。
+  - 保留 LIFF 問卷前台公開作答路由 (`/public/liff-questionnaires/...`) 供 LINE App 終端用戶無縫填寫，兼顧前台高可用性與後台絕對安全。
 
+### 14.2 跨租戶 (Cross-Tenant) 越權存取封堵
+- **強制 HTTP 標頭 OA 存在性檢驗**：
+  - 在 `backend/auth.py` 中，修復過往僅依賴 `g.current_oa_id` 檢查之漏洞。若惡意使用者於 HTTP 標頭傳入不存在或偽造之 `X-OA-ID`（例如 `999`），系統不再略過檢查，而是強制校驗當前操作者是否具備該 OA 之存取白名單或全域 Admin 權限，徹底杜絕多租戶越權與未授權租戶存取。
 
+### 14.3 機敏除錯資訊與系統堆疊洩漏防護 (CWE-209 / OWASP A05)
+- **除錯標頭清理**：
+  - 於 `backend/app.py` 的 `add_debug_headers` 中，徹底移除帶有後端資料庫連線位址與連線字串特徵之 `X-Debug-DB` 標頭。
+  - `X-Debug-OA-ID` 標頭僅在開發除錯模式 (`app.debug == True`) 下暴露，生產環境一律遮蔽。
+- **全域未攔截例外遮蔽**：
+  - 全域例外處理器 `handle_exception` 於非除錯環境下抑制詳細伺服器 Traceback 堆疊輸出，僅回傳安全且一致的 JSON 錯誤回應，防止攻擊者藉由畸形請求刺探後端檔案路徑、函式庫版本與內部變數。
 
+### 14.4 PostgreSQL 陣列欄位 (Array Column) 動態型別相容性機制
+- **資料庫欄位型別動態探測**：
+  - 針對商案資料表（如 `Q_bank`）中 `content`、`state_in`、`check` 等可能定義為純文字或 PostgreSQL 陣列型別 (`_text` / `ARRAY`) 的歷史差異，於 `backend/endpoints/rule_designer.py` 中實作動態 schema 探測。
+  - 系統自動比對 `information_schema.columns`，若目標欄位為 `ARRAY` 則自動將輸入字串或陣列包裝為 Python `list`，由 psycopg2 原生序列化為標準 SQL 陣列常數；若為純純量文字欄位則轉為字串，徹底排除 `malformed array literal` 造成的 SQL 500 錯誤。
+
+### 14.5 前端健全性與使用者操作防呆 (Client-Side Robustness)
+- **規則設計師未儲存防呆 (`beforeunload`)**：
+  - 在 `frontend/src/pages/RuleDesigner.jsx` 注入 `window.onbeforeunload` 監聽。當使用者正在新增/編輯規則、開啟設定彈窗或處於未儲存狀態時，若使用者誤觸 F5、重新整理或關閉視窗，瀏覽器將跳出原生防呆確認提示，防止心血內容意外遺失。
+- **全域網路異常與斷線監聽**：
+  - 在 `frontend/src/api.js` 的 Axios Response 攔截器中，針對伺服器斷線、網路異常或 502/503 伺服器無回應派發 `network:error` 事件，使 UI 能即時顯示友善離線通知與重試按鈕，杜絕畫面無響應。
 

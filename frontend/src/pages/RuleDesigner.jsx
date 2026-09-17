@@ -438,6 +438,19 @@ function RuleDesigner() {
     const [projectsList, setProjectsList] = useState([]);
     const [richMenusList, setRichMenusList] = useState([]);
 
+    // Unsaved Changes Guard (beforeunload)
+    useEffect(() => {
+        const handleBeforeUnload = (e) => {
+            if (isMsgModalOpen || showFlexEditor || draftRules.length > 0) {
+                e.preventDefault();
+                e.returnValue = '您有尚未儲存的規則或訊息編輯內容，確定要離開或重新整理嗎？';
+                return e.returnValue;
+            }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [isMsgModalOpen, showFlexEditor, draftRules.length]);
+
     useEffect(() => {
         const fetchDropdownData = async () => {
             try {

@@ -1,0 +1,201 @@
+[
+  {
+    "endpoint": "/api/projects",
+    "name": "旅程列表 (Projects)",
+    "concurrency": 5,
+    "duration": 8.15,
+    "total_requests": 154,
+    "success_count": 154,
+    "fail_count": 0,
+    "qps": 18.9,
+    "avg_ms": 263.26,
+    "p50_ms": 136.18,
+    "p90_ms": 173.43,
+    "p99_ms": 4335.5,
+    "max_ms": 4343.77,
+    "status_breakdown": {
+      "200": 154
+    }
+  },
+  {
+    "endpoint": "/api/projects",
+    "name": "旅程列表 (Projects)",
+    "concurrency": 15,
+    "duration": 8.21,
+    "total_requests": 501,
+    "success_count": 501,
+    "fail_count": 0,
+    "qps": 61.04,
+    "avg_ms": 242.5,
+    "p50_ms": 243.46,
+    "p90_ms": 253.46,
+    "p99_ms": 346.15,
+    "max_ms": 365.97,
+    "status_breakdown": {
+      "200": 501
+    }
+  },
+  {
+    "endpoint": "/api/projects",
+    "name": "旅程列表 (Projects)",
+    "concurrency": 30,
+    "duration": 8.49,
+    "total_requests": 504,
+    "success_count": 504,
+    "fail_count": 0,
+    "qps": 59.34,
+    "avg_ms": 491.17,
+    "p50_ms": 498.31,
+    "p90_ms": 529.99,
+    "p99_ms": 587.99,
+    "max_ms": 609.49,
+    "status_breakdown": {
+      "200": 504
+    }
+  },
+  {
+    "endpoint": "/api/projects",
+    "name": "旅程列表 (Projects)",
+    "concurrency": 50,
+    "duration": 8.77,
+    "total_requests": 515,
+    "success_count": 515,
+    "fail_count": 0,
+    "qps": 58.75,
+    "avg_ms": 811.25,
+    "p50_ms": 806.86,
+    "p90_ms": 998.59,
+    "p99_ms": 1238.93,
+    "max_ms": 1269.47,
+    "status_breakdown": {
+      "200": 515
+    }
+  },
+  {
+    "endpoint": "/api/projects",
+    "name": "旅程列表 (Projects)",
+    "concurrency": 80,
+    "duration": 9.33,
+    "total_requests": 563,
+    "success_count": 563,
+    "fail_count": 0,
+    "qps": 60.36,
+    "avg_ms": 1223.5,
+    "p50_ms": 1309.57,
+    "p90_ms": 1356.0,
+    "p99_ms": 1403.93,
+    "max_ms": 1436.66,
+    "status_breakdown": {
+      "200": 563
+    }
+  },
+  {
+    "endpoint": "/api/customers?limit=50",
+    "name": "客戶列表 (Customers 50)",
+    "concurrency": 10,
+    "duration": 8.16,
+    "total_requests": 469,
+    "success_count": 469,
+    "fail_count": 0,
+    "qps": 57.46,
+    "avg_ms": 172.07,
+    "p50_ms": 164.53,
+    "p90_ms": 194.96,
+    "p99_ms": 345.39,
+    "max_ms": 347.3,
+    "status_breakdown": {
+      "200": 469
+    }
+  },
+  {
+    "endpoint": "/api/customers?limit=50",
+    "name": "客戶列表 (Customers 50)",
+    "concurrency": 30,
+    "duration": 8.5,
+    "total_requests": 508,
+    "success_count": 508,
+    "fail_count": 0,
+    "qps": 59.79,
+    "avg_ms": 485.8,
+    "p50_ms": 489.41,
+    "p90_ms": 527.4,
+    "p99_ms": 576.41,
+    "max_ms": 615.27,
+    "status_breakdown": {
+      "200": 508
+    }
+  },
+  {
+    "endpoint": "/api/customers?limit=50",
+    "name": "客戶列表 (Customers 50)",
+    "concurrency": 60,
+    "duration": 9.02,
+    "total_requests": 546,
+    "success_count": 546,
+    "fail_count": 0,
+    "qps": 60.52,
+    "avg_ms": 930.04,
+    "p50_ms": 981.67,
+    "p90_ms": 997.27,
+    "p99_ms": 1038.23,
+    "max_ms": 1063.31,
+    "status_breakdown": {
+      "200": 546
+    }
+  },
+  {
+    "endpoint": "/api/statistics/keywords",
+    "name": "關鍵字統計 (Keywords Stats)",
+    "concurrency": 5,
+    "duration": 8.08,
+    "total_requests": 307,
+    "success_count": 307,
+    "fail_count": 0,
+    "qps": 38.01,
+    "avg_ms": 131.02,
+    "p50_ms": 140.83,
+    "p90_ms": 180.22,
+    "p99_ms": 221.97,
+    "max_ms": 251.41,
+    "status_breakdown": {
+      "200": 307
+    }
+  },
+  {
+    "endpoint": "/api/statistics/keywords",
+    "name": "關鍵字統計 (Keywords Stats)",
+    "concurrency": 15,
+    "duration": 8.2,
+    "total_requests": 490,
+    "success_count": 488,
+    "fail_count": 2,
+    "qps": 59.75,
+    "avg_ms": 247.18,
+    "p50_ms": 242.38,
+    "p90_ms": 272.36,
+    "p99_ms": 466.28,
+    "max_ms": 493.52,
+    "status_breakdown": {
+      "200": 488,
+      "500": 2
+    }
+  },
+  {
+    "endpoint": "/api/statistics/keywords",
+    "name": "關鍵字統計 (Keywords Stats)",
+    "concurrency": 30,
+    "duration": 8.49,
+    "total_requests": 501,
+    "success_count": 501,
+    "fail_count": 0,
+    "qps": 59.02,
+    "avg_ms": 492.58,
+    "p50_ms": 502.74,
+    "p90_ms": 524.17,
+    "p99_ms": 551.19,
+    "max_ms": 555.83,
+    "status_breakdown": {
+      "200": 501
+    }
+  }
+]

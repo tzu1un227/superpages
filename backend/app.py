@@ -279,14 +279,9 @@ def load_oa_context():
 
 @app.after_request
 def add_debug_headers(response):
-    oa_id = getattr(g, 'current_oa_id', 'None')
-    db_url = getattr(g, 'current_db_url', 'Default/None')
-    # Truncate sensitive URL info
-    if db_url and '@' in db_url:
-        db_url = db_url.split('@')[-1]
-    
-    response.headers['X-Debug-OA-ID'] = str(oa_id)
-    response.headers['X-Debug-DB'] = str(db_url)
+    if app.debug:
+        oa_id = getattr(g, 'current_oa_id', 'None')
+        response.headers['X-Debug-OA-ID'] = str(oa_id)
     return response
 
 def init_db():
@@ -688,6 +683,7 @@ def delete_project(id):
         if conn: conn.close()
 
 @app.route('/api/projects/<int:id>/stats', methods=['GET'])
+@token_required
 def get_project_stats(id):
     conn = None
     try:
@@ -1842,6 +1838,7 @@ def delete_schedule(id):
 
 # Statistics and Super8 Features
 @app.route('/api/statistics', methods=['GET'])
+@token_required
 def get_statistics():
     conn = None
     try:
@@ -1993,6 +1990,7 @@ def _is_invalid_message_text(raw_text):
     return False
 
 @app.route('/api/statistics/keywords', methods=['GET'])
+@token_required
 def get_statistics_keywords():
     conn = None
     try:
@@ -2216,6 +2214,7 @@ def get_statistics_keywords():
         if conn: conn.close()
 
 @app.route('/api/history/<user_id>', methods=['GET'])
+@token_required
 def get_user_history(user_id):
     conn = None
     try:
@@ -2306,6 +2305,7 @@ def get_user_history(user_id):
         if conn: conn.close()
 
 @app.route('/api/tags', methods=['GET'])
+@token_required
 def get_tags():
     conn = None
     try:
@@ -2360,6 +2360,7 @@ def get_tags():
         if conn: conn.close()
 
 @app.route('/api/registered-users', methods=['GET'])
+@token_required
 def get_registered_users():
     conn = None
     try:
@@ -2396,6 +2397,7 @@ def get_registered_users():
         if conn: conn.close()
 
 @app.route('/api/users', methods=['GET'])
+@token_required
 def get_users_list():
     conn = None
     try:
@@ -2588,6 +2590,7 @@ def check_and_update_rich_menu(user_id, tag):
 
 
 @app.route('/api/trigger', methods=['POST'])
+@token_required
 @syslog_action('MSG_SEND_REPLY')
 def trigger_socket_event_route():
     data = request.json
@@ -2759,6 +2762,7 @@ def delete_scheduled_event(id):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/qa-bank', methods=['POST'])
+@token_required
 def create_qa_entry():
     try:
         data = request.json
@@ -2803,6 +2807,7 @@ def create_qa_entry():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/qa-bank/<string:tag>', methods=['GET'])
+@token_required
 def get_qa_entry(tag):
     try:
         app_id = get_current_app_id()
@@ -2831,6 +2836,7 @@ def get_qa_entry(tag):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/users/<string:user_id>/read', methods=['POST'])
+@token_required
 def mark_user_as_read(user_id):
     try:
         app_id = get_current_app_id()
@@ -2879,6 +2885,8 @@ from flask import send_from_directory
 import os
 
 @app.route('/sys-debug')
+@token_required
+@admin_required
 def sys_debug():
     import os
     folder = app.static_folder
@@ -2899,7 +2907,10 @@ def handle_exception(e):
     # Pass through HTTP errors
     if isinstance(e, HTTPException):
         return e
-    return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
+    print(f"Unhandled Exception: {traceback.format_exc()}")
+    if app.debug:
+        return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
+    return jsonify({"error": "伺服器內部發生錯誤，請稍後再試或聯繫管理員"}), 500
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
