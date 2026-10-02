@@ -51,6 +51,27 @@ else:
     ]
 CORS(app, origins=origins_list)
 
+@app.after_request
+def set_security_headers(response):
+    # OWASP A02:2025 Security Headers
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    # Protect against clickjacking, while allowing LIFF embedding
+    if not request.path.startswith('/api/liff') and not request.path.startswith('/liff'):
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    return response
+
+@app.errorhandler(500)
+def handle_internal_server_error(e):
+    # OWASP A10:2025 Mishandling of Exceptional Conditions: do not leak traceback to client
+    import traceback
+    print(f"CRITICAL 500 Uncaught Exception: {traceback.format_exc()}")
+    return jsonify({
+        'status': 'error',
+        'message': '伺服器發生內部錯誤，已安全記錄於日誌。'
+    }), 500
+
 def json_response(data):
     return app.response_class(
         json.dumps(data, default=lambda x: float(x) if isinstance(x, Decimal) else (x.strftime('%Y-%m-%d %H:%M:%S') if isinstance(x, (datetime, date)) else str(x))),
@@ -59,7 +80,7 @@ def json_response(data):
 
 # Auth and DB imports
 from models import db, User, Page, OAConfig
-from auth import generate_token, token_required, admin_required
+from auth import generate_token, token_required, admin_required, SECRET_KEY
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
@@ -71,7 +92,7 @@ if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # Configuration for SQLAlchemy
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'dev_secret_key'
+app.config['SECRET_KEY'] = SECRET_KEY
 # RDS is the new Primary for Users, Pages, Permissions
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -306,13 +327,11 @@ start_all_schedulers(app)
 
 @app.route('/api/login', methods=['POST'])
 def login():
-    # Deprecated simple auth, keeping for compatibility if needed, but prioritizing Google Login
-    data = request.json
-    username = data.get('username')
-    password = data.get('password')
-    if username == "admin" and password == "admin":
-        return jsonify({"status": "success", "user": {"id": 1, "username": "admin"}})
-    return jsonify({"status": "error", "message": "Invalid credentials"}), 401
+    # Deprecated insecure legacy endpoint. All logins must use Google OAuth 2.0.
+    return jsonify({
+        "status": "error",
+        "message": "此登入端點已廢除，請使用 Google OAuth 2.0 進行身分驗證。"
+    }), 410
 
 @app.route('/api/auth/google-login', methods=['POST'])
 @syslog_action('AUTH_LOGIN')
@@ -379,6 +398,24 @@ def url_redirect():
     
     if not url:
         return "Missing URL parameter", 400
+        
+    # OWASP A01:2025 Broken Access Control & Open Redirect Defense
+    # Guard against CRLF injection and malicious schemes
+    if '\r' in url or '\n' in url:
+        return "Invalid URL characters", 400
+        
+    from urllib.parse import urlsplit
+    try:
+        parsed_url = urlsplit(url)
+        # Scheme check: allow http/https or safe relative URLs
+        if parsed_url.scheme:
+            if parsed_url.scheme.lower() not in ('http', 'https'):
+                return "Disallowed URL scheme", 400
+        else:
+            if not url.startswith('/') or url.startswith('//'):
+                return "Invalid redirect destination", 400
+    except Exception:
+        return "Malformed URL", 400
         
     if tags and user_id:
         if oa_id:

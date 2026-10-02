@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## [2026-09-21] 資安 CIA 與 OWASP Top 10: 2025 全面性弱點修復與防禦強化
+- **身分鑑權與金鑰安全 (`backend/auth.py`, `backend/config.py`, `backend/app.py`)**:
+  - 徹底停用廢棄且寫死固定帳密 `admin/admin` 之 `/api/login` 路由（回應 HTTP 410 Gone），強制全站後台身分驗證統一收斂至 Google OAuth 2.0 (OWASP A07:2025 / A02:2025)。
+  - 升級 `SECRET_KEY` 回退機制，當環境變數未提供時，不再使用靜態可預測之 `'dev_secret_key'`，改由 `secrets.token_urlsafe(32)` 生成高熵動態運行密鑰，防禦 JWT 偽造提權 (OWASP A04:2025)。
+  - 敏感鑑權例外資訊脫敏，解密失敗不回傳內部例外細節。
+- **存取控制與開放重定向防護 (`backend/app.py`)**:
+  - 強化 `/api/redirect` 轉址驗證，採用 `urllib.parse.urlsplit` 檢驗 Scheme 僅限 `http/https`，阻擋 `javascript:` 等偽協定；阻擋 `//` 開頭之協議相對跳轉；檢測並阻擋 `\r` 與 `\n`，杜絕 CRLF 注入與開放重定向攻擊 (CWE-601, OWASP A01:2025)。
+  - 全域注入安全性 HTTP 標頭 (`X-Content-Type-Options: nosniff`, `X-XSS-Protection: 1; mode=block`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: SAMEORIGIN`)，強化瀏覽器端防護 (OWASP A02:2025)。
+  - 掛載全域 500 與例外處理器，非預期錯誤由內部詳細記錄，向客戶端回傳標準脫敏 JSON 訊息，避免暴露 Traceback (OWASP A10:2025)。
+- **檔案上傳完整性防偽 (`backend/endpoints/upload.py`)**:
+  - 引入 `werkzeug.utils.secure_filename` 消除檔名路徑穿越 (`../`) 威脅。
+  - 強制副檔名白名單驗證（僅允許 `.png, .jpg, .jpeg, .gif, .webp`）。
+  - 新增前導 Magic Bytes 檔案特徵檢查，嚴防攻擊者將惡意腳本改名偽裝為圖檔上傳至 CDN (OWASP A05:2025 / A08:2025)。
+  - 例外捕獲脫敏，保護系統內部錯誤訊息。
+- **權限防呆與管理員可用性保護 (`backend/endpoints/admin.py`)**:
+  - 管理者刪除防呆：嚴格禁止管理員於後台刪除當前登入之自身帳號。
+  - 系統可用性鎖死防護：當系統僅存最後一位管理員時，嚴格禁止刪除或降權，維護系統核心管理能力之連續可用性 (OWASP A06:2025)。
+
 ## [2026-09-14] 關鍵字回覆圖文訊息防呆強化與儲存按鈕機制 (Issue #38)
 - **前端圖文訊息編輯器 (`frontend/src/components/FlexMessageEditor.jsx`)**:
   - 新增 `showFooter` 與 `onConfirm` 屬性支援手動確認模式。手動模式下抑制背景 auto-save 即時向父層同步未驗證內容。

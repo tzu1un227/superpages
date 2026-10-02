@@ -329,3 +329,18 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 - **全域網路異常與斷線監聽**：
   - 在 `frontend/src/api.js` 的 Axios Response 攔截器中，針對伺服器斷線、網路異常或 502/503 伺服器無回應派發 `network:error` 事件，使 UI 能即時顯示友善離線通知與重試按鈕，杜絕畫面無響應。
 
+## 15. 資安 CIA 與 OWASP Top 10: 2025 全方位防護升級架構 (2026-09-21 新增)
+
+### 15.1 資安 CIA 三要素落實
+1. **機密性 (Confidentiality)**：
+   - **高熵動態密鑰機制 (CSPRNG Key Generation)**：在 `backend/auth.py` 與 `backend/config.py` 中，消除靜態弱密鑰 `'dev_secret_key'`，若環境中缺少 `SECRET_KEY`，系統自動以 `secrets.token_urlsafe(32)` 生成具備 256-bit 熵值的動態運行密鑰，並輸出安全警示，徹底防禦離線偽造 JWT 權限提權 (OWASP A04:2025 Cryptographic Failures)。
+   - **例外資訊脫敏 (Information Desensitization)**：在 JWT 鑑權失敗、檔案上傳異常與資料庫例外處，移除 `str(e)` 原始錯誤訊息輸出，全面改為統一標準安全提示，防止攻擊者藉由畸形請求獲取後端模組細節 (OWASP A10:2025)。
+2. **完整性 (Integrity)**：
+   - **開放重定向與 CRLF 注入防禦 (Open Redirect Defense)**：在 `backend/app.py` 的 `/api/redirect` 中，全面引入 `urllib.parse.urlsplit` 進行協定校驗。嚴格限制 scheme 必須為 `http` 或 `https`，禁止 `javascript:`, `data:` 等 XSS 偽協定；阻擋以 `//` 開頭的協議相對路徑；並對 URL 進行 `\r` 與 `\n` 換行符號檢驗，徹底根除 HTTP Response Splitting (CWE-113, OWASP A01:2025)。
+   - **檔案上傳雙層防偽校驗 (Upload Integrity Guard)**：在 `backend/endpoints/upload.py` 中，引入 `werkzeug.utils.secure_filename` 消除路徑穿越 (`../`)；強制執行嚴格副檔名白名單 (`.png, .jpg, .jpeg, .gif, .webp`)；並在伺服器端讀取前導位元組進行 Magic Bytes 檢查 (PNG, JPEG, GIF, WEBP 特徵碼)，拒絕假借圖檔副檔名上傳的可執行檔或含 XSS 之 SVG/HTML 腳本 (OWASP A05:2025)。
+3. **可用性 (Availability)**：
+   - **廢止不安全測試登入端點**：將已廢棄且寫死固定帳密 `admin/admin` 的 `/api/login` 端點徹底停用並回傳 HTTP 410 Gone，杜絕身分驗證被暴力字典繞過 (OWASP A07:2025)。
+   - **管理者權限鎖死防護 (Admin Lockout Prevention)**：在 `backend/endpoints/admin.py` 中，新增安全防呆規則：禁止管理者刪除當前自身登入之帳號；當系統僅剩最後一位管理者時，嚴格禁止刪除或降權，確保後台管理權限的連續可用性 (OWASP A06:2025)。
+   - **全域 HTTP 安全標頭與 500 例外優雅降級**：於 Flask `after_request` 全域注入 `X-Content-Type-Options: nosniff`、`X-XSS-Protection: 1; mode=block`、`Referrer-Policy: strict-origin-when-cross-origin` 與 `X-Frame-Options: SAMEORIGIN`（LIFF 端點智能放行）；並掛載 `@app.errorhandler(500)` 全域捕獲非預期錯誤，避免 Uncaught Exceptions 暴露伺服器底層堆疊，維持服務可用性與穩健度 (OWASP A02:2025 / A10:2025)。
+
+

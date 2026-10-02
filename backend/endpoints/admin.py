@@ -1,5 +1,5 @@
 from utils.syslogger import syslog_action
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 from models import db, User, Page, OAConfig
 from auth import token_required, admin_required
 
@@ -84,9 +84,17 @@ def create_user():
 @admin_required
 @syslog_action('ADMIN_DELETE_USER')
 def delete_user(user_id):
+    if g.current_user and g.current_user.id == user_id:
+        return jsonify({'message': '無法刪除當前登入的管理者帳號'}), 400
+        
     user = User.query.get(user_id)
     if not user:
         return jsonify({'message': 'User not found'}), 404
+        
+    if user.role == 'admin':
+        admin_count = User.query.filter_by(role='admin').count()
+        if admin_count <= 1:
+            return jsonify({'message': '系統必須保留至少一位管理者，無法刪除唯一的管理者帳號'}), 400
         
     try:
         db.session.delete(user)
@@ -109,6 +117,10 @@ def update_user(user_id):
     if 'name' in data:
         user.name = data['name']
     if 'role' in data:
+        if data['role'] != 'admin' and user.role == 'admin':
+            admin_count = User.query.filter_by(role='admin').count()
+            if admin_count <= 1:
+                return jsonify({'message': '系統必須保留至少一位管理者，無法將唯一的管理者降權'}), 400
         user.role = data['role']
     if 'allowed_oa_configs' in data:
         user.allowed_oa_configs = data['allowed_oa_configs']

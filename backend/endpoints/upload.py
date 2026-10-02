@@ -10,21 +10,24 @@ upload_bp = Blueprint('upload', __name__)
 @upload_bp.route('/github', methods=['POST'])
 @token_required
 def upload_to_github():
-    # Retrieve settings from environment variables only
-    token = os.environ.get('GITHUB_TOKEN')
-    repo = os.environ.get('GITHUB_REPO')
-    branch = os.environ.get('GITHUB_BRANCH', 'main')
-    path = os.environ.get('GITHUB_PATH', 'assets/images/')
-
-    if not token or not repo:
-        return jsonify({'message': 'GitHub configuration is missing (Token or Repo)'}), 500
-
     if 'file' not in request.files:
         return jsonify({'message': 'No file part'}), 400
     
     file = request.files['file']
-    if file.filename == '':
+    if not file or file.filename == '':
         return jsonify({'message': 'No selected file'}), 400
+    
+    # Sanitize and validate filename and extension (OWASP A01 & A05)
+    from werkzeug.utils import secure_filename
+    original_name = file.filename
+    clean_original = secure_filename(original_name)
+    ext = os.path.splitext(clean_original)[1].lower()
+    
+    ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
+    if ext not in ALLOWED_EXTENSIONS:
+        return jsonify({
+            'message': f'不支援的檔案格式 ({ext})。僅允許上傳圖片檔案 (PNG, JPG, JPEG, GIF, WEBP)。'
+        }), 400
     
     # Check file size (5MB limit)
     file.seek(0, os.SEEK_END)
@@ -34,15 +37,54 @@ def upload_to_github():
     if size > 5 * 1024 * 1024:
         return jsonify({'message': '這個檔案太大了！為了確保系統順暢，請將檔案縮小到 5MB 以內再試一次喔。'}), 413
 
+    # Validate Magic Bytes before proceeding
+    file_content = file.read()
+    is_valid_image = False
+    if ext == '.png' and file_content.startswith(b'\x89PNG\r\n\x1a\n'):
+        is_valid_image = True
+    elif ext in ['.jpg', '.jpeg'] and file_content.startswith(b'\xff\xd8\xff'):
+        is_valid_image = True
+    elif ext == '.gif' and (file_content.startswith(b'GIF87a') or file_content.startswith(b'GIF89a')):
+        is_valid_image = True
+    elif ext == '.webp' and file_content.startswith(b'RIFF') and file_content[8:12] == b'WEBP':
+        is_valid_image = True
+        
+    if not is_valid_image:
+        return jsonify({'message': '檔案內容與副檔名不符或檔案已損毀，拒絕上傳。'}), 400
+
+    # Retrieve settings from environment variables
+    token = os.environ.get('GITHUB_TOKEN')
+    repo = os.environ.get('GITHUB_REPO')
+    branch = os.environ.get('GITHUB_BRANCH', 'main')
+    path = os.environ.get('GITHUB_PATH', 'assets/images/')
+
+    if not token or not repo:
+        return jsonify({'message': 'GitHub configuration is missing (Token or Repo)'}), 500
+
     try:
         # Read file and encode to base64
         file_content = file.read()
+        
+        # Validate Magic Bytes to prevent file type spoofing
+        is_valid_image = False
+        if ext == '.png' and file_content.startswith(b'\x89PNG\r\n\x1a\n'):
+            is_valid_image = True
+        elif ext in ['.jpg', '.jpeg'] and file_content.startswith(b'\xff\xd8\xff'):
+            is_valid_image = True
+        elif ext == '.gif' and (file_content.startswith(b'GIF87a') or file_content.startswith(b'GIF89a')):
+            is_valid_image = True
+        elif ext == '.webp' and file_content.startswith(b'RIFF') and file_content[8:12] == b'WEBP':
+            is_valid_image = True
+            
+        if not is_valid_image:
+            return jsonify({'message': '檔案內容與副檔名不符或檔案已損毀，拒絕上傳。'}), 400
+
         encoded_content = base64.b64encode(file_content).decode('utf-8')
 
-        # Generate unique filename
-        ext = os.path.splitext(file.filename)[1]
+        # Generate unique sanitized filename
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"{timestamp}_{file.filename}"
+        safe_base = os.path.splitext(clean_original)[0] or 'upload'
+        filename = f"{timestamp}_{safe_base}{ext}"
         
         # Ensure path ends with /
         if not path.endswith('/'):
@@ -93,4 +135,6 @@ def upload_to_github():
             }), response.status_code
 
     except Exception as e:
-        return jsonify({'message': 'Internal server error', 'error': str(e)}), 500
+        import traceback
+        print(f"ERROR: GitHub upload exception: {traceback.format_exc()}")
+        return jsonify({'message': '上傳圖片時發生伺服器內部錯誤，請稍後再試。'}), 500

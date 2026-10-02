@@ -6,8 +6,16 @@ from flask import request, jsonify, g
 from config import Config
 from models import User
 
-# Secret key should typically come from Config, fallback for dev
-SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev_secret_key'
+import secrets
+
+# Secret key should come from environment variable or Config.
+# Fallback to high-entropy CSPRNG key if missing, preventing default weak secret exploitation.
+_ENV_SECRET = os.environ.get('SECRET_KEY')
+if not _ENV_SECRET:
+    SECRET_KEY = secrets.token_urlsafe(32)
+    print("WARNING: SECRET_KEY not set in environment. Generated dynamic session key.")
+else:
+    SECRET_KEY = _ENV_SECRET
 
 def generate_token(user):
     payload = {
@@ -58,8 +66,8 @@ def token_required(f):
 
         except jwt.ExpiredSignatureError:
             return jsonify({'message': 'Token has expired'}), 401
-        except jwt.InvalidTokenError as e:
-            return jsonify({'message': f'Invalid token: {str(e)}'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'message': 'Invalid token'}), 401
         
         return f(*args, **kwargs)
     return decorated
