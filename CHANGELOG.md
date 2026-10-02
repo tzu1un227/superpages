@@ -1,3 +1,11 @@
+## [2026-10-02] LIFF 問卷完成後自動發送 Sensor 事件通知官方帳號
+- **LIFF 問卷提交完成事件 (`backend/endpoints/liff_questionnaire.py`)**:
+  - 於 `public_submit_response` 端點中，在資料庫事務 `conn.commit()` 正式提交後，新增透過 WebSocket 發送 `Sensor` 事件邏輯。
+  - 事件字串格式：`Liffquestionnaire|<存在資料庫的id>|<答案1>|<答案2>|.....`。
+    - `<存在資料庫的id>`：直接提取 `liff_questionnaire_responses` 表中本次提交的主鍵流水號 `response["id"]`。
+    - `<答案1>|<答案2>|...`：嚴格依照問卷題目題號順序提取作答內容，非必填未作答欄位自動保留空字串，並防呆替換使用者答案內的管道符號（`|` 替換為 `/`），防止官方帳號伺服器以 `split('|')` 解析時長度錯位。
+  - 使用 `utils.socket_utils.send_socket_event` 發送，支援根據 `botAppName` / `OAConfig` 動態定址與 HMAC-SHA256 安全簽章。
+
 ## [2026-08-27] 問卷填寫結束自動化動作 (上標籤、切換圖文選單、加入自動旅程)
 - **問卷管理 (文字問卷) 完成動作 (backend/endpoints/questionnaire.py & frontend/src/pages/Questionnaire.jsx)**:
   - 於問卷表單步驟一與編輯時，新增「問卷完成後動作」設定（完成後標籤、加入自動旅程、切換圖文選單）。

@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## [2026-10-02] LIFF 問卷完成後自動發送 Sensor 事件通知官方帳號
+- **LIFF 問卷提交完成事件 (`backend/endpoints/liff_questionnaire.py`)**:
+  - 於 `public_submit_response` 端點中，在資料庫事務 `conn.commit()` 正式提交後，新增透過 WebSocket 發送 `Sensor` 事件邏輯。
+  - 事件字串格式：`Liffquestionnaire|<存在資料庫的id>|<答案1>|<答案2>|.....`。
+    - `<存在資料庫的id>`：直接提取 `liff_questionnaire_responses` 表中本次提交的主鍵流水號 `response["id"]`。
+    - `<答案1>|<答案2>|...`：嚴格依照問卷題目題號順序提取作答內容，非必填未作答欄位自動保留空字串，並防呆替換使用者答案內的管道符號（`|` 替換為 `/`），防止官方帳號伺服器以 `split('|')` 解析時長度錯位。
+  - 使用 `utils.socket_utils.send_socket_event` 發送，支援根據 `botAppName` / `OAConfig` 動態定址與 HMAC-SHA256 安全簽章。
+
 ## [2026-09-21] 資安 CIA 與 OWASP Top 10: 2025 全面性弱點修復與防禦強化
 - **身分鑑權與金鑰安全 (`backend/auth.py`, `backend/config.py`, `backend/app.py`)**:
   - 徹底停用廢棄且寫死固定帳密 `admin/admin` 之 `/api/login` 路由（回應 HTTP 410 Gone），強制全站後台身分驗證統一收斂至 Google OAuth 2.0 (OWASP A07:2025 / A02:2025)。

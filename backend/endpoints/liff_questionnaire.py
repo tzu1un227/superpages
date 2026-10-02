@@ -1019,6 +1019,25 @@ def public_submit_response(survey_key):
 
         conn.commit()
         cur.close()
+
+        # 4. 透過 WebSocket 向官方帳號伺服器發送問卷完成 Sensor 事件 (Liffquestionnaire|<存在資料庫的id>|<答案1>|<答案2>|.....)
+        try:
+            from utils.socket_utils import send_socket_event
+            target_bot = request.args.get("botAppName") or data.get("bot_app_name") or survey.get("bot_app_name") or app_id
+
+            clean_answers = [str(val if val is not None else "").replace("|", "/") for _, val in validated]
+            socket_msg = "|".join(["Liffquestionnaire", str(response["id"])] + clean_answers)
+
+            send_socket_event({
+                "type": "Sensor",
+                "message": socket_msg,
+                "user": identity["line_user_id"],
+                "bot_name": target_bot,
+            })
+            print(f"[liff_questionnaire] Emitted completion Sensor event: {socket_msg} to {target_bot}")
+        except Exception as es:
+            print(f"[liff_questionnaire] Failed to send completion Sensor socket event: {es}")
+
         return jsonify({
             "status": "success",
             "response_id": response["id"],
