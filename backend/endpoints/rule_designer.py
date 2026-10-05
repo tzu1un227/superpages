@@ -9,6 +9,7 @@ import re
 rule_designer_bp = Blueprint('rule_designer', __name__)
 
 from db_utils import get_db_connection
+from auth import token_required
 
 def get_app_id():
     if hasattr(g, 'current_app_name') and g.current_app_name:
@@ -47,6 +48,46 @@ def trigger_sql_reload():
         print(f"[RULE_DESIGNER] SQL reload triggered successfully")
     except Exception as e:
         print(f"[RULE_DESIGNER] SQL reload trigger failed: {e}")
+
+def strip_pri_set_meta(func_str):
+    """
+    Remove pri_set metadata expressions (tag_meta, rich_menu_meta, journey_meta)
+    from a function string, keeping only actions (like update(...)).
+    """
+    if not func_str or not isinstance(func_str, str) or not func_str.strip():
+        return ''
+    
+    merged_parts = []
+    buf = []
+    bracket_level = 0
+    in_single_quote = False
+    in_double_quote = False
+    
+    for ch in func_str:
+        if ch == "'" and not in_double_quote:
+            in_single_quote = not in_single_quote
+        elif ch == '"' and not in_single_quote:
+            in_double_quote = not in_double_quote
+        elif not in_single_quote and not in_double_quote:
+            if ch in '([{': bracket_level += 1
+            elif ch in ')]}': bracket_level -= 1
+            elif ch == ',' and bracket_level == 0:
+                stmt = ''.join(buf).strip()
+                if stmt: merged_parts.append(stmt)
+                buf = []
+                continue
+        buf.append(ch)
+    if buf:
+        stmt = ''.join(buf).strip()
+        if stmt: merged_parts.append(stmt)
+        
+    filtered = []
+    for p in merged_parts:
+        if p.startswith('pri_set(') and ('tag_meta:' in p or 'rich_menu_meta' in p or 'journey_meta:' in p):
+            continue
+        filtered.append(p)
+        
+    return ','.join(filtered)
 
 def validate_python_syntax(code_str, field_name):
     """
@@ -201,6 +242,7 @@ def validate_rule_fields(rule_data, bank_type, design_mode='engineering'):
     return errors
 
 @rule_designer_bp.route('/validate-syntax', methods=['POST'])
+@token_required
 def validate_syntax():
     """Validate Python syntax for check/function fields."""
     data = request.json
@@ -213,6 +255,7 @@ def validate_syntax():
     return jsonify({'valid': True, 'errors': []})
 
 @rule_designer_bp.route('/rules', methods=['GET'])
+@token_required
 def list_rules():
     """List rules from both Q_bank and QA_bank."""
     bank_type = request.args.get('type', 'q_bank') # 'q_bank' or 'qa_bank'
@@ -254,6 +297,7 @@ def list_rules():
             conn.close()
 
 @rule_designer_bp.route('/rules', methods=['POST'])
+@token_required
 @syslog_action('RULE_CREATE')
 def create_rule():
     data = request.json
@@ -263,6 +307,10 @@ def create_rule():
     
     if not rule_data:
         return jsonify({'error': 'Rule data is required'}), 400
+
+    # Ensure Follow rules always have history = True
+    if rule_data.get('type') == 'Follow':
+        rule_data['history'] = True
     
     # Validate fields before saving
     validation_errors = validate_rule_fields(rule_data, bank_type, design_mode)
@@ -281,9 +329,11 @@ def create_rule():
         else:
             table_name = f"QA_bank:{app_id}"
         
-        # Get actual columns to filter out invalid fields (like 'note' if missing)
-        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = %s", (table_name,))
-        existing_cols = [r['column_name'] for r in cur.fetchall()]
+        # Get actual columns and types to filter out invalid fields and adapt types
+        cur.execute("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = %s", (table_name,))
+        col_rows = cur.fetchall()
+        col_info = {r['column_name']: (r.get('data_type') or '') for r in col_rows}
+        existing_cols = set(col_info.keys())
         
         fields = []
         placeholders = []
@@ -297,15 +347,18 @@ def create_rule():
                 continue
             
             fields.append(f"\"{key}\"")
+            col_type = col_info.get(key, '')
+            is_array_col = ('ARRAY' in col_type.upper() or col_type == 'ARRAY')
+            
+            if is_array_col and not isinstance(value, list):
+                value = [value] if value is not None else []
+            elif not is_array_col and isinstance(value, list):
+                value = value[0] if len(value) > 0 else ''
             
             # Special handling for arrays and JSON
-            if isinstance(value, list):
-                if key == 'msg_rpy':
-                    placeholders.append("%s::json[]")
-                    values.append([json.dumps(m, ensure_ascii=False) if not isinstance(m, str) else m for m in value])
-                else:
-                    placeholders.append("%s")
-                    values.append(value)
+            if key == 'msg_rpy':
+                placeholders.append("%s::json[]")
+                values.append(format_msg_rpy_list(value))
             else:
                 placeholders.append("%s")
                 values.append(value)
@@ -318,6 +371,8 @@ def create_rule():
         if rule_data.get('type') == 'Message':
             sensor_rule_data = rule_data.copy()
             sensor_rule_data['type'] = 'Sensor'
+            if 'function' in sensor_rule_data and isinstance(sensor_rule_data['function'], str):
+                sensor_rule_data['function'] = strip_pri_set_meta(sensor_rule_data['function'])
             sensor_fields = []
             sensor_placeholders = []
             sensor_values = []
@@ -325,13 +380,16 @@ def create_rule():
                 if key == 'id': continue
                 if key not in existing_cols: continue
                 sensor_fields.append(f"\"{key}\"")
-                if isinstance(value, list):
-                    if key == 'msg_rpy':
-                        sensor_placeholders.append("%s::json[]")
-                        sensor_values.append([json.dumps(m, ensure_ascii=False) if not isinstance(m, str) else m for m in value])
-                    else:
-                        sensor_placeholders.append("%s")
-                        sensor_values.append(value)
+                col_type = col_info.get(key, '')
+                is_array_col = ('ARRAY' in col_type.upper() or col_type == 'ARRAY')
+                if is_array_col and not isinstance(value, list):
+                    value = [value] if value is not None else []
+                elif not is_array_col and isinstance(value, list):
+                    value = value[0] if len(value) > 0 else ''
+                
+                if key == 'msg_rpy':
+                    sensor_placeholders.append("%s::json[]")
+                    sensor_values.append(format_msg_rpy_list(value))
                 else:
                     sensor_placeholders.append("%s")
                     sensor_values.append(value)
@@ -353,6 +411,7 @@ def create_rule():
         if conn: conn.close()
 
 @rule_designer_bp.route('/rules/<int:rule_id>', methods=['PUT', 'POST']) # POST for compatibility with some clients
+@token_required
 @syslog_action('RULE_UPDATE')
 def update_rule(rule_id):
     data = request.json
@@ -363,6 +422,10 @@ def update_rule(rule_id):
     
     if not rule_data:
         return jsonify({'error': 'Rule data is required'}), 400
+
+    # Ensure Follow rules always have history = True
+    if rule_data.get('type') == 'Follow':
+        rule_data['history'] = True
     
     # Validate fields before saving
     validation_errors = validate_rule_fields(rule_data, bank_type)
@@ -381,9 +444,11 @@ def update_rule(rule_id):
         else:
             table_name = f"QA_bank:{app_id}"
         
-        # Get actual columns
-        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = %s", (table_name,))
-        existing_cols = [r['column_name'] for r in cur.fetchall()]
+        # Get actual columns and types
+        cur.execute("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = %s", (table_name,))
+        col_rows = cur.fetchall()
+        col_info = {r['column_name']: (r.get('data_type') or '') for r in col_rows}
+        existing_cols = set(col_info.keys())
         
         updates = []
         values = []
@@ -394,13 +459,16 @@ def update_rule(rule_id):
                 print(f"[RULE_DESIGNER] Skipping non-existent column: {key}")
                 continue
             
-            if isinstance(value, list):
-                if key == 'msg_rpy':
-                    updates.append(f"\"{key}\" = %s::json[]")
-                    values.append([json.dumps(m, ensure_ascii=False) if not isinstance(m, str) else m for m in value])
-                else:
-                    updates.append(f"\"{key}\" = %s")
-                    values.append(value)
+            col_type = col_info.get(key, '')
+            is_array_col = ('ARRAY' in col_type.upper() or col_type == 'ARRAY')
+            if is_array_col and not isinstance(value, list):
+                value = [value] if value is not None else []
+            elif not is_array_col and isinstance(value, list):
+                value = value[0] if len(value) > 0 else ''
+                
+            if key == 'msg_rpy':
+                updates.append(f"\"{key}\" = %s::json[]")
+                values.append(format_msg_rpy_list(value))
             else:
                 updates.append(f"\"{key}\" = %s")
                 values.append(value)
@@ -422,16 +490,23 @@ def update_rule(rule_id):
                 if key not in existing_cols: continue
                 if key == 'type': continue # Keep 'Sensor'
                 
-                if isinstance(value, list):
-                    if key == 'msg_rpy':
-                        sensor_updates.append(f"\"{key}\" = %s::json[]")
-                        sensor_values.append([json.dumps(m, ensure_ascii=False) if not isinstance(m, str) else m for m in value])
-                    else:
-                        sensor_updates.append(f"\"{key}\" = %s")
-                        sensor_values.append(value)
+                sensor_val = value
+                if key == 'function' and isinstance(value, str):
+                    sensor_val = strip_pri_set_meta(value)
+                
+                col_type = col_info.get(key, '')
+                is_array_col = ('ARRAY' in col_type.upper() or col_type == 'ARRAY')
+                if is_array_col and not isinstance(sensor_val, list):
+                    sensor_val = [sensor_val] if sensor_val is not None else []
+                elif not is_array_col and isinstance(sensor_val, list):
+                    sensor_val = sensor_val[0] if len(sensor_val) > 0 else ''
+                
+                if key == 'msg_rpy':
+                    sensor_updates.append(f"\"{key}\" = %s::json[]")
+                    sensor_values.append(format_msg_rpy_list(sensor_val))
                 else:
                     sensor_updates.append(f"\"{key}\" = %s")
-                    sensor_values.append(value)
+                    sensor_values.append(sensor_val)
                     
             sensor_values.append('Sensor')
             sensor_values.append(old_rule['content'])
@@ -455,6 +530,7 @@ def update_rule(rule_id):
         if conn: conn.close()
 
 @rule_designer_bp.route('/rules/<int:rule_id>', methods=['DELETE'])
+@token_required
 @syslog_action('RULE_DELETE')
 def delete_rule(rule_id):
     bank_type = request.args.get('type', 'q_bank')
@@ -470,10 +546,17 @@ def delete_rule(rule_id):
         else:
             table_name = f"QA_bank:{app_id}"
         
-        # Dual-rule logic: sync delete the corresponding 'sensor' rule
         cur.execute(f'SELECT type, content, state_in FROM "{table_name}" WHERE id = %s', (rule_id,))
         old_rule = cur.fetchone()
-        
+
+        # Check if deleting follow rule when only 1 exists
+        if old_rule and old_rule['type'] == 'Follow':
+            cur.execute(f'SELECT COUNT(*) as count FROM "{table_name}" WHERE type = %s', ('Follow',))
+            follow_count = cur.fetchone()['count']
+            if follow_count <= 1:
+                cur.close()
+                return jsonify({'error': '目前僅剩一則加入好友訊息，必須保留且無法刪除。'}), 400
+
         cur.execute(f'DELETE FROM "{table_name}" WHERE id = %s', (rule_id,))
         
         if old_rule and old_rule['type'] == 'Message':
@@ -492,3 +575,392 @@ def delete_rule(rule_id):
         return jsonify({'error': str(e)}), 500
     finally:
         if conn: conn.close()
+
+
+# ==========================================
+# Follow Rules (加入好友訊息設定) Special Endpoints
+# ==========================================
+
+DEFAULT_FOLLOW_FUNCTION = 'pri_set("name",sys.name(m)),pri_set("pic",sys.picture(m)),[update(f"switch_rm|{x[\'ui_uuid\']}") for x in dboperation.dbModel.getTable(\'rich_menu_metadata:\' + str(dboperation.dbModel.appname), filter=[(\'status\',\'default\')])[:1]]'
+BASE_FOLLOW_FUNCTION = 'pri_set("name",sys.name(m)),pri_set("pic",sys.picture(m))'
+
+def ensure_base_follow_function(func_str):
+    """Ensures function field contains pri_set("name",sys.name(m)),pri_set("pic",sys.picture(m))."""
+    if not func_str or not func_str.strip():
+        return BASE_FOLLOW_FUNCTION
+    if 'pri_set("name",sys.name(m))' not in func_str or 'pri_set("pic",sys.picture(m))' not in func_str:
+        return f"{BASE_FOLLOW_FUNCTION},{func_str.strip()}"
+    return func_str.strip()
+
+def format_msg_rpy_list(msg_rpy_list):
+    """
+    Ensure all items in msg_rpy conform to Line-Bot-Main's expected format:
+    Each element must be a JSON string of {"Line": {"OTYPE": "...", ...}}.
+
+    Input can be:
+      - A plain string (text message content) -> wrap as {"Line": {"OTYPE": "TextSendMessage", "text": "..."}}
+      - A JSON string already in correct format -> pass through
+      - A dict with "Line" key already -> serialize as-is
+      - A dict with "OTYPE" key but no "Line" wrapper -> wrap in {"Line": ...}
+    """
+    if not isinstance(msg_rpy_list, list):
+        return []
+    formatted = []
+    for m in msg_rpy_list:
+        if isinstance(m, str):
+            s = m.strip()
+            # Try to parse as JSON first
+            if s.startswith('{') or s.startswith('['):
+                try:
+                    parsed = json.loads(s)
+                    if isinstance(parsed, dict):
+                        if 'Line' in parsed:
+                            # Already correct format: {"Line": {"OTYPE": "...", ...}}
+                            formatted.append(s)
+                        elif 'OTYPE' in parsed:
+                            # Has OTYPE but missing Line wrapper
+                            wrapped = {"Line": parsed}
+                            formatted.append(json.dumps(wrapped, ensure_ascii=False))
+                        else:
+                            # Unknown dict structure, wrap as-is
+                            formatted.append(s)
+                    else:
+                        formatted.append(s)
+                    continue
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            # Plain text string -> wrap as TextSendMessage
+            if s and s != '""' and s != "''":
+                # Remove surrounding quotes if double-quoted raw string
+                text_val = s
+                if len(text_val) >= 2 and text_val.startswith('"') and text_val.endswith('"'):
+                    try:
+                        text_val = json.loads(text_val)
+                    except Exception:
+                        pass
+                if text_val:
+                    wrapped = {"Line": {"OTYPE": "TextSendMessage", "text": text_val}}
+                    formatted.append(json.dumps(wrapped, ensure_ascii=False))
+            else:
+                formatted.append(json.dumps({"Line": {"OTYPE": "TextSendMessage", "text": ""}}, ensure_ascii=False))
+        elif isinstance(m, dict):
+            if 'Line' in m:
+                # Already correct format
+                formatted.append(json.dumps(m, ensure_ascii=False))
+            elif 'OTYPE' in m:
+                # Has OTYPE but missing Line wrapper -> wrap it
+                wrapped = {"Line": m}
+                formatted.append(json.dumps(wrapped, ensure_ascii=False))
+            elif 'type' in m and m.get('type') in ('text', 'image', 'flex'):
+                # LINE SDK style type field -> convert to OTYPE format
+                type_map = {'text': 'TextSendMessage', 'image': 'ImageSendMessage', 'flex': 'FlexSendMessage'}
+                converted = {k: v for k, v in m.items() if k != 'type'}
+                converted['OTYPE'] = type_map.get(m['type'], 'TextSendMessage')
+                wrapped = {"Line": converted}
+                formatted.append(json.dumps(wrapped, ensure_ascii=False))
+            else:
+                # Unknown dict, serialize as-is
+                formatted.append(json.dumps(m, ensure_ascii=False))
+        else:
+            formatted.append(json.dumps(m, ensure_ascii=False))
+    return formatted
+
+def format_follow_rule_note(raw_note):
+    note = (raw_note or '').strip()
+    if not note:
+        return '加入好友設定'
+    import re
+    clean_n = re.sub(r'^加入好友(?:訊息|設定)(\s*-\s*)?', '', note).strip()
+    if clean_n:
+        return f'加入好友設定 - {clean_n}'
+    return '加入好友設定'
+
+def is_content_active(content_val):
+    """Check if content represents an active rule (* or ['*'])."""
+    if not content_val: return False
+    if isinstance(content_val, list):
+        return '*' in content_val or "['*']" in [str(c) for c in content_val]
+    return content_val == '*' or content_val == "['*']"
+
+@rule_designer_bp.route('/follow-rules', methods=['GET'])
+@token_required
+def get_follow_rules():
+    """Get all follow rules for current app and auto-initialize default rule if none are active."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        app_id = get_app_id()
+        table_name = f"Q_bank:{app_id}"
+
+        # Check if table exists
+        cur.execute("SELECT 1 FROM information_schema.tables WHERE table_name = %s", (table_name,))
+        if not cur.fetchone():
+            cur.close()
+            return jsonify({'rules': [], 'has_active': False})
+
+        cur.execute(f'SELECT * FROM "{table_name}" WHERE type = %s ORDER BY id ASC', ('Follow',))
+        rules = cur.fetchall()
+
+        # Ensure all existing Follow rules in Q_bank have history = TRUE
+        cur.execute(f'UPDATE "{table_name}" SET history = TRUE WHERE type = %s AND (history IS NULL OR history = FALSE)', ('Follow',))
+        if cur.rowcount > 0:
+            conn.commit()
+            cur.execute(f'SELECT * FROM "{table_name}" WHERE type = %s ORDER BY id ASC', ('Follow',))
+            rules = cur.fetchall()
+
+        has_active = any(is_content_active(r.get('content')) for r in rules)
+
+        # If no active follow rules exist, auto create / enable default follow rule
+        if not has_active:
+            print(f"[FOLLOW_RULES] No active follow rule found in {table_name}, initializing default rule...")
+            default_note = "加入好友設定 - 預設歡迎訊息"
+            
+            # Check content column type in DB
+            cur.execute("SELECT data_type FROM information_schema.columns WHERE table_name = %s AND column_name = 'content'", (table_name,))
+            col_type = (cur.fetchone() or {}).get('data_type', 'character varying')
+            default_content = ['*'] if ('ARRAY' in col_type.upper() or col_type == 'ARRAY') else '*'
+
+            cur.execute(f'SELECT id FROM "{table_name}" WHERE type = %s AND note LIKE %s LIMIT 1', ('Follow', '%預設歡迎訊息%'))
+            existing_default = cur.fetchone()
+            
+            if existing_default:
+                rule_id = existing_default['id']
+                cur.execute(
+                    f'UPDATE "{table_name}" '
+                    "SET content = %s, function = %s, \"check\" = ARRAY[''], \"state_out\" = %s, \"history\" = %s WHERE id = %s",
+                    (default_content, DEFAULT_FOLLOW_FUNCTION, '00000', True, rule_id)
+                )
+            else:
+                cur.execute(f'SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM "{table_name}"')
+                next_id = cur.fetchone()['next_id']
+                insert_sql = f'''
+                    INSERT INTO "{table_name}" ("id", "state_in", "type", "content", "check", "msg_rpy", "function", "state_out", "history", "note")
+                    VALUES (%s, %s, %s, %s, ARRAY[''], %s::json[], %s, %s, %s, %s)
+                '''
+                cur.execute(insert_sql, (
+                    next_id,
+                    ['*'],
+                    'Follow',
+                    default_content,
+                    [json.dumps("感謝您加入我們的官方帳號！", ensure_ascii=False)],
+                    DEFAULT_FOLLOW_FUNCTION,
+                    '00000',
+                    True,
+                    default_note
+                ))
+            conn.commit()
+            trigger_sql_reload()
+
+            cur.execute(f'SELECT * FROM "{table_name}" WHERE type = %s ORDER BY id ASC', ('Follow',))
+            rules = cur.fetchall()
+            has_active = True
+
+        cur.close()
+        return jsonify({'rules': rules, 'has_active': has_active})
+    except Exception as e:
+        print(f"[FOLLOW_RULES] get_follow_rules error: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn: conn.close()
+
+@rule_designer_bp.route('/follow-rules', methods=['POST'])
+@token_required
+@syslog_action('FOLLOW_RULE_CREATE')
+def create_follow_rule():
+    """Create a new follow rule with single-active check and note tagging."""
+    data = request.json
+    rule_data = data.get('rule') if data else None
+    if not rule_data:
+        return jsonify({'error': 'Rule data is required'}), 400
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        app_id = get_app_id()
+        table_name = f"Q_bank:{app_id}"
+
+        # Single active enforcement: Check if another active follow rule exists
+        raw_content = rule_data.get('content', '*')
+        is_activating = is_content_active(raw_content)
+
+        cur.execute(f'SELECT id, content FROM "{table_name}" WHERE type = %s', ('Follow',))
+        all_follow_rules = cur.fetchall()
+        
+        if is_activating:
+            has_other_active = any(is_content_active(r['content']) for r in all_follow_rules)
+            if has_other_active:
+                cur.close()
+                return jsonify({'error': '已有被啟用的加入好友訊息設定，請先停用該設定後再嘗試啟用此設定。'}), 400
+
+        # Check content column type in DB
+        cur.execute("SELECT data_type FROM information_schema.columns WHERE table_name = %s AND column_name = 'content'", (table_name,))
+        col_type = (cur.fetchone() or {}).get('data_type', 'character varying')
+        if 'ARRAY' in col_type.upper() or col_type == 'ARRAY':
+            db_content = ['*'] if is_activating else ['OFF']
+        else:
+            db_content = '*' if is_activating else 'OFF'
+
+        note = format_follow_rule_note(rule_data.get('note', ''))
+
+        raw_func = rule_data.get('function', '')
+        func_val = ensure_base_follow_function(raw_func)
+
+        msg_rpy = rule_data.get('msg_rpy', [])
+        formatted_msg_rpy = format_msg_rpy_list(msg_rpy)
+
+        cur.execute(f'SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM "{table_name}"')
+        next_id = cur.fetchone()['next_id']
+
+        insert_sql = f'''
+            INSERT INTO "{table_name}" ("id", "state_in", "type", "content", "check", "msg_rpy", "function", "state_out", "history", "note")
+            VALUES (%s, %s, %s, %s, ARRAY[''], %s::json[], %s, %s, %s, %s) RETURNING id
+        '''
+        cur.execute(insert_sql, (
+            next_id,
+            ['*'],
+            'Follow',
+            db_content,
+            formatted_msg_rpy,
+            func_val,
+            '00000',
+            True,
+            note
+        ))
+        new_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+
+        trigger_sql_reload()
+        return jsonify({'status': 'success', 'id': new_id})
+    except Exception as e:
+        print(f"[FOLLOW_RULES] create_follow_rule error: {e}")
+        if conn: conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn: conn.close()
+
+@rule_designer_bp.route('/follow-rules/<int:rule_id>', methods=['PUT', 'POST'])
+@token_required
+@syslog_action('FOLLOW_RULE_UPDATE')
+def update_follow_rule(rule_id):
+    """Update an existing follow rule with single-active check and note tagging."""
+    data = request.json
+    rule_data = data.get('rule') if data else None
+    if not rule_data:
+        return jsonify({'error': 'Rule data is required'}), 400
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        app_id = get_app_id()
+        table_name = f"Q_bank:{app_id}"
+
+        raw_content = rule_data.get('content', '*')
+        is_activating = is_content_active(raw_content)
+
+        cur.execute(f'SELECT id, content FROM "{table_name}" WHERE type = %s AND id != %s', ('Follow', rule_id))
+        other_rules = cur.fetchall()
+
+        if is_activating:
+            has_other_active = any(is_content_active(r['content']) for r in other_rules)
+            if has_other_active:
+                cur.close()
+                return jsonify({'error': '已有被啟用的加入好友訊息設定，請先停用該設定後再嘗試啟用此設定。'}), 400
+
+        cur.execute("SELECT data_type FROM information_schema.columns WHERE table_name = %s AND column_name = 'content'", (table_name,))
+        col_type = (cur.fetchone() or {}).get('data_type', 'character varying')
+        if 'ARRAY' in col_type.upper() or col_type == 'ARRAY':
+            db_content = ['*'] if is_activating else ['OFF']
+        else:
+            db_content = '*' if is_activating else 'OFF'
+
+        note = format_follow_rule_note(rule_data.get('note', ''))
+
+        raw_func = rule_data.get('function', '')
+        func_val = ensure_base_follow_function(raw_func)
+
+        msg_rpy = rule_data.get('msg_rpy', [])
+        formatted_msg_rpy = format_msg_rpy_list(msg_rpy)
+
+        update_sql = f'''
+            UPDATE "{table_name}"
+            SET "content" = %s, "check" = ARRAY[''], "msg_rpy" = %s::json[], "function" = %s, "state_out" = %s, "history" = %s, "note" = %s
+            WHERE id = %s AND type = 'Follow'
+        '''
+        cur.execute(update_sql, (db_content, formatted_msg_rpy, func_val, '00000', True, note, rule_id))
+        conn.commit()
+        cur.close()
+
+        trigger_sql_reload()
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        print(f"[FOLLOW_RULES] update_follow_rule error: {e}")
+        if conn: conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn: conn.close()
+
+@rule_designer_bp.route('/follow-rules/<int:rule_id>/toggle', methods=['POST'])
+@token_required
+@syslog_action('FOLLOW_RULE_TOGGLE')
+def toggle_follow_rule(rule_id):
+    """Toggle follow rule enabled/disabled state (content='*' or 'OFF')."""
+    data = request.json or {}
+    target_state = data.get('content') # '*' or 'OFF'
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        app_id = get_app_id()
+        table_name = f"Q_bank:{app_id}"
+
+        cur.execute(f'SELECT content FROM "{table_name}" WHERE id = %s AND type = %s', (rule_id, 'Follow'))
+        current_rule = cur.fetchone()
+        if not current_rule:
+            cur.close()
+            return jsonify({'error': 'Rule not found'}), 404
+
+        if target_state is None:
+            is_activating = not is_content_active(current_rule['content'])
+        else:
+            is_activating = is_content_active(target_state)
+
+        if is_activating:
+            cur.execute(f'SELECT id, content FROM "{table_name}" WHERE type = %s AND id != %s', ('Follow', rule_id))
+            other_rules = cur.fetchall()
+            if any(is_content_active(r['content']) for r in other_rules):
+                cur.close()
+                return jsonify({'error': '已有被啟用的加入好友訊息設定，請先停用該設定後再嘗試啟用此設定。'}), 400
+        else:
+            # Prevent disabling if no other active follow rule exists
+            cur.execute(f'SELECT id, content FROM "{table_name}" WHERE type = %s AND id != %s', ('Follow', rule_id))
+            other_rules = cur.fetchall()
+            if len(other_rules) == 0 or not any(is_content_active(r['content']) for r in other_rules):
+                cur.close()
+                return jsonify({'error': '至少需維持一則啟用的加入好友訊息，無法停用此設定。'}), 400
+
+        cur.execute("SELECT data_type FROM information_schema.columns WHERE table_name = %s AND column_name = 'content'", (table_name,))
+        col_type = (cur.fetchone() or {}).get('data_type', 'character varying')
+        if 'ARRAY' in col_type.upper() or col_type == 'ARRAY':
+            db_content = ['*'] if is_activating else ['OFF']
+        else:
+            db_content = '*' if is_activating else 'OFF'
+
+        cur.execute(f'UPDATE "{table_name}" SET content = %s WHERE id = %s AND type = %s', (db_content, rule_id, 'Follow'))
+        conn.commit()
+        cur.close()
+
+        trigger_sql_reload()
+        return jsonify({'status': 'success', 'content': db_content})
+    except Exception as e:
+        print(f"[FOLLOW_RULES] toggle_follow_rule error: {e}")
+        if conn: conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn: conn.close()
+
+

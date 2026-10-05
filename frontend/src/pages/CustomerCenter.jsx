@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Swal from 'sweetalert2';
-import { Search, Filter, Download, UserPlus, Users, Tag, Clock, Phone, Mail, MoreHorizontal, ArrowUpDown, ArrowUp, ArrowDown, X, MessageSquare, Plus, Edit2, Check } from 'lucide-react';
+import { Search, Filter, Download, UserPlus, Users, Tag, Clock, Phone, Mail, MoreHorizontal, ArrowUpDown, ArrowUp, ArrowDown, X, MessageSquare, Plus, Edit2, Check, ChevronDown, Loader2, Info } from 'lucide-react';
+import Tooltip from '@mui/material/Tooltip';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../api';
 import { useToast } from '../contexts/ToastContext';
@@ -32,12 +33,65 @@ const CustomerCenter = () => {
   const [editingCustomer, setEditingCustomer] = useState(null);
   
   const [selectedCustomerForSidebar, setSelectedCustomerForSidebar] = useState(null);
-  const [sidebarDetails, setSidebarDetails] = useState({ projects: [], rich_menu: null, loading: false });
+  const [sidebarDetails, setSidebarDetails] = useState({ projects: [], rich_menu: null, tags: [], loading: false });
   const [sidebarTagInput, setSidebarTagInput] = useState([]);
+
+  // Batch Operations State (MVP v1.2)
+  const [activeBatchModal, setActiveBatchModal] = useState(null); // 'remove_tags' | 'richmenu' | 'journey'
+  const [batchMenuDropdownOpen, setBatchMenuDropdownOpen] = useState(false);
+  const [availableRichMenus, setAvailableRichMenus] = useState([]);
+  const [availableProjects, setAvailableProjects] = useState([]);
+
+  // Modal Sub-Selections
+  const [batchTagsToRemove, setBatchTagsToRemove] = useState([]);
+  const [batchRichMenuMode, setBatchRichMenuMode] = useState('apply'); // 'apply' | 'unlink'
+  const [selectedBatchRichMenuId, setSelectedBatchRichMenuId] = useState('');
+
+  const [batchJourneyMode, setBatchJourneyMode] = useState('enroll'); // 'enroll' | 'stop'
+  const [selectedBatchProjectId, setSelectedBatchProjectId] = useState('');
+  const [batchStopReason, setBatchStopReason] = useState('');
+
+  // Processing & Result State
+  const [batchStatus, setBatchStatus] = useState('idle'); // 'idle' | 'processing' | 'completed'
+  const [batchResultData, setBatchResultData] = useState(null);
+  const [showFailureDetails, setShowFailureDetails] = useState(false);
 
   const navigate = useNavigate();
   const { oaId } = useParams();
   const { showToast } = useToast();
+
+  const renderSourceTooltip = (info) => {
+    if (!info) return "無來源資訊";
+    return (
+      <div style={{ padding: '6px 4px', fontSize: '12px', lineHeight: '1.6', color: '#fff' }}>
+        <div><strong>來源：</strong>{info.source_name || '人工操作'}</div>
+        <div><strong>觸發：</strong>{info.trigger_display || '手動變更'}</div>
+        <div><strong>時間：</strong>{info.occurred_at || '無紀錄'}</div>
+        {info.setting_url && (
+          <div style={{ marginTop: '6px' }}>
+            <span 
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                const url = info.setting_url;
+                if (url.startsWith('/oa/')) {
+                  navigate(url);
+                } else {
+                  let clean = url.trim().replace(/^\//, '');
+                  if (clean === 'rules' || clean.startsWith('rules/')) {
+                    clean = clean.replace(/^rules/, 'ruledesigner');
+                  }
+                  navigate(`/oa/${oaId}/${clean}`);
+                }
+              }} 
+              style={{ color: '#FFD700', textDecoration: 'underline', cursor: 'pointer', fontWeight: 'bold' }}
+            >
+              前往設定 →
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const fetchCustomers = async (silent = false) => {
     if (!silent && customers.length === 0) setIsLoading(true);
@@ -146,16 +200,17 @@ const CustomerCenter = () => {
           setSidebarDetails({
             projects: resp.data.projects || [],
             rich_menu: resp.data.rich_menu || null,
+            tags: resp.data.tags || [],
             loading: false
           });
         } catch (err) {
           console.error('Failed to fetch sidebar details:', err);
-          setSidebarDetails({ projects: [], rich_menu: null, loading: false });
+          setSidebarDetails({ projects: [], rich_menu: null, tags: [], loading: false });
         }
       };
       fetchDetails();
     } else {
-      setSidebarDetails({ projects: [], rich_menu: null, loading: false });
+      setSidebarDetails({ projects: [], rich_menu: null, tags: [], loading: false });
       setSidebarTagInput([]);
     }
   }, [selectedCustomerForSidebar]);
@@ -514,8 +569,9 @@ const CustomerCenter = () => {
   };
 
   const handleAddTagToGroup = async () => {
-    if (!tagInput || tagInput.length === 0 || filteredCustomers.length === 0) return;
-    const userIds = filteredCustomers.map(u => u.user_id).filter(Boolean);
+    if (!tagInput || tagInput.length === 0) return;
+    const userIds = selectedUserIds.length > 0 ? selectedUserIds : filteredCustomers.map(u => u.user_id).filter(Boolean);
+    if (userIds.length === 0) return;
     
     setIsProcessing(true);
     try {
@@ -526,6 +582,7 @@ const CustomerCenter = () => {
       setIsTagModalOpen(false);
       showToast(`成功為 ${userIds.length} 名用戶加入標籤: ${tagInput.join(', ')}`, 'success');
       setTagInput([]);
+      setSelectedUserIds([]);
       await refreshAllData();
     } catch (err) {
       showToast('加入標籤失敗', 'error');
@@ -537,24 +594,29 @@ const CustomerCenter = () => {
 
   const handleSidebarAddTag = async () => {
     if (!sidebarTagInput || sidebarTagInput.length === 0 || !selectedCustomerForSidebar) return;
-    const tagsStr = `[${sidebarTagInput.map(t => `'${t}'`).join(', ')}]`;
     const addedTags = [...sidebarTagInput];
     setSidebarTagInput([]);
     try {
-      await api.post('/trigger', {
-        user: selectedCustomerForSidebar.user_id,
-        message: `set_tag|${tagsStr}`,
-        type: 'Sensor',
-        api_index: 0
+      await api.post('/customers/tags/batch', {
+        tag_names: addedTags,
+        user_ids: [selectedCustomerForSidebar.user_id]
       });
       showToast(`已新增標籤: ${addedTags.join(', ')}`, 'success');
-      // Update local state to reflect UI change immediately
-      setSelectedCustomerForSidebar(prev => {
-        let currentTags = Array.isArray(prev.tag) ? prev.tag : (prev.tag ? prev.tag.split(/[,|]/) : []);
-        const newTags = [...new Set([...currentTags, ...addedTags])];
-        setCustomers(custs => custs.map(c => c.user_id === prev.user_id ? { ...c, tag: newTags } : c));
-        return { ...prev, tag: newTags };
-      });
+      
+      // 重新取得此用戶的最新詳情與來源 Meta
+      try {
+        const resp = await api.get(`/customers/${selectedCustomerForSidebar.user_id}/details`);
+        setSidebarDetails({
+          projects: resp.data.projects || [],
+          rich_menu: resp.data.rich_menu || null,
+          tags: resp.data.tags || [],
+          loading: false
+        });
+      } catch (e) {
+        console.error('Error refreshing sidebar details after add tag:', e);
+      }
+      
+      await refreshAllData();
     } catch (err) {
       showToast('新增標籤失敗', 'error');
       console.error(err);
@@ -655,18 +717,93 @@ const CustomerCenter = () => {
 
 
 
+  const fetchRichMenusAndProjects = async () => {
+    try {
+      const [rmRes, projRes] = await Promise.allSettled([
+        api.get('/richmenu/metadata'),
+        api.get('/projects')
+      ]);
+      if (rmRes.status === 'fulfilled') {
+        const rms = Array.isArray(rmRes.value.data) ? rmRes.value.data : (rmRes.value.data?.richmenus || []);
+        setAvailableRichMenus(rms);
+        if (rms.length > 0 && !selectedBatchRichMenuId) {
+          setSelectedBatchRichMenuId(rms[0].rich_menu_id || rms[0].id || '');
+        }
+      }
+      if (projRes.status === 'fulfilled') {
+        const projs = Array.isArray(projRes.value.data) ? projRes.value.data : [];
+        setAvailableProjects(projs);
+        if (projs.length > 0 && !selectedBatchProjectId) {
+          setSelectedBatchProjectId(projs[0].project_id || projs[0].id || '');
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching richmenus or projects:', e);
+    }
+  };
+
+  const handleOpenBatchModal = (modalType) => {
+    setBatchMenuDropdownOpen(false);
+    if (selectedUserIds.length === 0) {
+      showToast('請先在列表中勾選目標客戶', 'warning');
+      return;
+    }
+    setActiveBatchModal(modalType);
+    setBatchStatus('idle');
+    setShowFailureDetails(false);
+    if (modalType === 'richmenu' || modalType === 'journey') {
+      fetchRichMenusAndProjects();
+    }
+  };
+
+  const handleExecuteBatchOperation = async (actionType, payload = {}) => {
+    if (selectedUserIds.length === 0) return;
+    
+    setBatchStatus('processing');
+    try {
+      const res = await api.post('/customers/batch-operation', {
+        action_type: actionType,
+        user_ids: selectedUserIds,
+        payload
+      });
+      setBatchResultData(res.data);
+      setBatchStatus('completed');
+    } catch (err) {
+      console.error("Batch operation error:", err);
+      showToast(err.response?.data?.error || '批量操作執行失敗', 'error');
+      setBatchStatus('idle');
+      setActiveBatchModal(null);
+    }
+  };
+
+  const handleFinishBatchModal = async () => {
+    setActiveBatchModal(null);
+    setBatchStatus('idle');
+    setBatchResultData(null);
+    setSelectedUserIds([]);
+    await refreshAllData();
+  };
+
   const handleSendGroupMessage = () => {
-    const userIds = filteredCustomers.map(c => c.user_id).filter(Boolean).join(',');
-    if (!userIds) {
-      showToast('該群組目前沒有用戶可發送訊息', 'error');
+    let targetIds = selectedUserIds;
+    if (!targetIds || targetIds.length === 0) {
+      if (filteredCustomers.length > 0) {
+        targetIds = filteredCustomers.map(c => c.user_id).filter(Boolean);
+      }
+    }
+    const userIdsStr = (targetIds || []).join(',');
+    if (!userIdsStr) {
+      showToast('請先勾選欲發送訊息的客戶', 'warning');
       return;
     }
     navigate(`/oa/${oaId}/broadcast`, { 
       state: { 
         presetTarget: { 
           type: 'ids', 
-          value: userIds, 
-          name: filterContext.type === 'group' ? `發送給客群：${filterContext.value}` : `發送給選定目標`,
+          value: userIdsStr, 
+          name: targetIds.length === selectedUserIds.length && selectedUserIds.length > 0
+            ? `發送給已選擇的 ${selectedUserIds.length} 位客戶`
+            : filterContext.type === 'group' ? `發送給客群：${filterContext.value}` : `發送給選定目標`,
           autoStep2: true 
         } 
       } 
@@ -757,12 +894,31 @@ const CustomerCenter = () => {
                     </div>
                   </td>
                   <td style={{ padding: '16px' }}>
-                    {Array.isArray(c.tag) && c.tag.length > 0 ? (
+                    {Array.isArray(c.tag_objects) && c.tag_objects.length > 0 ? (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {c.tag_objects.map((tagObj, i) => (
+                          <div key={i} style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 8px', borderRadius: '16px', backgroundColor: '#333', fontSize: '12px', border: '1px solid #444', color: '#FFD700' }}>
+                            <Tag size={12} style={{ marginRight: '4px' }} />
+                            {tagObj.name}
+                            <Tooltip title={renderSourceTooltip(tagObj.source_info)} arrow placement="top">
+                              <span style={{ display: 'inline-flex', alignItems: 'center', marginLeft: '4px' }}>
+                                <Info size={13} style={{ cursor: 'pointer', color: '#FFD700' }} />
+                              </span>
+                            </Tooltip>
+                          </div>
+                        ))}
+                      </div>
+                    ) : Array.isArray(c.tag) && c.tag.length > 0 ? (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                         {c.tag.map((t, i) => (
                           <div key={i} style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 8px', borderRadius: '16px', backgroundColor: '#333', fontSize: '12px', border: '1px solid #444', color: '#FFD700' }}>
                             <Tag size={12} style={{ marginRight: '4px' }} />
-                            {t}
+                            {typeof t === 'object' ? t.name : t}
+                            <Tooltip title={renderSourceTooltip(typeof t === 'object' ? t.source_info : null)} arrow placement="top">
+                              <span style={{ display: 'inline-flex', alignItems: 'center', marginLeft: '4px' }}>
+                                <Info size={13} style={{ cursor: 'pointer', color: '#FFD700' }} />
+                              </span>
+                            </Tooltip>
                           </div>
                         ))}
                       </div>
@@ -787,20 +943,24 @@ const CustomerCenter = () => {
                   <td style={{ padding: '16px' }}>
                     {Array.isArray(c.projects) && c.projects.length > 0 ? (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                        {c.projects.map((p, i) => {
-                          return (
-                            <span key={i} style={{ 
-                              backgroundColor: p.status === 'active' ? 'rgba(0,200,0,0.1)' : p.status === 'completed' ? 'rgba(33,150,243,0.1)' : 'rgba(255,255,255,0.1)', 
-                              color: p.status === 'active' ? '#00c800' : p.status === 'completed' ? '#2196F3' : '#ccc', 
-                              padding: '2px 6px', 
-                              borderRadius: '4px', 
-                              fontSize: '12px', 
-                              border: `1px solid ${p.status === 'active' ? 'rgba(0,200,0,0.4)' : p.status === 'completed' ? 'rgba(33,150,243,0.4)' : 'rgba(255,255,255,0.4)'}`
-                            }}>
-                              {p.project_name}{p.status === 'completed' ? ' (已完成)' : ''}
-                            </span>
-                          );
-                        })}
+                        {c.projects.map((p, i) => (
+                          <span key={i} style={{ 
+                            display: 'inline-flex', alignItems: 'center',
+                            backgroundColor: p.status === 'active' ? 'rgba(0,200,0,0.1)' : p.status === 'completed' ? 'rgba(33,150,243,0.1)' : 'rgba(255,255,255,0.1)', 
+                            color: p.status === 'active' ? '#00c800' : p.status === 'completed' ? '#2196F3' : '#ccc', 
+                            padding: '2px 8px', 
+                            borderRadius: '4px', 
+                            fontSize: '12px', 
+                            border: `1px solid ${p.status === 'active' ? 'rgba(0,200,0,0.4)' : p.status === 'completed' ? 'rgba(33,150,243,0.4)' : 'rgba(255,255,255,0.4)'}`
+                          }}>
+                            {p.project_name || p.name}{p.status === 'completed' ? ' (已完成)' : ''}
+                            <Tooltip title={renderSourceTooltip(p.source_info)} arrow placement="top">
+                              <span style={{ display: 'inline-flex', alignItems: 'center', marginLeft: '4px' }}>
+                                <Info size={13} style={{ cursor: 'pointer', color: p.status === 'active' ? '#00c800' : '#aaa' }} />
+                              </span>
+                            </Tooltip>
+                          </span>
+                        ))}
                       </div>
                     ) : (
                       <span style={{ color: '#666', fontSize: '13px' }}>無</span>
@@ -808,7 +968,14 @@ const CustomerCenter = () => {
                   </td>
                   <td style={{ padding: '16px' }}>
                     {c.rich_menu ? (
-                      <span style={{ color: '#FFD700', fontSize: '13px' }}>{c.rich_menu.name}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', color: '#FFD700', fontSize: '13px' }}>
+                        {c.rich_menu.name}
+                        <Tooltip title={renderSourceTooltip(c.rich_menu.source_info)} arrow placement="top">
+                          <span style={{ display: 'inline-flex', alignItems: 'center', marginLeft: '4px' }}>
+                            <Info size={13} style={{ cursor: 'pointer', color: '#FFD700' }} />
+                          </span>
+                        </Tooltip>
+                      </span>
                     ) : (
                       <span style={{ color: '#666', fontSize: '13px' }}>預設選單</span>
                     )}
@@ -987,11 +1154,32 @@ const CustomerCenter = () => {
              <div>
                 <h2 style={{ margin: 0, color: '#FFD700', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '20px' }}><Users size={20} /> {filterContext.value}</h2>
                 {filterContext.description && <p style={{ margin: '8px 0 0 0', color: '#ccc', fontSize: '14px' }}>{filterContext.description}</p>}
-                <p style={{ margin: '4px 0 0 0', color: '#888', fontSize: '13px' }}>共 {filteredCustomers.length} 名用戶</p>
+                <p style={{ margin: '4px 0 0 0', color: '#888', fontSize: '13px' }}>共 {filteredCustomers.length} 名用戶 {selectedUserIds.length > 0 && <span style={{ color: '#FFD700', marginLeft: '8px', fontWeight: 'bold' }}>（已勾選 {selectedUserIds.length} 位）</span>}</p>
              </div>
              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                 <button onClick={() => setIsTagModalOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', backgroundColor: '#333', color: 'white', border: '1px solid #555', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor='#444'} onMouseLeave={e => e.currentTarget.style.backgroundColor='#333'}><Tag size={16} /> 上標籤</button>
+                 <button onClick={() => {
+                   if (selectedUserIds.length === 0) {
+                     showToast('請先在列表中勾選目標客戶', 'warning');
+                     return;
+                   }
+                   setIsTagModalOpen(true);
+                 }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', backgroundColor: '#333', color: 'white', border: '1px solid #555', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor='#444'} onMouseLeave={e => e.currentTarget.style.backgroundColor='#333'}><Tag size={16} /> 上標籤</button>
+
                  <button onClick={handleSendGroupMessage} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', backgroundColor: '#FFD700', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform='scale(1.02)'} onMouseLeave={e => e.currentTarget.style.transform='scale(1)'}><MessageSquare size={16} /> 發訊息</button>
+
+                 <div style={{ position: 'relative' }}>
+                   <button onClick={() => setBatchMenuDropdownOpen(!batchMenuDropdownOpen)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', transition: 'all 0.2s' }}>
+                     更多批量操作 <ChevronDown size={16} />
+                   </button>
+                   {batchMenuDropdownOpen && (
+                     <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '6px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '8px', boxShadow: '0 4px 15px rgba(0,0,0,0.5)', zIndex: 100, minWidth: '180px', overflow: 'hidden' }}>
+                       <div onClick={() => handleOpenBatchModal('remove_tags')} style={{ padding: '10px 16px', cursor: 'pointer', color: '#fff', fontSize: '14px', borderBottom: '1px solid #333' }} onMouseEnter={e => e.currentTarget.style.backgroundColor='#333'} onMouseLeave={e => e.currentTarget.style.backgroundColor='transparent'}>移除標籤</div>
+                       <div onClick={() => handleOpenBatchModal('richmenu')} style={{ padding: '10px 16px', cursor: 'pointer', color: '#fff', fontSize: '14px', borderBottom: '1px solid #333' }} onMouseEnter={e => e.currentTarget.style.backgroundColor='#333'} onMouseLeave={e => e.currentTarget.style.backgroundColor='transparent'}>套用圖文選單 / 解除連結</div>
+                       <div onClick={() => handleOpenBatchModal('journey')} style={{ padding: '10px 16px', cursor: 'pointer', color: '#fff', fontSize: '14px' }} onMouseEnter={e => e.currentTarget.style.backgroundColor='#333'} onMouseLeave={e => e.currentTarget.style.backgroundColor='transparent'}>加入 / 停止自動旅程</div>
+                     </div>
+                   )}
+                 </div>
+
                  <div style={{ width: '1px', height: '24px', backgroundColor: '#555', margin: '0 4px' }}></div>
                  <button onClick={() => setFilterContext({ type: null, value: null })} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '14px' }} onMouseEnter={e => e.currentTarget.style.color='#fff'} onMouseLeave={e => e.currentTarget.style.color='#888'}>
                    <X size={16} /> 返回
@@ -1285,14 +1473,32 @@ const CustomerCenter = () => {
 
       {/* Floating Action Bar */}
       {selectedUserIds.length > 0 && activeTab === 'customers' && (
-        <div style={{ position: 'fixed', bottom: '30px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#FFD700', color: '#000', padding: '12px 24px', borderRadius: '30px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', gap: '20px', zIndex: 100 }}>
+        <div style={{ position: 'fixed', bottom: '30px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#FFD700', color: '#000', padding: '10px 24px', borderRadius: '30px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', gap: '16px', zIndex: 100 }}>
           <div style={{ fontWeight: 'bold', fontSize: '15px' }}>已選擇 {selectedUserIds.length} 名用戶</div>
           <div style={{ width: '1px', height: '20px', backgroundColor: 'rgba(0,0,0,0.2)' }}></div>
+          <button onClick={() => setIsTagModalOpen(true)} style={{ background: 'transparent', border: 'none', color: '#000', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '14px' }}>
+            <Tag size={16} /> 上標籤
+          </button>
+          <button onClick={handleSendGroupMessage} style={{ background: 'transparent', border: 'none', color: '#000', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '14px' }}>
+            <MessageSquare size={16} /> 發訊息
+          </button>
           <button onClick={() => setIsGroupModalOpen(true)} style={{ background: 'transparent', border: 'none', color: '#000', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '14px' }}>
             <Plus size={16} /> 加入客群
           </button>
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setBatchMenuDropdownOpen(!batchMenuDropdownOpen)} style={{ background: 'rgba(0,0,0,0.1)', border: 'none', color: '#000', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '13px', padding: '6px 12px', borderRadius: '15px' }}>
+              更多批量操作 <ChevronDown size={14} />
+            </button>
+            {batchMenuDropdownOpen && (
+              <div style={{ position: 'absolute', bottom: '100%', right: 0, marginBottom: '8px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '8px', boxShadow: '0 4px 15px rgba(0,0,0,0.5)', zIndex: 120, minWidth: '180px', overflow: 'hidden' }}>
+                <div onClick={() => handleOpenBatchModal('remove_tags')} style={{ padding: '10px 16px', cursor: 'pointer', color: '#fff', fontSize: '13px', borderBottom: '1px solid #333' }} onMouseEnter={e => e.currentTarget.style.backgroundColor='#333'} onMouseLeave={e => e.currentTarget.style.backgroundColor='transparent'}>移除標籤</div>
+                <div onClick={() => handleOpenBatchModal('richmenu')} style={{ padding: '10px 16px', cursor: 'pointer', color: '#fff', fontSize: '13px', borderBottom: '1px solid #333' }} onMouseEnter={e => e.currentTarget.style.backgroundColor='#333'} onMouseLeave={e => e.currentTarget.style.backgroundColor='transparent'}>套用圖文選單 / 解除連結</div>
+                <div onClick={() => handleOpenBatchModal('journey')} style={{ padding: '10px 16px', cursor: 'pointer', color: '#fff', fontSize: '13px' }} onMouseEnter={e => e.currentTarget.style.backgroundColor='#333'} onMouseLeave={e => e.currentTarget.style.backgroundColor='transparent'}>加入 / 停止自動旅程</div>
+              </div>
+            )}
+          </div>
           <button onClick={() => setSelectedUserIds([])} style={{ background: 'transparent', border: 'none', color: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '13px' }}>
-            取消
+            取消選取
           </button>
         </div>
       )}
@@ -1398,7 +1604,19 @@ const CustomerCenter = () => {
                   </div>
                 </div>
                 <div style={{ backgroundColor: '#222', borderRadius: '8px', padding: '16px', border: '1px solid #333', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  {Array.isArray(selectedCustomerForSidebar.tag) && selectedCustomerForSidebar.tag.length > 0 ? (
+                  {Array.isArray(sidebarDetails.tags) && sidebarDetails.tags.length > 0 ? (
+                    sidebarDetails.tags.map((tagObj, i) => (
+                      <span key={i} style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '16px', backgroundColor: '#333', fontSize: '13px', border: '1px solid #444', color: '#FFD700' }}>
+                        <Tag size={12} style={{ marginRight: '6px' }} /> {tagObj.name}
+                        <Tooltip title={renderSourceTooltip(tagObj.source_info)} arrow placement="top">
+                          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            <Info size={13} style={{ marginLeft: '4px', cursor: 'pointer', color: '#FFD700' }} />
+                          </span>
+                        </Tooltip>
+                        <X size={12} style={{ marginLeft: '6px', cursor: 'pointer', color: '#888' }} onClick={() => handleSidebarDeleteTag(tagObj.name)} />
+                      </span>
+                    ))
+                  ) : Array.isArray(selectedCustomerForSidebar.tag) && selectedCustomerForSidebar.tag.length > 0 ? (
                     selectedCustomerForSidebar.tag.map((t, i) => (
                       <span key={i} style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '16px', backgroundColor: '#333', fontSize: '13px', border: '1px solid #444', color: '#FFD700' }}>
                         <Tag size={12} style={{ marginRight: '6px' }} /> {t}
@@ -1432,21 +1650,35 @@ const CustomerCenter = () => {
                 <div style={{ backgroundColor: '#222', borderRadius: '8px', padding: '16px', border: '1px solid #333', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                   {sidebarDetails.loading ? (
                     <span style={{ color: '#666', fontSize: '14px' }}>載入中...</span>
-                  ) : sidebarDetails.projects.length > 0 ? (
-                    sidebarDetails.projects.map((p, i) => (
-                      <span key={i} style={{ 
-                        display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '6px', fontSize: '13px', 
-                        backgroundColor: p.status === 'active' ? 'rgba(0,200,0,0.1)' : p.status === 'completed' ? 'rgba(33,150,243,0.1)' : 'rgba(255,255,255,0.1)', 
-                        border: `1px solid ${p.status === 'active' ? '#00c800' : p.status === 'completed' ? '#2196F3' : '#444'}`, 
-                        color: p.status === 'active' ? '#00c800' : p.status === 'completed' ? '#2196F3' : '#ccc' 
-                      }}>
-                        {p.name} ({p.status === 'active' ? '進行中' : p.status === 'completed' ? '已完成' : p.status === 'paused' ? '已中斷' : p.status})
-                        <X size={12} style={{ marginLeft: '6px', cursor: 'pointer', color: p.status === 'active' ? '#00c800' : p.status === 'completed' ? '#2196F3' : '#888' }} onClick={() => handleSidebarDeleteProject(p.id, p.name)} />
-                      </span>
-                    ))
-                  ) : (
-                    <span style={{ color: '#666', fontSize: '14px' }}>未加入任何旅程</span>
-                  )}
+                  ) : (() => {
+                    const displayProjects = (sidebarDetails.projects && sidebarDetails.projects.length > 0)
+                      ? sidebarDetails.projects
+                      : (selectedCustomerForSidebar.active_projects || selectedCustomerForSidebar.projects || []).map(p => ({
+                          id: p.project_id || p.id,
+                          name: p.project_name || p.name,
+                          status: p.status || 'active',
+                          source_info: p.source_info
+                        }));
+                    if (displayProjects.length > 0) {
+                      return displayProjects.map((p, i) => (
+                        <span key={i} style={{ 
+                          display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '6px', fontSize: '13px', 
+                          backgroundColor: p.status === 'active' ? 'rgba(0,200,0,0.1)' : p.status === 'completed' ? 'rgba(33,150,243,0.1)' : 'rgba(255,255,255,0.1)', 
+                          border: `1px solid ${p.status === 'active' ? '#00c800' : p.status === 'completed' ? '#2196F3' : '#444'}`, 
+                          color: p.status === 'active' ? '#00c800' : p.status === 'completed' ? '#2196F3' : '#ccc' 
+                        }}>
+                          {p.name} ({p.status === 'active' ? '進行中' : p.status === 'completed' ? '已完成' : p.status === 'paused' ? '已中斷' : p.status})
+                          <Tooltip title={renderSourceTooltip(p.source_info)} arrow placement="top">
+                            <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                              <Info size={13} style={{ marginLeft: '4px', cursor: 'pointer', color: p.status === 'active' ? '#00c800' : '#aaa' }} />
+                            </span>
+                          </Tooltip>
+                          <X size={12} style={{ marginLeft: '6px', cursor: 'pointer', color: p.status === 'active' ? '#00c800' : p.status === 'completed' ? '#2196F3' : '#888' }} onClick={() => handleSidebarDeleteProject(p.id, p.name)} />
+                        </span>
+                      ));
+                    }
+                    return <span style={{ color: '#666', fontSize: '14px' }}>未加入任何旅程</span>;
+                  })()}
                 </div>
               </div>
 
@@ -1456,12 +1688,20 @@ const CustomerCenter = () => {
                 <div style={{ backgroundColor: '#222', borderRadius: '8px', padding: '16px', border: '1px solid #333', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                   {sidebarDetails.loading ? (
                     <span style={{ color: '#666', fontSize: '14px' }}>載入中...</span>
-                  ) : sidebarDetails.rich_menu ? (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '6px', backgroundColor: 'rgba(255,215,0,0.1)', fontSize: '13px', border: '1px solid #FFD700', color: '#FFD700' }}>
-                      {sidebarDetails.rich_menu.name}
-                      <X size={12} style={{ marginLeft: '6px', cursor: 'pointer', color: '#FFD700' }} onClick={handleSidebarDeleteRichMenu} />
-                    </span>
-                  ) : (
+                  ) : (sidebarDetails.rich_menu || selectedCustomerForSidebar.rich_menu) ? (() => {
+                    const rm = sidebarDetails.rich_menu || selectedCustomerForSidebar.rich_menu;
+                    return (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '6px', backgroundColor: 'rgba(255,215,0,0.1)', fontSize: '13px', border: '1px solid #FFD700', color: '#FFD700' }}>
+                        {rm.name}
+                        <Tooltip title={renderSourceTooltip(rm.source_info)} arrow placement="top">
+                          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            <Info size={13} style={{ marginLeft: '4px', cursor: 'pointer', color: '#FFD700' }} />
+                          </span>
+                        </Tooltip>
+                        <X size={12} style={{ marginLeft: '6px', cursor: 'pointer', color: '#FFD700' }} onClick={handleSidebarDeleteRichMenu} />
+                      </span>
+                    );
+                  })() : (
                     <span style={{ color: '#aaa', fontSize: '14px' }}>預設圖文選單</span>
                   )}
                 </div>
@@ -1479,6 +1719,247 @@ const CustomerCenter = () => {
           </>
         )}
       </div>
+
+      {/* MVP v1.2 Batch Modals */}
+      {activeBatchModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1100, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <div style={{ backgroundColor: '#222', color: '#fff', width: '520px', borderRadius: '12px', padding: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.8)', border: '1px solid #444', position: 'relative' }}>
+            
+            {/* 1. Processing Spinner Overlay */}
+            {batchStatus === 'processing' && (
+              <div style={{ textAlign: 'center', padding: '30px 10px' }}>
+                <Loader2 size={48} color="#FFD700" style={{ animation: 'spin 1s linear infinite', marginBottom: '16px' }} />
+                <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+                <h3 style={{ margin: '0 0 8px 0', fontSize: '20px', color: '#FFD700' }}>批量操作執行中...</h3>
+                <p style={{ margin: 0, color: '#aaa', fontSize: '14px' }}>系統正在為 {selectedUserIds.length} 位客戶處理請求，請稍候。</p>
+              </div>
+            )}
+
+            {/* 2. Completed Result Overlay */}
+            {batchStatus === 'completed' && batchResultData && (
+              <div>
+                <div style={{ borderBottom: '1px solid #333', pb: '12px', marginBottom: '16px' }}>
+                  <h3 style={{ margin: 0, fontSize: '20px', color: '#FFD700' }}>批量操作完成</h3>
+                  <div style={{ color: '#aaa', fontSize: '13px', marginTop: '4px' }}>
+                    選取對象：{batchResultData.selected_count} 位客戶
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
+                  <div style={{ backgroundColor: 'rgba(0,255,136,0.1)', border: '1px solid #00ff88', padding: '12px', borderRadius: '8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#00ff88' }}>{batchResultData.success_count}</div>
+                    <div style={{ fontSize: '12px', color: '#ccc' }}>成功</div>
+                  </div>
+                  <div style={{ backgroundColor: 'rgba(255,215,0,0.1)', border: '1px solid #FFD700', padding: '12px', borderRadius: '8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#FFD700' }}>{batchResultData.skipped_count}</div>
+                    <div style={{ fontSize: '12px', color: '#ccc' }}>略過</div>
+                  </div>
+                  <div style={{ backgroundColor: 'rgba(255,77,77,0.1)', border: '1px solid #ff4d4d', padding: '12px', borderRadius: '8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#ff4d4d' }}>{batchResultData.failed_count}</div>
+                    <div style={{ fontSize: '12px', color: '#ccc' }}>失敗</div>
+                  </div>
+                </div>
+
+                {(batchResultData.skipped_count > 0 || batchResultData.failed_count > 0) && (
+                  <div style={{ marginBottom: '20px' }}>
+                    <button onClick={() => setShowFailureDetails(!showFailureDetails)} style={{ background: 'transparent', border: '1px solid #555', color: '#ccc', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
+                      {showFailureDetails ? '隱藏略過/失敗原因' : '查看略過與失敗原因'}
+                    </button>
+                    {showFailureDetails && (
+                      <div style={{ marginTop: '10px', maxHeight: '180px', overflowY: 'auto', backgroundColor: '#111', border: '1px solid #333', borderRadius: '6px', padding: '10px' }}>
+                        {batchResultData.results.filter(r => r.status !== 'success').map((r, i) => (
+                          <div key={i} style={{ fontSize: '12px', padding: '4px 0', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ color: '#aaa', fontFamily: 'monospace' }}>{r.user_id}</span>
+                            <span style={{ color: r.status === 'skipped' ? '#FFD700' : '#ff4d4d' }}>[{r.status === 'skipped' ? '略過' : '失敗'}] {r.reason || '無備註'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button onClick={handleFinishBatchModal} style={{ padding: '8px 20px', backgroundColor: '#FFD700', color: '#000', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>
+                    完成
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 3. Setup Modals (idle state) */}
+            {batchStatus === 'idle' && (
+              <>
+                {/* 3.1 Remove Tags Modal */}
+                {activeBatchModal === 'remove_tags' && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <h3 style={{ margin: 0, fontSize: '18px', color: '#FFD700' }}>批量移除標籤</h3>
+                      <X size={20} style={{ cursor: 'pointer' }} onClick={() => setActiveBatchModal(null)} />
+                    </div>
+                    <div style={{ color: '#ccc', fontSize: '14px', marginBottom: '16px' }}>
+                      已選取客戶：<strong style={{ color: '#FFD700' }}>{selectedUserIds.length} 位</strong>
+                    </div>
+
+                    <div style={{ marginBottom: '16px' }}>
+                      <label style={{ fontSize: '13px', color: '#aaa', display: 'block', marginBottom: '8px' }}>選擇要移除的標籤：</label>
+                      <TagInput tags={batchTagsToRemove} onChange={setBatchTagsToRemove} placeholder="選擇或輸入標籤按 Enter..." />
+                    </div>
+
+                    <div style={{ backgroundColor: '#1a1a1a', border: '1px dashed #444', borderRadius: '8px', padding: '12px', fontSize: '12px', color: '#888', marginBottom: '20px', lineHeight: '1.6' }}>
+                      說明：<br/>
+                      ・沒有該標籤的客戶將記錄為略過<br/>
+                      ・不追溯標籤原始來源<br/>
+                      ・不回滾由標籤觸發的其他行為
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                      <button onClick={() => setActiveBatchModal(null)} style={{ padding: '8px 16px', backgroundColor: 'transparent', border: '1px solid #555', color: '#ccc', borderRadius: '6px', cursor: 'pointer' }}>取消</button>
+                      <button 
+                        onClick={() => handleExecuteBatchOperation('remove_tags', { tag_names: batchTagsToRemove })}
+                        disabled={batchTagsToRemove.length === 0}
+                        style={{ padding: '8px 16px', backgroundColor: batchTagsToRemove.length > 0 ? '#ff4d4d' : '#555', color: '#fff', border: 'none', borderRadius: '6px', cursor: batchTagsToRemove.length > 0 ? 'pointer' : 'not-allowed', fontWeight: 'bold' }}
+                      >
+                        確認移除
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3.2 Rich Menu Modal */}
+                {activeBatchModal === 'richmenu' && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <h3 style={{ margin: 0, fontSize: '18px', color: '#FFD700' }}>批量圖文選單操作</h3>
+                      <X size={20} style={{ cursor: 'pointer' }} onClick={() => setActiveBatchModal(null)} />
+                    </div>
+
+                    <div style={{ marginBottom: '16px' }}>
+                      <label style={{ fontSize: '13px', color: '#aaa', display: 'block', marginBottom: '8px' }}>操作類型：</label>
+                      <div style={{ display: 'flex', gap: '20px' }}>
+                        <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px' }}>
+                          <input type="radio" name="rmMode" checked={batchRichMenuMode === 'apply'} onChange={() => setBatchRichMenuMode('apply')} /> 套用圖文選單
+                        </label>
+                        <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px' }}>
+                          <input type="radio" name="rmMode" checked={batchRichMenuMode === 'unlink'} onChange={() => setBatchRichMenuMode('unlink')} /> 解除圖文選單連結
+                        </label>
+                      </div>
+                    </div>
+
+                    {batchRichMenuMode === 'apply' && (
+                      <div style={{ marginBottom: '16px' }}>
+                        <label style={{ fontSize: '13px', color: '#aaa', display: 'block', marginBottom: '8px' }}>選擇套用目標：</label>
+                        <select 
+                          value={selectedBatchRichMenuId} 
+                          onChange={(e) => setSelectedBatchRichMenuId(e.target.value)}
+                          style={{ width: '100%', padding: '10px', backgroundColor: '#111', color: '#fff', border: '1px solid #444', borderRadius: '6px', outline: 'none' }}
+                        >
+                          {availableRichMenus.map((rm) => (
+                            <option key={rm.rich_menu_id || rm.id} value={rm.rich_menu_id || rm.id}>
+                              {rm.name || rm.rich_menu_id}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    <div style={{ color: '#ccc', fontSize: '13px', marginBottom: '16px' }}>
+                      已選取客戶：<strong style={{ color: '#FFD700' }}>{selectedUserIds.length} 位</strong>
+                    </div>
+
+                    <div style={{ backgroundColor: '#1a1a1a', border: '1px dashed #444', borderRadius: '8px', padding: '12px', fontSize: '12px', color: '#888', marginBottom: '20px', lineHeight: '1.6' }}>
+                      解連說明：<br/>
+                      ・有預設選單：改為顯示預設選單<br/>
+                      ・無預設選單：不顯示圖文選單<br/>
+                      ・目前已是相同選單者將記錄為略過
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                      <button onClick={() => setActiveBatchModal(null)} style={{ padding: '8px 16px', backgroundColor: 'transparent', border: '1px solid #555', color: '#ccc', borderRadius: '6px', cursor: 'pointer' }}>取消</button>
+                      <button 
+                        onClick={() => handleExecuteBatchOperation(batchRichMenuMode === 'apply' ? 'apply_richmenu' : 'unlink_richmenu', { rich_menu_id: selectedBatchRichMenuId })}
+                        style={{ padding: '8px 16px', backgroundColor: '#FFD700', color: '#000', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                      >
+                        確認執行
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3.3 Automation Journey Modal */}
+                {activeBatchModal === 'journey' && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <h3 style={{ margin: 0, fontSize: '18px', color: '#FFD700' }}>批量自動旅程操作</h3>
+                      <X size={20} style={{ cursor: 'pointer' }} onClick={() => setActiveBatchModal(null)} />
+                    </div>
+
+                    <div style={{ marginBottom: '16px' }}>
+                      <label style={{ fontSize: '13px', color: '#aaa', display: 'block', marginBottom: '8px' }}>操作類型：</label>
+                      <div style={{ display: 'flex', gap: '20px' }}>
+                        <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px' }}>
+                          <input type="radio" name="jMode" checked={batchJourneyMode === 'enroll'} onChange={() => setBatchJourneyMode('enroll')} /> 加入自動旅程
+                        </label>
+                        <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px' }}>
+                          <input type="radio" name="jMode" checked={batchJourneyMode === 'stop'} onChange={() => setBatchJourneyMode('stop')} /> 停止自動旅程
+                        </label>
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: '16px' }}>
+                      <label style={{ fontSize: '13px', color: '#aaa', display: 'block', marginBottom: '8px' }}>選擇旅程：</label>
+                      <select 
+                        value={selectedBatchProjectId} 
+                        onChange={(e) => setSelectedBatchProjectId(e.target.value)}
+                        style={{ width: '100%', padding: '10px', backgroundColor: '#111', color: '#fff', border: '1px solid #444', borderRadius: '6px', outline: 'none' }}
+                      >
+                        {availableProjects.map((p) => (
+                          <option key={p.project_id || p.id} value={p.project_id || p.id}>
+                            {p.project_name || p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {batchJourneyMode === 'stop' && (
+                      <div style={{ marginBottom: '16px' }}>
+                        <label style={{ fontSize: '13px', color: '#aaa', display: 'block', marginBottom: '6px' }}>停止原因（選填）：</label>
+                        <input 
+                          type="text"
+                          value={batchStopReason}
+                          onChange={(e) => setBatchStopReason(e.target.value)}
+                          placeholder="例如：活動名單調整..."
+                          style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111', color: '#fff', border: '1px solid #444', borderRadius: '6px', outline: 'none', fontSize: '14px' }}
+                        />
+                      </div>
+                    )}
+
+                    <div style={{ color: '#ccc', fontSize: '13px', marginBottom: '16px' }}>
+                      已選取客戶：<strong style={{ color: '#FFD700' }}>{selectedUserIds.length} 位</strong>
+                    </div>
+
+                    <div style={{ backgroundColor: '#1a1a1a', border: '1px dashed #444', borderRadius: '8px', padding: '12px', fontSize: '12px', color: '#888', marginBottom: '20px', lineHeight: '1.6' }}>
+                      規則說明：<br/>
+                      ・加入：已在旅程進行中的客戶將記錄為略過<br/>
+                      ・停止：未加入、已完成或已停止者將記錄為略過
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                      <button onClick={() => setActiveBatchModal(null)} style={{ padding: '8px 16px', backgroundColor: 'transparent', border: '1px solid #555', color: '#ccc', borderRadius: '6px', cursor: 'pointer' }}>取消</button>
+                      <button 
+                        onClick={() => handleExecuteBatchOperation(batchJourneyMode === 'enroll' ? 'enroll_journey' : 'stop_journey', { project_id: selectedBatchProjectId, stop_reason: batchStopReason })}
+                        style={{ padding: '8px 16px', backgroundColor: '#FFD700', color: '#000', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                      >
+                        確認執行
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

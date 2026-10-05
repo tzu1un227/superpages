@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import { useTask } from '../contexts/TaskContext';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import api from '../api';
-import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, User, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type, BarChart2, Download, Upload, Play, ExternalLink, TrendingUp, CheckCircle2, Circle, ChevronLeft, ChevronRight, BarChart3, RotateCcw, GripVertical, HelpCircle } from 'lucide-react';
+import { Edit2, Trash2, Plus, Check, X, Filter, Clock, LayoutDashboard, Users, User, MessageSquare, Save, FileJson, Image as ImageIcon, Video, Mic, Type, BarChart2, Download, Upload, Play, ExternalLink, TrendingUp, CheckCircle2, Circle, ChevronLeft, ChevronRight, BarChart3, RotateCcw, GripVertical, HelpCircle, Layers } from 'lucide-react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, CircularProgress, Tooltip as MuiTooltip } from '@mui/material';
 import FlexMessageEditor from '../components/FlexMessageEditor';
 import JourneyPreview from '../components/JourneyPreview';
@@ -25,6 +25,8 @@ import {
 
 const ProjectsManagement = () => {
     const location = useLocation();
+    const navigate = useNavigate();
+    const { oaId } = useParams();
     const { showToast } = useToast();
     const { taskState, updateTask, resetTask } = useTask();
 
@@ -177,7 +179,57 @@ const ProjectsManagement = () => {
     const [showAddScheduleForm, setShowAddScheduleForm] = useState(false);
 
     const [error, setError] = useState('');
-    const [activeTab, setActiveTab] = useState('projects'); // projects, schedules, users
+    const [activeTab, setActiveTab] = useState('projects'); // projects, schedules, join_sources, users
+
+    const [joinSourcesData, setJoinSourcesData] = useState({ total_users: 0, sources: [] });
+    const [loadingJoinSources, setLoadingJoinSources] = useState(false);
+
+    useEffect(() => {
+        if (activeTab === 'join_sources' && selectedProjectId) {
+            const fetchJoinSources = async () => {
+                setLoadingJoinSources(true);
+                try {
+                    const resp = await api.get(`/projects/${selectedProjectId}/join-sources`, { params: { _t: Date.now() }, _bypassCache: true });
+                    setJoinSourcesData(resp.data || { total_users: 0, sources: [] });
+                } catch (err) {
+                    console.error('Failed to fetch join sources:', err);
+                    setJoinSourcesData({ total_users: 0, sources: [] });
+                } finally {
+                    setLoadingJoinSources(false);
+                }
+            };
+            fetchJoinSources();
+        }
+    }, [activeTab, selectedProjectId]);
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const pid = params.get('projectId');
+        if (pid) {
+            setSelectedProjectId(pid);
+            setActiveTab('schedules');
+        }
+    }, [location.search]);
+
+    const handleNavigateToSetting = (url) => {
+        if (!url) return;
+        const matchPid = url.match(/[?&]projectId=([^&#]+)/);
+        if (matchPid) {
+            const targetPid = matchPid[1];
+            setSelectedProjectId(targetPid);
+            setActiveTab('schedules');
+            return;
+        }
+        if (url.startsWith('/oa/')) {
+            navigate(url);
+            return;
+        }
+        let clean = url.trim().replace(/^\//, '');
+        if (clean === 'rules' || clean.startsWith('rules/')) {
+            clean = clean.replace(/^rules/, 'ruledesigner');
+        }
+        navigate(`/oa/${oaId}/${clean}`);
+    };
 
     const [projectStats, setProjectStats] = useState({ tc: 0, cc: 0, ms: 0, mss: 0, msf: 0, completion_rate: 0 });
     const [isCreatingProject, setIsCreatingProject] = useState(false);
@@ -732,12 +784,13 @@ const ProjectsManagement = () => {
     };
 
 
-    const handleBatchAdd = async (userIds) => {
-        if (!userIds || userIds.length === 0) return;
+    const handleBatchAdd = async (userIds, groupName) => {
+        if (!groupName && (!userIds || userIds.length === 0)) return;
         setIsBatchProcessing(true);
         try {
-            await api.post(`/projects/${selectedProjectId}/users/batch-restart`, { user_ids: userIds });
-            showToast(`已成功批次加入 ${userIds.length} 位用戶`, 'success');
+            const payload = groupName ? { group_name: groupName } : { user_ids: userIds };
+            const res = await api.post(`/projects/${selectedProjectId}/users/batch-restart`, payload);
+            showToast(res.data.message || '已成功加入用戶', 'success');
             setIsUserSelectModalOpen(false);
             setTimeout(() => fetchProjectUsers(selectedProjectId), 1000);
         } catch (err) {
@@ -1272,6 +1325,18 @@ const ProjectsManagement = () => {
                     }}
                 >
                     <Clock size={18} /> 排程設定
+                </button>
+                <button
+                    onClick={() => setActiveTab('join_sources')}
+                    style={{
+                        padding: '12px 25px',
+                        backgroundColor: activeTab === 'join_sources' ? 'var(--secondary-black)' : 'transparent',
+                        color: activeTab === 'join_sources' ? 'var(--primary-yellow)' : '#B0B0B0',
+                        borderBottom: activeTab === 'join_sources' ? '2px solid var(--primary-yellow)' : 'none',
+                        display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '8px 8px 0 0'
+                    }}
+                >
+                    <Layers size={18} /> 加入來源
                 </button>
                 <button
                     onClick={() => setActiveTab('users')}
@@ -1866,6 +1931,80 @@ const ProjectsManagement = () => {
                         </div>
                     )}
                 </div>
+            ) : activeTab === 'join_sources' ? (
+                <div className="card" style={{ padding: '25px', backgroundColor: 'var(--secondary-black)', borderRadius: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                        <h3 style={{ margin: 0, color: 'var(--primary-yellow)', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <Layers size={20} /> 自動旅程加入來源總覽
+                        </h3>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#111', padding: '5px 15px', borderRadius: '8px' }}>
+                            <Filter size={16} className="text-yellow" />
+                            <span style={{ fontSize: '14px' }}>選擇旅程:</span>
+                            <select
+                                value={selectedProjectId}
+                                onChange={e => setSelectedProjectId(e.target.value)}
+                                disabled={pageLoading}
+                                style={{ background: 'transparent', border: 'none', padding: '5px', color: '#fff', cursor: pageLoading ? 'not-allowed' : 'pointer' }}
+                            >
+                                <option value="" style={{ background: '#222' }}>請選擇旅程...</option>
+                                {Array.isArray(projects) && projects.map(p => <option key={p.project_id} value={p.project_id} style={{ background: '#222' }}>{p.project_name}</option>)}
+                            </select>
+                        </div>
+                    </div>
+                    {loadingJoinSources ? (
+                        <div style={{ textAlign: 'center', padding: '40px 0', color: '#888' }}>載入來源統計中...</div>
+                    ) : !joinSourcesData.sources || joinSourcesData.sources.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '40px 20px', color: '#888', backgroundColor: '#181818', borderRadius: '8px', border: '1px solid #282828' }}>
+                            目前沒有參與者可供來源統計。當使用者透過人工操作、關鍵字、群發、其他旅程或問卷加入後，來源將顯示於此。
+                        </div>
+                    ) : (
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', color: '#fff', fontSize: '14px' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid #333', textAlign: 'left', color: '#888' }}>
+                                        <th style={{ padding: '12px' }}>來源類型</th>
+                                        <th style={{ padding: '12px' }}>來源名稱</th>
+                                        <th style={{ padding: '12px' }}>Trigger</th>
+                                        <th style={{ padding: '12px' }}>目前人數</th>
+                                        <th style={{ padding: '12px' }}>最近加入</th>
+                                        <th style={{ padding: '12px' }}>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {joinSourcesData.sources.map((row, idx) => (
+                                        <tr key={idx} style={{ borderBottom: '1px solid #222' }}>
+                                            <td style={{ padding: '12px' }}>
+                                                <span style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: '#222', border: '1px solid #444', fontSize: '12px', color: '#FFD700' }}>
+                                                    {row.source_type === 'manual' ? '人工操作' : row.source_type === 'keyword' ? '關鍵字規則' : row.source_type === 'broadcast' ? '群發訊息' : row.source_type === 'journey' ? '自動旅程' : row.source_type === 'form' ? '問卷' : row.source_type}
+                                                </span>
+                                            </td>
+                                            <td style={{ padding: '12px' }}>{row.source_name || '-'}</td>
+                                            <td style={{ padding: '12px' }}>{row.trigger_display || '-'}</td>
+                                            <td style={{ padding: '12px', color: '#FFD700', fontWeight: 'bold' }}>{row.current_count} 人</td>
+                                            <td style={{ padding: '12px', color: '#aaa' }}>{row.last_joined_at || '-'}</td>
+                                            <td style={{ padding: '12px' }}>
+                                                {row.setting_url && (
+                                                    <button 
+                                                        onClick={() => handleNavigateToSetting(row.setting_url)} 
+                                                        style={{ padding: '4px 10px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
+                                                    >
+                                                        前往設定
+                                                    </button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    <tr style={{ backgroundColor: '#222', fontWeight: 'bold', borderTop: '2px solid #444' }}>
+                                        <td colSpan={3} style={{ padding: '14px 12px', color: '#fff' }}>合計</td>
+                                        <td colSpan={3} style={{ padding: '14px 12px', color: '#FFD700', fontSize: '16px' }}>
+                                            合計 {joinSourcesData.total_users} 人
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
             ) : (
                 <div className="card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -1987,6 +2126,7 @@ const ProjectsManagement = () => {
                 initialText={richModalConfig.initialText}
                 projectId={richModalConfig.projectId}
                 stepId={richModalConfig.stepId}
+                projectName={projects.find(p => String(p.project_id) === String(richModalConfig.projectId))?.project_name || ''}
             />
             {/* User Select Modal */}
             <UserSelectModal
@@ -2034,7 +2174,7 @@ const ProjectsManagement = () => {
 };
 
 // Rich Message Editor Modal
-const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, projectId, stepId }) => {
+const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, projectId, stepId, projectName }) => {
     const { showToast } = useToast();
     const [tag, setTag] = useState(initialTag || '');
     const [messages, setMessages] = useState([]);
@@ -2429,7 +2569,22 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
                                 )}
                                 {messages[activeMsgIndex].OTYPE === 'FlexSendMessage' && (
                                     <div style={{ height: '500px', border: '1px solid #444' }}>
-                                        <FlexMessageEditor key={activeMsgIndex} initialContent={messages[activeMsgIndex].contents} onSave={(val) => updateMessage(activeMsgIndex, 'contents', val)} onCancel={() => { }} />
+                                        <FlexMessageEditor 
+                                            key={activeMsgIndex} 
+                                            initialContent={messages[activeMsgIndex].contents} 
+                                            onSave={(val) => updateMessage(activeMsgIndex, 'contents', val)} 
+                                            onCancel={() => { }} 
+                                            sourceContext={{
+                                                sourceType: 'journey',
+                                                sourceInfo: {
+                                                    project_id: projectId,
+                                                    project_name: projectName || '自動旅程',
+                                                    name: projectName || '自動旅程',
+                                                    step_id: stepId,
+                                                    tag: tag
+                                                }
+                                            }}
+                                        />
                                     </div>
                                 )}
                             </div>
@@ -2448,6 +2603,10 @@ const RichMessageModal = ({ isOpen, onClose, onSave, initialTag, initialText, pr
 const UserSelectModal = ({ isOpen, onClose, onSelectBatch, existingUsers = [] }) => {
     const [users, setUsers] = useState([]);
     const [allTags, setAllTags] = useState([]);
+    const [customerGroups, setCustomerGroups] = useState([]);
+    const [targetType, setTargetType] = useState('users'); // 'users' or 'group'
+    const [selectedGroup, setSelectedGroup] = useState('');
+    const [groupMemberCount, setGroupMemberCount] = useState(0);
     const [loading, setLoading] = useState(false);
     const [nameSearch, setNameSearch] = useState('');
     const [selectedTags, setSelectedTags] = useState([]);
@@ -2475,14 +2634,18 @@ const UserSelectModal = ({ isOpen, onClose, onSelectBatch, existingUsers = [] })
         if (isOpen) {
             setLoading(true);
             setSelectedUserIds([]); // Reset selection when opening
+            setTargetType('users');
+            setSelectedGroup('');
             Promise.all([
                 api.get('/registered-users?source=private_var'),
-                api.get('/tags')
-            ]).then(([userRes, tagRes]) => {
+                api.get('/tags'),
+                api.get('/customers/groups')
+            ]).then(([userRes, tagRes, groupRes]) => {
                 const userData = Array.isArray(userRes.data) ? userRes.data : [];
                 setUsers(userData.filter(u => u && u.user_id));
                 const tagData = Array.isArray(tagRes.data) ? tagRes.data : [];
                 setAllTags(tagData.sort());
+                setCustomerGroups(groupRes.data.groups || []);
             }).catch(err => {
                 console.error("Failed to load modal data:", err);
             }).finally(() => setLoading(false));
@@ -2529,6 +2692,20 @@ const UserSelectModal = ({ isOpen, onClose, onSelectBatch, existingUsers = [] })
     };
 
     const handleSubmit = async () => {
+        if (targetType === 'group') {
+            if (!selectedGroup) {
+                alert('請先選擇一個客戶群');
+                return;
+            }
+            setProcessing(true);
+            try {
+                await onSelectBatch(null, selectedGroup);
+            } finally {
+                setProcessing(false);
+            }
+            return;
+        }
+
         if (selectedUserIds.length === 0) {
             alert('請先選取至少一位用戶');
             return;
@@ -2561,15 +2738,58 @@ const UserSelectModal = ({ isOpen, onClose, onSelectBatch, existingUsers = [] })
                     </div>
                 )}
                 <div style={{ opacity: processing ? 0.3 : 1, pointerEvents: processing ? 'none' : 'auto' }}>
-                    <div style={{ marginBottom: '20px' }}>
-                        <input
-                            type="text"
-                            placeholder="搜尋用戶名稱..."
-                            value={nameSearch}
-                            onChange={(e) => setNameSearch(e.target.value)}
-                            style={{ width: '100%', padding: '10px', background: '#333', border: '1px solid #555', borderRadius: '4px', color: '#fff' }}
-                        />
+                    <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+                        <button
+                            type="button"
+                            onClick={() => setTargetType('users')}
+                            style={{ flex: 1, padding: '8px', background: targetType === 'users' ? 'var(--primary-yellow)' : '#333', color: targetType === 'users' ? '#000' : '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                        >
+                            依標籤 / 用戶搜尋
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setTargetType('group')}
+                            style={{ flex: 1, padding: '8px', background: targetType === 'group' ? 'var(--primary-yellow)' : '#333', color: targetType === 'group' ? '#000' : '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                        >
+                            選擇整批客戶群
+                        </button>
+                    </div>
+
+                    {targetType === 'group' ? (
+                        <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#111', borderRadius: '8px', border: '1px solid #333' }}>
+                            <label style={{ fontSize: '13px', color: '#aaa', display: 'block', marginBottom: '8px' }}>選擇目標客戶群：</label>
+                            <select
+                                value={selectedGroup}
+                                onChange={(e) => setSelectedGroup(e.target.value)}
+                                style={{ width: '100%', padding: '10px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '6px' }}
+                            >
+                                <option value="">-- 請選擇客戶群 --</option>
+                                {customerGroups.map(g => (
+                                    <option key={g.group_name} value={g.group_name}>
+                                        {g.group_name} ({g.member_count || 0} 人)
+                                    </option>
+                                ))}
+                            </select>
+                            {selectedGroup && (
+                                <div style={{ marginTop: '10px', fontSize: '13px', color: '#FFD700' }}>
+                                    預估人數：{customerGroups.find(g => g.group_name === selectedGroup)?.member_count || 0} 人
+                                </div>
+                            )}
+                            <div style={{ marginTop: '12px', fontSize: '12px', color: '#888', lineHeight: '1.5' }}>
+                                ⓘ 說明：本次為一次性加入，將對選定客戶群當前所有成員加入此旅程（已在進行中或已完成者將自動略過）。日後新加入該客群的成員不會自動加入。
+                            </div>
                         </div>
+                    ) : (
+                        <>
+                            <div style={{ marginBottom: '20px' }}>
+                                <input
+                                    type="text"
+                                    placeholder="搜尋用戶名稱..."
+                                    value={nameSearch}
+                                    onChange={(e) => setNameSearch(e.target.value)}
+                                    style={{ width: '100%', padding: '10px', background: '#333', border: '1px solid #555', borderRadius: '4px', color: '#fff' }}
+                                />
+                            </div>
                         <div style={{ marginBottom: '20px' }}>
                             <div style={{ color: '#aaa', marginBottom: '10px', display: 'flex', justifyContent: 'space-between' }}>
                                 <span>篩選標籤:</span>
@@ -2662,24 +2882,26 @@ const UserSelectModal = ({ isOpen, onClose, onSelectBatch, existingUsers = [] })
                         <div style={{ marginTop: '10px', textAlign: 'right', fontSize: '12px', color: '#888' }}>
                             已選取 {selectedUserIds.length} 位用戶
                         </div>
-                    </div>
+                    </>
+                    )}
+                </div>
             </DialogContent>
             <DialogActions style={{ borderTop: '1px solid #333', padding: '15px' }}>
                 <button onClick={onClose} disabled={processing} style={{ background: '#444', color: '#fff', padding: '8px 20px', borderRadius: '4px', border: 'none', cursor: 'pointer' }}>取消</button>
                 <button
                     onClick={handleSubmit}
-                    disabled={processing || selectedUserIds.length === 0}
+                    disabled={processing || (targetType === 'users' && selectedUserIds.length === 0) || (targetType === 'group' && !selectedGroup)}
                     style={{
-                        background: selectedUserIds.length > 0 ? 'var(--primary-yellow)' : '#333',
-                        color: selectedUserIds.length > 0 ? '#000' : '#888',
+                        background: ((targetType === 'users' && selectedUserIds.length > 0) || (targetType === 'group' && selectedGroup)) ? 'var(--primary-yellow)' : '#333',
+                        color: ((targetType === 'users' && selectedUserIds.length > 0) || (targetType === 'group' && selectedGroup)) ? '#000' : '#888',
                         padding: '8px 20px',
                         borderRadius: '4px',
                         border: 'none',
                         fontWeight: 'bold',
-                        cursor: selectedUserIds.length > 0 ? 'pointer' : 'not-allowed'
+                        cursor: ((targetType === 'users' && selectedUserIds.length > 0) || (targetType === 'group' && selectedGroup)) ? 'pointer' : 'not-allowed'
                     }}
                 >
-                    {processing ? '處理中...' : `加入已選取用戶 (${selectedUserIds.length})`}
+                    {processing ? '處理中...' : targetType === 'group' ? '加入整批客戶群成員' : `加入已選取用戶 (${selectedUserIds.length})`}
                 </button>
             </DialogActions>
         </Dialog>

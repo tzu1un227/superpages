@@ -7,7 +7,7 @@ import {
     MousePointer2, Move, Maximize, Check, X, AlertCircle,
     ChevronDown, ChevronUp, ExternalLink, MessageSquare,
     CreditCard, Repeat, Eye, Edit2, RefreshCw, ChevronLeft, ChevronRight, LayoutGrid, Filter, Calendar, RotateCcw, Shield,
-    HelpCircle, Link as LinkIcon, Unlink, Clock, FileText, Send
+    HelpCircle, Link as LinkIcon, Unlink, Clock, FileText, Send, Layers
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useToast } from '../contexts/ToastContext';
@@ -133,6 +133,24 @@ function RichMenu() {
     const [dragState, setDragState] = useState(null);
     const imageContainerRef = useRef(null);
 
+    const [applySourcesData, setApplySourcesData] = useState({ total_users: 0, sources: [] });
+    const [loadingApplySources, setLoadingApplySources] = useState(false);
+
+    useEffect(() => {
+        const rid = currentMenu?.rich_menu_id || currentMenu?.richMenuId || currentMenu?.ui_uuid || currentMenu?.id;
+        if (rid) {
+            setLoadingApplySources(true);
+            api.get(`/richmenu/${rid}/apply-sources`, { params: { _t: Date.now() }, _bypassCache: true }).then(res => {
+                setApplySourcesData(res.data || { total_users: 0, sources: [] });
+            }).catch(err => {
+                console.error('Failed to fetch richmenu apply sources:', err);
+                setApplySourcesData({ total_users: 0, sources: [] });
+            }).finally(() => setLoadingApplySources(false));
+        } else {
+            setApplySourcesData({ total_users: 0, sources: [] });
+        }
+    }, [currentMenu?.rich_menu_id, currentMenu?.richMenuId, currentMenu?.id, currentMenu?.ui_uuid]);
+
     // Auto-fetch and set background image for currentMenu
     useEffect(() => {
         if (!currentMenu) return;
@@ -174,6 +192,7 @@ function RichMenu() {
     };
 
     const [allTags, setAllTags] = useState([]);
+    const [customerGroups, setCustomerGroups] = useState([]);
 
     const scale = 0.2;
 
@@ -199,12 +218,14 @@ function RichMenu() {
 
         try {
             await Promise.all([fetchMenus(), fetchMetadata()]);
-            // 取得標籤清單供下拉選單使用
+            // 取得標籤與客戶群清單供下拉選單使用
             try {
                 const tagsRes = await api.get('/customers/tags');
                 setAllTags(tagsRes.data || []);
+                const groupsRes = await api.get('/customers/groups');
+                setCustomerGroups(groupsRes.data.groups || []);
             } catch (err) {
-                console.error('Failed to fetch tags:', err);
+                console.error('Failed to fetch tags or groups:', err);
             }
         } finally {
             setLoading(false);
@@ -671,6 +692,20 @@ function RichMenu() {
                     } catch (err) {
                         console.error('Failed to set default', err);
                     }
+                } else if (menu.publishStrategy === 'restricted' && menu.targetMode === 'group' && menu.targetGroup) {
+                    try {
+                        const gUsersRes = await api.get(`/customers/groups/${encodeURIComponent(menu.targetGroup)}/users`);
+                        const uids = gUsersRes.data.user_ids || [];
+                        if (uids.length > 0) {
+                            await api.post('/customers/batch-operation', {
+                                action_type: 'apply_richmenu',
+                                user_ids: uids,
+                                payload: { rich_menu_id: richMenuId }
+                            });
+                        }
+                    } catch (gErr) {
+                        console.error('Error applying rich menu to group users:', gErr);
+                    }
                 }
             }
             
@@ -770,30 +805,41 @@ function RichMenu() {
     
     const submitLinkModal = async () => {
         if (!linkModalState) return;
-        setLoading(true);
         try {
-            // First update metadata to match selected strategy and tags
-            const item = linkModalState.item;
-            let newStatus = 'published';
-            if (linkModalState.publishStrategy === 'restricted') newStatus = 'restricted';
-            else if (linkModalState.publishStrategy === 'default') newStatus = 'published';
-            else newStatus = 'hidden';
+            setLoading(true);
+            if (linkModalState.publishStrategy === 'group') {
+                if (!linkModalState.targetGroup) {
+                    showToast('請選擇客戶群', 'warning');
+                    setLoading(false);
+                    return;
+                }
+                const gUsersRes = await api.get(`/customers/groups/${encodeURIComponent(linkModalState.targetGroup)}/users`);
+                const uids = gUsersRes.data.user_ids || [];
+                if (uids.length === 0) {
+                    showToast('該客戶群目前沒有有效成員', 'warning');
+                    setLoading(false);
+                    return;
+                }
+                const batchRes = await api.post('/customers/batch-operation', {
+                    action_type: 'apply_richmenu',
+                    user_ids: uids,
+                    payload: { rich_menu_id: linkModalState.richMenuId }
+                });
+                showToast(`已成功一次性套用至客戶群 ${linkModalState.targetGroup} (套用: ${batchRes.data.success_count} 位, 略過: ${batchRes.data.skipped_count} 位)`, 'success');
+                setLinkModalState(null);
+                fetchMetadata();
+                return;
+            }
 
+            const item = linkModalState.item;
             const payload = {
-                id: item.id,
-                name: item.name,
-                chat_bar_text: item.chat_bar_text || item.chatBarText,
-                status: newStatus,
                 rich_menu_id: linkModalState.richMenuId,
-                start_time: item.start_time || null,
-                end_time: item.end_time || null,
-                permission_tags: item.permission_tags || item.permissionTags || [],
-                fallback_message: item.fallback_message || item.fallbackMessage || '',
+                name: item.name || '圖文選單',
+                chat_bar_text: item.chat_bar_text || item.chatBarText || '開啟選單',
                 ui_uuid: item.ui_uuid,
                 group_id: item.group_id,
+                status: linkModalState.publishStrategy,
                 data: {
-                    ...(item.data || {}),
-                    size: item.size || (item.data && item.data.size),
                     areas: item.areas || (item.data && item.data.areas),
                     name: item.name,
                     chatBarText: item.chat_bar_text || item.chatBarText,
@@ -1178,16 +1224,51 @@ function RichMenu() {
                                     <div style={{ backgroundColor: '#111', padding: '15px', borderRadius: '8px', border: '1px solid #333', marginLeft: '25px' }}>
                                         <div style={{ marginBottom: '15px', display: 'flex', gap: '20px' }}>
                                             <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: viewOnly ? 'default' : 'pointer' }}>
-                                                <input type="radio" checked={currentMenu.targetAll} disabled={viewOnly} onChange={() => setCurrentMenu({...currentMenu, targetAll: true, targetTags: ['ALL_USERS']})} style={{ accentColor: '#FFD700' }} />
+                                                <input type="radio" checked={currentMenu.targetMode === 'all' || (!currentMenu.targetMode && currentMenu.targetAll)} disabled={viewOnly} onChange={() => setCurrentMenu({...currentMenu, targetMode: 'all', targetAll: true, targetTags: ['ALL_USERS'], targetGroup: ''})} style={{ accentColor: '#FFD700' }} />
                                                 所有好友
                                             </label>
                                             <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: viewOnly ? 'default' : 'pointer' }}>
-                                                <input type="radio" checked={!currentMenu.targetAll} disabled={viewOnly} onChange={() => setCurrentMenu({...currentMenu, targetAll: false, targetTags: []})} style={{ accentColor: '#FFD700' }} />
+                                                <input type="radio" checked={currentMenu.targetMode === 'tag' || (!currentMenu.targetMode && !currentMenu.targetAll)} disabled={viewOnly} onChange={() => setCurrentMenu({...currentMenu, targetMode: 'tag', targetAll: false, targetTags: [], targetGroup: ''})} style={{ accentColor: '#FFD700' }} />
                                                 指定標籤
+                                            </label>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: viewOnly ? 'default' : 'pointer' }}>
+                                                <input type="radio" checked={currentMenu.targetMode === 'group'} disabled={viewOnly} onChange={() => setCurrentMenu({...currentMenu, targetMode: 'group', targetAll: false, targetTags: [], targetGroup: ''})} style={{ accentColor: '#FFD700' }} />
+                                                指定客戶群
                                             </label>
                                         </div>
                                         
-                                        {!currentMenu.targetAll && (
+                                        {currentMenu.targetMode === 'group' && (
+                                            <div style={{ marginBottom: '15px' }}>
+                                                <label className="label">選擇目標客戶群</label>
+                                                <select
+                                                    value={currentMenu.targetGroup || ''}
+                                                    disabled={viewOnly}
+                                                    onChange={(e) => {
+                                                        const gName = e.target.value;
+                                                        setCurrentMenu({ ...currentMenu, targetGroup: gName });
+                                                        if (gName) {
+                                                            setIsCalculatingCount(true);
+                                                            api.post('/customers/count-by-tags', { group: gName }).then(res => {
+                                                                setCurrentMenu(prev => ({ ...prev, targetUserCount: res.data.count, totalUserCount: res.data.totalCount }));
+                                                            }).finally(() => setIsCalculatingCount(false));
+                                                        }
+                                                    }}
+                                                    style={{ width: '100%', padding: '10px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '6px', marginTop: '5px' }}
+                                                >
+                                                    <option value="">-- 請選擇客戶群 --</option>
+                                                    {customerGroups.map(g => (
+                                                        <option key={g.group_name} value={g.group_name}>
+                                                            {g.group_name} ({g.member_count || 0} 人)
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                <div style={{ marginTop: '8px', fontSize: '12px', color: '#888' }}>
+                                                    ⓘ 說明：一次性套用，將對此客戶群當前成員綁定選單。日後新增成員不會自動套用。
+                                                </div>
+                                            </div>
+                                        )}
+                                        
+                                        {(currentMenu.targetMode === 'tag' || (!currentMenu.targetMode && !currentMenu.targetAll)) && (
                                             <>
                                                 <label className="label">適用標籤 (可複選)</label>
                                                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
@@ -1241,6 +1322,81 @@ function RichMenu() {
 
                             </div>
                         </div>
+
+                        {/* 套用來源總覽 */}
+                        {(currentMenu?.rich_menu_id || currentMenu?.richMenuId || currentMenu?.ui_uuid || currentMenu?.id) && (
+                            <div className="card">
+                                <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary-yellow)' }}>
+                                    <Layers size={18} /> 套用來源總覽
+                                </h3>
+                                <div style={{ marginTop: '15px' }}>
+                                    {loadingApplySources ? (
+                                        <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>載入套用來源中...</div>
+                                    ) : !applySourcesData.sources || applySourcesData.sources.length === 0 ? (
+                                        <div style={{ textAlign: 'center', padding: '20px', color: '#888', backgroundColor: '#111', borderRadius: '8px', border: '1px solid #222' }}>
+                                            目前尚無用戶套用此圖文選單。
+                                        </div>
+                                    ) : (
+                                        <div style={{ overflowX: 'auto' }}>
+                                            <table style={{ width: '100%', borderCollapse: 'collapse', color: '#fff', fontSize: '13px' }}>
+                                                <thead>
+                                                    <tr style={{ borderBottom: '1px solid #333', textAlign: 'left', color: '#888' }}>
+                                                        <th style={{ padding: '8px' }}>來源類型</th>
+                                                        <th style={{ padding: '8px' }}>來源名稱</th>
+                                                        <th style={{ padding: '8px' }}>Trigger</th>
+                                                        <th style={{ padding: '8px' }}>目前套用人數</th>
+                                                        <th style={{ padding: '8px' }}>最近套用</th>
+                                                        <th style={{ padding: '8px' }}>操作</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {applySourcesData.sources.map((row, idx) => (
+                                                        <tr key={idx} style={{ borderBottom: '1px solid #222' }}>
+                                                            <td style={{ padding: '8px' }}>
+                                                                <span style={{ padding: '2px 6px', borderRadius: '4px', backgroundColor: '#222', border: '1px solid #444', fontSize: '11px', color: '#FFD700' }}>
+                                                                    {row.source_type === 'manual' ? '人工操作' : row.source_type === 'keyword' ? '關鍵字規則' : row.source_type === 'broadcast' ? '群發訊息' : row.source_type === 'journey' ? '自動旅程' : row.source_type === 'form' ? '問卷' : row.source_type === 'welcome' ? '歡迎訊息' : row.source_type === 'default' ? '系統預設' : row.source_type === 'richmenu' ? '圖文選單' : row.source_type}
+                                                                </span>
+                                                            </td>
+                                                            <td style={{ padding: '8px' }}>{row.source_name || '-'}</td>
+                                                            <td style={{ padding: '8px' }}>{row.trigger_display || '-'}</td>
+                                                            <td style={{ padding: '8px', color: '#FFD700', fontWeight: 'bold' }}>{row.current_count} 人</td>
+                                                            <td style={{ padding: '8px', color: '#aaa' }}>{row.last_applied_at || '-'}</td>
+                                                            <td style={{ padding: '8px' }}>
+                                                                {row.setting_url && (
+                                                                    <button 
+                                                                        onClick={() => {
+                                                                            const url = row.setting_url;
+                                                                            if (url.startsWith('/oa/')) {
+                                                                                navigate(url);
+                                                                            } else {
+                                                                                let clean = url.trim().replace(/^\//, '');
+                                                                                if (clean === 'rules' || clean.startsWith('rules/')) {
+                                                                                    clean = clean.replace(/^rules/, 'ruledesigner');
+                                                                                }
+                                                                                navigate(`/oa/${oaId}/${clean}`);
+                                                                            }
+                                                                        }} 
+                                                                        style={{ padding: '2px 6px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                                                                    >
+                                                                        前往設定
+                                                                    </button>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                    <tr style={{ backgroundColor: '#222', fontWeight: 'bold', borderTop: '2px solid #444' }}>
+                                                        <td colSpan={3} style={{ padding: '10px 8px', color: '#fff' }}>合計</td>
+                                                        <td colSpan={3} style={{ padding: '10px 8px', color: '#FFD700', fontSize: '14px' }}>
+                                                            合計 {applySourcesData.total_users} 人
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
                         {currentMenu.publishStrategy !== 'hidden' && (
                             <div className="card">
@@ -1657,6 +1813,43 @@ function RichMenu() {
                                 <input type="radio" name="linkPublishStrategy" value="restricted" checked={linkModalState.publishStrategy === 'restricted'} onChange={() => setLinkModalState({ ...linkModalState, publishStrategy: 'restricted' })} style={{ accentColor: '#FFD700', transform: 'scale(1.2)', margin: '0 5px' }} />
                                 選定標籤
                             </label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                                <input type="radio" name="linkPublishStrategy" value="group" checked={linkModalState.publishStrategy === 'group'} onChange={() => setLinkModalState({ ...linkModalState, publishStrategy: 'group', targetGroup: '' })} style={{ accentColor: '#FFD700', transform: 'scale(1.2)', margin: '0 5px' }} />
+                                選定客戶群
+                            </label>
+
+                            {linkModalState.publishStrategy === 'group' && (
+                                <div style={{ backgroundColor: '#111', padding: '15px', borderRadius: '8px', border: '1px solid #333' }}>
+                                    <label className="label">選擇目標客戶群</label>
+                                    <select
+                                        value={linkModalState.targetGroup || ''}
+                                        onChange={(e) => {
+                                            const gName = e.target.value;
+                                            setLinkModalState({ ...linkModalState, targetGroup: gName });
+                                            if (gName) {
+                                                api.post('/customers/count-by-tags', { group: gName }).then(res => {
+                                                    setLinkModalState(prev => prev ? { ...prev, targetUserCount: res.data.count, totalUserCount: res.data.totalCount } : prev);
+                                                });
+                                            }
+                                        }}
+                                        style={{ width: '100%', padding: '10px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '6px', marginTop: '8px' }}
+                                    >
+                                        <option value="">-- 請選擇客戶群 --</option>
+                                        {customerGroups.map(g => (
+                                            <option key={g.group_name} value={g.group_name}>
+                                                {g.group_name} ({g.member_count || 0} 人)
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div style={{ marginTop: '12px', fontSize: '12px', color: '#888', lineHeight: '1.5' }}>
+                                        ⓘ 提示：本次為一次性套用，將對選定客戶群當前所有成員綁定圖文選單。日後新加入該客群的成員不會自動套用。
+                                    </div>
+                                    <div style={{ marginTop: '12px', fontSize: '13px', color: '#aaa', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        <Shield size={14} /> 預計套用人數：
+                                        <span style={{ color: 'var(--primary-yellow)', fontWeight: 'bold', fontSize: '16px' }}>{linkModalState.targetUserCount || 0}</span> 人
+                                    </div>
+                                </div>
+                            )}
 
                             {linkModalState.publishStrategy === 'restricted' && (
                                 <div style={{ backgroundColor: '#111', padding: '15px', borderRadius: '8px', border: '1px solid #333' }}>

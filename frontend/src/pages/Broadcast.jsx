@@ -3,11 +3,11 @@ import Swal from 'sweetalert2';
 import { useLocation, useParams } from 'react-router-dom';
 import api from '../api';
 import {
-    Send, Users, Info, Plus, Search, Filter,
+    Send, Users, Info, Plus, Search, Filter, Tag,
     ChevronRight, ChevronLeft, Save, Trash2, Edit2,
     Eye, Clock, CheckCircle2, FileText, AlertCircle,
     Monitor, Layout, Type, Image as ImageIcon, Video,
-    X, Check, ExternalLink, RefreshCcw, HelpCircle
+    X, Check, ExternalLink, RefreshCcw, HelpCircle, BarChart2
 } from 'lucide-react';
 import {
     Autocomplete, TextField, Chip, Box, CircularProgress,
@@ -19,6 +19,7 @@ import FlexMessageEditor from '../components/FlexMessageEditor';
 import JourneyPreview from '../components/JourneyPreview';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TagInput from '../components/TagInput';
+import BroadcastStatsModal from '../components/BroadcastStatsModal';
 import { useToast } from '../contexts/ToastContext';
 
 class ErrorBoundary extends React.Component {
@@ -97,6 +98,7 @@ function BroadcastContent() {
     const [loading, setLoading] = useState(false);
     const [executing, setExecuting] = useState(false);
     const [deletingId, setDeletingId] = useState(null);
+    const [selectedStatsBc, setSelectedStatsBc] = useState(null);
 
     // Wizard state
     const [step, setStep] = useState(1);
@@ -158,6 +160,7 @@ function BroadcastContent() {
     useEffect(() => {
         fetchBroadcasts();
         fetchTags();
+        fetchCustomerGroups();
         fetchUsers();
     }, [oaId]); // removed listTab from dependencies
 
@@ -176,6 +179,17 @@ function BroadcastContent() {
             if (currentFetchId === fetchIdRef.current) {
                 setLoading(false);
             }
+        }
+    };
+
+    const [customerGroups, setCustomerGroups] = useState([]);
+
+    const fetchCustomerGroups = async () => {
+        try {
+            const res = await api.get('/customers/groups');
+            setCustomerGroups(res.data.groups || []);
+        } catch (err) {
+            console.error('Error fetching customer groups:', err);
         }
     };
 
@@ -694,15 +708,16 @@ function BroadcastContent() {
                     {[
                         { id: 'all', label: '全部好友' },
                         { id: 'tag', label: '標籤受眾' },
+                        { id: 'group', label: '客戶群受眾' },
                         { id: 'ids', label: '指定用戶' }
                     ].map(type => (
                         <button key={type.id}
-                            onClick={() => setFormData({ ...formData, target_type: type.id })}
+                            onClick={() => setFormData({ ...formData, target_type: type.id, target_value: '' })}
                             className={formData.target_type === type.id ? 'primary' : 'secondary'}
                             disabled={(formData.status === 'sent' || formData.status === 'scheduled')}
                             style={{ flex: 1, padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: (formData.status === 'sent' || formData.status === 'scheduled') ? 0.7 : 1 }}
                         >
-                            {type.id === 'all' ? <Users size={16} /> : type.id === 'tag' ? <Filter size={16} /> : <Search size={16} />}
+                            {type.id === 'all' ? <Users size={16} /> : type.id === 'tag' ? <Filter size={16} /> : type.id === 'group' ? <Tag size={16} /> : <Search size={16} />}
                             {type.label}
                         </button>
                     ))}
@@ -716,6 +731,61 @@ function BroadcastContent() {
                             placeholder="選擇或搜尋標籤..."
                             singleSelect={true}
                         />
+                    </div>
+                )}
+
+                {formData.target_type === 'group' && (
+                    <div style={{ marginTop: '10px' }}>
+                        <select
+                            value={formData.target_value || ''}
+                            onChange={(e) => setFormData({ ...formData, target_value: e.target.value })}
+                            disabled={(formData.status === 'sent' || formData.status === 'scheduled')}
+                            style={{ width: '100%', padding: '10px', background: '#222', border: '1px solid #444', color: '#fff', borderRadius: '8px' }}
+                        >
+                            <option value="">-- 請選擇客戶群 --</option>
+                            {customerGroups.map(g => (
+                                <option key={g.group_name} value={g.group_name}>
+                                    {g.group_name} (約 {g.member_count || 0} 人)
+                                </option>
+                            ))}
+                        </select>
+                        {formData.target_value && (
+                            <div style={{ marginTop: '6px', fontSize: '12px', color: '#FFD700' }}>
+                                預估人數：{customerGroups.find(g => g.group_name === formData.target_value)?.member_count || 0} 人
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {(formData.send_type === 'scheduled' || formData.status === 'scheduled') && (formData.target_type === 'group' || formData.target_type === 'tag') && (
+                    <div style={{ marginTop: '16px', padding: '12px', background: '#1a1a1a', borderRadius: '8px', border: '1px solid #333' }}>
+                        <label style={{ fontSize: '13px', color: '#FFD700', fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>
+                            排程群發對象計算方式
+                        </label>
+                        <div style={{ display: 'flex', gap: '20px', fontSize: '13px' }}>
+                            <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#eee' }}>
+                                <input
+                                    type="radio"
+                                    name="audience_mode"
+                                    value="recalculate"
+                                    checked={(formData.audience_mode || 'recalculate') === 'recalculate'}
+                                    onChange={() => setFormData({ ...formData, audience_mode: 'recalculate' })}
+                                    disabled={(formData.status === 'sent' || formData.status === 'scheduled')}
+                                />
+                                送出時重新計算 <span style={{ fontSize: '11px', color: '#888' }}>(排程到點時依最新成員動態發送)</span>
+                            </label>
+                            <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#eee' }}>
+                                <input
+                                    type="radio"
+                                    name="audience_mode"
+                                    value="lock"
+                                    checked={formData.audience_mode === 'lock'}
+                                    onChange={() => setFormData({ ...formData, audience_mode: 'lock' })}
+                                    disabled={(formData.status === 'sent' || formData.status === 'scheduled')}
+                                />
+                                鎖定目前名單 <span style={{ fontSize: '11px', color: '#888' }}>(保存建立排程時的固定成員)</span>
+                            </label>
+                        </div>
                     </div>
                 )}
 
@@ -1288,6 +1358,14 @@ function BroadcastContent() {
                             initialContent={formData.messages[editingMsgIndex]?.contents}
                             onSave={handleFlexSave}
                             readOnly={(formData.status === 'sent' || formData.status === 'scheduled')}
+                            sourceContext={{
+                                sourceType: 'broadcast',
+                                sourceInfo: {
+                                    title: formData.name || formData.title || '群發廣播',
+                                    name: formData.name || formData.title || '群發廣播',
+                                    broadcast_id: formData.id || null
+                                }
+                            }}
                         />
                     </DialogContent>
                     <DialogActions sx={{ borderTop: '1px solid #333', p: 2 }}>
@@ -1400,6 +1478,9 @@ function BroadcastContent() {
                                     </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: '5px' }}>
+                                    {bc.status === 'sent' && (
+                                        <Tooltip title="數據成效分析"><IconButton onClick={() => setSelectedStatsBc(bc)} sx={{ color: 'var(--primary-yellow)' }}><BarChart2 size={18} /></IconButton></Tooltip>
+                                    )}
                                     {bc.status === 'draft' ? (
                                         <Tooltip title="編輯草稿"><IconButton onClick={() => handleEdit(bc)} sx={{ color: 'var(--primary-yellow)' }}><Edit2 size={18} /></IconButton></Tooltip>
                                     ) : (
@@ -1424,8 +1505,8 @@ function BroadcastContent() {
                                         <Clock size={16} color="#666" />
                                     </div>
                                     <div>
-                                        <p style={{ color: '#666', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>預計時間</p>
-                                        <p style={{ fontSize: '13px', color: '#BBB' }}>{bc.scheduled_at ? new Date(bc.scheduled_at).toLocaleDateString() : '立即發送'}</p>
+                                        <p style={{ color: '#666', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>{bc.send_type === 'immediate' ? '發送時間' : '預計時間'}</p>
+                                        <p style={{ fontSize: '13px', color: '#BBB' }}>{bc.scheduled_at ? new Date(bc.scheduled_at).toLocaleString() : (bc.created_at ? new Date(bc.created_at).toLocaleString() : '立即發送')}</p>
                                     </div>
                                 </div>
                             </div>
@@ -1524,6 +1605,13 @@ function BroadcastContent() {
                     </Box>
                 </Modal>
             )}
+
+            {/* Broadcast Statistics Modal */}
+            <BroadcastStatsModal
+                open={Boolean(selectedStatsBc)}
+                onClose={() => setSelectedStatsBc(null)}
+                broadcast={selectedStatsBc}
+            />
         </div>
     );
 }

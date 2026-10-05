@@ -217,11 +217,17 @@ export default function Questionnaire() {
 
     const [responsesDialog, setResponsesDialog] = useState({ open: false, note: '', responses: [], questions: [], loading: false });
 
+    const [projectsList, setProjectsList] = useState([]);
+    const [richMenusList, setRichMenusList] = useState([]);
+
     const [activeStep, setActiveStep] = useState(0);
     const [selectedGroupId, setSelectedGroupId] = useState('');
     const [note, setNote] = useState('');
     const [trigger, setTrigger] = useState('');
     const [finishMsg, setFinishMsg] = useState('問卷已完成，謝謝您的參與！');
+    const [finishTags, setFinishTags] = useState([]);
+    const [finishJourney, setFinishJourney] = useState('');
+    const [finishMenu, setFinishMenu] = useState('');
     const [questions, setQuestions] = useState([emptyQuestion()]);
     const [enableReview, setEnableReview] = useState(false);
     const [startTime, setStartTime] = useState('');
@@ -255,12 +261,26 @@ export default function Questionnaire() {
         }
     };
 
+    const fetchProjectsAndMenus = async () => {
+        try {
+            const [projRes, rmRes] = await Promise.all([
+                api.get('/projects', authHeaders),
+                api.get('/richmenu/metadata', authHeaders),
+            ]);
+            setProjectsList(Array.isArray(projRes.data) ? projRes.data : (projRes.data?.projects || []));
+            setRichMenusList(Array.isArray(rmRes.data) ? rmRes.data : []);
+        } catch (e) {
+            console.error('Failed to fetch projects or rich menus:', e);
+        }
+    };
+
     useEffect(() => {
         setGroups([]);
         setQuestionnaires([]);
         resetForm();
         fetchGroups();
         fetchList();
+        fetchProjectsAndMenus();
     }, [oaId]);
 
     const groupedQuestionnaires = useMemo(() => {
@@ -280,6 +300,9 @@ export default function Questionnaire() {
         setNote('');
         setTrigger('');
         setFinishMsg('問卷已完成，謝謝您的參與！');
+        setFinishTags([]);
+        setFinishJourney('');
+        setFinishMenu('');
         setQuestions([emptyQuestion()]);
         setEnableReview(false);
         setStartTime('');
@@ -314,6 +337,9 @@ export default function Questionnaire() {
             setNote(formatDisplayName(data.note) || '');
             setTrigger(data.trigger || '');
             setFinishMsg(data.finish_msg || '問卷已完成，謝謝您的參與！');
+            setFinishTags(data.finish_tags || []);
+            setFinishJourney(data.finish_journey ? String(data.finish_journey) : '');
+            setFinishMenu(data.finish_menu ? String(data.finish_menu) : '');
             setEnableReview(Boolean(data.enable_review));
             setStartTime(data.start_time || '');
             setEndTime(data.end_time || '');
@@ -452,6 +478,9 @@ export default function Questionnaire() {
                 note: '問卷管理 - ' + formatDisplayName(note),
                 trigger,
                 finish_msg: finishMsg,
+                finish_tags: finishTags,
+                finish_journey: finishJourney,
+                finish_menu: finishMenu,
                 questions: questions.map(q => ({
                     content: q.content,
                     cond: q.cond,
@@ -685,6 +714,60 @@ export default function Questionnaire() {
                                 InputLabelProps={{ shrink: true, sx: { color: '#B0B0B0' } }}
                             />
                         </Box>
+
+                        {/* 問卷完成後動作 */}
+                        <Box sx={{ mt: 3, p: 2, border: '1px solid #444', borderRadius: '8px', background: 'rgba(255, 255, 255, 0.03)' }}>
+                            <Typography sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', mb: 1.5, fontSize: '0.95rem' }}>
+                                問卷完成後動作
+                            </Typography>
+                            <Box sx={{ mb: 2 }}>
+                                <Typography sx={{ color: '#B0B0B0', fontSize: '0.85rem', mb: 0.5 }}>完成後標籤</Typography>
+                                <TagInput
+                                    tags={finishTags}
+                                    onChange={setFinishTags}
+                                    placeholder="輸入完成後標籤並按 Enter"
+                                />
+                            </Box>
+                            <Box sx={{ display: 'flex', gap: 2, flexWrap: { xs: 'wrap', sm: 'nowrap' } }}>
+                                <FormControl fullWidth sx={{ ...fieldSx, flex: 1 }}>
+                                    <InputLabel sx={{ color: '#B0B0B0' }}>加入自動旅程</InputLabel>
+                                    <Select
+                                        value={finishJourney}
+                                        label="加入自動旅程"
+                                        onChange={e => setFinishJourney(e.target.value)}
+                                        sx={selectSx}
+                                        MenuProps={{ PaperProps: { sx: { bgcolor: '#222', color: 'white' } } }}
+                                    >
+                                        <MenuItem value="">-- 不加入旅程 --</MenuItem>
+                                        {projectsList.map(p => (
+                                            <MenuItem key={p.project_id || p.id} value={String(p.project_id || p.id)}>
+                                                {p.project_name}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                                <FormControl fullWidth sx={{ ...fieldSx, flex: 1 }}>
+                                    <InputLabel sx={{ color: '#B0B0B0' }}>切換圖文選單</InputLabel>
+                                    <Select
+                                        value={finishMenu}
+                                        label="切換圖文選單"
+                                        onChange={e => setFinishMenu(e.target.value)}
+                                        sx={selectSx}
+                                        MenuProps={{ PaperProps: { sx: { bgcolor: '#222', color: 'white' } } }}
+                                    >
+                                        <MenuItem value="">-- 不切換選單 --</MenuItem>
+                                        {richMenusList.map(m => {
+                                            const menuVal = m.ui_uuid || m.richMenuId || m.rich_menu_id || m.id;
+                                            return (
+                                                <MenuItem key={menuVal} value={String(menuVal)}>
+                                                    {m.name || m.richMenuId || m.rich_menu_id}
+                                                </MenuItem>
+                                            );
+                                        })}
+                                    </Select>
+                                </FormControl>
+                            </Box>
+                        </Box>
                     </Box>
                 )}
 
@@ -721,6 +804,26 @@ export default function Questionnaire() {
                             <Typography sx={{ color: 'white', mb: 0.5 }}>問卷名稱：{note}</Typography>
                             <Typography sx={{ color: 'white', mb: 0.5 }}>觸發指令：{trigger}</Typography>
                             <Typography sx={{ color: 'white', mb: 0.5 }}>完成訊息：{finishMsg}</Typography>
+                            {(finishTags.length > 0 || finishJourney || finishMenu) && (
+                                <Box sx={{ mt: 1.5, pt: 1.5, borderTop: '1px dashed #444' }}>
+                                    <Typography sx={{ color: 'var(--primary-yellow)', fontSize: '0.9rem', mb: 0.5 }}>完成後動作：</Typography>
+                                    {finishTags.length > 0 && (
+                                        <Typography sx={{ color: 'white', fontSize: '0.85rem' }}>
+                                            • 完成後標籤：{finishTags.join(', ')}
+                                        </Typography>
+                                    )}
+                                    {finishJourney && (
+                                        <Typography sx={{ color: 'white', fontSize: '0.85rem' }}>
+                                            • 加入旅程：{projectsList.find(p => String(p.project_id || p.id) === String(finishJourney))?.project_name || finishJourney}
+                                        </Typography>
+                                    )}
+                                    {finishMenu && (
+                                        <Typography sx={{ color: 'white', fontSize: '0.85rem' }}>
+                                            • 切換選單：{richMenusList.find(m => String(m.ui_uuid || m.richMenuId || m.rich_menu_id || m.id) === String(finishMenu))?.name || finishMenu}
+                                        </Typography>
+                                    )}
+                                </Box>
+                            )}
                         </Paper>
 
                         <Paper sx={{ p: 2, background: '#222', border: '1px solid #444' }}>

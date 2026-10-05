@@ -6,8 +6,16 @@ from flask import request, jsonify, g
 from config import Config
 from models import User
 
-# Secret key should typically come from Config, fallback for dev
-SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev_secret_key'
+import secrets
+
+# Secret key should come from environment variable or Config.
+# Fallback to high-entropy CSPRNG key if missing, preventing default weak secret exploitation.
+_ENV_SECRET = os.environ.get('SECRET_KEY')
+if not _ENV_SECRET:
+    SECRET_KEY = secrets.token_urlsafe(32)
+    print("WARNING: SECRET_KEY not set in environment. Generated dynamic session key.")
+else:
+    SECRET_KEY = _ENV_SECRET
 
 def generate_token(user):
     payload = {
@@ -38,27 +46,28 @@ def token_required(f):
                 return jsonify({'message': 'User not found'}), 401
             g.current_user = current_user
             
-            # Check for OA Permission if an OA Context is loaded
-            if hasattr(g, 'current_oa_id') and g.current_oa_id:
+            # Check for OA Permission if an OA Context or Header is present
+            req_oa_id = request.headers.get('X-OA-ID') or getattr(g, 'current_oa_id', None)
+            if req_oa_id:
                 # Admins have access to everything
                 if current_user.role != 'admin':
                     allowed_ids = current_user.allowed_oa_configs or []
                     # Ensure integer comparison for robustness
                     try:
-                        oa_id_int = int(g.current_oa_id)
+                        oa_id_int = int(req_oa_id)
                         # Normalize allowed_ids to ints
                         allowed_ids_int = [int(x) for x in allowed_ids]
                         
                         if oa_id_int not in allowed_ids_int:
                              print(f"Auth Block: User {current_user.id} denied access to OA {oa_id_int}. Allowed: {allowed_ids_int}")
-                             return jsonify({'message': f'You are not authorized to access OA {g.current_oa_id}'}), 403
+                             return jsonify({'message': f'You are not authorized to access OA {req_oa_id}'}), 403
                     except ValueError:
                          return jsonify({'message': 'Invalid OA ID format'}), 400
 
         except jwt.ExpiredSignatureError:
             return jsonify({'message': 'Token has expired'}), 401
-        except jwt.InvalidTokenError as e:
-            return jsonify({'message': f'Invalid token: {str(e)}'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'message': 'Invalid token'}), 401
         
         return f(*args, **kwargs)
     return decorated

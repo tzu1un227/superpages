@@ -51,12 +51,14 @@ def get_line_token(app_name=None):
 
 def get_tenant_db_url(app_name=None, oa_id=None):
     """
-    Get the tenant-specific db_url from permission_settings.
+    Get the tenant-specific db_url from permission_settings in the main DB.
     """
     if not app_name and not oa_id:
-        if hasattr(g, 'current_oa_config') and g.current_oa_config.db_url:
+        if hasattr(g, 'current_oa_config') and g.current_oa_config and hasattr(g.current_oa_config, 'db_url') and g.current_oa_config.db_url:
             return g.current_oa_config.db_url
-        return None
+        oa_id = getattr(g, 'current_oa_id', None)
+        if not oa_id and hasattr(g, 'current_oa_config') and g.current_oa_config and hasattr(g.current_oa_config, 'id'):
+            oa_id = g.current_oa_config.id
 
     from db_utils import get_main_db_connection
     conn = get_main_db_connection()
@@ -64,14 +66,18 @@ def get_tenant_db_url(app_name=None, oa_id=None):
         try:
             cur = conn.cursor()
             if oa_id:
-                cur.execute("SELECT db_url FROM permission_settings WHERE id = %s", (oa_id,))
-            else:
+                try:
+                    int_id = int(oa_id)
+                    cur.execute("SELECT db_url FROM permission_settings WHERE id = %s", (int_id,))
+                except (ValueError, TypeError):
+                    cur.execute("SELECT db_url FROM permission_settings WHERE oa_name = %s", (str(oa_id),))
+            elif app_name:
                 cur.execute("SELECT db_url FROM permission_settings WHERE oa_name = %s OR (other_settings::jsonb ->> 'app_name') = %s LIMIT 1", (app_name, app_name))
             row = cur.fetchone()
             if row and row[0]:
                 return row[0]
         except Exception as e:
-            print(f"Error getting tenant db_url: {e}")
+            print(f"Error getting tenant db_url from main DB: {e}")
         finally:
             conn.close()
     return None
@@ -110,24 +116,34 @@ def list_rich_menus():
         default_resp = requests.get('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
         default_id = default_resp.json().get('richMenuId') if default_resp.status_code == 200 else None
         
-        # Get ui_uuid mappings from metadata database
+        # Get ui_uuid mappings and default count from metadata database
         metadata_map = {}
+        db_has_default = False
         try:
-            from db_utils import get_main_db_connection
-            m_conn = get_main_db_connection()
+            m_conn = get_tenant_conn(oa_id=oa_id)
             if m_conn:
                 t_metadata = get_t('rich_menu_metadata')
                 m_cur = m_conn.cursor()
-                m_cur.execute(f"SELECT rich_menu_id, ui_uuid, end_time FROM {t_metadata} WHERE oa_id = %s AND rich_menu_id IS NOT NULL", (oa_id,))
+                m_cur.execute(f"SELECT rich_menu_id, ui_uuid, end_time, status FROM {t_metadata} WHERE oa_id = %s AND rich_menu_id IS NOT NULL", (oa_id,))
                 for r in m_cur.fetchall():
                     metadata_map[r[0]] = {
                         'ui_uuid': r[1],
                         'end_time': r[2].isoformat() if r[2] else None
                     }
+                    if r[3] == 'default':
+                        db_has_default = True
                 m_cur.close()
                 m_conn.close()
         except Exception as e:
             print(f"Error fetching metadata mapping in list_rich_menus: {e}")
+            
+        # If database has no default menu configured, automatically clear LINE global default
+        if not db_has_default and default_id:
+            try:
+                requests.delete('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
+                default_id = None
+            except Exception as e:
+                print(f"Error unsetting LINE default rich menu: {e}")
             
         for menu in menus:
             menu['status'] = 'default' if menu['richMenuId'] == default_id else 'none'
@@ -182,8 +198,7 @@ def list_all_rich_menus():
             # Get ui_uuid mappings from metadata database for this OA
             metadata_map = {}
             try:
-                from db_utils import get_main_db_connection
-                m_conn = get_main_db_connection()
+                m_conn = get_tenant_conn(oa_id=oa.id)
                 if m_conn:
                     app_name = oa.other_settings.get('app_name')
                     if app_name:
@@ -343,12 +358,12 @@ def delete_rich_menu(richMenuId):
     }
     
     try:
-        from db_utils import get_db_connection, get_main_db_connection
+        from db_utils import get_db_connection, get_tenant_conn
         from utils.dependency_checker import check_and_clear_dependencies
         
         force = request.args.get('force', 'false').lower() == 'true'
         oa_conn = get_db_connection()
-        main_conn = get_main_db_connection()
+        main_conn = get_tenant_conn()
         try:
             main_cur = main_conn.cursor()
             app_id = g.current_app_name if hasattr(g, 'current_app_name') and g.current_app_name else '5013'
@@ -371,6 +386,14 @@ def delete_rich_menu(richMenuId):
             if oa_conn: oa_conn.close()
             if main_conn: main_conn.close()
 
+        # Check if this menu is currently set as global default on LINE; if so, clear it first
+        default_resp = requests.get('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
+        if default_resp.status_code == 200:
+            current_default_id = default_resp.json().get('richMenuId')
+            if current_default_id == richMenuId:
+                print(f"Unlinking global default rich menu {richMenuId} before deletion...")
+                requests.delete('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
+
         # First, find and delete all associated aliases
         alias_resp = requests.get('https://api.line.me/v2/bot/richmenu/alias/list', headers=headers)
         if alias_resp.status_code == 200:
@@ -381,9 +404,22 @@ def delete_rich_menu(richMenuId):
                     print(f"Deleting associated alias: {alias_id}")
                     requests.delete(f'https://api.line.me/v2/bot/richmenu/alias/{alias_id}', headers=headers)
         
-        # Then delete the rich menu
+        # Then delete the rich menu on LINE
         resp = requests.delete(f'https://api.line.me/v2/bot/richmenu/{richMenuId}', headers=headers)
-        if resp.status_code == 200:
+        if resp.status_code == 200 or resp.status_code == 404:
+            # 同步清除資料庫 metadata
+            try:
+                db_conn = get_tenant_conn()
+                if db_conn:
+                    db_cur = db_conn.cursor()
+                    app_id = g.current_app_name if hasattr(g, 'current_app_name') and g.current_app_name else '5013'
+                    db_cur.execute(f'DELETE FROM "rich_menu_metadata:{app_id}" WHERE rich_menu_id = %s', (richMenuId,))
+                    db_conn.commit()
+                    db_cur.close()
+                    db_conn.close()
+            except Exception as d_err:
+                print(f"Warning: error deleting metadata for {richMenuId}: {d_err}")
+
             # 同步清除全域圖片快取
             if richMenuId in _IMAGE_CACHE:
                 del _IMAGE_CACHE[richMenuId]
@@ -421,7 +457,6 @@ def delete_rich_menu_alias(aliasId):
         return jsonify({'message': 'Line token not configured'}), 400
     
     headers = {'Authorization': f'Bearer {token}'}
-    
     try:
         resp = requests.delete(f'https://api.line.me/v2/bot/richmenu/alias/{aliasId}', headers=headers)
         if resp.status_code == 200:
@@ -443,66 +478,72 @@ def set_default_rich_menu(richMenuId):
         'Content-Type': 'application/json'
     }
     
-    try:
-        from db_utils import get_main_db_connection
-        from psycopg2.extras import RealDictCursor
-        
-        # 取消所有個別使用者的綁定，確保 default 選單能覆蓋所有用戶
-        try:
-            conn = get_main_db_connection()
-            if conn:
-                app_name = getattr(g, 'current_app_name', None)
-                oa_id = getattr(g, 'current_oa_id', None)
-                if not app_name:
-                    if oa_id:
-                        from models import OAConfig
-                        oa = OAConfig.query.get(oa_id)
-                        if oa and oa.other_settings and oa.other_settings.get('app_name'):
-                            app_name = str(oa.other_settings['app_name'])
-                            g.current_app_name = app_name
-                
-                tenant_conn = get_tenant_conn(app_name=app_name, oa_id=oa_id) if app_name else conn
-                
-                if app_name and tenant_conn:
-                    t_metadata = get_t('rich_menu_metadata')
-                    cur = conn.cursor()
-                    
-                    cur.execute(f"SELECT start_time, end_time FROM {t_metadata} WHERE oa_id = %s AND rich_menu_id = %s", (oa_id, richMenuId))
-                    m = cur.fetchone()
-                    if m:
-                        start_time, end_time = m[0], m[1]
-                        if not start_time and not end_time:
-                            cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status = 'default' AND start_time IS NULL AND end_time IS NULL", (oa_id,))
-                        else:
-                            cur.execute(f"""
-                                SELECT id FROM {t_metadata} 
-                                WHERE oa_id = %s AND status = 'default' AND rich_menu_id != %s 
-                                  AND start_time IS NOT NULL AND end_time IS NOT NULL
-                                  AND start_time < %s AND end_time > %s
-                            """, (oa_id, richMenuId, end_time, start_time))
-                            if cur.fetchone():
-                                cur.close()
-                                conn.close()
-                                if tenant_conn and tenant_conn != conn: tenant_conn.close()
-                                return jsonify({'message': 'Set default failed', 'line_error': '排程時間與現存的排程預設選單重疊。'}), 400
+    conn = get_tenant_conn()
+    actual_rich_menu_id = richMenuId
+    app_name = getattr(g, 'current_app_name', None) or '5013'
+    oa_id = getattr(g, 'current_oa_id', None)
 
-                    cur.execute(f"UPDATE {t_metadata} SET status = 'default', updated_at = (NOW() AT TIME ZONE 'Asia/Taipei') WHERE oa_id = %s AND rich_menu_id = %s", (oa_id, richMenuId))
-                    conn.commit()
-                    cur.close()
-                    
-                    from endpoints.richmenu import check_and_apply_scheduled_rich_menus
-                    import threading
-                    threading.Thread(target=check_and_apply_scheduled_rich_menus, args=(app_name,)).start()
-                    
+    try:
+        if conn:
+            t_metadata = f'"rich_menu_metadata:{app_name}"'
+            cur = conn.cursor()
+            cur.execute(f"SELECT rich_menu_id FROM {t_metadata} WHERE rich_menu_id = %s OR ui_uuid = %s", (richMenuId, richMenuId))
+            m_row = cur.fetchone()
+            if m_row and m_row[0]:
+                actual_rich_menu_id = m_row[0]
+            cur.close()
+
+        # 1. 向 LINE API 設定該選單為全域預設選單
+        resp = requests.post(f'https://api.line.me/v2/bot/user/all/richmenu/{actual_rich_menu_id}', headers=headers)
+        if resp.status_code != 200:
+            print(f"LINE API set default failed ({actual_rich_menu_id}): {resp.text}")
+            return jsonify({'message': 'LINE API 預設選單設定失敗', 'error': resp.text}), resp.status_code
+
+        # 2. 更新業務資料庫與 Global_var 預設選單紀錄
+        if conn:
+            try:
+                t_metadata = f'"rich_menu_metadata:{app_name}"'
+                t_global = f'"Global_var:{app_name}"'
+                cur = conn.cursor()
+                
+                cur.execute(f"SELECT start_time, end_time FROM {t_metadata} WHERE rich_menu_id = %s OR ui_uuid = %s", (richMenuId, richMenuId))
+                m = cur.fetchone()
+                if m:
+                    start_time, end_time = m[0], m[1]
+                    if not start_time and not end_time:
+                        cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE status = 'default' AND start_time IS NULL AND end_time IS NULL")
+                    else:
+                        cur.execute(f"""
+                            SELECT id FROM {t_metadata} 
+                            WHERE status = 'default' AND rich_menu_id != %s 
+                              AND start_time IS NOT NULL AND end_time IS NOT NULL
+                              AND start_time < %s AND end_time > %s
+                        """, (actual_rich_menu_id, end_time, start_time))
+                        if cur.fetchone():
+                            cur.close()
+                            return jsonify({'message': 'Set default failed', 'line_error': '排程時間與現存的排程預設選單重疊。'}), 400
+
+                cur.execute(f"UPDATE {t_metadata} SET status = 'default', updated_at = (NOW() AT TIME ZONE 'Asia/Taipei') WHERE rich_menu_id = %s OR ui_uuid = %s", (actual_rich_menu_id, richMenuId))
+                
+                # 同步寫入 Global_var 供全域 Bot Engine 直接取用
+                cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
+                cur.execute(f"INSERT INTO {t_global} (name, value) VALUES ('default_rich_menu', %s)", (actual_rich_menu_id,))
+
+                conn.commit()
+                cur.close()
+                
+                import threading
+                from endpoints.richmenu import check_and_apply_scheduled_rich_menus
+                threading.Thread(target=check_and_apply_scheduled_rich_menus, args=(app_name,)).start()
+            finally:
                 conn.close()
-                if tenant_conn and tenant_conn != conn:
-                    tenant_conn.close()
-        except Exception as e:
-            print(f"Error in set_default_rich_menu: {e}")
             
         return jsonify({'status': 'success'})
     except Exception as e:
+        print(f"Error in set_default_rich_menu: {e}")
+        if conn: conn.close()
         return jsonify({'message': 'Error', 'error': str(e)}), 500
+
 @richmenu_bp.route('/set-default', methods=['DELETE'])
 @token_required
 @syslog_action('RICHMENU_UNSET_DEFAULT')
@@ -515,46 +556,25 @@ def unset_default_rich_menu():
     
     try:
         resp = requests.delete('https://api.line.me/v2/bot/user/all/richmenu', headers=headers)
-        if resp.status_code == 200:
+        if resp.status_code == 200 or resp.status_code == 404:
             try:
-                from db_utils import get_main_db_connection
-                conn = get_main_db_connection()
+                conn = get_tenant_conn()
                 if conn:
-                    app_name = getattr(g, 'current_app_name', None)
-                    oa_id = getattr(g, 'current_oa_id', None)
-                    if not app_name:
-                        if oa_id:
-                            from models import OAConfig
-                            oa = OAConfig.query.get(oa_id)
-                            if oa and oa.other_settings and oa.other_settings.get('app_name'):
-                                app_name = str(oa.other_settings['app_name'])
+                    app_name = getattr(g, 'current_app_name', None) or '5013'
+                    t_global = f'"Global_var:{app_name}"'
+                    t_metadata = f'"rich_menu_metadata:{app_name}"'
                     
-                    tenant_conn = get_tenant_conn(app_name=app_name, oa_id=oa_id) if app_name else conn
-                    
-                    if app_name and tenant_conn:
-                        t_global = f'"Global_var:{app_name}"'
-                        t_metadata = get_t('rich_menu_metadata')
-                        tenant_cur = tenant_conn.cursor()
-                        tenant_cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
-                        
-                        cur = conn.cursor()
-                        # Set metadata status of this OA from public back to published
-                        if oa_id:
-                            cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status = 'default'", (oa_id,))
-                            
-                        conn.commit()
-                        cur.close()
-                        
-                        if tenant_conn != conn:
-                            tenant_conn.commit()
-                        tenant_cur.close()
+                    cur = conn.cursor()
+                    cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
+                    cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE status = 'default'")
+                    conn.commit()
+                    cur.close()
                     conn.close()
-                    if tenant_conn and tenant_conn != conn:
-                        tenant_conn.close()
-            except Exception as e:
-                print(f"Error removing default rich menu cache: {e}")
+            except Exception as db_err:
+                print(f"Error in unset_default_rich_menu DB update: {db_err}")
+                
             return jsonify({'status': 'success'})
-        return jsonify({'message': 'Unset default failed', 'line_error': resp.text}), resp.status_code
+        return jsonify({'message': 'Unset default failed', 'error': resp.text}), resp.status_code
     except Exception as e:
         return jsonify({'message': 'Error', 'error': str(e)}), 500
 
@@ -574,30 +594,31 @@ def clear_all_rich_menus():
         # 2. Unlink individual users
         bulk_unlink_all_users(headers)
         
-        # 3. Update database status
+        # 3. Update database status on tenant connection
         try:
-            from db_utils import get_main_db_connection
-            oa_id = getattr(g, 'current_oa_id', None)
-            if oa_id:
-                t_metadata = get_t('rich_menu_metadata')
-                conn = get_main_db_connection()
+            conn = get_tenant_conn()
+            if conn:
+                app_name = getattr(g, 'current_app_name', None) or '5013'
+                oa_id = getattr(g, 'current_oa_id', None) or 5
+                
+                t_metadata = f'"rich_menu_metadata:{app_name}"'
                 cur = conn.cursor()
-                cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE oa_id = %s AND status IN ('default', 'link', 'restricted')", (oa_id,))
+                cur.execute(f"UPDATE {t_metadata} SET status = 'published' WHERE status IN ('default', 'link', 'restricted')")
                 conn.commit()
                 cur.close()
-                
-                app_name = getattr(g, 'current_app_name', None)
-                if not app_name:
-                    from models import OAConfig
-                    oa = OAConfig.query.get(oa_id)
-                    if oa and oa.other_settings and oa.other_settings.get('app_name'):
-                        app_name = str(oa.other_settings['app_name'])
-                if app_name:
-                    t_global = f'"Global_var:{app_name}"'
-                    cur = conn.cursor()
-                    cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
-                    conn.commit()
-                    cur.close()
+
+                t_global = f'"Global_var:{app_name}"'
+                cur = conn.cursor()
+                cur.execute(f"DELETE FROM {t_global} WHERE name = 'default_rich_menu'")
+                conn.commit()
+                cur.close()
+
+                t_private = f'"Private_var:{app_name}"'
+                cur = conn.cursor()
+                cur.execute(f"DELETE FROM {t_private} WHERE name = 'rich_menu'")
+                conn.commit()
+                cur.close()
+
                 conn.close()
         except Exception as db_err:
             print(f"Error updating DB statuses on clear-all: {db_err}")
@@ -646,10 +667,9 @@ def save_rich_menu_permissions():
 
 def bulk_unlink_all_users(headers):
     try:
-        from db_utils import get_main_db_connection
         from psycopg2.extras import RealDictCursor
         from flask import g
-        conn = get_main_db_connection()
+        conn = get_tenant_conn()
         if conn:
             app_name = getattr(g, 'current_app_name', None)
             if not app_name:
@@ -698,10 +718,9 @@ def bulk_unlink_all_users(headers):
 
 def bulk_link_all_users(headers, richMenuId):
     try:
-        from db_utils import get_main_db_connection
         from psycopg2.extras import RealDictCursor
         from flask import g
-        conn = get_main_db_connection()
+        conn = get_tenant_conn()
         if conn:
             app_name = getattr(g, 'current_app_name', None)
             if not app_name:
@@ -799,13 +818,12 @@ def parse_local_naive(dt_str):
 @richmenu_bp.route('/metadata', methods=['GET'], strict_slashes=False)
 @token_required
 def get_rich_menu_metadata():
-    from db_utils import get_main_db_connection
     from psycopg2.extras import RealDictCursor
     oa_id = g.current_oa_id
     
     try:
         t_metadata = get_t('rich_menu_metadata')
-        conn = get_main_db_connection()
+        conn = get_tenant_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         try:
             cur.execute(f"SELECT * FROM {t_metadata} WHERE oa_id = %s ORDER BY created_at DESC", (oa_id,))
@@ -836,7 +854,6 @@ def get_rich_menu_metadata():
 @token_required
 @syslog_action('RICHMENU_CREATE_DRAFT')
 def save_rich_menu_metadata():
-    from db_utils import get_main_db_connection
     from psycopg2.extras import RealDictCursor
     oa_id = g.current_oa_id
     data = request.json
@@ -856,7 +873,7 @@ def save_rich_menu_metadata():
     
     try:
         t_metadata = get_t('rich_menu_metadata')
-        conn = get_main_db_connection()
+        conn = get_tenant_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         try:
             if id:
@@ -975,13 +992,12 @@ def save_rich_menu_metadata():
 @token_required
 @syslog_action('RICHMENU_DELETE_DRAFT')
 def delete_rich_menu_metadata(id):
-    from db_utils import get_main_db_connection, get_db_connection
     try:
         force = request.args.get('force', 'false').lower() == 'true'
         from utils.dependency_checker import check_and_clear_dependencies
 
         t_metadata = get_t('rich_menu_metadata')
-        conn = get_main_db_connection()
+        conn = get_tenant_conn()
         cur = conn.cursor()
         try:
             cur.execute(f"SELECT rich_menu_id, ui_uuid FROM {t_metadata} WHERE id = %s", (id,))
@@ -1049,8 +1065,7 @@ def link_rich_menu_to_all(richMenuId):
     
     app_name = getattr(g, 'current_app_name', None)
     if app_name:
-        from db_utils import get_main_db_connection
-        conn = get_main_db_connection()
+        conn = get_tenant_conn()
         if conn:
             try:
                 cur = conn.cursor()
@@ -1096,22 +1111,490 @@ def unlink_rich_menu_from_all(richMenuId):
             
     return jsonify({'status': 'success'})
 
+@richmenu_bp.route('/<rich_menu_id>/apply-sources', methods=['GET'])
+@token_required
+def get_richmenu_apply_sources(rich_menu_id):
+    from psycopg2.extras import RealDictCursor
+    from db_utils import get_db_connection
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        def get_t_safe(base_name):
+            app_name = getattr(g, 'current_app_name', 'default')
+            suffixed = f"{base_name}:{app_name}"
+            try:
+                cur.execute("SELECT 1 FROM information_schema.tables WHERE table_name = %s", (suffixed,))
+                if cur.fetchone():
+                    return f'"{suffixed}"'
+                cur.execute("SELECT 1 FROM information_schema.tables WHERE table_name = %s", (base_name,))
+                if cur.fetchone():
+                    return f'"{base_name}"'
+            except Exception:
+                if conn: conn.rollback()
+            return f'"{suffixed}"'
+
+        pv_table = get_t_safe('Private_var')
+        t_history = get_t_safe('history')
+        t_metadata = get_t_safe('rich_menu_metadata')
+        gv_table = get_t_safe('Global_var')
+        t_qbank = get_t_safe('Q_bank')
+        t_qabank = get_t_safe('QA_bank')
+        t_schedules = get_t_safe('project_schedules')
+        t_projects = get_t_safe('projects')
+
+        # 1. Resolve all possible identifiers for this rich menu (rich_menu_id, ui_uuid)
+        all_menu_ids = []
+        try:
+            cur.execute(f"SELECT * FROM {t_metadata} WHERE rich_menu_id = %s OR ui_uuid = %s OR id::text = %s", (str(rich_menu_id), str(rich_menu_id), str(rich_menu_id)))
+            m_rows = cur.fetchall()
+            for mr in m_rows:
+                for k in ['rich_menu_id', 'ui_uuid']:
+                    val = mr.get(k)
+                    if val and str(val).strip() and len(str(val).strip()) >= 6 and str(val).strip() not in all_menu_ids:
+                        all_menu_ids.append(str(val).strip())
+        except Exception as e:
+            if conn: conn.rollback()
+            print("Error resolving all_menu_ids from metadata:", e)
+
+        if rich_menu_id and len(str(rich_menu_id).strip()) >= 6 and str(rich_menu_id).strip() not in all_menu_ids:
+            all_menu_ids.append(str(rich_menu_id).strip())
+
+        # Check if this menu is the Global default rich menu
+        is_default = False
+        try:
+            cur.execute(f"SELECT value FROM {gv_table} WHERE name = 'default_rich_menu'")
+            gv_row = cur.fetchone()
+            if gv_row and str(gv_row.get('value')).strip() in all_menu_ids:
+                is_default = True
+        except Exception:
+            if conn: conn.rollback()
+
+        sources_map = {}
+
+        # 1. 如果此選單是全域預設選單，加入系統預設入口
+        if is_default:
+            sources_map[("default", "系統預設", "全域預設圖文選單", "/richmenu")] = {"current_count": 0, "last_applied_at": None}
+
+        def clean_rule_title(note_str, fallback="關鍵字法則"):
+            if not note_str:
+                return fallback
+            base = str(note_str).split('|UPDATED:')[0].strip()
+            clean = base.replace('關鍵字回覆 - ', '').replace(' - 關鍵字回覆', '').replace('問卷管理 - ', '').replace(' - 問卷管理', '').replace(' - 工程用法則', '').replace('工程用法則', '').strip()
+            return clean if clean else (base if base else fallback)
+
+        def format_kw_display(content_val):
+            if not content_val:
+                return "*"
+            if isinstance(content_val, list):
+                items = [str(c).strip() for c in content_val if str(c).strip()]
+                return ", ".join(items) if items else "*"
+            s = str(content_val).strip()
+            return s.replace("['", "").replace("']", "").replace('["', '').replace('"]', '')
+
+        def is_menu_matched(text_to_search):
+            if not text_to_search or not all_menu_ids:
+                return False
+            t = str(text_to_search)
+            return any(mid in t for mid in all_menu_ids)
+
+        matching_sched_rows = []
+        matching_q_rows = []
+        journey_sched_tags = set()
+        sched_lookup_by_content = []
+
+        # 2. 深度掃描 project_schedules (自動旅程排程表)
+        try:
+            try:
+                cur.execute(f"""
+                    SELECT s.schedule_id, s.project_id, s.step_id, s.message_content, p.project_name
+                    FROM {t_schedules} s
+                    LEFT JOIN {t_projects} p ON s.project_id = p.project_id
+                """)
+                all_sched_rows = cur.fetchall()
+            except Exception:
+                if conn: conn.rollback()
+                cur.execute(f"""
+                    SELECT s.schedule_id, s.project_id, s.step_id, s.message_content
+                    FROM {t_schedules} s
+                """)
+                all_sched_rows = cur.fetchall()
+
+            for s in all_sched_rows:
+                s_pid = str(s.get('project_id') or '')
+                p_name = s.get('project_name') or f"旅程 #{s_pid}"
+                step_idx = s.get('step_id') or 1
+                raw_mc = str(s.get('message_content') or '')
+                
+                tag_name = None
+                q_msg_text = ""
+                q_fn_text = ""
+                q_check_text = ""
+
+                if raw_mc.startswith('QA|'):
+                    parts = raw_mc.split('|')
+                    tag_name = parts[-1]
+                    journey_sched_tags.add(tag_name)
+                    try:
+                        cur.execute(f'SELECT msg_rpy, function, "check" FROM {t_qabank} WHERE tag = %s', (tag_name,))
+                        q_row = cur.fetchone()
+                        if q_row:
+                            q_msg_text = str(q_row.get('msg_rpy') or '')
+                            q_fn_text = str(q_row.get('function') or '')
+                            q_check_text = str(q_row.get('check') or '')
+                    except Exception:
+                        if conn: conn.rollback()
+
+                item = {
+                    "project_id": s_pid,
+                    "project_name": p_name,
+                    "step_id": step_idx,
+                    "tag": tag_name,
+                    "raw_mc": raw_mc,
+                    "q_msg_text": q_msg_text,
+                    "q_fn_text": q_fn_text,
+                    "q_check_text": q_check_text
+                }
+                sched_lookup_by_content.append(item)
+
+                if is_menu_matched(raw_mc) or is_menu_matched(q_msg_text) or is_menu_matched(q_fn_text) or is_menu_matched(q_check_text):
+                    matching_sched_rows.append(item)
+                    k = ("journey", p_name, f"步驟 {step_idx} 訊息按鈕切換", f"/projects?projectId={s_pid}")
+                    if k not in sources_map:
+                        sources_map[k] = {"current_count": 0, "last_applied_at": None}
+        except Exception as e:
+            if conn: conn.rollback()
+            print("Error scanning project_schedules for rich menu:", e)
+
+        # 3. 主動掃描 Q_bank (關鍵字法則表與歡迎訊息，過濾內部工程法則)
+        try:
+            cur.execute(f"SELECT * FROM {t_qbank}")
+            q_rows = cur.fetchall()
+            for r in q_rows:
+                note = str(r.get('note') or '')
+                content_str = str(r.get('content') or '')
+                if note == '工程用法則' or content_str in ("['switch_rm|*']", "['set_menu']", "['sys_bind|*']", "['fallback']", "['iup|*']", "['cron|QA|*']"):
+                    continue
+
+                r_text = f"{r.get('msg_rpy')} {r.get('function')} {r.get('check')} {r.get('state_out')}"
+                if is_menu_matched(r_text):
+                    matching_q_rows.append(r)
+                    r_type = r.get('type') or 'Message'
+                    if r_type == 'Follow' or 'follow' in content_str.lower():
+                        k = ("welcome", "加入好友訊息", "加入好友歡迎訊息", "/welcome-message")
+                    elif '問卷管理' in note or r.get('state_in', '').startswith('Q__') or r.get('state_out', '').startswith('Q__'):
+                        clean_t = clean_rule_title(r.get('note'), '問卷管理')
+                        k = ("form", clean_t, "問卷填寫完畢切換", "/questionnaire")
+                    else:
+                        kw_raw = r.get('content')
+                        kw_disp = format_kw_display(kw_raw)
+                        kw_clean = clean_rule_title(r.get('note'), kw_disp)
+                        k = ("keyword", kw_clean, f"觸發關鍵字: {kw_disp}", "/ruledesigner")
+                    if k not in sources_map:
+                        sources_map[k] = {"current_count": 0, "last_applied_at": None}
+        except Exception as e:
+            if conn: conn.rollback()
+            print("Error scanning Q_bank for rich menu:", e)
+
+        # 4. 主動掃描 QA_bank (問答知識庫表、群發廣播與問卷，自動排除旅程自帶排程標籤)
+        try:
+            cur.execute(f"SELECT * FROM {t_qabank}")
+            qa_rows = cur.fetchall()
+            for r in qa_rows:
+                qa_tag = r.get('tag') or f"問答庫 #{r.get('id')}"
+                if qa_tag in journey_sched_tags:
+                    continue  # 已歸入自動旅程排程
+                r_text = f"{r.get('msg_rpy')} {r.get('function')} {r.get('check')}"
+                if is_menu_matched(r_text):
+                    matching_q_rows.append(r)
+                    if qa_tag.startswith('bc_'):
+                        clean_t = clean_rule_title(r.get('note'), '群發訊息')
+                        k = ("broadcast", clean_t, "群發訊息按鈕點擊", "/broadcast")
+                    elif qa_tag.startswith('form_') or qa_tag.startswith('survey_') or '問卷' in str(r.get('note') or ''):
+                        clean_t = clean_rule_title(r.get('note'), '問卷管理')
+                        k = ("form", clean_t, "問卷填寫完畢切換", "/questionnaire")
+                    else:
+                        qa_clean = clean_rule_title(r.get('note'), qa_tag)
+                        k = ("keyword", qa_clean, f"觸發標籤: {qa_tag}", "/ruledesigner")
+                    if k not in sources_map:
+                        sources_map[k] = {"current_count": 0, "last_applied_at": None}
+        except Exception as e:
+            if conn: conn.rollback()
+            print("Error scanning QA_bank for rich menu:", e)
+
+        # 5. 主動掃描 liff_questionnaires (LIFF 問卷表)
+        try:
+            t_liff = get_t_safe('liff_questionnaires')
+            cur.execute(f"SELECT * FROM {t_liff}")
+            liff_rows = cur.fetchall()
+            for r in liff_rows:
+                f_menu = str(r.get('finish_menu') or '').strip()
+                if is_menu_matched(f_menu):
+                    s_title = r.get('title') or "LIFF問卷"
+                    k = ("form", s_title, "LIFF問卷完成切換", "/liff-questionnaires")
+                    if k not in sources_map:
+                        sources_map[k] = {"current_count": 0, "last_applied_at": None}
+        except Exception as e:
+            if conn: conn.rollback()
+            print("Error scanning liff_questionnaires for rich menu:", e)
+
+        # 6. 主動掃描 rich_menu_metadata (其他圖文選單按鈕切換)
+        try:
+            cur.execute(f"SELECT * FROM {t_metadata}")
+            rm_rows = cur.fetchall()
+            for r in rm_rows:
+                r_mid = str(r.get('rich_menu_id') or '').strip()
+                r_uuid = str(r.get('ui_uuid') or '').strip()
+                if (r_mid and r_mid in all_menu_ids) or (r_uuid and r_uuid in all_menu_ids):
+                    continue
+                data_str = str(r.get('data') or '')
+                if is_menu_matched(data_str):
+                    rm_name = r.get('name') or "其他圖文選單"
+                    k = ("richmenu", rm_name, "選單按鈕切換", "/richmenu")
+                    if k not in sources_map:
+                        sources_map[k] = {"current_count": 0, "last_applied_at": None}
+        except Exception as e:
+            if conn: conn.rollback()
+            print("Error scanning other rich menus:", e)
+
+        # 6. 統計現有用戶套用歸因
+        explicit_uids = []
+        if all_menu_ids:
+            try:
+                cur.execute(f"SELECT DISTINCT user_id FROM {pv_table} WHERE name = 'rich_menu' AND value = ANY(%s)", (all_menu_ids,))
+                explicit_uids = [r['user_id'] for r in cur.fetchall()]
+            except Exception as e:
+                if conn: conn.rollback()
+                print("Error querying explicit uids:", e)
+
+        default_uids = []
+        if is_default:
+            try:
+                cur.execute(f"""
+                    SELECT DISTINCT user_id FROM {pv_table}
+                    WHERE user_id NOT IN (
+                        SELECT user_id FROM {pv_table} WHERE name = 'rich_menu' AND value IS NOT NULL AND value != ''
+                    )
+                """)
+                default_uids = [r['user_id'] for r in cur.fetchall()]
+            except Exception:
+                if conn: conn.rollback()
+
+        total_uids = list(set(explicit_uids + default_uids))
+
+        meta_rows = {}
+        if explicit_uids:
+            try:
+                cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = 'rich_menu_meta' AND user_id = ANY(%s)", (explicit_uids,))
+                meta_rows = {r['user_id']: r['value'] for r in cur.fetchall()}
+            except Exception as e:
+                if conn: conn.rollback()
+                print("Error querying rich_menu_meta:", e)
+
+        import json
+        for uid in total_uids:
+            if uid in default_uids and uid not in explicit_uids:
+                meta = {
+                    "source_type": "default",
+                    "source_name": "系統預設",
+                    "trigger_display": "全域預設圖文選單",
+                    "occurred_at": None,
+                    "setting_url": "/richmenu"
+                }
+            else:
+                meta_str = meta_rows.get(uid)
+                meta = None
+                if meta_str:
+                    try: meta = json.loads(meta_str)
+                    except: pass
+
+                if meta and meta.get('source_type') == 'journey':
+                    # Enrich journey project name if available
+                    s_info = meta.get('source_info', {})
+                    src_pid = str(s_info.get('project_id') or '')
+                    matched_item = None
+                    if src_pid:
+                        for item in sched_lookup_by_content:
+                            if item['project_id'] == src_pid:
+                                matched_item = item
+                                break
+                    if not matched_item:
+                        m_trig_text = meta.get('trigger_display', '').replace('點擊: ', '').strip()
+                        for item in sched_lookup_by_content:
+                            if (m_trig_text and m_trig_text in item['q_msg_text']) or any(mid in item['q_msg_text'] for mid in all_menu_ids):
+                                matched_item = item
+                                break
+                    if matched_item:
+                        meta['source_name'] = matched_item['project_name']
+                        meta['trigger_display'] = f"步驟 {matched_item['step_id']} 訊息按鈕切換"
+                        meta['setting_url'] = f"/projects?projectId={matched_item['project_id']}"
+
+                # 若沒有 meta 或 meta 為 manual（可能是過去舊資料），強制重新檢驗是否符合關鍵字或自動旅程設定
+                if not meta or meta.get('source_type') == 'manual':
+                    try:
+                        cur.execute(f"""
+                            SELECT category, content, "timestamp" FROM {t_history}
+                            WHERE user_id = %s
+                            ORDER BY "timestamp" DESC LIMIT 20
+                        """, (uid,))
+                        h_rows = cur.fetchall()
+
+                        found_meta = None
+
+                        # A. 優先比對歷程中是否有按鈕或指令切換
+                        for h in h_rows:
+                            h_content = str(h.get('content') or '')
+                            for item in matching_sched_rows:
+                                if (item['raw_mc'] and item['raw_mc'] in h_content) or \
+                                   (item['tag'] and item['tag'] in h_content) or \
+                                   any(mid in h_content for mid in all_menu_ids):
+                                    found_meta = {
+                                        "source_type": "journey",
+                                        "source_name": item['project_name'],
+                                        "trigger_display": f"步驟 {item['step_id']} 訊息按鈕切換",
+                                        "occurred_at": str(h['timestamp'])[:19] if h.get('timestamp') else None,
+                                        "setting_url": f"/projects?projectId={item['project_id']}"
+                                    }
+                                    break
+                            if found_meta: break
+
+                        # B. 比對歷程中的使用者訊息 (Message) 與設定了該選單的關鍵字規則
+                        if not found_meta:
+                            for h in h_rows:
+                                if h.get('category') == 'Message':
+                                    msg_text = str(h.get('content') or '').strip()
+                                    for r in matching_q_rows:
+                                        kw_raw = r.get('content')
+                                        if kw_raw:
+                                            is_kw_match = False
+                                            if isinstance(kw_raw, list):
+                                                is_kw_match = any(str(k).strip() and (str(k).strip() == msg_text or str(k).strip() in msg_text or msg_text in str(k).strip()) for k in kw_raw)
+                                            else:
+                                                s_kw = str(kw_raw).strip()
+                                                is_kw_match = s_kw and (s_kw == msg_text or s_kw in msg_text or msg_text in s_kw)
+                                            if is_kw_match:
+                                                clean_t = clean_rule_title(r.get('note'), format_kw_display(kw_raw))
+                                                found_meta = {
+                                                    "source_type": "keyword",
+                                                    "source_name": clean_t,
+                                                    "trigger_display": f"觸發關鍵字: {format_kw_display(kw_raw)}",
+                                                    "occurred_at": str(h['timestamp'])[:19] if h.get('timestamp') else None,
+                                                    "setting_url": "/ruledesigner"
+                                                }
+                                                break
+                                if found_meta: break
+
+                        # C. 若歷程無直接比對，但系統有明確探測出單一關鍵字/旅程設定，自動歸屬至設定源
+                        if not found_meta:
+                            if matching_sched_rows:
+                                item = matching_sched_rows[0]
+                                found_meta = {
+                                    "source_type": "journey",
+                                    "source_name": item['project_name'],
+                                    "trigger_display": f"步驟 {item['step_id']} 訊息按鈕切換",
+                                    "occurred_at": str(h_rows[0]['timestamp'])[:19] if h_rows and h_rows[0].get('timestamp') else None,
+                                    "setting_url": f"/projects?projectId={item['project_id']}"
+                                }
+                            elif matching_q_rows:
+                                r = matching_q_rows[0]
+                                kw_raw = r.get('content')
+                                clean_t = clean_rule_title(r.get('note'), format_kw_display(kw_raw))
+                                found_meta = {
+                                    "source_type": "keyword",
+                                    "source_name": clean_t,
+                                    "trigger_display": f"觸發關鍵字: {format_kw_display(kw_raw)}",
+                                    "occurred_at": str(h_rows[0]['timestamp'])[:19] if h_rows and h_rows[0].get('timestamp') else None,
+                                    "setting_url": "/ruledesigner"
+                                }
+
+                        if found_meta:
+                            meta = found_meta
+                    except Exception as e:
+                        if conn: conn.rollback()
+                        print("Error resolving user rich menu source:", e)
+
+                if not meta:
+                    meta = {
+                        "source_type": "manual",
+                        "source_name": "人工操作",
+                        "trigger_display": "管理後台手動套用",
+                        "occurred_at": None,
+                        "setting_url": None
+                    }
+
+            matched_key = None
+            m_type = meta.get('source_type', 'manual')
+            m_name = clean_rule_title(meta.get('source_name', '人工操作'))
+            m_trig = meta.get('trigger_display', '管理後台手動套用')
+            m_url = meta.get('setting_url')
+
+            for sk in sources_map.keys():
+                if sk[0] == m_type:
+                    if (m_name == sk[1] or m_name in sk[1] or sk[1] in m_name or m_trig in sk[2] or sk[2] in m_trig):
+                        matched_key = sk
+                        break
+
+            if not matched_key and m_type == 'journey':
+                j_keys = [sk for sk in sources_map.keys() if sk[0] == 'journey']
+                if len(j_keys) == 1 or m_name in ('旅程訊息', '自動旅程', '旅程'):
+                    matched_key = j_keys[0] if j_keys else None
+
+            if not matched_key and m_type == 'keyword':
+                kw_keys = [sk for sk in sources_map.keys() if sk[0] == 'keyword']
+                if len(kw_keys) == 1 or m_name in ('關鍵字回覆', '關鍵字', '關鍵字法則'):
+                    matched_key = kw_keys[0] if kw_keys else None
+
+            target_key = matched_key if matched_key else (m_type, m_name, m_trig, m_url)
+            if target_key not in sources_map:
+                sources_map[target_key] = {"current_count": 0, "last_applied_at": meta.get('occurred_at')}
+            
+            sources_map[target_key]["current_count"] += 1
+            if meta.get('occurred_at') and (not sources_map[target_key]["last_applied_at"] or meta.get('occurred_at') > sources_map[target_key]["last_applied_at"]):
+                sources_map[target_key]["last_applied_at"] = meta.get('occurred_at')
+
+        # 整理輸出清單：若已有設定的來源，且人工操作為 0 人，則不必顯示空白的人工操作列
+        has_config_sources = any(k[0] in ('keyword', 'journey', 'richmenu', 'broadcast', 'form', 'welcome', 'default') for k in sources_map.keys())
+        manual_key = ("manual", "人工操作", "管理後台手動套用", None)
+        if has_config_sources and manual_key in sources_map and sources_map[manual_key]["current_count"] == 0:
+            del sources_map[manual_key]
+
+        if not sources_map:
+            sources_map[manual_key] = {"current_count": 0, "last_applied_at": None}
+
+        source_list = [
+            {
+                "source_type": k[0], "source_name": k[1], "trigger_display": k[2], "setting_url": k[3],
+                "current_count": v["current_count"], "last_applied_at": v["last_applied_at"]
+            } for k, v in sources_map.items()
+        ]
+        cur.close()
+        return jsonify({
+            "rich_menu_id": rich_menu_id,
+            "total_users": len(total_uids),
+            "sources": source_list
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"Error in get_richmenu_apply_sources for {rich_menu_id}: {e}")
+        if conn: conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
+
 def bulk_check_and_update_rich_menu(app_name, user_ids=None):
     """
     Recalculates and updates the rich menu for specified users (or all users) 
     based on their current tags and the existing restricted rich menus.
     """
-    from db_utils import get_main_db_connection
-    from psycopg2.extras import RealDictCursor, execute_values
-    from flask import g
-    import ast
-    
-    conn = get_main_db_connection()
-    tenant_conn = get_tenant_conn(app_name=app_name) if app_name else conn
-    if not conn or not tenant_conn: return
+    from psycopg2.extras import RealDictCursor
+    conn = get_tenant_conn(app_name=app_name) if app_name else get_tenant_conn()
+    tenant_conn = conn
+    if not conn: return
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        tenant_cur = tenant_conn.cursor(cursor_factory=RealDictCursor)
+        tenant_cur = cur
         t_private = f'"Private_var:{app_name}"'
         
         # 1. First get ACTIVE restricted menus to know which tags to look for
@@ -1315,12 +1798,12 @@ def check_and_apply_scheduled_rich_menus(app_name):
     dummy = Flask(__name__)
     with dummy.app_context():
         g.current_app_name = app_name
-        conn = get_main_db_connection()
-        tenant_conn = get_tenant_conn(app_name=app_name) if app_name else conn
-        if not conn or not tenant_conn: return
+        conn = get_tenant_conn(app_name=app_name)
+        tenant_conn = conn
+        if not conn: return
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            tenant_cur = tenant_conn.cursor(cursor_factory=RealDictCursor)
+            tenant_cur = cur
             
             t_metadata = f'"rich_menu_metadata:{app_name}"'
             

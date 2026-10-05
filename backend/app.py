@@ -53,6 +53,27 @@ CORS(app, origins=origins_list)
 
 bot_info_cache = {}
 
+@app.after_request
+def set_security_headers(response):
+    # OWASP A02:2025 Security Headers
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    # Protect against clickjacking, while allowing LIFF embedding
+    if not request.path.startswith('/api/liff') and not request.path.startswith('/liff'):
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    return response
+
+@app.errorhandler(500)
+def handle_internal_server_error(e):
+    # OWASP A10:2025 Mishandling of Exceptional Conditions: do not leak traceback to client
+    import traceback
+    print(f"CRITICAL 500 Uncaught Exception: {traceback.format_exc()}")
+    return jsonify({
+        'status': 'error',
+        'message': '伺服器發生內部錯誤，已安全記錄於日誌。'
+    }), 500
+
 def json_response(data):
     return app.response_class(
         json.dumps(data, default=lambda x: float(x) if isinstance(x, Decimal) else (x.strftime('%Y-%m-%d %H:%M:%S') if isinstance(x, (datetime, date)) else str(x))),
@@ -61,7 +82,7 @@ def json_response(data):
 
 # Auth and DB imports
 from models import db, User, Page, OAConfig
-from auth import generate_token, token_required, admin_required
+from auth import generate_token, token_required, admin_required, SECRET_KEY
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
@@ -73,7 +94,7 @@ if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # Configuration for SQLAlchemy
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'dev_secret_key'
+app.config['SECRET_KEY'] = SECRET_KEY
 # RDS is the new Primary for Users, Pages, Permissions
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -281,14 +302,9 @@ def load_oa_context():
 
 @app.after_request
 def add_debug_headers(response):
-    oa_id = getattr(g, 'current_oa_id', 'None')
-    db_url = getattr(g, 'current_db_url', 'Default/None')
-    # Truncate sensitive URL info
-    if db_url and '@' in db_url:
-        db_url = db_url.split('@')[-1]
-    
-    response.headers['X-Debug-OA-ID'] = str(oa_id)
-    response.headers['X-Debug-DB'] = str(db_url)
+    if app.debug:
+        oa_id = getattr(g, 'current_oa_id', 'None')
+        response.headers['X-Debug-OA-ID'] = str(oa_id)
     return response
 
 def init_db():
@@ -313,13 +329,11 @@ start_all_schedulers(app)
 
 @app.route('/api/login', methods=['POST'])
 def login():
-    # Deprecated simple auth, keeping for compatibility if needed, but prioritizing Google Login
-    data = request.json
-    username = data.get('username')
-    password = data.get('password')
-    if username == "admin" and password == "admin":
-        return jsonify({"status": "success", "user": {"id": 1, "username": "admin"}})
-    return jsonify({"status": "error", "message": "Invalid credentials"}), 401
+    # Deprecated insecure legacy endpoint. All logins must use Google OAuth 2.0.
+    return jsonify({
+        "status": "error",
+        "message": "此登入端點已廢除，請使用 Google OAuth 2.0 進行身分驗證。"
+    }), 410
 
 @app.route('/api/auth/google-login', methods=['POST'])
 @syslog_action('AUTH_LOGIN')
@@ -386,6 +400,24 @@ def url_redirect():
     
     if not url:
         return "Missing URL parameter", 400
+        
+    # OWASP A01:2025 Broken Access Control & Open Redirect Defense
+    # Guard against CRLF injection and malicious schemes
+    if '\r' in url or '\n' in url:
+        return "Invalid URL characters", 400
+        
+    from urllib.parse import urlsplit
+    try:
+        parsed_url = urlsplit(url)
+        # Scheme check: allow http/https or safe relative URLs
+        if parsed_url.scheme:
+            if parsed_url.scheme.lower() not in ('http', 'https'):
+                return "Disallowed URL scheme", 400
+        else:
+            if not url.startswith('/') or url.startswith('//'):
+                return "Invalid redirect destination", 400
+    except Exception:
+        return "Malformed URL", 400
         
     if tags and user_id:
         if oa_id:
@@ -697,6 +729,7 @@ def delete_project(id):
         if conn: conn.close()
 
 @app.route('/api/projects/<int:id>/stats', methods=['GET'])
+@token_required
 def get_project_stats(id):
     conn = None
     try:
@@ -1084,8 +1117,15 @@ def restart_project_user(id, user_id):
                 else: # hours
                     current_push_time += timedelta(hours=interval_val)
                 
+                formatted_msg = msg
+                if msg and msg.startswith('QA|'):
+                    tag = msg.split('|')[-1]
+                    formatted_msg = f"get_out(qa('{tag}'))"
+                elif msg and not msg.startswith('get_out(') and not msg.startswith('sys.') and '(' not in msg:
+                    formatted_msg = f"get_out(qa('{msg}'))"
+
                 cur.execute(f"INSERT INTO {t_cron} (user_id, project_id, step_id, message_content, push_time, status) VALUES (%s, %s, %s, %s, %s, 'active')",
-                            (user_id, id, s_id, msg, current_push_time))
+                            (user_id, id, s_id, formatted_msg, current_push_time))
             
             # 6. Update status
             cur.execute(f"INSERT INTO {t_ups} (user_id, project_id, status, updated_at) VALUES (%s, %s, 'active', NOW()) ON CONFLICT (user_id, project_id) DO UPDATE SET status = 'active', updated_at = NOW()",
@@ -1109,28 +1149,21 @@ def restart_project_user(id, user_id):
     finally:
         if conn: conn.close()
 
-@app.route('/api/projects/<int:id>/users/batch-restart', methods=['POST'])
-@token_required
-def batch_restart_project_users(id):
+def batch_enroll_journey_users_internal(project_id, user_ids, app_id):
     conn = None
     try:
-        data = request.json
-        user_ids = data.get('user_ids', [])
-        if not user_ids:
-            return jsonify({"status": "error", "message": "No users selected"}), 400
-
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        t_projects = get_suffixed_table('projects')
-        t_schedules = get_suffixed_table('project_schedules')
-        t_cron = get_suffixed_table('cron_table')
-        t_ups = get_suffixed_table('user_project_status')
+        t_projects = f'"projects:{app_id}"'
+        t_schedules = f'"project_schedules:{app_id}"'
+        t_cron = f'"cron_table:{app_id}"'
+        t_ups = f'"user_project_status:{app_id}"'
 
         # 1. Fetch Project, start_date and Anchor Config
-        cur.execute(f"SELECT anchor_config, start_date FROM {t_projects} WHERE project_id = %s", (id,))
+        cur.execute(f"SELECT anchor_config, start_date FROM {t_projects} WHERE project_id = %s", (project_id,))
         project = cur.fetchone()
         if not project:
-            return jsonify({"status": "error", "message": "Project not found"}), 404
+            return False, "Project not found"
 
         anchor_conf = project['anchor_config']
         if isinstance(anchor_conf, str):
@@ -1141,8 +1174,6 @@ def batch_restart_project_users(id):
 
         # 2. Calculate Base Start Time
         now_tw = get_now_taiwan()
-        
-        # Determine Reference Time: Use project_start if it's in the future
         reference_time = now_tw
         if project_start:
             ps_local = project_start.replace(tzinfo=None) if project_start.tzinfo else project_start
@@ -1181,17 +1212,16 @@ def batch_restart_project_users(id):
                 print(f"Anchor error in batch_restart: {e}")
 
         # 3. Fetch All Steps
-        cur.execute(f"SELECT step_id, interval_hours, message_content FROM {t_schedules} WHERE project_id = %s ORDER BY step_id ASC", (id,))
+        cur.execute(f"SELECT step_id, interval_hours, interval_unit, message_content FROM {t_schedules} WHERE project_id = %s ORDER BY step_id ASC", (project_id,))
         steps = cur.fetchall()
         if not steps:
             cur.close()
             conn.close()
-            return jsonify({"status": "error", "message": "No schedules found for this project"}), 404
+            return False, "No schedules found for this project"
 
         # 4. Process each user
-        oa_id = get_current_oa_id()
         for user_id in user_ids:
-            cur.execute(f"DELETE FROM {t_cron} WHERE project_id = %s AND user_id = %s", (id, user_id))
+            cur.execute(f"DELETE FROM {t_cron} WHERE project_id = %s AND user_id = %s", (project_id, user_id))
             current_push_time = base_start_time
             for step in steps:
                 s_id = step['step_id']
@@ -1212,23 +1242,468 @@ def batch_restart_project_users(id):
                 else: # hours
                     current_push_time += timedelta(hours=interval_val)
                     
+                formatted_msg = msg
+                if msg and msg.startswith('QA|'):
+                    tag = msg.split('|')[-1]
+                    formatted_msg = f"get_out(qa('{tag}'))"
+                elif msg and not msg.startswith('get_out(') and not msg.startswith('sys.') and '(' not in msg:
+                    formatted_msg = f"get_out(qa('{msg}'))"
+
                 cur.execute(f"INSERT INTO {t_cron} (user_id, project_id, step_id, message_content, push_time, status) VALUES (%s, %s, %s, %s, %s, 'active')",
-                            (user_id, id, s_id, msg, current_push_time))
+                            (user_id, project_id, s_id, formatted_msg, current_push_time))
             cur.execute(f"INSERT INTO {t_ups} (user_id, project_id, status, updated_at) VALUES (%s, %s, 'active', %s) ON CONFLICT (user_id, project_id) DO UPDATE SET status = 'active', updated_at = %s",
-                        (user_id, id, now_tw, now_tw))
-            if oa_id:
-                try: increment_project_stat(id, 'ttc', oa_id)
+                        (user_id, project_id, now_tw, now_tw))
+            
+            # 寫入 journey_meta:<project_id> 到 Private_var
+            if app_id:
+                try:
+                    pv_table = f'"Private_var:{app_id}"'
+                    cur.execute(f"SELECT project_name FROM {t_projects} WHERE project_id = %s", (project_id,))
+                    p_row = cur.fetchone()
+                    p_name = p_row['project_name'] if p_row and 'project_name' in p_row else f"自動旅程 #{project_id}"
+                    
+                    j_meta_json = json.dumps({
+                        "journey_id": project_id,
+                        "source_type": "manual",
+                        "source_name": "人工操作",
+                        "trigger_display": "加入自動旅程",
+                        "operator": "管理員",
+                        "occurred_at": now_tw.strftime("%Y-%m-%d %H:%M:%S"),
+                        "setting_url": f"/projects/{project_id}"
+                    }, ensure_ascii=False)
+                    cur.execute(f"DELETE FROM {pv_table} WHERE user_id = %s AND name = %s", (user_id, f"journey_meta:{project_id}"))
+                    cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, %s, %s)", (user_id, f"journey_meta:{project_id}", j_meta_json))
+                except Exception as ex_jm:
+                    print("Error writing journey_meta:", ex_jm)
+
+            if app_id:
+                try: increment_project_stat(project_id, 'ttc', app_id)
                 except: pass
 
         conn.commit()
         cur.close()
-        return jsonify({"status": "success", "message": f"Successfully added {len(user_ids)} users to project."})
+        return True, None
     except Exception as e:
         print(f"Batch restart error: {e}")
         if conn: conn.rollback()
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return False, str(e)
     finally:
         if conn: conn.close()
+
+@app.route('/api/projects/<int:id>/join-sources', methods=['GET'])
+@token_required
+def get_project_join_sources(id):
+    conn = None
+    try:
+        app_id = get_current_app_id()
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        t_ups = f'"user_project_status:{app_id}"'
+        t_cron = f'"cron_table:{app_id}"'
+        pv_table = f'"Private_var:{app_id}"'
+        t_history = f'"history:{app_id}"'
+        t_qbank = f'"Q_bank:{app_id}"'
+        t_qabank = f'"QA_bank:{app_id}"'
+        t_schedules = get_suffixed_table('project_schedules')
+        t_projects = get_suffixed_table('projects')
+        t_richmenu = f'"rich_menu_metadata:{app_id}"'
+
+        sources_map = {}
+        journey_sched_tags = set()
+        sched_lookup_by_content = []
+
+        def clean_rule_title(note_str, fallback="關鍵字法則"):
+            if not note_str:
+                return fallback
+            base = str(note_str).split('|UPDATED:')[0].strip()
+            clean = base.replace('關鍵字回覆 - ', '').replace(' - 關鍵字回覆', '').replace('問卷管理 - ', '').replace(' - 問卷管理', '').replace(' - 工程用法則', '').replace('工程用法則', '').strip()
+            return clean if clean else (base if base else fallback)
+
+        def format_kw_display(content_val):
+            if not content_val:
+                return "*"
+            if isinstance(content_val, list):
+                items = [str(c).strip() for c in content_val if str(c).strip()]
+                return ", ".join(items) if items else "*"
+            s = str(content_val).strip()
+            return s.replace("['", "").replace("']", "").replace('["', '').replace('"]', '')
+
+        # 1. 主動掃描 project_schedules (其他自動旅程排程表，深度解構 QA| 指標)
+        try:
+            cur.execute(f"""
+                SELECT s.schedule_id, s.project_id, s.step_id, s.message_content, p.project_name
+                FROM {t_schedules} s
+                LEFT JOIN {t_projects} p ON s.project_id = p.project_id
+            """)
+            all_sched_rows = cur.fetchall()
+
+            for s in all_sched_rows:
+                s_pid = str(s.get('project_id') or '')
+                p_name = s.get('project_name') or f"旅程 #{s_pid}"
+                step_idx = s.get('step_id') or 1
+                raw_mc = str(s.get('message_content') or '')
+                
+                tag_name = None
+                q_msg_text = ""
+                q_fn_text = ""
+
+                if raw_mc.startswith('QA|'):
+                    parts = raw_mc.split('|')
+                    tag_name = parts[-1]
+                else:
+                    m_tag = re.search(r"qa\(['\"]([^'\"]+)['\"]\)", raw_mc)
+                    if m_tag:
+                        tag_name = m_tag.group(1)
+
+                if tag_name:
+                    journey_sched_tags.add(tag_name)
+                    try:
+                        cur.execute(f'SELECT msg_rpy, function FROM {t_qabank} WHERE tag = %s', (tag_name,))
+                        q_row = cur.fetchone()
+                        if q_row:
+                            q_msg_text = str(q_row.get('msg_rpy') or '')
+                            q_fn_text = str(q_row.get('function') or '')
+                    except Exception:
+                        pass
+
+                sched_lookup_by_content.append({
+                    "project_id": s_pid,
+                    "project_name": p_name,
+                    "step_id": step_idx,
+                    "tag": tag_name,
+                    "raw_mc": raw_mc,
+                    "q_msg_text": q_msg_text,
+                    "q_fn_text": q_fn_text
+                })
+
+                # 若排程來自其他旅程且包含指向此旅程 (id) 的跳轉或按鈕
+                if s_pid != str(id):
+                    is_target = False
+                    search_strs = [f"|{id}|", f"journey={id}", f'"journey":{id}', f'"journey":"{id}"', f"iup|{id}"]
+                    for ss in search_strs:
+                        if ss in raw_mc or ss in q_msg_text or ss in q_fn_text:
+                            is_target = True
+                            break
+                    if is_target:
+                        k = ("journey", p_name, f"步驟 {step_idx} 訊息按鈕點擊", f"/projects?projectId={s_pid}")
+                        if k not in sources_map:
+                            sources_map[k] = {"current_count": 0, "last_joined_at": None}
+        except Exception as e:
+            print("Error scanning project_schedules:", e)
+
+        # 2. 主動掃描 Q_bank (關鍵字法則表與問卷管理法則)
+        try:
+            cur.execute(f"""
+                SELECT * FROM {t_qbank}
+                WHERE msg_rpy::text LIKE %s 
+                   OR function::text LIKE %s 
+                   OR msg_rpy::text LIKE %s 
+                   OR function::text LIKE %s
+            """, (f"%|{id}|%", f"%|{id}|%", f"%journey={id}%", f"%iup|{id}%"))
+            for r in cur.fetchall():
+                note_str = str(r.get('note') or '')
+                kw_raw = r.get('content')
+                kw_disp = format_kw_display(kw_raw)
+                kw_clean = clean_rule_title(note_str, kw_disp)
+                if '問卷管理' in note_str or r.get('state_in', '').startswith('Q__') or r.get('state_out', '').startswith('Q__'):
+                    k = ("form", kw_clean, "問卷填寫完成加入", "/questionnaire")
+                else:
+                    k = ("keyword", kw_clean, f"觸發關鍵字: {kw_disp}", "/ruledesigner")
+                if k not in sources_map:
+                    sources_map[k] = {"current_count": 0, "last_joined_at": None}
+        except Exception as e:
+            print("Error scanning Q_bank:", e)
+
+        # 3. 主動掃描 QA_bank (問答知識庫表，自動排除旅程自帶排程標籤)
+        try:
+            cur.execute(f"""
+                SELECT * FROM {t_qabank}
+                WHERE msg_rpy::text LIKE %s 
+                   OR function::text LIKE %s 
+                   OR msg_rpy::text LIKE %s 
+                   OR function::text LIKE %s
+            """, (f"%|{id}|%", f"%|{id}|%", f"%journey={id}%", f"%iup|{id}%"))
+            for r in cur.fetchall():
+                qa_tag = r.get('tag') or f"問答庫 #{r.get('id')}"
+                if qa_tag in journey_sched_tags:
+                    continue  # 已歸入自動旅程，不重複列為問答庫關鍵字
+                note_str = str(r.get('note') or '')
+                qa_clean = clean_rule_title(note_str, qa_tag)
+                if '問卷管理' in note_str or qa_tag.startswith('form_') or qa_tag.startswith('survey_'):
+                    k = ("form", qa_clean, "問卷填寫完成加入", "/questionnaire")
+                else:
+                    k = ("keyword", qa_clean, f"觸發標籤: {qa_tag}", "/ruledesigner")
+                if k not in sources_map:
+                    sources_map[k] = {"current_count": 0, "last_joined_at": None}
+        except Exception as e:
+            print("Error scanning QA_bank:", e)
+
+        # 4. 主動掃描 liff_questionnaires (LIFF 問卷表)
+        try:
+            t_liff = f'"liff_questionnaires:{app_id}"'
+            cur.execute("SELECT 1 FROM information_schema.tables WHERE table_name = %s", (f"liff_questionnaires:{app_id}",))
+            if cur.fetchone():
+                cur.execute(f"SELECT title, finish_journey FROM {t_liff} WHERE finish_journey = %s", (str(id),))
+                for r in cur.fetchall():
+                    s_title = r.get('title') or "LIFF問卷"
+                    k = ("form", s_title, "LIFF問卷完成加入", "/liff-questionnaires")
+                    if k not in sources_map:
+                        sources_map[k] = {"current_count": 0, "last_joined_at": None}
+        except Exception as e:
+            print("Error scanning liff_questionnaires for journey:", e)
+
+        # 5. 主動掃描 rich_menu_metadata (圖文選單按鈕)
+        try:
+            cur.execute(f"""
+                SELECT rich_menu_id, ui_uuid, name, data 
+                FROM {t_richmenu}
+                WHERE data::text LIKE %s OR data::text LIKE %s
+            """, (f"%|{id}|%", f"%journey={id}%"))
+            for r in cur.fetchall():
+                rm_name = r.get('name') or "圖文選單"
+                k = ("richmenu", rm_name, "選單按鈕點擊", "/richmenu")
+                if k not in sources_map:
+                    sources_map[k] = {"current_count": 0, "last_joined_at": None}
+        except Exception as e:
+            print("Error scanning rich_menu_metadata:", e)
+
+        # 5. 掃描現有成員並進行精確歸因統計
+        uids_set = set()
+        try:
+            cur.execute(f"SELECT DISTINCT user_id FROM {t_ups} WHERE (project_id = %s OR project_id = %s) AND LOWER(COALESCE(status, '')) != 'deleted'", (id, str(id)))
+            for r in cur.fetchall():
+                if r.get('user_id'): uids_set.add(r['user_id'])
+        except Exception:
+            pass
+
+        try:
+            cur.execute(f"SELECT DISTINCT user_id FROM {t_cron} WHERE project_id = %s OR project_id = %s", (id, str(id)))
+            for r in cur.fetchall():
+                if r.get('user_id'): uids_set.add(r['user_id'])
+        except Exception:
+            pass
+
+        try:
+            cur.execute(f"SELECT DISTINCT user_id FROM {pv_table} WHERE name = %s", (f"journey_meta:{id}",))
+            for r in cur.fetchall():
+                if r.get('user_id'): uids_set.add(r['user_id'])
+        except Exception:
+            pass
+
+        active_uids = list(uids_set)
+
+        if active_uids:
+            cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = %s AND user_id = ANY(%s)", (f"journey_meta:{id}", active_uids))
+            meta_rows = {r['user_id']: r['value'] for r in cur.fetchall()}
+
+            for uid in active_uids:
+                meta_str = meta_rows.get(uid)
+                meta = None
+                if meta_str:
+                    try: meta = json.loads(meta_str)
+                    except: pass
+
+                if meta:
+                    if meta.get('source_type') == 'journey':
+                        s_info = meta.get('source_info', {})
+                        src_pid = str(s_info.get('project_id') or '')
+                        step_idx = s_info.get('step_id') or 1
+                        matched_item = None
+                        if src_pid:
+                            for item in sched_lookup_by_content:
+                                if item['project_id'] == src_pid:
+                                    matched_item = item
+                                    break
+                        if not matched_item:
+                            m_trig_text = meta.get('trigger_display', '').replace('點擊: ', '').strip()
+                            for item in sched_lookup_by_content:
+                                if item['project_id'] != str(id):
+                                    if (m_trig_text and m_trig_text in item['q_msg_text']) or (f"|{id}|" in item['q_msg_text']) or (f"journey={id}" in item['q_msg_text']):
+                                        matched_item = item
+                                        break
+                        if matched_item:
+                            meta['source_name'] = matched_item['project_name']
+                            meta['trigger_display'] = f"步驟 {matched_item['step_id']} 訊息按鈕點擊"
+                            meta['setting_url'] = f"/projects?projectId={matched_item['project_id']}"
+
+                if not meta:
+                    try:
+                        cur.execute(f"""
+                            SELECT category, content, "timestamp" FROM {t_history}
+                            WHERE user_id = %s AND (
+                                content LIKE %s OR 
+                                content LIKE %s OR 
+                                content LIKE %s OR 
+                                content LIKE %s
+                            )
+                            ORDER BY "timestamp" DESC LIMIT 1
+                        """, (uid, f"%|{id}|%", f"%journey={id}%", f"%iup|{id}%", f"%journey%:{id}%"))
+                        h_row = cur.fetchone()
+                        if h_row:
+                            h_content = str(h_row.get('content') or '')
+                            
+                            # 1. 優先檢查是否匹配其他自動旅程排程訊息
+                            matched_sched_item = None
+                            for item in sched_lookup_by_content:
+                                if item['project_id'] != str(id):
+                                    if (item['raw_mc'] and item['raw_mc'] in h_content) or \
+                                       (item['tag'] and item['tag'] in h_content) or \
+                                       (f"|{id}|" in item['q_msg_text']) or \
+                                       (f"journey={id}" in item['q_msg_text']):
+                                        matched_sched_item = item
+                                        break
+                            
+                            if matched_sched_item:
+                                meta = {
+                                    "source_type": "journey",
+                                    "source_name": matched_sched_item['project_name'],
+                                    "trigger_display": f"步驟 {matched_sched_item['step_id']} 訊息按鈕點擊",
+                                    "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
+                                    "setting_url": f"/projects?projectId={matched_sched_item['project_id']}"
+                                }
+                            else:
+                                # 2. 檢查是否匹配 Q_bank (關鍵字法則)
+                                cur.execute(f"""
+                                    SELECT id, content, note FROM {t_qbank}
+                                    WHERE msg_rpy::text LIKE %s OR function::text LIKE %s OR msg_rpy::text LIKE %s OR function::text LIKE %s
+                                    LIMIT 1
+                                """, (f"%|{id}|%", f"%|{id}|%", f"%journey={id}%", f"%iup|{id}%"))
+                                matched_q = cur.fetchone()
+                                if matched_q:
+                                    clean_t = clean_rule_title(matched_q.get('note'), format_kw_display(matched_q.get('content')))
+                                    meta = {
+                                        "source_type": "keyword",
+                                        "source_name": clean_t,
+                                        "trigger_display": f"觸發關鍵字: {format_kw_display(matched_q.get('content'))}",
+                                        "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
+                                        "setting_url": "/ruledesigner"
+                                    }
+                                else:
+                                    meta = {
+                                        "source_type": "manual",
+                                        "source_name": "人工操作",
+                                        "trigger_display": "管理後台手動加入",
+                                        "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
+                                        "setting_url": None
+                                    }
+                    except Exception as e:
+                        print("Error attributing user join history:", e)
+
+                if not meta:
+                    meta = {
+                        "source_type": "manual",
+                        "source_name": "人工操作",
+                        "trigger_display": "管理後台手動加入",
+                        "occurred_at": None,
+                        "setting_url": None
+                    }
+
+                # Match with existing scanned sources or add new one
+                matched_key = None
+                m_type = meta.get('source_type', 'manual')
+                m_name = clean_rule_title(meta.get('source_name', '人工操作'))
+                m_trig = meta.get('trigger_display', '手動加入')
+                m_url = meta.get('setting_url')
+
+                for sk in sources_map.keys():
+                    if sk[0] == m_type and (m_name == sk[1] or m_name in sk[1] or sk[1] in m_name or m_trig in sk[2] or sk[2] in m_trig):
+                        matched_key = sk
+                        break
+
+                if not matched_key and m_type == 'journey':
+                    j_keys = [sk for sk in sources_map.keys() if sk[0] == 'journey']
+                    if len(j_keys) == 1 or m_name in ('旅程訊息', '自動旅程', '旅程', 'flex訊息', 'Flex訊息'):
+                        matched_key = j_keys[0] if j_keys else None
+
+                if not matched_key and m_type == 'keyword':
+                    kw_keys = [sk for sk in sources_map.keys() if sk[0] == 'keyword']
+                    if len(kw_keys) == 1 or m_name in ('關鍵字回覆', '關鍵字', '關鍵字法則'):
+                        matched_key = kw_keys[0] if kw_keys else None
+
+                target_key = matched_key if matched_key else (m_type, m_name, m_trig, m_url)
+                if target_key not in sources_map:
+                    sources_map[target_key] = {"current_count": 0, "last_joined_at": meta.get('occurred_at')}
+                
+                sources_map[target_key]["current_count"] += 1
+                if meta.get('occurred_at') and (not sources_map[target_key]["last_joined_at"] or meta.get('occurred_at') > sources_map[target_key]["last_joined_at"]):
+                    sources_map[target_key]["last_joined_at"] = meta.get('occurred_at')
+
+        # Clean up empty manual key if other sources exist
+        has_config_sources = any(k[0] in ('keyword', 'journey', 'richmenu', 'broadcast', 'form') for k in sources_map.keys())
+        manual_key = ("manual", "人工操作", "管理後台手動加入", None)
+        if has_config_sources and manual_key in sources_map and sources_map[manual_key]["current_count"] == 0:
+            del sources_map[manual_key]
+
+        # If no config sources and no users, provide friendly empty placeholder
+        if not sources_map:
+            sources_map[manual_key] = {"current_count": 0, "last_joined_at": None}
+
+        source_list = [
+            {
+                "source_type": k[0], "source_name": k[1], "trigger_display": k[2], "setting_url": k[3],
+                "current_count": v["current_count"], "last_joined_at": v["last_joined_at"]
+            } for k, v in sources_map.items()
+        ]
+
+        cur.close()
+        return jsonify({
+            "journey_id": id,
+            "total_users": len(active_uids),
+            "sources": source_list
+        })
+    except Exception as e:
+        if conn: conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
+
+@app.route('/api/projects/<int:id>/users/batch-restart', methods=['POST'])
+@token_required
+def batch_restart_project_users(id):
+    data = request.json or {}
+    user_ids = data.get('user_ids', [])
+    group_name = data.get('group_name') or data.get('group')
+
+    app_id = get_current_app_id()
+    if group_name and not user_ids:
+        conn = None
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            pv_table = f'"Private_var:{app_id}"'
+            active_user_subquery = f"""
+                SELECT p.user_id FROM {pv_table} p
+                WHERE p.name = 'name'
+                AND (
+                    SELECT h.category FROM "history:{app_id}" h
+                    WHERE h.user_id = p.user_id 
+                    AND h.category IN ('Follow', 'Unfollow')
+                    ORDER BY h.timestamp DESC LIMIT 1
+                ) IS DISTINCT FROM 'Unfollow'
+                AND length(p.user_id) = 33 AND p.user_id LIKE 'U%%'
+            """
+            cur.execute(f"""
+                SELECT DISTINCT user_id FROM {pv_table}
+                WHERE name = 'g_group' AND value LIKE %s
+                AND user_id IN ({active_user_subquery})
+            """, (f'%{group_name}%',))
+            user_ids = [r[0] for r in cur.fetchall()]
+            cur.close()
+        except Exception as ex:
+            print("Error resolving group users for project enroll:", ex)
+        finally:
+            if conn: conn.close()
+
+    if not user_ids:
+        return jsonify({"status": "error", "message": "未選取用戶或該客戶群目前無任何有效成員"}), 400
+
+    ok, err_msg = batch_enroll_journey_users_internal(id, user_ids, app_id)
+    if ok:
+        return jsonify({"status": "success", "message": f"已成功將 {len(user_ids)} 名用戶加入自動旅程。"})
+    else:
+        status_code = 404 if err_msg and "not found" in err_msg.lower() else 500
+        return jsonify({"status": "error", "message": err_msg}), status_code
+
 
 def cron_scheduler_processor():
     """
@@ -1269,12 +1744,18 @@ def get_schedules():
         for s in schedules:
             content = s.get('message_content')
             s['message_preview'] = None
-            if content and content.startswith('QA|'):
-                try:
-                    # Parse tag: "QA|tag_name" or "QA|123|tag_name"
+            tag = None
+            if content:
+                if content.startswith('QA|'):
                     parts = content.split('|')
                     tag = parts[-1]
-                    
+                else:
+                    m_tag = re.search(r"qa\(['\"]([^'\"]+)['\"]\)", content)
+                    if m_tag:
+                        tag = m_tag.group(1)
+
+            if tag:
+                try:
                     cur.execute(f'SELECT msg_rpy FROM "QA_bank:{app_id}" WHERE tag = %s', (tag,))
                     res = cur.fetchone()
                     if res and res.get('msg_rpy'):
@@ -1332,7 +1813,7 @@ def create_schedule():
         t_schedules = get_suffixed_table('project_schedules')
         cur.execute(
             f"INSERT INTO {t_schedules} (project_id, step_id, interval_hours, interval_unit, message_content) VALUES (%s, %s, %s, %s, %s) RETURNING schedule_id",
-            (data['project_id'], data['step_id'], data['interval_hours'], data.get('interval_unit', 'hours'), data['message_content'])
+            (data['project_id'], data['step_id'], float(data['interval_hours']), data.get('interval_unit', 'hours'), data['message_content'])
         )
         schedule_id = cur.fetchone()[0]
         conn.commit()
@@ -1359,7 +1840,7 @@ def update_schedule(id):
         t_schedules = get_suffixed_table('project_schedules')
         cur.execute(
             f"UPDATE {t_schedules} SET project_id=%s, step_id=%s, interval_hours=%s, interval_unit=%s, message_content=%s WHERE schedule_id=%s",
-            (data['project_id'], data['step_id'], data['interval_hours'], data.get('interval_unit', 'hours'), data['message_content'], id)
+            (data['project_id'], data['step_id'], float(data['interval_hours']), data.get('interval_unit', 'hours'), data['message_content'], id)
         )
         conn.commit()
         cur.close()
@@ -1403,6 +1884,7 @@ def delete_schedule(id):
 
 # Statistics and Super8 Features
 @app.route('/api/statistics', methods=['GET'])
+@token_required
 def get_statistics():
     conn = None
     try:
@@ -1519,14 +2001,48 @@ def get_statistics():
         if conn: conn.close()
 
 
+def _normalize_msg_text(text):
+    if not text:
+        return ""
+    text = str(text).lower().replace('\u3000', ' ')
+    n_chars = []
+    for c in text:
+        code = ord(c)
+        if 0xFF01 <= code <= 0xFF5E:
+            n_chars.append(chr(code - 0xEE00))
+        else:
+            n_chars.append(c)
+    text = "".join(n_chars)
+    return re.sub(r'\s+', ' ', text).strip()
+
+def _is_invalid_message_text(raw_text):
+    if not raw_text:
+        return True
+    s = str(raw_text).strip()
+    if not s:
+        return True
+    if s.startswith('{') and s.endswith('}'):
+        return True
+    if s.startswith('[') and s.endswith(']'):
+        if s in ['[text]', '[image]', '[sticker]', '[video]', '[audio]', '[file]', '[location]']:
+            return True
+    if s.startswith('cron|') or s.startswith('bmcast|') or s.startswith('QA|') or s.startswith('set_tag|') or s.startswith('del_tag|') or s.startswith('rct'):
+        return True
+    if re.match(r'^https?://\S+$', s, re.IGNORECASE):
+        return True
+    norm = _normalize_msg_text(s)
+    if not re.search(r'[\w\u4e00-\u9fff]', norm):
+        return True
+    return False
+
 @app.route('/api/statistics/keywords', methods=['GET'])
+@token_required
 def get_statistics_keywords():
     conn = None
     try:
         start_time = request.args.get('start_time', (datetime.now().replace(hour=0, minute=0, second=0)).isoformat())
         end_time = request.args.get('end_time', datetime.now().isoformat())
         
-        # Handle date-only strings from frontend (e.g. YYYY-MM-DD)
         if len(start_time) == 10:
             start_time += " 00:00:00"
         if len(end_time) == 10:
@@ -1538,24 +2054,213 @@ def get_statistics_keywords():
         except:
             limit = 150
 
+        app_id = get_current_app_id()
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        cur.execute(
-            "SELECT * FROM (SELECT * FROM get_keyword_ranking(%s, %s, %s, %s, %s)) sub WHERE keyword != '[text]' LIMIT %s",
-            (start_time, end_time, tag, limit + 5, get_current_app_id(), limit)
-        )
-        results = cur.fetchall()
-            
+
+        # 1. Fetch active Q_bank keyword rules
+        t_qbank = f"Q_bank:{app_id}"
+        rules = []
+        cur.execute("SELECT 1 FROM information_schema.tables WHERE table_name = %s", (t_qbank,))
+        if cur.fetchone():
+            cur.execute(f'SELECT id, note, type, "check", content FROM "{t_qbank}" ORDER BY id ASC')
+            raw_rules = cur.fetchall()
+
+            # Filter out paired Sensor rules created alongside Message rules
+            def _rule_key(r):
+                return f"{r.get('content')}|{r.get('note')}"
+
+            message_rule_keys = {
+                _rule_key(r) for r in raw_rules if r.get('type') == 'Message'
+            }
+
+            seen_rule_sigs = set()
+            for r in raw_rules:
+                r_type = r.get('type') or ''
+                r_note = r.get('note') or ''
+
+                # Skip paired Sensor rules
+                if r_type == 'Sensor' and _rule_key(r) in message_rule_keys:
+                    continue
+
+                if r_type in ['Message', 'Sensor', ''] or '關鍵字' in r_note:
+                    triggers = set()
+                    c_str = str(r.get('content') or '')
+                    chk_str = str(r.get('check') or '')
+                    
+                    for raw in [c_str, chk_str]:
+                        found = re.findall(r'["\'](.*?)["\']', raw)
+                        for f in found:
+                            f_clean = _normalize_msg_text(f)
+                            if f_clean and f_clean not in ['rct', 'msg', 'sensor', ''] and not f_clean.startswith('m.'):
+                                triggers.add(f_clean)
+                        clean_raw = _normalize_msg_text(raw.replace('[', '').replace(']', '').replace("'", "").replace('"', ''))
+                        if clean_raw and len(clean_raw) < 50 and not clean_raw.startswith('cron|') and not clean_raw.startswith('m.'):
+                            triggers.add(clean_raw)
+                    
+                    if triggers:
+                        note_base = (r_note or '').split('|UPDATED:')[0].strip()
+                        clean_name = note_base.replace('關鍵字回覆 - ', '').replace(' - 關鍵字回覆', '').replace(' - 問卷管理', '').replace('問卷管理 - ', '').replace(' - 工程用法則', '').replace('工程用法則', '').strip()
+                        if not clean_name:
+                            clean_name = f"法則 #{r['id']}"
+
+                        # Deduplicate by signature (clean_name, triggers)
+                        sig = (clean_name, tuple(sorted(triggers)))
+                        if sig in seen_rule_sigs:
+                            continue
+                        seen_rule_sigs.add(sig)
+
+                        rules.append({
+                            'id': r['id'],
+                            'name': clean_name,
+                            'original_note': r_note,
+                            'triggers': list(triggers)
+                        })
+
+        # 2. Fetch history messages
+        t_history = f"history:{app_id}"
+        messages = []
+        cur.execute("SELECT 1 FROM information_schema.tables WHERE table_name = %s", (t_history,))
+        if cur.fetchone():
+            if tag and tag.strip():
+                t_pv = f"Private_var:{app_id}"
+                cur.execute("SELECT 1 FROM information_schema.tables WHERE table_name = %s", (t_pv,))
+                if cur.fetchone():
+                    cur.execute(f'''
+                        SELECT h.user_id, h.content 
+                        FROM "{t_history}" h
+                        JOIN "{t_pv}" v ON h.user_id = v.user_id AND v.name = 'tag'
+                        WHERE h.timestamp >= %s AND h.timestamp <= %s 
+                          AND (LOWER(h.category) = 'message' OR h.category IS NULL)
+                          AND h.user_id LIKE 'U%%' AND length(h.user_id) = 33
+                          AND h.user_id NOT IN ('yzuadmin', 'system')
+                          AND v.value ILIKE %s
+                    ''', (start_time, end_time, f"%{tag}%"))
+                    messages = cur.fetchall()
+                else:
+                    messages = []
+            else:
+                cur.execute(f'''
+                    SELECT user_id, content 
+                    FROM "{t_history}"
+                    WHERE timestamp >= %s AND timestamp <= %s 
+                      AND (LOWER(category) = 'message' OR category IS NULL)
+                      AND user_id LIKE 'U%%' AND length(user_id) = 33
+                      AND user_id NOT IN ('yzuadmin', 'system')
+                ''', (start_time, end_time))
+                messages = cur.fetchall()
+
         cur.close()
-        return json_response(results)
+
+        # 3. Dynamic Match Algorithm
+        rule_hit_count = {r['id']: 0 for r in rules}
+        rule_hit_users = {r['id']: set() for r in rules}
+        
+        matched_total_count = 0
+        unmatched_total_count = 0
+        matched_users = set()
+        unmatched_users = set()
+        
+        unmatched_msg_counts = {}
+        unmatched_msg_users = {}
+
+        for m in messages:
+            raw_content = m.get('content')
+            if _is_invalid_message_text(raw_content):
+                continue
+            
+            uid = m.get('user_id')
+            norm_content = _normalize_msg_text(raw_content)
+            if not norm_content:
+                continue
+
+            matched_any = False
+            for r in rules:
+                is_rule_hit = False
+                for trig in r['triggers']:
+                    if trig in norm_content or norm_content in trig:
+                        is_rule_hit = True
+                        break
+                if is_rule_hit:
+                    matched_any = True
+                    rule_hit_count[r['id']] += 1
+                    rule_hit_users[r['id']].add(uid)
+
+            if matched_any:
+                matched_total_count += 1
+                matched_users.add(uid)
+            else:
+                unmatched_total_count += 1
+                unmatched_users.add(uid)
+                unmatched_msg_counts[norm_content] = unmatched_msg_counts.get(norm_content, 0) + 1
+                if norm_content not in unmatched_msg_users:
+                    unmatched_msg_users[norm_content] = set()
+                unmatched_msg_users[norm_content].add(uid)
+
+        total_valid = matched_total_count + unmatched_total_count
+        overall_match_rate = round((matched_total_count / total_valid * 100), 1) if total_valid > 0 else 0.0
+
+        matched_ranking = []
+        for r in rules:
+            h_count = rule_hit_count[r['id']]
+            if h_count > 0:
+                pct = round((h_count / matched_total_count * 100), 1) if matched_total_count > 0 else 0.0
+                matched_ranking.append({
+                    'rule_id': r['id'],
+                    'rule_name': r['name'],
+                    'triggers': ", ".join(r['triggers']),
+                    'hit_count': h_count,
+                    'unique_users': len(rule_hit_users[r['id']]),
+                    'percentage': pct
+                })
+        
+        matched_ranking.sort(key=lambda x: x['hit_count'], reverse=True)
+        for idx, item in enumerate(matched_ranking):
+            item['rank'] = idx + 1
+
+        unmatched_ranking = []
+        for msg_text, cnt in unmatched_msg_counts.items():
+            unmatched_ranking.append({
+                'unmatched_message': msg_text,
+                'count': cnt,
+                'unique_users': len(unmatched_msg_users[msg_text])
+            })
+        
+        unmatched_ranking.sort(key=lambda x: x['count'], reverse=True)
+        unmatched_ranking = unmatched_ranking[:limit]
+        for idx, item in enumerate(unmatched_ranking):
+            item['rank'] = idx + 1
+
+        legacy_keywords = [
+            {'keyword': item['unmatched_message'], 'count': item['count']}
+            for item in unmatched_ranking
+        ]
+
+        response_data = {
+            'overall_stats': {
+                'overall_match_rate': overall_match_rate,
+                'matched_total_count': matched_total_count,
+                'unmatched_total_count': unmatched_total_count,
+                'matched_unique_users': len(matched_users),
+                'unmatched_unique_users': len(unmatched_users),
+                'total_valid_messages': total_valid
+            },
+            'matched_ranking': matched_ranking,
+            'unmatched_ranking': unmatched_ranking,
+            'legacy_keywords': legacy_keywords
+        }
+        
+        return json_response(response_data)
     except Exception as e:
         print(f"Error in get_statistics_keywords: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
     finally:
         if conn: conn.close()
 
 @app.route('/api/history/<user_id>', methods=['GET'])
+@token_required
 def get_user_history(user_id):
     conn = None
     try:
@@ -1572,36 +2277,71 @@ def get_user_history(user_id):
             AND (content IS NULL OR (content != '[text]' AND content NOT LIKE 'bmcast|%%' AND content NOT LIKE 'QA|%%' AND content NOT LIKE 'set_tag|%%' AND content NOT LIKE 'del_tag|%%' AND content NOT LIKE 'cron|%%'))
         """
         
+        user_condition = "(user_id = %s OR user_id = 'all' OR user_id LIKE 'bc_%%')"
+        
         if after:
             # Incremental polling: only fetch messages newer than the given timestamp
             cur.execute(
-                f'SELECT * FROM "history:{app_id}" WHERE user_id = %s AND timestamp > %s {visible_message_filter} ORDER BY timestamp ASC',
+                f'SELECT * FROM "history:{app_id}" WHERE {user_condition} AND timestamp > %s {visible_message_filter} ORDER BY timestamp ASC',
                 (user_id, after)
             )
-            history = cur.fetchall()
+            raw_history = cur.fetchall()
         elif limit:
             if before:
                 # Paginated load: fetch older messages before the given timestamp
                 cur.execute(
-                    f'SELECT * FROM "history:{app_id}" WHERE user_id = %s AND timestamp < %s {visible_message_filter} ORDER BY timestamp DESC LIMIT %s',
+                    f'SELECT * FROM "history:{app_id}" WHERE {user_condition} AND timestamp < %s {visible_message_filter} ORDER BY timestamp DESC LIMIT %s',
                     (user_id, before, limit)
                 )
-                history = cur.fetchall()
-                history.reverse()  # Return in chronological order
+                raw_history = cur.fetchall()
+                raw_history.reverse()  # Return in chronological order
             else:
                 # Initial load: fetch the latest N messages
                 cur.execute(
-                    f'SELECT * FROM "history:{app_id}" WHERE user_id = %s {visible_message_filter} ORDER BY timestamp DESC LIMIT %s',
+                    f'SELECT * FROM "history:{app_id}" WHERE {user_condition} {visible_message_filter} ORDER BY timestamp DESC LIMIT %s',
                     (user_id, limit)
                 )
-                history = cur.fetchall()
-                history.reverse()
+                raw_history = cur.fetchall()
+                raw_history.reverse()
         else:
             cur.execute(
-                f'SELECT * FROM "history:{app_id}" WHERE user_id = %s {visible_message_filter} ORDER BY timestamp ASC',
+                f'SELECT * FROM "history:{app_id}" WHERE {user_condition} {visible_message_filter} ORDER BY timestamp ASC',
                 (user_id,)
             )
-            history = cur.fetchall()
+            raw_history = cur.fetchall()
+
+        # Filter broadcast messages to ensure user is in the audience list
+        history = []
+        bc_cache = {}
+        for row in raw_history:
+            row_uid = row.get('user_id')
+            if row_uid == user_id or row_uid == 'all' or row_uid == 'yzuadmin':
+                history.append(row)
+            elif row_uid and row_uid.startswith('bc_'):
+                if row_uid not in bc_cache:
+                    try:
+                        cur.execute(f'SELECT value FROM "Global_var:{app_id}" WHERE name = %s LIMIT 1', (row_uid,))
+                        g_row = cur.fetchone()
+                        if g_row and g_row['value']:
+                            val = g_row['value']
+                            if isinstance(val, str):
+                                import ast, json
+                                try:
+                                    parsed_ids = set(json.loads(val))
+                                except Exception:
+                                    parsed_ids = set(ast.literal_eval(val))
+                            elif isinstance(val, (list, tuple, set)):
+                                parsed_ids = set(val)
+                            else:
+                                parsed_ids = set()
+                            bc_cache[row_uid] = parsed_ids
+                        else:
+                            bc_cache[row_uid] = set()
+                    except Exception:
+                        bc_cache[row_uid] = set()
+                
+                if user_id in bc_cache[row_uid]:
+                    history.append(row)
             
         cur.close()
         return json_response(history)
@@ -1611,6 +2351,7 @@ def get_user_history(user_id):
         if conn: conn.close()
 
 @app.route('/api/tags', methods=['GET'])
+@token_required
 def get_tags():
     conn = None
     try:
@@ -1665,6 +2406,7 @@ def get_tags():
         if conn: conn.close()
 
 @app.route('/api/registered-users', methods=['GET'])
+@token_required
 def get_registered_users():
     conn = None
     try:
@@ -1701,6 +2443,7 @@ def get_registered_users():
         if conn: conn.close()
 
 @app.route('/api/users', methods=['GET'])
+@token_required
 def get_users_list():
     conn = None
     try:
@@ -1765,7 +2508,7 @@ def get_users_list():
                     SELECT user_id,
                            MAX(timestamp) as last_time
                     FROM "history:{app_id}"
-                    WHERE TRUE
+                    WHERE user_id LIKE 'U%%' AND length(user_id) = 33
                       {visible_message_filter}
                     GROUP BY user_id
                 ) sub
@@ -1893,19 +2636,70 @@ def check_and_update_rich_menu(user_id, tag):
 
 
 @app.route('/api/trigger', methods=['POST'])
+@token_required
 @syslog_action('MSG_SEND_REPLY')
 def trigger_socket_event_route():
     data = request.json
     try:
         send_socket_event(data)
         
-        # 檢查 Rich Menu 分配
+        # 檢查 Rich Menu 分配與寫入 tag_meta
         msg = data.get('message', '')
         if msg.startswith('set_tag|'):
-            tag = msg.split('|', 1)[1]
+            raw_tag = msg.split('|', 1)[1]
             user_id = data.get('user')
             if user_id:
-                check_and_update_rich_menu(user_id, tag)
+                try:
+                    import ast, json
+                    from datetime import datetime
+                    tag_list = []
+                    try:
+                        parsed = ast.literal_eval(raw_tag)
+                        tag_list = parsed if isinstance(parsed, list) else [str(parsed)]
+                    except Exception:
+                        tag_list = [raw_tag.strip("['\"]")]
+
+                    app_id = get_current_app_id()
+                    if app_id:
+                        conn = get_db_connection()
+                        cur = conn.cursor()
+                        pv_table = f'"Private_var:{app_id}"'
+                        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        op_name = "管理員"
+                        if hasattr(g, 'user') and isinstance(g.user, dict):
+                            op_name = g.user.get('email') or g.user.get('name') or "管理員"
+
+                        # 同步 Private_var 中的 tag 陣列
+                        cur.execute(f"SELECT value FROM {pv_table} WHERE user_id = %s AND name = 'tag'", (user_id,))
+                        row = cur.fetchone()
+                        existing_tags = []
+                        if row and row[0]:
+                            try:
+                                ex_p = ast.literal_eval(row[0])
+                                existing_tags = ex_p if isinstance(ex_p, list) else [str(ex_p)]
+                            except:
+                                existing_tags = [row[0]]
+                        new_tags = list(dict.fromkeys(existing_tags + tag_list))
+                        cur.execute(f"UPDATE {pv_table} SET value = %s WHERE user_id = %s AND name = 'tag'", (str(new_tags), user_id))
+                        if cur.rowcount == 0:
+                            cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, 'tag', %s)", (user_id, str(new_tags)))
+
+                        # 寫入 tag_meta
+                        for t in tag_list:
+                            meta_val = json.dumps({
+                                "source_type": "manual", "source_name": "人工操作",
+                                "trigger_display": "手動新增標籤", "operator": op_name,
+                                "occurred_at": now_str, "setting_url": None
+                            }, ensure_ascii=False)
+                            cur.execute(f"DELETE FROM {pv_table} WHERE user_id = %s AND name = %s", (user_id, f"tag_meta:{t}"))
+                            cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, %s, %s)", (user_id, f"tag_meta:{t}", meta_val))
+                        conn.commit()
+                        cur.close()
+                        conn.close()
+                except Exception as pve:
+                    print("Error updating Private_var tag_meta in /trigger:", pve)
+
+                check_and_update_rich_menu(user_id, raw_tag)
                 
         return jsonify({"status": "success"})
     except Exception as e:
@@ -2014,6 +2808,7 @@ def delete_scheduled_event(id):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/qa-bank', methods=['POST'])
+@token_required
 def create_qa_entry():
     try:
         data = request.json
@@ -2058,6 +2853,7 @@ def create_qa_entry():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/qa-bank/<string:tag>', methods=['GET'])
+@token_required
 def get_qa_entry(tag):
     try:
         app_id = get_current_app_id()
@@ -2086,6 +2882,7 @@ def get_qa_entry(tag):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/users/<string:user_id>/read', methods=['POST'])
+@token_required
 def mark_user_as_read(user_id):
     try:
         app_id = get_current_app_id()
@@ -2134,6 +2931,8 @@ from flask import send_from_directory
 import os
 
 @app.route('/sys-debug')
+@token_required
+@admin_required
 def sys_debug():
     import os
     folder = app.static_folder
@@ -2154,7 +2953,10 @@ def handle_exception(e):
     # Pass through HTTP errors
     if isinstance(e, HTTPException):
         return e
-    return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
+    print(f"Unhandled Exception: {traceback.format_exc()}")
+    if app.debug:
+        return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
+    return jsonify({"error": "伺服器內部發生錯誤，請稍後再試或聯繫管理員"}), 500
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')

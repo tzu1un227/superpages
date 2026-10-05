@@ -100,6 +100,9 @@ export default function Questionnaire() {
   const [loadingResponses, setLoadingResponses] = useState(false);
   const [editingSurveyKey, setEditingSurveyKey] = useState(null);
 
+  const [projectsList, setProjectsList] = useState([]);
+  const [richMenusList, setRichMenusList] = useState([]);
+
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -109,6 +112,9 @@ export default function Questionnaire() {
     finishMessage: '感謝你的填寫',
     themeColor: '#FFD700',
     bgImage: '',
+    finishTags: [],
+    finishJourney: '',
+    finishMenu: '',
     questions: [emptyQuestion()],
   });
 
@@ -124,8 +130,22 @@ export default function Questionnaire() {
     }
   };
 
+  const fetchProjectsAndMenus = async () => {
+    try {
+      const [projRes, rmRes] = await Promise.all([
+        api.get('/projects', authHeaders),
+        api.get('/richmenu/metadata', authHeaders),
+      ]);
+      setProjectsList(Array.isArray(projRes.data) ? projRes.data : (projRes.data?.projects || []));
+      setRichMenusList(Array.isArray(rmRes.data) ? rmRes.data : []);
+    } catch (e) {
+      console.error('Failed to fetch projects or rich menus:', e);
+    }
+  };
+
   useEffect(() => {
     fetchSurveys();
+    fetchProjectsAndMenus();
     setEditingSurveyKey(null);
     resetForm();
   }, [oaId]);
@@ -214,6 +234,9 @@ export default function Questionnaire() {
         finishMessage: detail.finish_message || '感謝你的填寫',
         themeColor: detail.theme_color || '#FFD700',
         bgImage: detail.bg_image || '',
+        finishTags: detail.finish_tags || detail.default_tags || [],
+        finishJourney: detail.finish_journey ? String(detail.finish_journey) : '',
+        finishMenu: detail.finish_menu ? String(detail.finish_menu) : '',
         questions: detail.questions.map(q => ({
           id: q.id,
           content: q.content || '',
@@ -248,6 +271,9 @@ export default function Questionnaire() {
       finishMessage: '感謝你的填寫',
       themeColor: '#FFD700',
       bgImage: '',
+      finishTags: [],
+      finishJourney: '',
+      finishMenu: '',
       questions: [emptyQuestion()],
     });
   };
@@ -275,6 +301,10 @@ export default function Questionnaire() {
         finish_message: form.finishMessage,
         theme_color: form.themeColor,
         bg_image: form.bgImage,
+        finish_tags: form.finishTags,
+        finish_journey: form.finishJourney,
+        finish_menu: form.finishMenu,
+        default_tags: form.finishTags,
         questions: form.questions.map((q, index) => ({
           id: q.id,
           content: q.content,
@@ -460,6 +490,61 @@ export default function Questionnaire() {
             )}
           </Box>
 
+          {/* 問卷完成後動作 */}
+          <Box sx={{ p: 2, mb: 2, border: '1px solid #444', borderRadius: '8px', background: '#2a2a2a' }}>
+            <Typography sx={{ color: 'var(--primary-yellow)', fontWeight: 'bold', mb: 1.5, fontSize: '0.95rem' }}>
+              問卷完成後動作
+            </Typography>
+            <Box sx={{ mb: 2 }}>
+              <Typography sx={{ color: '#B0B0B0', fontSize: '0.85rem', mb: 0.5 }}>完成後標籤</Typography>
+              <TagInput
+                tags={form.finishTags || []}
+                onChange={finishTags => setForm({ ...form, finishTags })}
+                placeholder="輸入完成後標籤並按 Enter"
+              />
+              <Typography sx={{ color: '#888', fontSize: '0.75rem', mt: 0.5 }}>無論回答哪些題目，送出問卷時皆會標註此標籤</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: { xs: 'wrap', sm: 'nowrap' } }}>
+              <FormControl fullWidth size="small" sx={{ ...fieldSx, flex: 1 }}>
+                <InputLabel sx={{ color: '#B0B0B0' }}>加入自動旅程</InputLabel>
+                <Select
+                  value={form.finishJourney || ''}
+                  label="加入自動旅程"
+                  onChange={e => setForm({ ...form, finishJourney: e.target.value })}
+                  sx={selectSx}
+                  MenuProps={{ PaperProps: { sx: { bgcolor: '#222', color: 'white' } } }}
+                >
+                  <MenuItem value="">-- 不加入旅程 --</MenuItem>
+                  {projectsList.map(p => (
+                    <MenuItem key={p.project_id || p.id} value={String(p.project_id || p.id)}>
+                      {p.project_name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl fullWidth size="small" sx={{ ...fieldSx, flex: 1 }}>
+                <InputLabel sx={{ color: '#B0B0B0' }}>切換圖文選單</InputLabel>
+                <Select
+                  value={form.finishMenu || ''}
+                  label="切換圖文選單"
+                  onChange={e => setForm({ ...form, finishMenu: e.target.value })}
+                  sx={selectSx}
+                  MenuProps={{ PaperProps: { sx: { bgcolor: '#222', color: 'white' } } }}
+                >
+                  <MenuItem value="">-- 不切換選單 --</MenuItem>
+                  {richMenusList.map(m => {
+                    const menuVal = m.ui_uuid || m.richMenuId || m.rich_menu_id || m.id;
+                    return (
+                      <MenuItem key={menuVal} value={String(menuVal)}>
+                        {m.name || m.richMenuId || m.rich_menu_id}
+                      </MenuItem>
+                    );
+                  })}
+                </Select>
+              </FormControl>
+            </Box>
+          </Box>
+
           <Divider sx={{ borderColor: '#444', my: 2 }} />
           {form.questions.map((q, index) => (
             <Paper key={index} sx={{ p: 1.5, mb: 1.5, background: '#2a2a2a', border: '1px solid #444' }}>
@@ -518,7 +603,7 @@ export default function Questionnaire() {
 
       <Box>
         <Alert severity="info" sx={{ mb: 2, background: '#1e2a38', color: '#d7e3f4' }}>
-          新版問卷不再寫入 Q_bank；題目、限制和回答都存在 LIFF 問卷專用表。標籤依各題設定，使用者作答後自動上標。
+          新版問卷不再寫入 Q_bank；題目、限制和回答都存在 LIFF 問卷專用表。支援問卷完成後自動上標、加入自動旅程與切換圖文選單。
         </Alert>
         {loading ? (
           <CircularProgress sx={{ color: 'var(--primary-yellow)' }} />
@@ -548,6 +633,10 @@ export default function Questionnaire() {
               }
             }
             
+            const finishJourneyObj = projectsList.find(p => String(p.project_id || p.id) === String(survey.finish_journey));
+            const finishMenuObj = richMenusList.find(m => String(m.ui_uuid || m.richMenuId || m.rich_menu_id || m.id) === String(survey.finish_menu));
+            const finishTagsList = survey.finish_tags || survey.default_tags || [];
+
             return (
             <Paper key={survey.survey_key} sx={{ p: 2, mb: 2, background: '#222', border: '1px solid #444' }}>
               <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
@@ -557,7 +646,10 @@ export default function Questionnaire() {
                     <Chip size="small" label={`${survey.question_count} 題`} sx={{ background: '#333', color: '#ddd' }} />
                     <Chip size="small" label={`${survey.response_count} 份作答`} sx={{ background: '#333', color: '#ddd' }} />
                     <Chip size="small" label={statusLabel} sx={{ background: statusColor, color: '#fff' }} />
-                    {(survey.question_tags || []).map(tag => <Chip key={tag} size="small" label={tag} sx={{ background: '#4b3f12', color: '#ffe082' }} />)}
+                    {finishTagsList.map(tag => <Chip key={tag} size="small" label={`完成標籤: ${tag}`} sx={{ background: '#2e4c38', color: '#a5d6a7' }} />)}
+                    {finishJourneyObj && <Chip size="small" label={`旅程: ${finishJourneyObj.project_name}`} sx={{ background: '#303f9f', color: '#c5cae9' }} />}
+                    {finishMenuObj && <Chip size="small" label={`選單: ${finishMenuObj.name || finishMenuObj.richMenuId || finishMenuObj.rich_menu_id}`} sx={{ background: '#512da8', color: '#d1c4e9' }} />}
+                    {(survey.question_tags || []).map(tag => <Chip key={tag} size="small" label={`題目標籤: ${tag}`} sx={{ background: '#4b3f12', color: '#ffe082' }} />)}
                   </Box>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 0.5 }}>

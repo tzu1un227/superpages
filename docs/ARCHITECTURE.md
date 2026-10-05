@@ -21,18 +21,20 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 主要使用 PostgreSQL 儲存業務與設定資料：
 - **`projects`**: 儲存自動化專案定義 (如：開始/結束時間、啟用狀態、配置等)。
 - **`project_schedules`**: 定義專案內的不同階段 (Steps) 與對應發送的訊息設定。
-- **`cron_table`**: 紀錄每個參與專案的使用者當前狀態 (如：進行到的 `step_id`、下次執行的 `scheduled_at` 及狀態)。
+- **`cron_table`**: 紀錄自動化旅程任務與系統排程任務。`message_content` 全面採用 Python 函式語法（自動旅程填入 `get_out(qa('<tag>'))`；系統群發以 `user_id = 'yzuadmin'` 填入 `sys.bmcast(m, qa('<tag>'), ...)` 結合 `dboperation.g_opr` 於推播當下即時篩選名單）。
 - **`qa_bank`**: 儲存複雜結構的訊息 (例如：Flex Message, 圖片等)，並透過 `QA|` 前綴標籤供系統引用。
 - **`users`**: 系統管理員及已授權的使用者清單。
 - **`OAConfig`**: 系統管理的多個不同官方帳號 (Official Accounts) 配置參數。
 
 ## 4. 核心系統模組
 ### 4.1 自動化排程引擎 (Scheduled Event Management)
-排程機制完全由 `projects` 與 `cron_table` 驅動，取代了舊有的 `scheduled_events` 表格：
-1. **背景輪詢 (Polling)**：背景 Daemon 執行緒每 10 秒喚醒一次。
-2. **篩選任務 (Selection)**：查詢 `cron_table` 中狀態為 `active` 且 `scheduled_at` 早於或等於當前時間的紀錄。
-3. **觸發發送 (Trigger)**：從 `project_schedules` 提取訊息內容，並透過 Socket.IO 發送事件給目標用戶.
-4. **推進階段 (Advancement)**：計算下一次執行的時間 (`interval_hours`)，並更新 `cron_table`。若無下一階段，則依據 `is_recurring` 設定將狀態改為完成 (`completed`) 或重新循環。
+排程機制完全由 `projects` 與 `cron_table` 驅動，底層回訊引擎 (`Line-Bot-Main`) 由 `sensors/cronjobs.py` 的 `run_cron_tasks` 透過 `smart_eval` 安全環境直接執行 `cron_table.message_content` 中的 Python 函式：
+1. **背景輪詢 (Polling)**：Superpages 每分鐘發送 `check_cron_table` 事件，`Line-Bot-Main` 每分鐘喚醒一次。
+2. **篩選任務 (Selection)**：查詢 `cron_table` 中狀態為 `active` 且 `push_time` 早於或等於當前時間的紀錄。
+3. **函式化執行 (Execution)**：
+   - **系統群發 (`user_id == 'yzuadmin'`)**：直接執行 `sys.bmcast(m, qa('<tag>'), dboperation.g_opr(m, ...))`，在推播當下動態查詢受眾名單並發送。
+   - **個人旅程 (`user_id != 'yzuadmin'`)**：執行 `get_out(qa('<tag>'))` 取得 QA 訊息，透過 `send_message` 送出給該用戶並記錄歷史與專案統計。
+4. **任務清理與推進 (Advancement)**：單次任務執行後自 `cron_table` 刪除；若為旅程最後步驟則更新用戶狀態為 `completed`。
 
 ### 4.2 圖文選單管理 (Rich Menu Management)
 - 透過視覺化編輯器進行圖文選單的創建與修改。
@@ -147,7 +149,137 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 - **權限設定連線隔離 (`app_name`)**：系統全面廢除舊有硬編碼 namespace (`/websoc`) 或過時之 `socket_name` 欄位，WebSocket 連線與事件觸發發送 (含 `send_socket_event` 與 `send_socket_events_batch`) 統一從權限設定 (`OAConfig.other_settings`) 優先解析 `app_name` 作為 Namespace (`/{app_name}`) 與訊息事件名稱 (`{app_name}_message`)，實現各機器人平台即時連線的嚴格隔離與動態綁定。
 - **預設測試標籤注入 (`is_test`)**：發送所有 WebSocket 事件時，`socket_utils` 模組會自動檢查並為 Payload 字典注入 `"is_test": False` 預設屬性（除非呼叫端已明確指定），以利後端機器人引擎進行測試與正式連線之識別與區隔。
 
-## 12. 對話問卷時區處理規範 (2026-09-02 新增)
+## 12. 加入好友設定 (Follow Rules) 模組架構 (2026-07-31 新增)
+- **架構設計**：加入好友設定完全基於 `Q_bank:{app_name}` 資料表中 `type = 'Follow'` 的法則列進行管理，無需新增獨立資料表。
+- **啟用狀態 (`content`)**：啟用時設為 `'*'`；停用時設為 `'OFF'`。
+- **單一啟用檔護與提示**：同一時間只允許一個加入好友設定處於啟用狀態 (`content = '*'`)。若已有被啟用的加入好友訊息設定，當嘗試啟用其他設定時，前端與後端均會直接攔截並提示「已有被啟用的加入好友訊息設定，請先停用該設定後再嘗試啟用此設定。」，確保絕對不會非預期覆蓋。
+- **固定語法注入 (`function`)**：所有透過該模組儲存之法則，其 `function` 欄位強制包含 `pri_set("name",sys.name(m)),pri_set("pic",sys.picture(m))`，以確保 LINE 用戶加入時自動保存姓名與頭貼 URL。後續 CRM 動作（標籤、圖文選單切換、自動旅程）則附加於該基本語法後。
+- **`note` 欄位標記**：所有法則之 `note` 欄位強制包含 `加入好友訊息` 標記（如：`加入好友訊息 - 歡迎光臨`）。
+- **無啟用法則時之預設機制 (Default Fallback)**：當檢測到資料庫中完全沒有啟用的 Follow 法則時，系統自動初始化一則預設加入好友法則，帶有預設歡迎訊息與條件式圖文選單切換語法 `[update(f"switch_rm|{x['ui_uuid']}") for x in getTable(...)[:1]]`（若無預設選單則完全不執行 update）。
+- **欄位規格與歷程記錄**：所有 Follow 法則寫入 `Q_bank:{app_name}` 時，`state_out` 欄位固定設為 `'00000'`，`history` 欄位固定設為 `TRUE` (`True`)。
+
+## 13. 群發數據統計與 CRM 後續轉換紀錄 (MVP v1.3) 架構 (2026-07-31 新增)
+- **資料表設計**:
+  - `broadcasts:<app_name>`: 擴充 `request_id`, `custom_aggregation_unit`, `sent_recipient_count` ($N$), `statistics_updated_at` 欄位。
+  - `broadcast_recipients:<app_name>`: 紀錄群發發送時的受眾快照清單 (`broadcast_id`, `user_id`, `send_status`, `sent_at`)。
+  - `broadcast_line_stats:<app_name>`: 儲存來自 LINE Official Insights API 抓取之 `delivered`, `unique_impression`, `unique_click`, `unique_media_played`, `unique_media_played_100_percent` 快照，採 15 分鐘 TTL 限流保護機制。
+- **11 個 LINE 官方互動指標與 API 對應**:
+  - `Request ID API` (`/v2/bot/insight/message/event?requestId=...`) 與 `Unit API` (`/v2/bot/insight/message/event/aggregation?customAggregationUnit=...`) 雙軌對應，處理 `overview.delivered` 呈現差異與母數標記。
+- **6 個 CRM 後續關聯行為與 `ht_view` Live 查詢**:
+  - 以受眾快照 (`broadcast_recipients`) 為基礎，直接針對 `ht_view:<app_id>` 資料庫視圖在指定時間區間 (`1d`, `3d`, `7d`, `30d`) 進行 live 查詢：
+    - 新增任一標籤人數 (排除 `manual`, `unknown`) 與各標籤新增人數明細對應。
+    - 加入任一旅程人數 (`status = 'success'`) 與各旅程加入人數明細對應。
+    - 有後續行為人數 (標籤與旅程受眾之聯集去重 `COUNT(DISTINCT user_id)`) 與後續行為率 (`union_count / N`)。
+- **前端介面 (`BroadcastStatsModal.jsx`)**:
+  - 在群發卡片新增「成效」按鈕，展開彈窗儀表板呈現 17 項數據指標與時間區間切換控制。
+
+## 14. 關鍵字排行統計與未命中訊息排行 (MVP v1.1) 架構 (2026-08-03 新增)
+- **零 DB 變動與動態比對架構**:
+  - 完全不更動 PostgreSQL 關聯結構與 DB 欄位，亦不改動 `Line-Bot-Main`。
+  - 後端 `GET /api/statistics/keywords` API 即時對 `history:{app_id}` 的有效訊息與 `Q_bank:{app_id}` 啟用的關鍵字法則進行文字標準化比對。
+- **文字標準化與無效訊息過濾**:
+  - 標準化演算：英文轉小寫、全形/半形轉置、去頭尾與連續多餘空白。
+  - 無效訊息過濾：自動排除純空白、標點符號、純 Emoji、純網址 URL、圖片/貼圖/影片及系統管理員 (`yzuadmin`, `system`) 訊息。
+- **指標與雙排行統計**:
+  - **整體指標**: 計算 `overall_match_rate` (整體關鍵字命中率 %)、`matched_total_count` (命中總次數)、`unmatched_total_count` (未命中總次數)。
+  - **規則命中排行**: 統計每條 Q_bank 法則的 `hit_count` (命中次數)、`unique_users` (獨立人數) 與 `percentage` (命中占比 %)。自動清除 `|UPDATED:XXXX` 時間戳記與系統前綴/字尾。點擊規則名稱可導向 `/rule-designer` 法則編輯頁面。
+  - **未命中訊息排行**: 整理未命中訊息之 `count` (出現次數) 與 `unique_users` (獨立使用者數)。點擊「建立規則」按鈕可帶入該未命中訊息文字跳轉至 `RuleDesigner` 並預填建立新規則。
+- **前端整合 (`Statistics.jsx` & `RuleDesigner.jsx`)**:
+  - `Statistics.jsx` 重構為頂部三大指標卡片 + 雙頁籤切換表格與全方位 CSV 匯出（單一檔案包含規則命中與未命中排行兩大區塊）。
+  - `RuleDesigner.jsx` 支援讀取 URL 關鍵字參數，開啟時自動創建預填 draft rule。
+## 15. 圖文選單套用來源解析與資料庫交易防禦機制 (2026-08-21 新增)
+- **多來源探測與歸因架構 (`endpoints/richmenu.py`)**:
+  - `GET /api/richmenu/<rich_menu_id>/apply-sources` 端點提供圖文選單套用來源透明化分析。
+  - 深度解析自動旅程排程表 (`project_schedules`)、關鍵字規則表 (`Q_bank`)、問答庫表 (`QA_bank`) 與其他圖文選單 (`rich_menu_metadata`) 中指向目標選單 (`rich_menu_id` 或 `ui_uuid`) 的所有設定。
+  - 同步結合用戶 `Private_var` 套用紀錄與 `history` 歷史互動歷程進行精準歸因比對。
+- **資料表欄位精確對齊與防禦性查詢**:
+  - 嚴格分離 `Q_bank`（具 `state_out` 欄位）與 `QA_bank`（無 `state_out` 欄位）的查詢結構，避免因無效欄位引發資料庫例外。
+- **PostgreSQL 交易回滾保護 (Transaction Rollback Guard)**:
+  - 在所有資料表探測與歷史檢索的 `try...except` 區塊中，一律加入 `if conn: conn.rollback()` 保護。
+  - 防止單一查詢異常導致連線進入 `InFailedSqlTransaction` 交易中止狀態，確保後續來源分析與歸因比對流程 100% 穩定執行。
+
+## 16. 關鍵字回覆來源歸因與 Private_var Metadata 注入機制 (2026-08-21 新增)
+- **Message 事件來源 Metadata 注入 (`pri_set`) 與動態時間 (`sys.now`)**:
+  - 當使用者於「關鍵字回覆 (`RuleDesigner.jsx`)」中設定附加動作（自動上標、加入自動旅程、連結圖文選單）時，系統會自動在 `Message` 類型規則的 `function` 欄位中注入寫入 `Private_var` 來源 metadata 的 `pri_set` 語法，並透過 Line-Bot-Main 內建的 `sys.now('%Y-%m-%d %H:%M:%S')` 於執行當下即時記錄精準觸發時間：
+    - **自動上標 (Tags)**：針對每個標籤注入 `pri_set("tag_meta:<tag_name>", '{"source_type":"keyword","source_name":"<規則備註>","trigger_display":"觸發關鍵字: <關鍵字>","setting_url":"/ruledesigner","occurred_at":"' + sys.now('%Y-%m-%d %H:%M:%S') + '"}')`。
+    - **連結圖文選單 (Rich Menu)**：注入 `pri_set("rich_menu_meta", '{"source_type":"keyword","source_name":"<規則備註>","trigger_display":"觸發關鍵字: <關鍵字>","setting_url":"/ruledesigner","occurred_at":"' + sys.now('%Y-%m-%d %H:%M:%S') + '"}')`。
+    - **加入自動旅程 (Journey)**：注入 `pri_set("journey_meta:<project_id>", '{"source_type":"keyword","source_name":"<規則備註>","trigger_display":"觸發關鍵字: <關鍵字>","setting_url":"/ruledesigner","occurred_at":"' + sys.now('%Y-%m-%d %H:%M:%S') + '"}')`。
+- **成對 Sensor 規則純淨動作隔離 (`strip_pri_set_meta`)**:
+  - 後端 `rule_designer.py` 在 `create_rule` 與 `update_rule` 建立/更新成對的 `Sensor` 規則時，自動透過 `strip_pri_set_meta` 解析器過濾移除所有 `pri_set` 來源語法，保留乾淨的動作語法（如 `update(...)`），防止 Sensor 事件非預期覆蓋 Message 來源。
+- **客戶中心 Tooltip 與歷史時間 Fallback**:
+  - 當用戶命中關鍵字回覆並觸發動作後，客戶中心 (`CustomerCenter.jsx`) 與客戶詳情 API (`customers.py`) 讀取 `Private_var` 中的 `tag_meta:*`、`rich_menu_meta`、`journey_meta:*` 時，可直接解析顯示明確的關鍵字規則來源名稱、觸發關鍵字、精確發生時間與快速跳轉至 `/ruledesigner` 之設定連結。
+  - 對於先前已觸發但未帶時間戳記之既有舊資料，後端 API 會自動 fallback 關聯該用戶在 `history` 互動歷程或最後互動時間作為 `occurred_at`，確保畫面上無「無紀錄」之缺漏。
+
+## 17. 圖文選單權限切換雙向相容與防呆機制 (2026-08-21 新增)
+- **多識別碼雙向比對 (`ui_uuid` 與 `rich_menu_id`)**:
+  - 在 LINE Bot 工程用法則 `switch_rm|*` (Postback/Sensor) 中，全面升級為雙向智慧查詢：
+    - 若傳入為 `richmenu-` 前綴之原生 LINE ID，優先透過 `rich_menu_id` 欄位查詢 metadata。
+    - 若傳入為系統自訂 `ui_uuid`，則透過 `ui_uuid` 查詢，查無資料時自動 fallback 比對 `rich_menu_id`。
+- **查詢防呆與零例外防護 (Zero IndexError Guard)**:
+  - 將原本寫死之 `[0]` 下標索引用 Lambda 結構封裝：`(lambda res: ... if res else "")(...)`。
+  - 當查無任何對應圖文選單記錄時，優雅返回空操作，徹底根除 `IndexError: list index out of range` 錯誤。
+  - 安全解析標籤集合 `eval(pri('tag') or '[]')`，避免空值引發語法例外。
+
+## 18. Flex 訊息按鈕 sys_bind 來源 Metadata 獨立欄位傳遞規範 (2026-08-21 升級)
+- **`sys_bind` 獨立鍵名與單一 Metadata JSON (避免列表生成式 Local Scope 問題與長度超標)**:
+  - 格式定義：`sys_bind|tags|journey|menu|val|tag_key|journey_key|menu_key|meta_json`
+    - `c_cut(1)`: 標籤清單字串（如 `['標籤1']`）
+    - `c_cut(2)`: 旅程 ID 字串（如 `6`）
+    - `c_cut(3)`: 圖文選單 UUID（如 `mt16zcwfg2kbwbuj1dm`）
+    - `c_cut(4)`: 顯示文字（如 `查看詳情`）
+    - `c_cut(5)`: 標籤 Meta Key（如 `tag_meta:標籤1`，無標籤時為空字串）
+    - `c_cut(6)`: 旅程 Meta Key（如 `journey_meta:6`，無旅程時為空字串）
+    - `c_cut(7)`: 圖文選單 Meta Key（如 `rich_menu_meta`，無選單時為空字串）
+    - `c_cut(8)`: 來源資訊 JSON（包含 `source_type`、`source_name`、`trigger_display`、`setting_url`）
+- **Q_bank 標準單行寫入語法**:
+  ```python
+  pri_push('tag', eval(c_cut(1)), nd=True) if c_cut(1) else "",
+  update(f"iup|{c_cut(2)}") if c_cut(2) else "",
+  update(f"switch_rm|{c_cut(3)}") if c_cut(3) else "",
+  update(c_cut(4)) if c_cut(4) else "",
+  pri_set(c_cut(5), c_cut(8)) if c_cut(5) else "",
+  pri_set(c_cut(6), c_cut(8)) if c_cut(6) else "",
+### 4.7 來源透明化與智慧歸因系統升級 (2026-08-27)
+- **自動旅程來源智慧歸因與去重 (backend/app.py & frontend/src/pages/Projects.jsx, FlexMessageEditor.jsx)**:
+  - 徹底解決跨旅程 Flex 按鈕加入時來源分裂為「測試旅程」與「旅程訊息/flex訊息」兩行的問題。
+  - 前端 `Projects.jsx` 在開啟 `ScheduleMessageEditorModal` 與 `FlexMessageEditor` 時完整傳遞 `project_name` 與 `step_id` 至 `sourceContext`。
+  - 前端 `FlexMessageEditor.jsx` 在產生 `sys_bind` 與 `redirect` 之 Metadata 時，將完整來源上下文（旅程名稱、步驟編號）封裝進 `source_info` 物件。
+  - 後端 `get_project_join_sources` 強化智慧比對邏輯：優先比對 `source_info` 與排程設定，若用戶端中繼資料為通用名稱（如「旅程訊息」），自動關聯至已掃描到的排程來源，杜絕重複未合併列產生。
+  - 在存在具體配置來源時，自動清理計數為 0 的「人工操作」列。
+- **圖文選單套用來源全庫主動掃描與歸因 (backend/endpoints/richmenu.py & frontend/src/pages/RichMenu.jsx)**:
+  - 後端 `get_richmenu_apply_sources` 全面升級為全庫主動掃描架構：
+    1. 關鍵字法則表 (`Q_bank`)：主動過濾系統工程法則 (`switch_rm|*` 等)，納入一般關鍵字規則與歡迎訊息 (`Follow`)。
+    2. 自動旅程排程 (`project_schedules` + `QA_bank`)：深度解構 `QA|` 指標，完整掃描所有帶有此選單切換的步驟。
+    3. 問答庫與群發 (`QA_bank`)：涵蓋群發訊息 (`bc_*`) 與問卷填寫後切換 (`form_*`)。
+    4. 其他圖文選單 (`rich_menu_metadata`)：掃描所有設定了此選單按鈕切換的其他圖文選單。
+    5. 全域預設選單 (`Global_var:default_rich_menu`)。
+  - 即使尚無用戶套用，所有在資料庫中已配置的來源亦會完整列出於來源總覽中。
+  - 前端 `RichMenu.jsx` 於請求 `/apply-sources` 時注入 `_bypassCache: true`，確保即時反映最新資料庫狀態，並完善支援所有來源標籤與跳轉設定。
+- **群發廣播 ReferenceError 修復 (frontend/src/pages/Broadcast.jsx)**:
+  - 修正建立群發訊息時開啟 Flex 訊息編輯器引用未定義變數 `selectedId` 導致之 `ReferenceError: selectedId is not defined` 錯誤，改為使用 `formData.id` 與 `formData.name`。
+
+### 4.8 問卷填寫結束自動化動作升級 (2026-08-27)
+- **問卷管理 (文字問卷) 完成後動作架構 (backend/endpoints/questionnaire.py & frontend/src/pages/Questionnaire.jsx)**:
+  - 前端 `Questionnaire.jsx` 表單與編輯介面新增「問卷完成後動作」設定（完成後標籤 `finish_tags`、加入自動旅程 `finish_journey`、切換圖文選單 `finish_menu`）。
+  - 後端 `questionnaire.py` 之 `build_questionnaire_direct` 於問卷結束規則（無 review 之最後一題答對規則，或有 review 之 `Q__99`「確認送出/1」規則）生成標準執行指令：
+    - `update(f"set_tag|{formatted_tags}")`
+    - `update(f"iup|{finish_journey}")`
+    - `update(f"switch_rm|{finish_menu}")`
+    - 自動寫入 `Private_var` 之 `tag_meta:<tag>`, `journey_meta:<journey>`, `rich_menu_meta`，並標準化記錄來源 `source_type: "form"`, `source_name: note`, `trigger_display: "問卷完成"`, `setting_url: "/questionnaire"`。
+  - 後端 `get_questionnaire_detail` 端點實作反向解析，從完成規則中萃取完成後動作回傳給前端正確回填。
+- **LIFF 問卷完成後動作架構 (backend/endpoints/liff_questionnaire.py & frontend/src/pages/LiffQuestionnaire.jsx)**:
+  - 資料庫自動遷移：`liff_questionnaires:<app_id>` 表新增 `finish_tags` (JSONB), `finish_journey` (TEXT), `finish_menu` (TEXT) 欄位。
+  - 前端 `LiffQuestionnaire.jsx` 新增完成後動作設定區塊與列表卡片狀態展示（完成標籤 Chip、旅程 Chip、選單 Chip）。
+  - 作答提交端點 `public_submit_response` 全自動觸發：
+    1. **標籤寫入**：合併完成標籤與各題標籤至 `Private_var`，並寫入 `tag_meta`（來源標記為 `LIFF問卷完成`）。
+    2. **自動加入旅程**：直接呼叫 `batch_enroll_journey_users_internal` 將用戶加入旅程排程，並寫入 `journey_meta`。
+    3. **切換圖文選單**：寫入 `rich_menu_meta` 並發送 WebSocket 事件 `switch_rm|{finish_menu}` 觸發 Bot 即時切換用戶選單。
+    4. **官方帳號 Sensor 事件通知 (2026-10-02 新增)**：在資料庫事務 `conn.commit()` 提交後，自動組裝 `Liffquestionnaire|<存在資料庫的id>|<答案1>|<答案2>|.....`（提取自 `response["id"]` 與依序作答內容，並自動將答案中的 `|` 轉為 `/` 進行防呆），透過 `send_socket_event` 發送 `Sensor` 事件通知官方帳號伺服器。
+- **來源透明化與主動探測升級 (backend/app.py & backend/endpoints/richmenu.py)**:
+  - 自動旅程來源端點 `get_project_join_sources` 與圖文選單套用來源端點 `get_richmenu_apply_sources` 全面升級：
+    - 主動探測文字問卷（`Q_bank` / `QA_bank`）中帶有旅程加入或選單切換的規則，歸類為 `form`（問卷管理）來源。
+    - 主動掃描 `liff_questionnaires:<app_id>` 資料表，即使尚未有用戶填寫，也能在來源總覽完整列出設定了該旅程/該圖文選單的 LIFF 問卷名稱、觸發時機與跳轉按鈕。
+### 4.9 對話問卷時區處理規範 (2026-09-02 新增)
 - **台灣時區 (UTC+8) 強制綁定**：在 `backend/endpoints/questionnaire.py` 中，將前端傳入的無時區時間字串轉換為 Unix Timestamp (`sys.now()` 比對條件) 時，強制綁定台灣時區 `UTC+8` (`timezone(timedelta(hours=8))`)。避免因伺服器預設為 UTC 時區導致轉出的 Timestamp 延遲 8 小時（28,800 秒）。反向解析回前端時間選擇器時亦統一使用 `tz=TW_TZ`，確保起訖時間精確對齊台灣時間。
 
 ## 13. 關鍵字回覆圖文訊息 (Flex Message) 編輯與防禦機制 (2026-09-14 新增，Issue #38)
@@ -164,5 +296,52 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 - **後端規則儲存防呆校驗 (`validate_rule`)**：
   - 在 `backend/endpoints/rule_designer.py` 的 `validate_rule` 函式中，深入解析 `msg_rpy` 陣列中所有 `FlexSendMessage` 的 bubble 與 carousel 內容，對圖片點擊動作 (`hero.action`) 與按鈕動作 (`footer.contents[].action`) 進行全面檢驗，嚴格禁止空的 `displayText`、`data` 或 `uri`，杜絕送出空訊息與 LINE 400 Bad Request 錯誤。
 
+
+
+
+## 14. 系統全方位資安強化與正確性優化架構 (2026-09-17 新增)
+
+### 14.1 全面端點身分鑑權與權限隔離 (Authentication & RBAC)
+- **40 個未鑑權 API 端點全面防護**：
+  - 涵蓋規則設計師 (`rule_designer.py`)、問卷管理 (`questionnaire.py`)、LIFF 後台問卷 (`liff_questionnaire.py`)、資料庫檢視器 (`db_viewer.py`)、統計分析與系統觸發核心 (`app.py`)。
+  - 所有後台業務端點全面掛載 `@token_required` 裝飾器，非登入訪客強制阻擋 (HTTP 401 Unauthorized)。
+  - 高機敏資料庫結構檢視 (`/api/db/tables`, `/api/db/data`) 與系統排程觸發器 (`/api/trigger`) 掛載 `@admin_required` 裝飾器，嚴禁一般使用者與未授權角色越權操作 (HTTP 403 Forbidden)。
+  - 保留 LIFF 問卷前台公開作答路由 (`/public/liff-questionnaires/...`) 供 LINE App 終端用戶無縫填寫，兼顧前台高可用性與後台絕對安全。
+
+### 14.2 跨租戶 (Cross-Tenant) 越權存取封堵
+- **強制 HTTP 標頭 OA 存在性檢驗**：
+  - 在 `backend/auth.py` 中，修復過往僅依賴 `g.current_oa_id` 檢查之漏洞。若惡意使用者於 HTTP 標頭傳入不存在或偽造之 `X-OA-ID`（例如 `999`），系統不再略過檢查，而是強制校驗當前操作者是否具備該 OA 之存取白名單或全域 Admin 權限，徹底杜絕多租戶越權與未授權租戶存取。
+
+### 14.3 機敏除錯資訊與系統堆疊洩漏防護 (CWE-209 / OWASP A05)
+- **除錯標頭清理**：
+  - 於 `backend/app.py` 的 `add_debug_headers` 中，徹底移除帶有後端資料庫連線位址與連線字串特徵之 `X-Debug-DB` 標頭。
+  - `X-Debug-OA-ID` 標頭僅在開發除錯模式 (`app.debug == True`) 下暴露，生產環境一律遮蔽。
+- **全域未攔截例外遮蔽**：
+  - 全域例外處理器 `handle_exception` 於非除錯環境下抑制詳細伺服器 Traceback 堆疊輸出，僅回傳安全且一致的 JSON 錯誤回應，防止攻擊者藉由畸形請求刺探後端檔案路徑、函式庫版本與內部變數。
+
+### 14.4 PostgreSQL 陣列欄位 (Array Column) 動態型別相容性機制
+- **資料庫欄位型別動態探測**：
+  - 針對商案資料表（如 `Q_bank`）中 `content`、`state_in`、`check` 等可能定義為純文字或 PostgreSQL 陣列型別 (`_text` / `ARRAY`) 的歷史差異，於 `backend/endpoints/rule_designer.py` 中實作動態 schema 探測。
+  - 系統自動比對 `information_schema.columns`，若目標欄位為 `ARRAY` 則自動將輸入字串或陣列包裝為 Python `list`，由 psycopg2 原生序列化為標準 SQL 陣列常數；若為純純量文字欄位則轉為字串，徹底排除 `malformed array literal` 造成的 SQL 500 錯誤。
+
+### 14.5 前端健全性與使用者操作防呆 (Client-Side Robustness)
+- **規則設計師未儲存防呆 (`beforeunload`)**：
+  - 在 `frontend/src/pages/RuleDesigner.jsx` 注入 `window.onbeforeunload` 監聽。當使用者正在新增/編輯規則、開啟設定彈窗或處於未儲存狀態時，若使用者誤觸 F5、重新整理或關閉視窗，瀏覽器將跳出原生防呆確認提示，防止心血內容意外遺失。
+- **全域網路異常與斷線監聽**：
+  - 在 `frontend/src/api.js` 的 Axios Response 攔截器中，針對伺服器斷線、網路異常或 502/503 伺服器無回應派發 `network:error` 事件，使 UI 能即時顯示友善離線通知與重試按鈕，杜絕畫面無響應。
+
+## 15. 資安 CIA 與 OWASP Top 10: 2025 全方位防護升級架構 (2026-09-21 新增)
+
+### 15.1 資安 CIA 三要素落實
+1. **機密性 (Confidentiality)**：
+   - **高熵動態密鑰機制 (CSPRNG Key Generation)**：在 `backend/auth.py` 與 `backend/config.py` 中，消除靜態弱密鑰 `'dev_secret_key'`，若環境中缺少 `SECRET_KEY`，系統自動以 `secrets.token_urlsafe(32)` 生成具備 256-bit 熵值的動態運行密鑰，並輸出安全警示，徹底防禦離線偽造 JWT 權限提權 (OWASP A04:2025 Cryptographic Failures)。
+   - **例外資訊脫敏 (Information Desensitization)**：在 JWT 鑑權失敗、檔案上傳異常與資料庫例外處，移除 `str(e)` 原始錯誤訊息輸出，全面改為統一標準安全提示，防止攻擊者藉由畸形請求獲取後端模組細節 (OWASP A10:2025)。
+2. **完整性 (Integrity)**：
+   - **開放重定向與 CRLF 注入防禦 (Open Redirect Defense)**：在 `backend/app.py` 的 `/api/redirect` 中，全面引入 `urllib.parse.urlsplit` 進行協定校驗。嚴格限制 scheme 必須為 `http` 或 `https`，禁止 `javascript:`, `data:` 等 XSS 偽協定；阻擋以 `//` 開頭的協議相對路徑；並對 URL 進行 `\r` 與 `\n` 換行符號檢驗，徹底根除 HTTP Response Splitting (CWE-113, OWASP A01:2025)。
+   - **檔案上傳雙層防偽校驗 (Upload Integrity Guard)**：在 `backend/endpoints/upload.py` 中，引入 `werkzeug.utils.secure_filename` 消除路徑穿越 (`../`)；強制執行嚴格副檔名白名單 (`.png, .jpg, .jpeg, .gif, .webp`)；並在伺服器端讀取前導位元組進行 Magic Bytes 檢查 (PNG, JPEG, GIF, WEBP 特徵碼)，拒絕假借圖檔副檔名上傳的可執行檔或含 XSS 之 SVG/HTML 腳本 (OWASP A05:2025)。
+3. **可用性 (Availability)**：
+   - **廢止不安全測試登入端點**：將已廢棄且寫死固定帳密 `admin/admin` 的 `/api/login` 端點徹底停用並回傳 HTTP 410 Gone，杜絕身分驗證被暴力字典繞過 (OWASP A07:2025)。
+   - **管理者權限鎖死防護 (Admin Lockout Prevention)**：在 `backend/endpoints/admin.py` 中，新增安全防呆規則：禁止管理者刪除當前自身登入之帳號；當系統僅剩最後一位管理者時，嚴格禁止刪除或降權，確保後台管理權限的連續可用性 (OWASP A06:2025)。
+   - **全域 HTTP 安全標頭與 500 例外優雅降級**：於 Flask `after_request` 全域注入 `X-Content-Type-Options: nosniff`、`X-XSS-Protection: 1; mode=block`、`Referrer-Policy: strict-origin-when-cross-origin` 與 `X-Frame-Options: SAMEORIGIN`（LIFF 端點智能放行）；並掛載 `@app.errorhandler(500)` 全域捕獲非預期錯誤，避免 Uncaught Exceptions 暴露伺服器底層堆疊，維持服務可用性與穩健度 (OWASP A02:2025 / A10:2025)。
 
 

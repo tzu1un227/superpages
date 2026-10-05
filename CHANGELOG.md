@@ -1,3 +1,94 @@
+## [2026-10-05] 合併 main 分支至 deploy-heroku 並保留 Heroku 效能配置
+- **分支合併**: 安全將 main 最新功能（包含問卷 Sensor 通知、全域資安防護、40 端點鑑權、來源透明化等）合併至 deploy-heroku。
+- **衝突排除**: 成功排除 6 個衝突檔案（backend/app.py, FlexMessageEditor.jsx, RuleDesigner.jsx, docs/ARCHITECTURE.md, CHANGELOG.md）。
+- **Heroku 專屬效能保留**: 嚴格保留 Procfile 之 gthread 多執行緒配置 (--workers 1 --threads 8 -k gthread --timeout 60) 與 backend/app.py 的 bot_info_cache 快取機制，杜絕 Heroku 503 錯誤。
+
+## [2026-10-02] LIFF 問卷完成後自動發送 Sensor 事件通知官方帳號
+- **LIFF 問卷提交完成事件 (`backend/endpoints/liff_questionnaire.py`)**:
+  - 於 `public_submit_response` 端點中，在資料庫事務 `conn.commit()` 正式提交後，新增透過 WebSocket 發送 `Sensor` 事件邏輯。
+  - 事件字串格式：`Liffquestionnaire|<存在資料庫的id>|<答案1>|<答案2>|.....`。
+    - `<存在資料庫的id>`：直接提取 `liff_questionnaire_responses` 表中本次提交的主鍵流水號 `response["id"]`。
+    - `<答案1>|<答案2>|...`：嚴格依照問卷題目題號順序提取作答內容，非必填未作答欄位自動保留空字串，並防呆替換使用者答案內的管道符號（`|` 替換為 `/`），防止官方帳號伺服器以 `split('|')` 解析時長度錯位。
+  - 使用 `utils.socket_utils.send_socket_event` 發送，支援根據 `botAppName` / `OAConfig` 動態定址與 HMAC-SHA256 安全簽章。
+
+## [2026-08-27] 問卷填寫結束自動化動作 (上標籤、切換圖文選單、加入自動旅程)
+- **問卷管理 (文字問卷) 完成動作 (backend/endpoints/questionnaire.py & frontend/src/pages/Questionnaire.jsx)**:
+  - 於問卷表單步驟一與編輯時，新增「問卷完成後動作」設定（完成後標籤、加入自動旅程、切換圖文選單）。
+  - 問卷生成核心 `build_questionnaire_direct` 於結尾規則中自動組合 `set_tag`、`iup`、`switch_rm` 指令與對應 `Private_var` 之 Meta 紀錄。
+  - 問卷詳情讀取端點 `get_questionnaire_detail` 支援解析完成規則之 `function` 並正確回填至前端介面。
+- **LIFF 問卷完成動作 (backend/endpoints/liff_questionnaire.py & frontend/src/pages/LiffQuestionnaire.jsx)**:
+  - 資料庫遷移：`liff_questionnaires:<app_id>` 表新增 `finish_tags`, `finish_journey`, `finish_menu` 欄位。
+  - 前端 `LiffQuestionnaire.jsx` 支援設定完成後標籤、加入自動旅程、切換圖文選單，並於問卷列表中清晰呈現狀態 Chip。
+  - 作答提交端點 `public_submit_response` 在作答儲存後，自動執行標籤寫入 (`_merge_user_tags`)、加入自動旅程排程 (`batch_enroll_journey_users_internal`) 以及發送 WebSocket 即時切換圖文選單 (`switch_rm`)。
+- **來源透明化與主動探測升級 (backend/app.py & backend/endpoints/richmenu.py)**:
+  - 自動旅程來源端點 `get_project_join_sources` 與圖文選單套用來源端點 `get_richmenu_apply_sources` 全面升級：
+    - 主動探測文字問卷（`Q_bank` / `QA_bank`）中帶有旅程加入或選單切換的規則，歸類為 `form`（問卷管理）來源。
+    - 主動掃描 `liff_questionnaires:<app_id>` 資料表，即使尚未有用戶填寫，也能在來源總覽完整列出設定了該旅程/該圖文選單的 LIFF 問卷名稱、觸發時機與跳轉按鈕。
+    - 在客戶中心（`CustomerCenter.jsx`）的標籤、旅程、選單 Tooltip 中，完整呈現問卷來源名稱、完成時機、精確時間與「前往設定」跳轉至 `/questionnaire` 或 `/liff-questionnaires`。
+
+## [2026-08-27] 自動旅程來源去重、圖文選單套用來源全庫掃描與群發廣播錯誤修復
+- **自動旅程來源去重與智慧歸因 (backend/app.py & frontend/src/pages/Projects.jsx, FlexMessageEditor.jsx)**:
+  - 修正當自動旅程來源為其他旅程之 Flex 訊息按鈕時，來源總覽重複分裂為「測試旅程」與「旅程訊息/flex訊息」兩行的問題。
+  - 前端 `Projects.jsx` 在開啟 `ScheduleMessageEditorModal` 與 `FlexMessageEditor` 時完整傳遞 `project_name` 與 `step_id` 至 `sourceContext`。
+  - 前端 `FlexMessageEditor.jsx` 在產生 `sys_bind` 與 `redirect` 之 Metadata 時，將完整來源上下文（旅程名稱、步驟編號）封裝進 `source_info` 物件。
+  - 後端 `get_project_join_sources` 強化智慧比對邏輯：優先比對 `source_info` 與排程設定，若用戶端中繼資料為通用名稱（如「旅程訊息」），自動關聯至已掃描到的排程來源，杜絕重複未合併列產生。
+  - 在存在具體配置來源時，自動清理計數為 0 的「人工操作」列。
+- **圖文選單套用來源全庫主動掃描與歸因 (backend/endpoints/richmenu.py & frontend/src/pages/RichMenu.jsx)**:
+  - 後端 `get_richmenu_apply_sources` 全面升級為全庫主動掃描架構：
+    1. 關鍵字法則表 (`Q_bank`)：主動過濾系統工程法則 (`switch_rm|*` 等)，納入一般關鍵字規則與歡迎訊息 (`Follow`)。
+    2. 自動旅程排程 (`project_schedules` + `QA_bank`)：深度解構 `QA|` 指標，完整掃描所有帶有此選單切換的步驟。
+    3. 問答庫與群發 (`QA_bank`)：涵蓋群發訊息 (`bc_*`) 與問卷填寫後切換 (`form_*`)。
+    4. 其他圖文選單 (`rich_menu_metadata`)：掃描所有設定了此選單按鈕切換的其他圖文選單。
+    5. 全域預設選單 (`Global_var:default_rich_menu`)。
+  - 即使尚無用戶套用，所有在資料庫中已配置的來源亦會完整列出於來源總覽中。
+  - 前端 `RichMenu.jsx` 於請求 `/apply-sources` 時注入 `_bypassCache: true`，確保即時反映最新資料庫狀態，並完善支援所有來源標籤與跳轉設定。
+- **群發廣播 ReferenceError 修復 (frontend/src/pages/Broadcast.jsx)**:
+  - 修正建立群發訊息時開啟 Flex 訊息編輯器引用未定義變數 `selectedId` 導致之 `ReferenceError: selectedId is not defined` 錯誤，改為使用 `formData.id` 與 `formData.name`。
+
+## [2026-08-21] 圖文選單來源解析 QA_bank 查詢與交易回滾修復 (RichMenu Apply Sources Query & Rollback Fixes)
+- **QA_bank 查詢欄位修正 (backend/endpoints/richmenu.py)**:
+  - 修正 `get_richmenu_apply_sources` 解析旅程排程時對 `QA_bank` 查詢不存在的 `state_out` 欄位錯誤（`state_out` 僅存在於 `Q_bank`），改為精準選取 `msg_rpy, function, "check"`。
+- **PostgreSQL 交易回滾防護 (Transaction Rollback Guards) (backend/endpoints/richmenu.py)**:
+  - 為 `get_t_safe` 及各個設定表探測、用戶套用統計、歷程比對的 `try...except` 區塊補齊 `if conn: conn.rollback()`，徹底杜絕單一查詢失敗導致連線交易中止（`InFailedSqlTransaction`）引發所有來源 fallback 誤判為人工操作的問題。
+- **旅程與關鍵字圖文選單來源探測驗證**:
+  - 驗證並確保自動旅程 Flex 按鈕切換之圖文選單與關鍵字回覆切換之圖文選單均能 100% 正確呈現來源類型、名稱、Trigger 與設定連結。
+
+## [2026-08-21] CRM 來源跳轉與自動旅程跨旅程切換 (Cross-Journey Navigation Fixes)
+- **自動旅程跨旅程來源前往設定修復 (frontend/src/pages/Projects.jsx & backend/app.py, richmenu.py)**:
+  - 修正當自動旅程來源為另一自動旅程時，點擊「前往設定」因留在同個 URL 導致無反應的問題。
+  - 後端 `get_project_join_sources` 與 `get_richmenu_apply_sources` 自動在 `setting_url` 中注入目標旅程參數 `f"/projects?projectId={s_pid}"`。
+  - 前端 `Projects.jsx` 實作 `handleNavigateToSetting` 與 `location.search` 監聽，點擊後自動切換當前選取的旅程 ID (`setSelectedProjectId`) 並切換至 `schedules` 排程設定頁籤，精準呈現來源旅程的排程訊息與設定步驟。
+- **前往設定路由正則表達式重複疊加修復 (CustomerCenter.jsx, Projects.jsx, RichMenu.jsx)**:
+  - 修復前端 `replace(/^\/rules/, 'ruledesigner')` 遇到 `/ruledesigner` 時誤替換為 `ruledesignerdesigner` 的路由錯誤，改用嚴格正規化邏輯，保證跳轉 100% 成功。
+- **圖文選單關鍵字歸因覆蓋與計數修復 (backend/endpoints/richmenu.py)**:
+  - 在使用者歸因掃描時，針對舊有 `manual` 殘留狀態強制進行關鍵字與 Message 發話歷程重新檢驗，精準歸因至關鍵字規則（套用人數 1 人），並自動過濾 0 人的手動操作列。
+
+## [2026-08-20] CRM 共用來源透明化 MVP v1.2 (Source Transparency System)
+- **圖文選單套用來源精準探測與 500 錯誤修復 (backend/endpoints/richmenu.py & RichMenu.jsx)**:
+  - 修正前端 `RichMenu.jsx` 於選單為 `ui_uuid` 時未發送來源查詢 API 的問題，全面補齊 `ui_uuid` 識別支援。
+  - 修正後端端點使用 `get_tenant_conn()` 連線至正確租戶資料庫，並修復 `len(total_uids)` 變數名稱導致之 500 錯誤。
+  - 將圖文選單探測集合中之數值 `id` 剔除，嚴格鎖定 `rich_menu_id` 與 `ui_uuid`（長度 >= 6），杜絕數值 ID 誤配無關關鍵字規則或自動旅程排程的問題，精準呈現單一來源。
+- **主動設定表探測與來源地圖架構 (backend/app.py & backend/endpoints/richmenu.py)**:
+  - 將自動旅程加入來源與圖文選單套用來源升級為「設定表主動探測 + 成員歸因統計」架構。
+  - 主動掃描 `Q_bank`（關鍵字法則表）、`QA_bank`（問答庫）、`project_schedules`（其他自動旅程排程表）與 `rich_menu_metadata`（圖文選單按鈕），即使尚未有用戶觸發，也能完整列出所有指向該旅程/選單的有效觸發點與跳轉設定。
+  - 實作 `clean_rule_title`，去除 `|UPDATED:...` 與前綴後綴，來源名稱乾淨呈現前端設定的實際標題（如 `test`）。
+  - 修復跨旅程加入歸因邏輯：歷史查詢精準過濾旅程 ID，並優先匹配 `project_schedules` 訊息按鈕，確保從其他旅程加入的用戶正確歸屬至來源旅程名稱與步驟，而非誤判為關鍵字或人工操作。
+  - 同步結合 `user_project_status`、`cron_table`、`Private_var` 與全域預設選單進行即時在席人數統計與歷史歷程回溯。
+- **6 段式 sys_bind 來源協定擴充 (FlexMessageEditor.jsx & 各模組)**: Flex 訊息按鈕與圖片點擊產生的 Postback 動作格式全面升級為 `sys_bind|<標籤列表>|<自動旅程ID>|<圖文選單ID>|<觸發關鍵字/回傳文字>|<來源變數名稱>|<來源資訊>`，並於 Projects、RuleDesigner、Broadcast、WelcomeMessage 等模組自動注入所屬來源 Context 與 JSON 資訊，供 Line-Bot-Main 直接解析與寫入來源中繼資料。
+- **進階訊息編輯器選單解鎖 (FlexMessageEditor.jsx)**: 移除切換圖文選單 dropdown 中對非 Superpages 產生選單的 `disabled={!m.ui_uuid}` 限制與禁用提示，使自動旅程、排程與關鍵字回覆中的所有有效圖文選單皆可正常被選擇與切換。
+- **側邊欄圖文選單即時同步 (backend/endpoints/customers.py & CustomerCenter.jsx)**: 修正 `get_customer_details` 於 LINE API 404 時誤刪 Private_var 選單紀錄的問題，加入資料庫與預設選單備援查詢，並於側邊欄中支援列表資料即時同步，確保關鍵字更換選單後側邊欄能 100% 正確呈現選單與關鍵字來源 Tooltip。
+- **手動標籤來源寫入完善 (CustomerCenter.jsx & backend/app.py)**: 將側邊欄與多選加標籤流程全面改為標準 batch 標籤 API 寫入 `tag_meta`，並在 `/api/trigger` 接收 `set_tag` 時即時同步 `Private_var` 與 `tag_meta`，徹底解決手動打標籤後 Tooltip 誤顯「歷史資料」問題。
+- **自動旅程繁中提示 (backend/app.py & Projects.jsx)**: 將參與用戶分頁加入用戶時的後端回傳與前端 Toast 訊息改為統一繁體中文（「已成功將 X 名用戶加入自動旅程」）。
+- **客戶中心主表格 Tooltip 全面支援 (CustomerCenter.jsx & backend/endpoints/customers.py)**: 在客戶中心主列表表格中（客戶資訊一覽表），於「標籤」、「自動旅程」與「圖文選單」Chip/欄位旁全面渲染 ⓘ 圖示與 MUI Tooltip，hover 可直接檢視 4 行來源詳細資訊；同時於 `get_customers` 後端進行 Private_var 批量 Meta 查詢與組裝。
+- **黑畫面與 Tooltip 渲染修復 (CustomerCenter.jsx)**: 補齊未定義之 `renderSourceTooltip` 渲染函式，解除側邊欄開啟時發生的 React `ReferenceError: renderSourceTooltip is not defined` 崩潰黑畫面 Bug，並展現 4 行資訊 Tooltip。
+- **客戶中心優化 (CustomerCenter.jsx)**: 補齊 `setSidebarDetails` 之 `tags` 狀態儲存與預設值，加入自動旅程 `displayProjects` 備援渲染，並為 Lucide `<Info />` 圖示加上 DOM `<span>` 容器封裝，徹底修復 MUI Tooltip 無法懸浮觸發與自動旅程不呈現的 Bug。
+- **語法修復 (backend/endpoints/customers.py)**: 修復 `apply_richmenu` 批次操作判斷中多餘重複的 `else:` 區塊導致之 Python `SyntaxError: invalid syntax` 語法錯誤。
+- **雙軌混合解構架構 (backend/endpoints/customers.py, richmenu.py, app.py, liff_questionnaire.py)**: 實現 `Private_var:<app_id>` JSON 寫入軌 (`tag_meta`, `rich_menu_meta`, `journey_meta`)、動態垃圾清理軌與 Live `ht_view:<app_id>` 解構讀取軌，實現 100% 來源透明無死角。
+- **客戶中心 Tooltip 提示 (frontend/src/pages/CustomerCenter.jsx)**: 於客戶詳情側邊欄中，為標籤、自動旅程、圖文選單 Chip 加入 MUI Tooltip 與 ⓘ 資訊圖示， hover 可展現 4 行詳細來源資訊（來源類型/名稱、Trigger 觸發時機、動作發生時間、前往設定按鈕）。
+- **自動旅程加入來源總覽 (backend/app.py & Projects.jsx)**: 新增 `GET /api/projects/<id>/join-sources` 端點與 Projects.jsx 頁面中的 `加入來源` 頁籤，提供 6 欄位來源統計表格與「合計 XX 人」統計列。
+- **圖文選單套用來源總覽 (backend/endpoints/richmenu.py & RichMenu.jsx)**: 新增 `GET /api/richmenu/<rich_menu_id>/apply-sources` 端點與 RichMenu.jsx 中的 `套用來源總覽` 卡片，精準呈現各來源類別之當前套用人數與跳轉按鈕。
+
+>>>>>>> main
 ## [2026-08-05] 修復圖文選單 400 錯誤與放著不動 503 爆發問題
 - **OAConfig 快取修復與權限 context 補完 (backend/app.py)**: 引入 `CachedOAConfig` 封裝快取資料，確保在 `load_oa_context` 快取命中時持續正確設定 `g.current_oa_config`，徹底修復圖文選單 API 因找不到 Token 回傳 400 (`Line token not configured`) 的重大 Bug。
 - **訊息中心輪購背景防護與頻率降低 (frontend/src/pages/MessageCenter.jsx)**: 為 `setInterval` 加入 `document.hidden` 判定（視窗於背景/隱藏時自動掛起所有 API 發送），並將歷史訊息輪詢週期改為 3 秒、側邊欄用戶列表改為 15 秒，消滅無人操作時佔滿 Heroku 連線池導致 503 的瓶頸。
@@ -5,6 +96,34 @@
 - **GET /api/users 查詢效能重構 (backend/app.py)**: 引進 `WITH target_users AS (...)` 共通資料表表達式 (CTE)，將 `LIMIT 200` 與排序前置至用戶 ID 篩選階段，將過往對全表無差別執行的子查詢（包含 `last_message`、`recent_messages` 等 8 個相關關聯子查詢）限縮至僅計算前 200 筆目標用戶，查詢回應時間縮短 95% 以上，徹底解除切換帳號時多重重型 `/api/users` 查詢擠爆 PostgreSQL 與引發 Heroku 503 的危機。
 - **預載流程併發保護 (frontend/src/App.jsx, api.js)**: 修正網頁啟動時對全體 OA 無差別並行發起數十個重型 API 的問題。`App.jsx` 改為僅對當前選擇的單一 OA 進行畫面預載，且 `api.js` 中 `preloadPagesData` 移除重型 `/customers` 端點的預載，消除啟動與登入瞬間擠爆 Heroku Gunicorn Worker 引發的 503 錯誤。
 - **GET /api/customers 防禦性分頁 (backend/endpoints/customers.py)**: 在未帶入 `limit` 參數時強制加入預設 `LIMIT 200` 限制，防止無界全表掃描全表數據與計算歷史交互，保障伺服器併發穩定性。
+
+## [2026-08-03] 關鍵字排行統計與未命中訊息排行 (MVP v1.1)
+- **新功能 (backend/app.py)**: 升級 `GET /api/statistics/keywords` API，採用動態比對演算機制，零 DB Schema 變動且零影響 `Line-Bot-Main`。計算整體命中率、命中總次數、未命中總次數，並回傳「規則命中排行」與「未命中訊息排行」。
+- **名稱淨化與去重 (backend/app.py)**: 規則命中排行之規則名稱自動去除 `|UPDATED:XXXX` 時間戳記，並自動過濾雙軌機制下重複出現的成對 Sensor 法則與重複簽章規則，確保每個規則於列表中獨一無二呈現一次。
+- **無效訊息過濾與標準化 (backend/app.py)**: 實作文字標準化 (小寫、全/半形轉置、去空白) 與無效訊息排除 (過濾系統事件、標點、純 Emoji、純 URL、yzuadmin/system 等)。
+- **前端 UI 重構 (frontend/src/pages/Statistics.jsx)**: 於數據統計頁面新增頂部三大整體指標卡片 (整體命中率、命中總次數、未命中總次數) 與雙頁籤 (規則命中排行 vs 未命中訊息排行)，標題簡化為「關鍵字統計與排行」。
+- **操作連線與快速建立規則 (frontend/src/pages/Statistics.jsx, RuleDesigner.jsx)**: 規則命中列點擊規則名稱可跳轉至法則設定；未命中列點擊「建立規則」按鈕可帶入未命中文字跳轉至 RuleDesigner 並自動預填建立新規則。
+- **全方位報表匯出 (frontend/src/pages/Statistics.jsx)**: 點擊「下載排名報表」按鈕即可一次下載包含【規則命中排行】與【未命中訊息排行】完整數據之雙區塊 CSV 報表。
+
+## [2026-07-31] 群發數據統計與 CRM 後續轉換紀錄 (MVP v1.3)
+- **UI 調整 (frontend/src/components/BroadcastStatsModal.jsx)**: 移除所有 17 個指標標題前方的數字編號 (如將 `1. 預估送出人數` 簡化為 `預估送出人數`)。
+- **UI 調整 (frontend/src/components/BroadcastStatsModal.jsx)**: 移除 Modal 標題對應 API 種類之 `Request ID API (廣播)` Chip 標籤。
+- **UI 調整 (frontend/src/components/BroadcastStatsModal.jsx)**: 移除區塊標題中的 `(11 項)` 與 `(6 項)` 數量標記字樣。
+- **UX 提示 (frontend/src/components/BroadcastStatsModal.jsx)**: 加入 LINE 官方 Server 洞察數據 (送達/開啟/點擊) 1~2 小時統計時間差之提醒提示，並將無數據狀態顯示為「資料處理中」。
+- **404 路由修復 (frontend/src/components/BroadcastStatsModal.jsx)**: 修正 API URL 拼寫錯誤 (將 `/api/broadcasts/<id>/stats` 修正為對應後端藍圖 Prefix 之 `/api/broadcast/<id>/stats`)，解決前端讀取統計跳出 404 及讀取失敗錯誤。
+- **Bug 修正 (backend/endpoints/broadcast.py)**: 修正 `ht_view` 欄位名稱 (`content`) 與 SQL 語法例外處理防呆，防止因舊廣播或無受眾資料導致 500 讀取失敗。
+- **UI 優化 (frontend/src/components/BroadcastStatsModal.jsx)**: 移除時間切換按鈕 `7天 (預設)` 中的 `(預設)` 字樣。
+- **UI 優化 (frontend/src/components/BroadcastStatsModal.jsx, Broadcast.jsx)**: 立即發送之廣播強制呈現確切建立與發送時間點 (Date & Time String)，不再顯示純文字「立即發送」。
+- **新功能 (backend/endpoints/broadcast.py)**: 新增 `GET /api/broadcasts/<id>/stats` 成效統計 API，涵蓋 LINE 官方互動 11 個指標與 CRM 後續關聯行為 6 個指標。
+- **資料表擴充 (backend/endpoints/broadcast.py)**: 在 RDS 中新增受眾快照表 `broadcast_recipients:<app_name>` 與 LINE Insights 15 分鐘 TTL 快照表 `broadcast_line_stats:<app_name>`。
+- **資料庫查詢優化**: 採用 `ht_view:<app_id>` 視圖進行即時動態 live 查詢，計算受眾在指定時間區間內的新增標籤、旅程加入與聯集去重後續行為人數及行為率。
+- **前端 UI (frontend/src/components/BroadcastStatsModal.jsx)**: 新增 `BroadcastStatsModal` 儀表板，支援 1天/3天/7天/30天 統計區間切換，並完整呈現 11 項 LINE 指標與 6 項 CRM 指標。
+- **前端整合 (frontend/src/pages/Broadcast.jsx)**: 於已發送的廣播卡片上新增「成效」統計按鈕以展開彈窗儀表板。
+
+## [2026-07-31] 加入好友設定 Q_bank history 欄位預設與自動修復
+- **修正 (backend/endpoints/rule_designer.py)**: 在 `create_rule` 與 `update_rule` 中確保當規則類型為 `Follow` (加入好友設定) 時，寫入 `Q_bank` 的 `history` 欄位強制設為 `True` (TRUE)。
+- **自動修復 (backend/endpoints/rule_designer.py)**: 在 `get_follow_rules` 載入設定時，自動對 DB 中舊有 `history IS NULL` 或 `FALSE` 的 `Follow` 規則執行 `UPDATE SET history = TRUE` 診斷修復。
+- **資料庫修復**: 已對現有 DB `Q_bank:*` 資料表中 `Follow` 規則之 `history` 欄位進行全面修復與驗證。
 
 ## [2026-07-29] Heroku 503 錯誤優化與 Gunicorn 多執行緒佈署
 - **佈署設定 (Procfile)**: 將 Gunicorn 啟動參數升級為 `--workers 1 --threads 8 -k gthread --timeout 60`，啟用 gthread 異步線程模式，避免單一線程阻塞引發 Heroku 30 秒 Timeout (503 Error)。
@@ -398,9 +517,70 @@ TUvOUL  ( f a l l b a c k   t o   P r i v a t e _ v a r ) 
 \|v^2QX[I?zBfv  p u b l i s h S t r a t e g y   = =   ' r e s t r i c t e d ' 	gczxU	eXBf͑uWI	g]z\;dd\O0
  
  
+ghV|v   c h e c k _ c r o n _ t a b l e   w e b s o c k e t   N譸 0
+ -   yd  a p p . p y   -N
+	gc z/魯!|;N z _ 0
+ 
+ 
+ # #   [ 2 0 2 6 - 0 7 - 1 5 ]   薂ck瓠rT A I  m絿命 t bU I 
+ -   yd0*gOR[ b_Mb汦悐嬁
+0eW[ 0
+ -    \Hrb9e歉  f i x e d   [MO漩嵊澕tP k TBf
+N g  b;NgQ鉀@SJXOPy 0
+ 
+ 
+ # #   [ 2 0 2 6 - 0 7 - 1 5 ]   薂ck  c r o n _ t a b l e _ c h e c k e r    |v OUL
+ -   薂ck(WwQ	g Y P  O A   qQ(u黲T  s o c k e t _ u r l   :O
+ghVv鰥翼 N g |v   W e b S o c k e t   N譸vOUL9e墣  s e t ( )    } &N
+\氠 Phs芏:O
+ghV闢|v  N!k 0
+ 
+ 
+ # #   [ 2 0 2 6 - 0 7 - 1 5 ]   薂ck  G u n i c o r n    Y  W o r k e r    讄L  S c h e d u l e r   OUL
+ -    N  U D P   S o c k e t   }[,g0W  P o r t   ( 4 7 2 0 0 )   潩\OL z  ( C r o s s - p r o c e s s   L o c k )  0
+ -   漩嵊!q  G u n i c o r n   _U悐 Y \ P  W o r k e r T N盬_jhV
+N熽	g N P  W o r k e r    g讄Lofc z MQ癇BfgQ |vQ  t i m e r   Bl 0
+ 
+ 
+
+## [2026-07-15] 湔鰵餃枂𩑈
+- 撠蝡航䌊閧蒈箸嗥眏垍蔭 30 寧 1 憭 (24撠𤩺)
+# #   [ 2 0 2 6 - 0 7 - 1 6 ] 
+ # # #   F i x e d 
+ -   薂ck𠸍 z W囻x𨯿U( R i c h   M e n u ) of讄L/zl  A P I   'YBl \:O
+ghV  5 0 3   N	vOUL 0
+ -   薂ck舸P W囻x𨯿U0R g𪊺!q掞ck漩 N週OUL 0
+ -   薂cku㜁[滍  ( R u l e   D e s i g n e r )   𢔓芏Bf g "u u  S e n s o r      M e s s a g e   𨶙譸OUL鏓d鍈藮滝R/ 0
+ -   薂ck*Rd鉷嬫㜁[滍Bf豤  t u p l e   p a r s i n g     b  5 0 0   /㨩 0
+ 
+ -   Ockc z WexUV!q  \ u s e r s : { a p p _ n a m e } \   ǌeh \!qlckxS@b	g(u6b
+TUvOUL  ( f a l l b a c k   t o   P r i v a t e _ v a r ) 
+ 
+ 
+ # #   2 0 2 6 - 0 7 - 1 7 :    WexUc z/Ock
+ -   O_    u l k _ c h e c k _ a n d _ u p d a t e _ r i c h _ m e n u  SmN
+\eKbR}[^c zxUvOw_j6R yd  i f   c u r r   i n   a l l _ e x i s t i n g _ m e n u _ i d s 	xO	gc zv WexU Y!qhN˄!qc zxU&N N(Wc zP}_g_ck8^㉁}&N V -xU 0
+ -   (W  s a v e _ r i c h _ m e n u _ m e t a d a t a   -Nݑ
+\|v ^ 2QX[I?zBfv  p u b l i s h S t r a t e g y   = =   ' r e s t r i c t e d '  	gc zxU	eXBf͑uWI	g]z \;dd\O 0
+ 
+ 
 
 ## [2026-07-17] UX / BUG 修正 (Issue #35)
 - **RichMenu**: 修正儲存草稿時未能顯示詳細錯誤訊息的問題。
 - **RichMenu**: 修正載入發送人數時，會短暫顯示 0 人的狀況，改為顯示「計算中...」提示與動畫。
 - **App**: 修正使用者在建立功能項目(如新增選單)過程中，若切換 OA 帳號，不會回到列表頁的問題。
-- **Auth/API**: 新增 30 分鐘(後改為1天)閒置登出機制，並在遇到登入失效 (401) 時自動導回登入頁面並顯示相應提示。
+- **Auth/API**: 設 30 分鐘(後改為無)靜置登出機制，並於自動登入失敗 (401) 時自動清除登入資訊並顯示提示訊息。
+
+## [2026-08-10] 客戶群批量操作強化 MVP v1.2 (Customer Group Batch Operations)
+- **CustomerCenter**: 整合選取客戶的批量操作選單（新增/移除標籤、套用/解除圖文選單、加入/停止自動旅程與訊息發送跳轉）。
+- **CustomerCenter**: 實現「處理中載入動畫 Modal」與「執行結果明細 Modal」的視覺過渡，避免使用者無反饋重複點擊，並提供略過/失敗原因點擊查看功能。
+- **Backend API**: 新增 `POST /customers/batch-operation` 極簡批次介面，無須新增任何資料庫表格，於記憶體即時運算並傳回完整執行統計與明細。
+
+## [2026-08-10] 客戶群作為目標對象 MVP v1.0 (Customer Group Target Audience)
+- **Broadcast**: 發送對象新增「客戶群受眾」，支援即時群發與排程群發。排程發送支援 `(●) 送出時重新計算` 與 `( ) 鎖定目前名單` 模式選擇。
+- **RichMenu**: 連結圖文選單 Modal 支援選擇指定「客戶群」，一次性套用至客群當前全體成員。
+- **Projects**: 手動加入專案用戶 Modal 新增「選擇整批客戶群」切換模式，一次性將選定客群成員納入自動旅程。
+- **Customers API**: 新增 `GET /customers/groups/<group_name>/users` 取得成員 ID 清單，並擴充 `/customers/count-by-tags` 支援客群預估人數查詢。
+- **Hotfix**: 修正 Broadcast.jsx 中的 Tag 圖示匯入，於 RichMenu.jsx 編輯發布策略中補齊「指定客戶群」選項與套用發布邏輯。
+
+

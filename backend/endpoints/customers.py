@@ -136,7 +136,59 @@ def get_customers():
             
             r['api_index'] = 0
             results.append(r)
-            
+
+        # 批量查詢 Private_var 中的 source metadata
+        uids = [r['user_id'] for r in results if r.get('user_id')]
+        if uids:
+            import json
+            cur.execute(f"SELECT user_id, name, value FROM {pv_table} WHERE user_id = ANY(%s) AND name LIKE '%%meta%%'", (uids,))
+            meta_rows = cur.fetchall()
+            meta_map = {(mr['user_id'], mr['name']): mr['value'] for mr in meta_rows}
+
+            for r in results:
+                uid = r['user_id']
+                # 標籤來源
+                tag_objs = []
+                for t in r.get('tag', []):
+                    m_val = meta_map.get((uid, f"tag_meta:{t}"))
+                    s_info = None
+                    if m_val:
+                        try: s_info = json.loads(m_val)
+                        except: pass
+                    if not s_info:
+                        s_info = {"source_type": "manual", "source_name": "歷史資料（來源未明）", "trigger_display": "舊有系統標籤", "occurred_at": r.get('last_message_time') or r.get('join_time'), "setting_url": None}
+                    elif not s_info.get('occurred_at'):
+                        s_info['occurred_at'] = r.get('last_message_time') or r.get('join_time')
+                    tag_objs.append({"name": t, "source_info": s_info})
+                r['tag_objects'] = tag_objs
+
+                # 自動旅程來源
+                for p in r.get('projects', []):
+                    p_id = p.get('project_id') or p.get('id')
+                    m_val = meta_map.get((uid, f"journey_meta:{p_id}"))
+                    s_info = None
+                    if m_val:
+                        try: s_info = json.loads(m_val)
+                        except: pass
+                    if not s_info:
+                        s_info = {"source_type": "manual", "source_name": "歷史資料（來源未明）", "trigger_display": "舊有旅程紀錄", "occurred_at": r.get('last_message_time') or r.get('join_time'), "setting_url": None}
+                    elif not s_info.get('occurred_at'):
+                        s_info['occurred_at'] = r.get('last_message_time') or r.get('join_time')
+                    p['source_info'] = s_info
+
+                # 圖文選單來源
+                if r.get('rich_menu'):
+                    m_val = meta_map.get((uid, "rich_menu_meta"))
+                    s_info = None
+                    if m_val:
+                        try: s_info = json.loads(m_val)
+                        except: pass
+                    if not s_info:
+                        s_info = {"source_type": "manual", "source_name": "歷史資料（來源未明）", "trigger_display": "舊有圖文選單紀錄", "occurred_at": r.get('last_message_time') or r.get('join_time'), "setting_url": None}
+                    elif not s_info.get('occurred_at'):
+                        s_info['occurred_at'] = r.get('last_message_time') or r.get('join_time')
+                    r['rich_menu']['source_info'] = s_info
+
         cur.close()
         print(f"DEBUG: get_customers finished, returning {len(results)} users")
         return jsonify(results)
@@ -420,6 +472,8 @@ def delete_tag(tag_name):
             affected_uids = [u[0] for u in updates]
             cur.execute(f"DELETE FROM {pv_table} WHERE name = 'tag' AND user_id = ANY(%s)", (affected_uids,))
             execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", [(uid, 'tag', val) for uid, val in updates])
+            # 診斷 2 修復：同步清理已刪除標籤的 Meta
+            cur.execute(f"DELETE FROM {pv_table} WHERE name = %s AND user_id = ANY(%s)", (f"tag_meta:{tag_name}", affected_uids))
             
             # Send WebSocket events in background
             from utils.socket_utils import send_socket_events_batch
@@ -514,6 +568,26 @@ def add_tag_batch():
             affected_uids = [u[0] for u in updates]
             cur.execute(f"DELETE FROM {pv_table} WHERE name = 'tag' AND user_id = ANY(%s)", (affected_uids,))
             execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", [(uid, 'tag', val) for uid, val in updates])
+            
+            # 寫入人工打標籤 Meta 到 Private_var
+            import json, datetime
+            now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            op_name = "管理員"
+            if hasattr(g, 'user') and isinstance(g.user, dict):
+                op_name = g.user.get('email') or g.user.get('name') or "管理員"
+            meta_inserts = []
+            for uid in affected_uids:
+                for t in tag_names:
+                    meta_val = json.dumps({
+                        "source_type": "manual", "source_name": "人工操作",
+                        "trigger_display": "批次新增標籤", "operator": op_name,
+                        "occurred_at": now_str, "setting_url": None
+                    }, ensure_ascii=False)
+                    meta_inserts.append((uid, f"tag_meta:{t}", meta_val))
+            if meta_inserts:
+                for uid, n_key, _ in meta_inserts:
+                    cur.execute(f"DELETE FROM {pv_table} WHERE user_id = %s AND name = %s", (uid, n_key))
+                execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", meta_inserts)
             
             # Send WebSocket events in background
             from utils.socket_utils import send_socket_events_batch
@@ -620,64 +694,174 @@ def get_customer_details(user_id):
         cur.execute(f"""
             SELECT p.project_id as id, p.project_name as name, LOWER(ups.status) as status
             FROM {t_ups} ups
-            JOIN {t_projects} p ON ups.project_id = p.project_id
-            WHERE ups.user_id = %s
+            JOIN {t_projects} p ON ups.project_id::text = p.project_id::text
+            WHERE LOWER(ups.user_id) = LOWER(%s)
         """, (user_id,))
-        details["projects"] = cur.fetchall()
+        details["projects"] = [dict(r) for r in cur.fetchall()]
         cur.close()
         conn.close()
         conn = None
         
-        # Get Rich Menu from LINE API
+        # Get Rich Menu from LINE API or Database
         from endpoints.richmenu import get_line_token
         token = get_line_token()
         if token:
             import requests
             headers = {'Authorization': f'Bearer {token}'}
-            resp = requests.get(f'https://api.line.me/v2/bot/user/{user_id}/richmenu', headers=headers)
-            if resp.status_code == 200:
-                rich_menu_id = resp.json().get('richMenuId')
-                if rich_menu_id:
-                    # Query metadata for name
-                    from db_utils import get_main_db_connection
-                    m_conn = get_main_db_connection()
-                    m_cur = m_conn.cursor()
-                    t_metadata = f'"rich_menu_metadata:{app_id}"'
-                    try:
-                        m_cur.execute(f"SELECT name FROM {t_metadata} WHERE rich_menu_id = %s", (rich_menu_id,))
-                        row = m_cur.fetchone()
-                        if row:
-                            details["rich_menu"] = {"id": rich_menu_id, "name": row[0]}
-                        else:
-                            details["rich_menu"] = {"id": rich_menu_id, "name": "未知圖文選單"}
-                            
-                        # Sync to Private_var
-                        pv_table = f'"Private_var:{app_id}"'
-                        m_cur.execute(f"UPDATE {pv_table} SET value = %s WHERE user_id = %s AND name = 'rich_menu'", (rich_menu_id, user_id))
-                        if m_cur.rowcount == 0:
-                            m_cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, 'rich_menu', %s)", (user_id, rich_menu_id))
-                        m_conn.commit()
-                        
-                    except Exception as e:
-                        print("Error querying rich menu metadata or syncing:", e)
-                    finally:
-                        m_cur.close()
-                        m_conn.close()
-            elif resp.status_code == 404:
-                # User has no rich menu linked, sync to DB by deleting the Private_var entry
-                from db_utils import get_main_db_connection
+            try:
+                resp = requests.get(f'https://api.line.me/v2/bot/user/{user_id}/richmenu', headers=headers, timeout=5)
+                if resp.status_code == 200:
+                    rich_menu_id = resp.json().get('richMenuId')
+                    if rich_menu_id:
+                        from db_utils import get_main_db_connection
+                        m_conn = get_main_db_connection()
+                        m_cur = m_conn.cursor()
+                        t_metadata = f'"rich_menu_metadata:{app_id}"'
+                        try:
+                            m_cur.execute(f"SELECT name FROM {t_metadata} WHERE rich_menu_id = %s", (rich_menu_id,))
+                            row = m_cur.fetchone()
+                            details["rich_menu"] = {"id": rich_menu_id, "name": row[0] if row else "未知圖文選單"}
+                            pv_table = f'"Private_var:{app_id}"'
+                            m_cur.execute(f"UPDATE {pv_table} SET value = %s WHERE user_id = %s AND name = 'rich_menu'", (rich_menu_id, user_id))
+                            if m_cur.rowcount == 0:
+                                m_cur.execute(f"INSERT INTO {pv_table} (user_id, name, value) VALUES (%s, 'rich_menu', %s)", (user_id, rich_menu_id))
+                            m_conn.commit()
+                        except Exception as e:
+                            print("Error querying rich menu metadata:", e)
+                        finally:
+                            m_cur.close()
+                            m_conn.close()
+            except Exception as le:
+                print("LINE API fetch rich menu error:", le)
+
+        # Fetch Private_var Metadata & Tags with Hybrid Fallback
+        from db_utils import get_db_connection
+        conn_pv = get_db_connection()
+        cur_pv = conn_pv.cursor(cursor_factory=RealDictCursor)
+        pv_table = f'"Private_var:{app_id}"'
+        t_history = f'"history:{app_id}"'
+        
+        cur_pv.execute(f"SELECT name, value FROM {pv_table} WHERE user_id = %s", (user_id,))
+        pv_rows = cur_pv.fetchall()
+        pv_dict = {r['name']: r['value'] for r in pv_rows}
+
+        # If details["rich_menu"] was not obtained from LINE API, fallback to Private_var / Global_var
+        if not details.get("rich_menu"):
+            pv_rm_id = pv_dict.get("rich_menu")
+            if not pv_rm_id:
                 try:
-                    m_conn = get_main_db_connection()
-                    m_cur = m_conn.cursor()
-                    pv_table = f'"Private_var:{app_id}"'
-                    m_cur.execute(f"DELETE FROM {pv_table} WHERE user_id = %s AND name = 'rich_menu'", (user_id,))
-                    m_conn.commit()
-                except Exception as e:
-                    print("Error syncing missing rich menu:", e)
-                finally:
-                    m_cur.close()
-                    m_conn.close()
-                        
+                    gv_table = f'"Global_var:{app_id}"'
+                    cur_pv.execute(f"SELECT value FROM {gv_table} WHERE name = 'default_rich_menu'")
+                    gv_row = cur_pv.fetchone()
+                    if gv_row and gv_row.get('value'):
+                        pv_rm_id = gv_row['value']
+                except Exception:
+                    pass
+            
+            if pv_rm_id:
+                try:
+                    t_metadata = f'"rich_menu_metadata:{app_id}"'
+                    cur_pv.execute(f"SELECT name FROM {t_metadata} WHERE rich_menu_id = %s", (pv_rm_id,))
+                    row = cur_pv.fetchone()
+                    rm_name = row['name'] if row and row.get('name') else "預設圖文選單"
+                    details["rich_menu"] = {"id": pv_rm_id, "name": rm_name}
+                except Exception as ex:
+                    details["rich_menu"] = {"id": pv_rm_id, "name": "圖文選單"}
+        
+        def get_fallback_ht_source(keyword_hint):
+            try:
+                cur_pv.execute(f"""
+                    SELECT category, content, "timestamp" FROM {t_history}
+                    WHERE user_id = %s AND (
+                        LOWER(category) = LOWER(%s) 
+                        OR content ILIKE %s 
+                        OR content ILIKE '%%sys_bind%%'
+                        OR category = 'Message'
+                    )
+                    ORDER BY "timestamp" DESC LIMIT 1
+                """, (user_id, str(keyword_hint), f"%{keyword_hint}%"))
+                h_row = cur_pv.fetchone()
+                if h_row:
+                    cat = h_row.get('category') or ''
+                    cont = str(h_row.get('content') or '')
+                    is_kw = 'sys_bind' in cont or cat in ('Message', 'Sensor')
+                    return {
+                        "source_type": "keyword" if is_kw else "manual",
+                        "source_name": "關鍵字觸發" if is_kw else "歷程解構紀錄",
+                        "trigger_display": (f"關鍵字: {cont[:25]}" if cat == 'Message' else cont[:30]) if cont else "歷史互動紀錄",
+                        "occurred_at": str(h_row['timestamp'])[:19] if h_row.get('timestamp') else None,
+                        "setting_url": "/rules" if is_kw else None
+                    }
+            except Exception:
+                pass
+            return {
+                "source_type": "manual",
+                "source_name": "歷史資料（來源未明）",
+                "trigger_display": "舊有系統狀態",
+                "occurred_at": None,
+                "setting_url": None
+            }
+
+        raw_tag_val = pv_dict.get('tag')
+        tag_list = []
+        if raw_tag_val:
+            import ast
+            try:
+                parsed = ast.literal_eval(raw_tag_val)
+                tag_list = parsed if isinstance(parsed, list) else [str(parsed)]
+            except:
+                tag_list = [raw_tag_val]
+
+        tags_with_meta = []
+        import json
+        for t in tag_list:
+            meta_val_raw = pv_dict.get(f"tag_meta:{t}")
+            source_info = None
+            if meta_val_raw:
+                try: source_info = json.loads(meta_val_raw)
+                except: pass
+            if not source_info:
+                source_info = get_fallback_ht_source(t)
+            elif not source_info.get('occurred_at'):
+                fb = get_fallback_ht_source(t)
+                if fb and fb.get('occurred_at'):
+                    source_info['occurred_at'] = fb.get('occurred_at')
+            tags_with_meta.append({"name": t, "source_info": source_info})
+            
+        details["tags"] = tags_with_meta
+
+        if details.get("rich_menu"):
+            rm_meta_raw = pv_dict.get("rich_menu_meta")
+            rm_source = None
+            if rm_meta_raw:
+                try: rm_source = json.loads(rm_meta_raw)
+                except: pass
+            if not rm_source:
+                rm_source = get_fallback_ht_source("rich_menu")
+            elif not rm_source.get('occurred_at'):
+                fb = get_fallback_ht_source("rich_menu")
+                if fb and fb.get('occurred_at'):
+                    rm_source['occurred_at'] = fb.get('occurred_at')
+            details["rich_menu"]["source_info"] = rm_source
+
+        for p in details.get("projects", []):
+            p_id = p.get("id")
+            p_meta_raw = pv_dict.get(f"journey_meta:{p_id}")
+            p_source = None
+            if p_meta_raw:
+                try: p_source = json.loads(p_meta_raw)
+                except: pass
+            if not p_source:
+                p_source = get_fallback_ht_source(p.get("name", "journey"))
+            elif not p_source.get('occurred_at'):
+                fb = get_fallback_ht_source(p.get("name", "journey"))
+                if fb and fb.get('occurred_at'):
+                    p_source['occurred_at'] = fb.get('occurred_at')
+            p["source_info"] = p_source
+
+        cur_pv.close()
+        conn_pv.close()
+
         return jsonify(details)
     except Exception as e:
         if conn: conn.rollback()
@@ -721,11 +905,44 @@ def delete_customer_richmenu(user_id):
         return jsonify({'message': 'Error', 'error': str(e)}), 500
 
 
+@customers_bp.route('/groups/<path:group_name>/users', methods=['GET'])
+@token_required
+def get_group_users(group_name):
+    app_id = get_current_app_id()
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        pv_table = f'"Private_var:{app_id}"'
+        active_user_subquery = f"""
+            SELECT p.user_id FROM {pv_table} p
+            WHERE p.name = 'name'
+            AND (
+                SELECT h.category FROM "history:{app_id}" h
+                WHERE h.user_id = p.user_id 
+                AND h.category IN ('Follow', 'Unfollow')
+                ORDER BY h.timestamp DESC LIMIT 1
+            ) IS DISTINCT FROM 'Unfollow'
+            AND length(p.user_id) = 33 AND p.user_id LIKE 'U%%'
+        """
+        cur.execute(f"""
+            SELECT DISTINCT user_id FROM {pv_table}
+            WHERE name = 'g_group' AND value LIKE %s
+            AND user_id IN ({active_user_subquery})
+        """, (f'%{group_name}%',))
+        uids = [r[0] for r in cur.fetchall()]
+        return jsonify({"group_name": group_name, "count": len(uids), "user_ids": uids})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
+
 @customers_bp.route('/count-by-tags', methods=['POST'])
 @token_required
 def count_by_tags():
-    data = request.json
+    data = request.json or {}
     tags = data.get('tags', [])
+    group = data.get('group', None)
     app_id = get_current_app_id()
     from db_utils import get_db_connection
     conn = None
@@ -747,6 +964,16 @@ def count_by_tags():
         """
         cur.execute(f"SELECT COUNT(*) FROM ({active_user_subquery}) AS active_users")
         total_count = cur.fetchone()[0]
+
+        if group:
+            pv_table = f'"Private_var:{app_id}"'
+            cur.execute(f"""
+                SELECT COUNT(DISTINCT user_id) FROM {pv_table}
+                WHERE name = 'g_group' AND value LIKE %s
+                AND user_id IN ({active_user_subquery})
+            """, (f'%{group}%',))
+            cnt = cur.fetchone()[0]
+            return jsonify({"count": cnt, "totalCount": total_count})
 
         if not tags:
             return jsonify({"count": total_count, "totalCount": total_count})
@@ -847,4 +1074,349 @@ def refresh_customer_profile(user_id):
             cur.close()
         if conn:
             conn.close()
+
+
+@customers_bp.route('/batch-operation', methods=['POST'])
+@token_required
+@syslog_action('CUSTOMER_BATCH_OPERATION')
+def batch_operation():
+    data = request.json or {}
+    action_type = data.get('action_type')
+    user_ids = data.get('user_ids', [])
+    payload = data.get('payload', {})
+
+    if not action_type or not user_ids:
+        return jsonify({"error": "Missing action_type or user_ids"}), 400
+
+    app_id = get_current_app_id()
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        from psycopg2.extras import RealDictCursor, execute_values
+        import json
+        import ast
+
+        pv_table = f'"Private_var:{app_id}"'
+
+        results = [] # list of dicts: {"user_id": uid, "status": status, "reason": reason}
+        success_count = 0
+        skipped_count = 0
+        failed_count = 0
+
+        # Helper to parse python/json list strings safely
+        def parse_list(val):
+            if not val: return []
+            try:
+                parsed = ast.literal_eval(val)
+                return parsed if isinstance(parsed, list) else [str(parsed)]
+            except:
+                return [val]
+
+        if action_type == 'add_tags':
+            tag_names = payload.get('tag_names', [])
+            if not tag_names and payload.get('tag_name'):
+                tag_names = [payload.get('tag_name')]
+            
+            cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = 'tag' AND user_id = ANY(%s)", (user_ids,))
+            rows = cur.fetchall()
+            existing_map = {r[0]: r[1] for r in rows}
+
+            updates = []
+            affected_uids = []
+            for uid in user_ids:
+                curr_tags = parse_list(existing_map.get(uid))
+                new_tags = curr_tags.copy()
+                added_any = False
+                for t in tag_names:
+                    if t not in new_tags:
+                        new_tags.append(t)
+                        added_any = True
+                
+                if added_any:
+                    updates.append((uid, str(new_tags)))
+                    affected_uids.append(uid)
+                    results.append({"user_id": uid, "status": "success", "reason": None})
+                    success_count += 1
+                else:
+                    results.append({"user_id": uid, "status": "skipped", "reason": "使用者已持有該標籤"})
+                    skipped_count += 1
+
+            if updates:
+                cur.execute(f"DELETE FROM {pv_table} WHERE name = 'tag' AND user_id = ANY(%s)", (affected_uids,))
+                execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", [(uid, 'tag', val) for uid, val in updates])
+                
+                # 寫入批次打標籤 Meta
+                import json, datetime
+                now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                op_name = "管理員"
+                if hasattr(g, 'user') and isinstance(g.user, dict):
+                    op_name = g.user.get('email') or g.user.get('name') or "管理員"
+                meta_inserts = []
+                for uid in affected_uids:
+                    for t in tag_names:
+                        meta_val = json.dumps({
+                            "source_type": "manual", "source_name": "人工操作",
+                            "trigger_display": "批次新增標籤", "operator": op_name,
+                            "occurred_at": now_str, "setting_url": None
+                        }, ensure_ascii=False)
+                        meta_inserts.append((uid, f"tag_meta:{t}", meta_val))
+                if meta_inserts:
+                    for uid, n_key, _ in meta_inserts:
+                        cur.execute(f"DELETE FROM {pv_table} WHERE user_id = %s AND name = %s", (uid, n_key))
+                    execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", meta_inserts)
+
+                # Background Sensor Event & Richmenu Update
+                from utils.socket_utils import send_socket_events_batch
+                import threading
+                settings = getattr(g, 'current_oa_config', None).other_settings if getattr(g, 'current_oa_config', None) else {}
+                s_url = settings.get('socket_url')
+                app_name = settings.get('app_name') or settings.get('socket_name')
+                tags_str = str(tag_names)
+                def notify_socket():
+                    events = [{"user": uid, "message": f"set_tag|{tags_str}", "type": "Sensor", "api_index": 0} for uid in affected_uids]
+                    send_socket_events_batch(events, socket_url=s_url, bot_name=app_name, namespace=f"/{app_name}" if app_name else None)
+                threading.Thread(target=notify_socket).start()
+
+                from endpoints.richmenu import bulk_check_and_update_rich_menu
+                g_context = g._get_current_object()
+                def update_menus():
+                    try:
+                        from flask import Flask, g
+                        dummy_app = Flask(__name__)
+                        with dummy_app.app_context():
+                            g.current_app_name = getattr(g_context, 'current_app_name', app_id)
+                            bulk_check_and_update_rich_menu(affected_uids)
+                    except Exception as ex:
+                        print("Error updating menus async:", ex)
+                threading.Thread(target=update_menus).start()
+
+        elif action_type == 'remove_tags':
+            tag_names = payload.get('tag_names', [])
+            if not tag_names and payload.get('tag_name'):
+                tag_names = [payload.get('tag_name')]
+
+            cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = 'tag' AND user_id = ANY(%s)", (user_ids,))
+            rows = cur.fetchall()
+            existing_map = {r[0]: r[1] for r in rows}
+
+            updates = []
+            affected_uids = []
+            for uid in user_ids:
+                curr_tags = parse_list(existing_map.get(uid))
+                new_tags = [t for t in curr_tags if t not in tag_names]
+                if len(new_tags) < len(curr_tags):
+                    updates.append((uid, str(new_tags)))
+                    affected_uids.append(uid)
+                    results.append({"user_id": uid, "status": "success", "reason": None})
+                    success_count += 1
+                else:
+                    results.append({"user_id": uid, "status": "skipped", "reason": "使用者原本沒有該標籤"})
+                    skipped_count += 1
+
+            if updates:
+                cur.execute(f"DELETE FROM {pv_table} WHERE name = 'tag' AND user_id = ANY(%s)", (affected_uids,))
+                execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", [(uid, 'tag', val) for uid, val in updates])
+
+                # 清理移除標籤之 tag_meta
+                for t_rm in tag_names:
+                    cur.execute(f"DELETE FROM {pv_table} WHERE name = %s AND user_id = ANY(%s)", (f"tag_meta:{t_rm}", affected_uids))
+
+                # Background Sensor Event & Richmenu Update
+                from utils.socket_utils import send_socket_events_batch
+                import threading
+                settings = getattr(g, 'current_oa_config', None).other_settings if getattr(g, 'current_oa_config', None) else {}
+                s_url = settings.get('socket_url')
+                app_name = settings.get('app_name') or settings.get('socket_name')
+                def notify_socket():
+                    events = [{"user": uid, "message": f"del_tag|{tag_names[0] if tag_names else ''}", "type": "Sensor", "api_index": 0} for uid in affected_uids]
+                    send_socket_events_batch(events, socket_url=s_url, bot_name=app_name, namespace=f"/{app_name}" if app_name else None)
+                threading.Thread(target=notify_socket).start()
+
+                from endpoints.richmenu import bulk_check_and_update_rich_menu
+                g_context = g._get_current_object()
+                def update_menus():
+                    try:
+                        from flask import Flask, g
+                        dummy_app = Flask(__name__)
+                        with dummy_app.app_context():
+                            g.current_app_name = getattr(g_context, 'current_app_name', app_id)
+                            bulk_check_and_update_rich_menu(affected_uids)
+                    except Exception as ex:
+                        print("Error updating menus async:", ex)
+                threading.Thread(target=update_menus).start()
+
+        elif action_type == 'apply_richmenu':
+            target_rm_id = payload.get('rich_menu_id')
+            if not target_rm_id:
+                return jsonify({"error": "Missing rich_menu_id in payload"}), 400
+
+            cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = 'rich_menu' AND user_id = ANY(%s)", (user_ids,))
+            existing_map = {r[0]: r[1] for r in cur.fetchall()}
+
+            to_link_uids = []
+            for uid in user_ids:
+                curr_rm = existing_map.get(uid)
+                if curr_rm == target_rm_id:
+                    results.append({"user_id": uid, "status": "skipped", "reason": "目前個人圖文選單已是指定選單"})
+                    skipped_count += 1
+                else:
+                    to_link_uids.append(uid)
+
+            if to_link_uids:
+                from endpoints.richmenu import get_line_token
+                token = get_line_token()
+                import requests
+                headers = {'Authorization': f'Bearer {token}'} if token else {}
+
+                # Bulk Link via LINE API
+                line_success = True
+                if token:
+                    for i in range(0, len(to_link_uids), 500):
+                        batch = to_link_uids[i:i+500]
+                        resp = requests.post('https://api.line.me/v2/bot/richmenu/bulk/link', headers=headers, json={'userIds': batch, 'richMenuId': target_rm_id})
+                        if resp.status_code != 200:
+                            line_success = False
+                            break
+
+                if line_success:
+                    cur.execute(f"DELETE FROM {pv_table} WHERE name = 'rich_menu' AND user_id = ANY(%s)", (to_link_uids,))
+                    execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", [(uid, 'rich_menu', target_rm_id) for uid in to_link_uids])
+                    
+                    # 寫入 rich_menu_meta
+                    import json, datetime
+                    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    op_name = "管理員"
+                    if hasattr(g, 'user') and isinstance(g.user, dict):
+                        op_name = g.user.get('email') or g.user.get('name') or "管理員"
+                    rm_meta_val = json.dumps({
+                        "rich_menu_id": target_rm_id, "source_type": "manual",
+                        "source_name": "人工操作", "trigger_display": "批次套用個人選單",
+                        "operator": op_name, "occurred_at": now_str, "setting_url": None
+                    }, ensure_ascii=False)
+                    cur.execute(f"DELETE FROM {pv_table} WHERE name = 'rich_menu_meta' AND user_id = ANY(%s)", (to_link_uids,))
+                    execute_values(cur, f"INSERT INTO {pv_table} (user_id, name, value) VALUES %s", [(uid, 'rich_menu_meta', rm_meta_val) for uid in to_link_uids])
+
+                    for uid in to_link_uids:
+                        results.append({"user_id": uid, "status": "success", "reason": None})
+                        success_count += 1
+                else:
+                    for uid in to_link_uids:
+                        results.append({"user_id": uid, "status": "failed", "reason": "LINE API 套用圖文選單失敗"})
+                        failed_count += 1
+
+        elif action_type == 'unlink_richmenu':
+            cur.execute(f"SELECT user_id, value FROM {pv_table} WHERE name = 'rich_menu' AND user_id = ANY(%s)", (user_ids,))
+            existing_map = {r[0]: r[1] for r in cur.fetchall()}
+
+            to_unlink_uids = []
+            for uid in user_ids:
+                if uid in existing_map and existing_map[uid]:
+                    to_unlink_uids.append(uid)
+                else:
+                    results.append({"user_id": uid, "status": "skipped", "reason": "原本沒有個人圖文選單連結"})
+                    skipped_count += 1
+
+            if to_unlink_uids:
+                from endpoints.richmenu import get_line_token
+                token = get_line_token()
+                import requests
+                headers = {'Authorization': f'Bearer {token}'} if token else {}
+
+                line_success = True
+                if token:
+                    for i in range(0, len(to_unlink_uids), 500):
+                        batch = to_unlink_uids[i:i+500]
+                        resp = requests.post('https://api.line.me/v2/bot/richmenu/bulk/unlink', headers=headers, json={'userIds': batch})
+                        if resp.status_code != 200:
+                            line_success = False
+                            break
+
+                if line_success:
+                    cur.execute(f"DELETE FROM {pv_table} WHERE name = 'rich_menu' AND user_id = ANY(%s)", (to_unlink_uids,))
+                    cur.execute(f"DELETE FROM {pv_table} WHERE name = 'rich_menu_meta' AND user_id = ANY(%s)", (to_unlink_uids,))
+                    for uid in to_unlink_uids:
+                        results.append({"user_id": uid, "status": "success", "reason": None})
+                        success_count += 1
+                else:
+                    for uid in to_unlink_uids:
+                        results.append({"user_id": uid, "status": "failed", "reason": "LINE API 解除圖文選單失敗"})
+                        failed_count += 1
+
+        elif action_type == 'enroll_journey':
+            project_id = payload.get('project_id')
+            if not project_id:
+                return jsonify({"error": "Missing project_id in payload"}), 400
+
+            t_ups = f'"user_project_status:{app_id}"'
+            cur.execute(f"SELECT user_id, status FROM {t_ups} WHERE project_id = %s AND user_id = ANY(%s)", (project_id, user_ids))
+            existing_ups = {r[0]: str(r[1]).lower() for r in cur.fetchall()}
+
+            to_enroll_uids = []
+            for uid in user_ids:
+                if existing_ups.get(uid) == 'active':
+                    results.append({"user_id": uid, "status": "skipped", "reason": "使用者目前已在該旅程進行中"})
+                    skipped_count += 1
+                else:
+                    to_enroll_uids.append(uid)
+
+            if to_enroll_uids:
+                from app import batch_enroll_journey_users_internal
+                ok, err_msg = batch_enroll_journey_users_internal(project_id, to_enroll_uids, app_id)
+                if ok:
+                    for uid in to_enroll_uids:
+                        results.append({"user_id": uid, "status": "success", "reason": None})
+                        success_count += 1
+                else:
+                    for uid in to_enroll_uids:
+                        results.append({"user_id": uid, "status": "failed", "reason": f"加入自動旅程失敗: {err_msg}"})
+                        failed_count += 1
+
+        elif action_type == 'stop_journey':
+            project_id = payload.get('project_id')
+            stop_reason = payload.get('stop_reason', '')
+            if not project_id:
+                return jsonify({"error": "Missing project_id in payload"}), 400
+
+            t_ups = f'"user_project_status:{app_id}"'
+            t_cron = f'"cron_table:{app_id}"'
+            cur.execute(f"SELECT user_id, status FROM {t_ups} WHERE project_id = %s AND user_id = ANY(%s)", (project_id, user_ids))
+            existing_ups = {r[0]: str(r[1]).lower() for r in cur.fetchall()}
+
+            to_stop_uids = []
+            for uid in user_ids:
+                if existing_ups.get(uid) == 'active':
+                    to_stop_uids.append(uid)
+                else:
+                    results.append({"user_id": uid, "status": "skipped", "reason": "未加入、已完成或已停止"})
+                    skipped_count += 1
+
+            if to_stop_uids:
+                cur.execute(f"DELETE FROM {t_cron} WHERE project_id = %s AND user_id = ANY(%s)", (project_id, to_stop_uids))
+                cur.execute(f"UPDATE {t_ups} SET status = 'stopped', updated_at = NOW() WHERE project_id = %s AND user_id = ANY(%s)", (project_id, to_stop_uids))
+                for uid in to_stop_uids:
+                    results.append({"user_id": uid, "status": "success", "reason": None})
+                    success_count += 1
+
+        conn.commit()
+
+        return jsonify({
+            "success": True,
+            "action_type": action_type,
+            "selected_count": len(user_ids),
+            "success_count": success_count,
+            "skipped_count": skipped_count,
+            "failed_count": failed_count,
+            "results": results
+        })
+
+    except Exception as e:
+        if conn: conn.rollback()
+        print(f"Error in batch_operation: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cur: cur.close()
+        if conn: conn.close()
+
 
