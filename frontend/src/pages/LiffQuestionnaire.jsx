@@ -310,7 +310,7 @@ export default function Questionnaire() {
           content: q.content,
           answer_type: q.answer_type,
           required: q.required,
-          condition_type: q.answer_type === 'number' ? '2' : q.answer_type === 'phone' ? '5' : q.answer_type === 'email' ? '6' : q.answer_type === 'date' ? '7' : q.answer_type.includes('choice') ? '3' : q.condition_type,
+          condition_type: q.answer_type === 'number' ? '2' : q.answer_type === 'phone' ? '5' : q.answer_type === 'email' ? '6' : q.answer_type === 'date' ? '7' : q.answer_type.includes('choice') ? '3' : (q.condition_type === '4' ? '4' : '1'),
           condition_detail: q.condition_detail,
           options: q.optionsText,
           tags: q.tags,

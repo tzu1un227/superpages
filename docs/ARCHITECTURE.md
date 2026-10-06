@@ -344,4 +344,17 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
    - **管理者權限鎖死防護 (Admin Lockout Prevention)**：在 `backend/endpoints/admin.py` 中，新增安全防呆規則：禁止管理者刪除當前自身登入之帳號；當系統僅剩最後一位管理者時，嚴格禁止刪除或降權，確保後台管理權限的連續可用性 (OWASP A06:2025)。
    - **全域 HTTP 安全標頭與 500 例外優雅降級**：於 Flask `after_request` 全域注入 `X-Content-Type-Options: nosniff`、`X-XSS-Protection: 1; mode=block`、`Referrer-Policy: strict-origin-when-cross-origin` 與 `X-Frame-Options: SAMEORIGIN`（LIFF 端點智能放行）；並掛載 `@app.errorhandler(500)` 全域捕獲非預期錯誤，避免 Uncaught Exceptions 暴露伺服器底層堆疊，維持服務可用性與穩健度 (OWASP A02:2025 / A10:2025)。
 
+## 16. LIFF 問卷題型驗證與條件類型解耦防禦機制 (2026-10-06 新增)
+
+### 16.1 後端驗證防禦與自由文字保護 (`backend/endpoints/liff_questionnaire.py`)
+- **主從型別解耦**：在 `_validate_answer` 中，確立以 `answer_type`（題目型態）為主導之驗證體系。
+- **純文字輸入防禦**：當題型為純文字 (`answer_type == 'text'`) 且非明確定義之字數限制 (`condition_type == '4'`) 時，系統自動忽略歷史殘留之 `condition_type`（如 2:數字, 3:單選選項, 5:手機, 6:Email, 7:日期），杜絕管理員在切換題型或複製題目時因殘留條件導致用戶輸入文字被誤判為格式錯誤。
+
+### 16.2 後台題型切換自動正規化 (`frontend/src/pages/LiffQuestionnaire.jsx`)
+- **狀態純淨化**：管理介面在提交問卷題目清單時，當題型為 `text` 且無自訂字數限制時，強制重置 `condition_type` 為 `'1'`（無限制），從前端來源根除殘留代碼存入資料庫之風險。
+
+### 16.3 前端填寫端錯誤可視化與自動定位 (`liff_questionnaire/index.html`)
+- **欄位級錯誤解析**：當問卷提交端點回傳 HTTP 400 且附帶 `fields` 錯誤明細時，前端解析題目 ID 並取得對應題號與標題，組裝為可讀性高的錯誤清單，同時在該題目卡片下方顯示紅色錯誤提示並平滑滾動至出錯位置，提升填寫者之除錯體驗。
+
+
 

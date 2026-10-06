@@ -231,10 +231,10 @@ def _validate_answer(question, value):
     if not text:
         return True, ""
 
-    if answer_type == "number" or condition_type == "2":
+    if answer_type == "number" or (answer_type != "text" and condition_type == "2"):
         if not re.fullmatch(r"-?\d+(\.\d+)?", text):
             return False, "請輸入數字"
-    if answer_type == "single_choice" or (condition_type == "3" and answer_type != "multiple_choice"):
+    if answer_type == "single_choice" or (answer_type not in ("text", "multiple_choice") and condition_type == "3"):
         allowed = options or _json_list(detail)
         if text not in allowed:
             return False, "請選擇有效選項"
@@ -257,13 +257,13 @@ def _validate_answer(question, value):
             return False, f"至少需要 {min_len} 個字"
         if max_len >= 0 and len(text) > max_len:
             return False, f"最多只能 {max_len} 個字"
-    if answer_type == "phone" or condition_type == "5":
+    if answer_type == "phone" or (answer_type != "text" and condition_type == "5"):
         if not re.fullmatch(r"09\d{8}", text):
             return False, "請輸入 09 開頭的 10 碼手機"
-    if answer_type == "email" or condition_type == "6":
+    if answer_type == "email" or (answer_type != "text" and condition_type == "6"):
         if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", text):
             return False, "Email 格式不正確"
-    if answer_type == "date" or condition_type == "7":
+    if answer_type == "date" or (answer_type != "text" and condition_type == "7"):
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
             return False, "日期格式需為 YYYY-MM-DD"
     return True, text

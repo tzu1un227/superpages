@@ -1,3 +1,14 @@
+## [2026-10-06] 修復 LIFF 問卷提交答案格式驗證與題型條件解耦
+- **後端答案格式驗證防禦 (`backend/endpoints/liff_questionnaire.py`)**:
+  - 修復 `_validate_answer` 函式中題型 (`answer_type`) 與條件型態 (`condition_type`) 過度耦合的問題。
+  - 當題目類型為純文字 (`answer_type == 'text'`) 且非字數長度限制 (`condition_type == '4'`) 時，保護其不受資料庫殘留的 `condition_type`（如 2:數字, 3:單選, 5:手機, 6:Email, 7:日期）影響，避免使用者在一般文字框填入文字時被強制套用日期或特定格式校驗而回傳 400 錯誤。
+- **後台問卷題型儲存邏輯修復 (`frontend/src/pages/LiffQuestionnaire.jsx`)**:
+  - 修復儲存題目時的 `condition_type` 三元運算邏輯。當題目為文字型態 (`text`) 且非字數限制時，強制重置 `condition_type` 為 `'1'`，根除管理員在後台切換題型後殘留舊題型代碼的潛在問題。
+- **前端填寫網頁錯誤提示優化 (`liff_questionnaire/index.html`)**:
+  - 當後端校驗失敗回傳 400 及 `fields` 物件時，前端精準解析出錯之題目名稱與原因（如「第 3 題 (拍攝時間): 日期格式需為 YYYY-MM-DD」），並自動標註紅字、滾動至該題卡片，替換原先模糊的單一 alert 提示。
+- **線上資料庫數據修復 (`xiaoyou_test` / Survey ID: 44)**:
+  - 修正第 3 題「拍攝時間」之 `condition_type` 為 `'1'`；修正第 2 題「拍攝日期」為 `date`；修正第 6 題「影片類型」為 `single_choice`，立即排除線上填寫被阻擋之異常。
+
 ## [2026-10-06] LIFF 問卷完成 Sensor 事件擴充 survey_key 格式
 - **LIFF 問卷提交完成事件 (`backend/endpoints/liff_questionnaire.py`)**:
   - 依「方案 A」規範將 WebSocket 發送之 `Sensor` 事件訊息格式擴充為：`Liffquestionnaire|<survey_key>|<存在資料庫的id>|<答案1>|<答案2>|.....`。
