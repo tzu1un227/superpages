@@ -1,3 +1,9 @@
+## [2026-10-06] LIFF 問卷完成 Sensor 事件擴充 survey_key 格式
+- **LIFF 問卷提交完成事件 (`backend/endpoints/liff_questionnaire.py`)**:
+  - 依「方案 A」規範將 WebSocket 發送之 `Sensor` 事件訊息格式擴充為：`Liffquestionnaire|<survey_key>|<存在資料庫的id>|<答案1>|<答案2>|.....`。
+  - 將 `<survey_key>`（問卷唯一鍵值）作為事件訊息的第 1 個參數注入，並防呆過濾特殊字元 `|` 為 `/`。
+  - 使 Line Bot 核心或 Q_bank 法則能依據單一問卷識別碼進行精準匹配與條件分流（如 `Liffquestionnaire|<survey_key>|*`），大幅提升問卷與機器人自動化互動的彈性。
+
 ## [2026-10-05] 合併 main 分支至 deploy-heroku 並保留 Heroku 效能配置
 - **分支合併**: 安全將 main 最新功能（包含問卷 Sensor 通知、全域資安防護、40 端點鑑權、來源透明化等）合併至 deploy-heroku。
 - **衝突排除**: 成功排除 6 個衝突檔案（backend/app.py, FlexMessageEditor.jsx, RuleDesigner.jsx, docs/ARCHITECTURE.md, CHANGELOG.md）。
@@ -11,576 +17,650 @@
     - `<答案1>|<答案2>|...`：嚴格依照問卷題目題號順序提取作答內容，非必填未作答欄位自動保留空字串，並防呆替換使用者答案內的管道符號（`|` 替換為 `/`），防止官方帳號伺服器以 `split('|')` 解析時長度錯位。
   - 使用 `utils.socket_utils.send_socket_event` 發送，支援根據 `botAppName` / `OAConfig` 動態定址與 HMAC-SHA256 安全簽章。
 
-## [2026-08-27] 問卷填寫結束自動化動作 (上標籤、切換圖文選單、加入自動旅程)
-- **問卷管理 (文字問卷) 完成動作 (backend/endpoints/questionnaire.py & frontend/src/pages/Questionnaire.jsx)**:
-  - 於問卷表單步驟一與編輯時，新增「問卷完成後動作」設定（完成後標籤、加入自動旅程、切換圖文選單）。
-  - 問卷生成核心 `build_questionnaire_direct` 於結尾規則中自動組合 `set_tag`、`iup`、`switch_rm` 指令與對應 `Private_var` 之 Meta 紀錄。
-  - 問卷詳情讀取端點 `get_questionnaire_detail` 支援解析完成規則之 `function` 並正確回填至前端介面。
-- **LIFF 問卷完成動作 (backend/endpoints/liff_questionnaire.py & frontend/src/pages/LiffQuestionnaire.jsx)**:
-  - 資料庫遷移：`liff_questionnaires:<app_id>` 表新增 `finish_tags`, `finish_journey`, `finish_menu` 欄位。
-  - 前端 `LiffQuestionnaire.jsx` 支援設定完成後標籤、加入自動旅程、切換圖文選單，並於問卷列表中清晰呈現狀態 Chip。
-  - 作答提交端點 `public_submit_response` 在作答儲存後，自動執行標籤寫入 (`_merge_user_tags`)、加入自動旅程排程 (`batch_enroll_journey_users_internal`) 以及發送 WebSocket 即時切換圖文選單 (`switch_rm`)。
-- **來源透明化與主動探測升級 (backend/app.py & backend/endpoints/richmenu.py)**:
-  - 自動旅程來源端點 `get_project_join_sources` 與圖文選單套用來源端點 `get_richmenu_apply_sources` 全面升級：
-    - 主動探測文字問卷（`Q_bank` / `QA_bank`）中帶有旅程加入或選單切換的規則，歸類為 `form`（問卷管理）來源。
-    - 主動掃描 `liff_questionnaires:<app_id>` 資料表，即使尚未有用戶填寫，也能在來源總覽完整列出設定了該旅程/該圖文選單的 LIFF 問卷名稱、觸發時機與跳轉按鈕。
-    - 在客戶中心（`CustomerCenter.jsx`）的標籤、旅程、選單 Tooltip 中，完整呈現問卷來源名稱、完成時機、精確時間與「前往設定」跳轉至 `/questionnaire` 或 `/liff-questionnaires`。
+## [2026-09-21] 資安 CIA 與 OWASP Top 10: 2025 全面性弱點修復與防禦強化
+- **身分鑑權與金鑰安全 (`backend/auth.py`, `backend/config.py`, `backend/app.py`)**:
+  - 徹底停用廢棄且寫死固定帳密 `admin/admin` 之 `/api/login` 路由（回應 HTTP 410 Gone），強制全站後台身分驗證統一收斂至 Google OAuth 2.0 (OWASP A07:2025 / A02:2025)。
+  - 升級 `SECRET_KEY` 回退機制，當環境變數未提供時，不再使用靜態可預測之 `'dev_secret_key'`，改由 `secrets.token_urlsafe(32)` 生成高熵動態運行密鑰，防禦 JWT 偽造提權 (OWASP A04:2025)。
+  - 敏感鑑權例外資訊脫敏，解密失敗不回傳內部例外細節。
+- **存取控制與開放重定向防護 (`backend/app.py`)**:
+  - 強化 `/api/redirect` 轉址驗證，採用 `urllib.parse.urlsplit` 檢驗 Scheme 僅限 `http/https`，阻擋 `javascript:` 等偽協定；阻擋 `//` 開頭之協議相對跳轉；檢測並阻擋 `\r` 與 `\n`，杜絕 CRLF 注入與開放重定向攻擊 (CWE-601, OWASP A01:2025)。
+  - 全域注入安全性 HTTP 標頭 (`X-Content-Type-Options: nosniff`, `X-XSS-Protection: 1; mode=block`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: SAMEORIGIN`)，強化瀏覽器端防護 (OWASP A02:2025)。
+  - 掛載全域 500 與例外處理器，非預期錯誤由內部詳細記錄，向客戶端回傳標準脫敏 JSON 訊息，避免暴露 Traceback (OWASP A10:2025)。
+- **檔案上傳完整性防偽 (`backend/endpoints/upload.py`)**:
+  - 引入 `werkzeug.utils.secure_filename` 消除檔名路徑穿越 (`../`) 威脅。
+  - 強制副檔名白名單驗證（僅允許 `.png, .jpg, .jpeg, .gif, .webp`）。
+  - 新增前導 Magic Bytes 檔案特徵檢查，嚴防攻擊者將惡意腳本改名偽裝為圖檔上傳至 CDN (OWASP A05:2025 / A08:2025)。
+  - 例外捕獲脫敏，保護系統內部錯誤訊息。
+- **權限防呆與管理員可用性保護 (`backend/endpoints/admin.py`)**:
+  - 管理者刪除防呆：嚴格禁止管理員於後台刪除當前登入之自身帳號。
+  - 系統可用性鎖死防護：當系統僅存最後一位管理員時，嚴格禁止刪除或降權，維護系統核心管理能力之連續可用性 (OWASP A06:2025)。
 
-## [2026-08-27] 自動旅程來源去重、圖文選單套用來源全庫掃描與群發廣播錯誤修復
-- **自動旅程來源去重與智慧歸因 (backend/app.py & frontend/src/pages/Projects.jsx, FlexMessageEditor.jsx)**:
-  - 修正當自動旅程來源為其他旅程之 Flex 訊息按鈕時，來源總覽重複分裂為「測試旅程」與「旅程訊息/flex訊息」兩行的問題。
-  - 前端 `Projects.jsx` 在開啟 `ScheduleMessageEditorModal` 與 `FlexMessageEditor` 時完整傳遞 `project_name` 與 `step_id` 至 `sourceContext`。
-  - 前端 `FlexMessageEditor.jsx` 在產生 `sys_bind` 與 `redirect` 之 Metadata 時，將完整來源上下文（旅程名稱、步驟編號）封裝進 `source_info` 物件。
-  - 後端 `get_project_join_sources` 強化智慧比對邏輯：優先比對 `source_info` 與排程設定，若用戶端中繼資料為通用名稱（如「旅程訊息」），自動關聯至已掃描到的排程來源，杜絕重複未合併列產生。
-  - 在存在具體配置來源時，自動清理計數為 0 的「人工操作」列。
-- **圖文選單套用來源全庫主動掃描與歸因 (backend/endpoints/richmenu.py & frontend/src/pages/RichMenu.jsx)**:
-  - 後端 `get_richmenu_apply_sources` 全面升級為全庫主動掃描架構：
-    1. 關鍵字法則表 (`Q_bank`)：主動過濾系統工程法則 (`switch_rm|*` 等)，納入一般關鍵字規則與歡迎訊息 (`Follow`)。
-    2. 自動旅程排程 (`project_schedules` + `QA_bank`)：深度解構 `QA|` 指標，完整掃描所有帶有此選單切換的步驟。
-    3. 問答庫與群發 (`QA_bank`)：涵蓋群發訊息 (`bc_*`) 與問卷填寫後切換 (`form_*`)。
-    4. 其他圖文選單 (`rich_menu_metadata`)：掃描所有設定了此選單按鈕切換的其他圖文選單。
-    5. 全域預設選單 (`Global_var:default_rich_menu`)。
-  - 即使尚無用戶套用，所有在資料庫中已配置的來源亦會完整列出於來源總覽中。
-  - 前端 `RichMenu.jsx` 於請求 `/apply-sources` 時注入 `_bypassCache: true`，確保即時反映最新資料庫狀態，並完善支援所有來源標籤與跳轉設定。
-- **群發廣播 ReferenceError 修復 (frontend/src/pages/Broadcast.jsx)**:
-  - 修正建立群發訊息時開啟 Flex 訊息編輯器引用未定義變數 `selectedId` 導致之 `ReferenceError: selectedId is not defined` 錯誤，改為使用 `formData.id` 與 `formData.name`。
+## [2026-09-14] 關鍵字回覆圖文訊息防呆強化與儲存按鈕機制 (Issue #38)
+- **前端圖文訊息編輯器 (`frontend/src/components/FlexMessageEditor.jsx`)**:
+  - 新增 `showFooter` 與 `onConfirm` 屬性支援手動確認模式。手動模式下抑制背景 auto-save 即時向父層同步未驗證內容。
+  - 於彈窗底部固定新增操作列（「取消」與「完成並儲存」按鈕），並在左側即時呈現驗證錯誤提示橫幅 (`AlertCircle`)。
+  - 啟用並增強 `validateCards()` 防呆機制：嚴格檢查卡片圖片網址、選項型標題/說明文字、按鈕名稱、傳送訊息回傳文字、連結網址不得為空；若有任何欄位未填妥，即時報錯並阻擋關閉與儲存。
+- **關鍵字回覆頁面 (`frontend/src/pages/RuleDesigner.jsx`)**:
+  - 圖文訊息彈窗啟用手動確認模式 (`showFooter={true}`)，點擊「取消」或右上角 `X` 時不保留未確認的暫存修改，點擊「完成並儲存」通過防呆後才正式寫入訊息列表。
+  - 於外層回應訊息列表的 `handleSaveMsgModal` 中補齊 `FlexSendMessage` 的資料結構防呆檢驗，避免不完整 Flex 訊息被儲存至規則。
+- **後端規則驗證 (`backend/endpoints/rule_designer.py`)**:
+  - 在 `validate_rule` 函式中擴充對 `msg_rpy` 陣列內所有 `FlexSendMessage` 的深層檢驗，防止空的按鈕動作、連結或回傳文字寫入資料庫，徹底杜絕 LINE 送出空訊息錯誤。
 
-## [2026-08-21] 圖文選單來源解析 QA_bank 查詢與交易回滾修復 (RichMenu Apply Sources Query & Rollback Fixes)
-- **QA_bank 查詢欄位修正 (backend/endpoints/richmenu.py)**:
-  - 修正 `get_richmenu_apply_sources` 解析旅程排程時對 `QA_bank` 查詢不存在的 `state_out` 欄位錯誤（`state_out` 僅存在於 `Q_bank`），改為精準選取 `msg_rpy, function, "check"`。
-- **PostgreSQL 交易回滾防護 (Transaction Rollback Guards) (backend/endpoints/richmenu.py)**:
-  - 為 `get_t_safe` 及各個設定表探測、用戶套用統計、歷程比對的 `try...except` 區塊補齊 `if conn: conn.rollback()`，徹底杜絕單一查詢失敗導致連線交易中止（`InFailedSqlTransaction`）引發所有來源 fallback 誤判為人工操作的問題。
-- **旅程與關鍵字圖文選單來源探測驗證**:
-  - 驗證並確保自動旅程 Flex 按鈕切換之圖文選單與關鍵字回覆切換之圖文選單均能 100% 正確呈現來源類型、名稱、Trigger 與設定連結。
+## [2026-09-03] 訊息中心支援動態合併廣播與 Global_var 群發訊息 (bc_ 指標)
+- **訊息中心 (`backend/app.py` & `frontend/src/pages/MessageCenter.jsx`)**:
+  - `get_user_history` (`/api/history/<user_id>`): 查詢擴展為同時檢索專屬對話、全體廣播 (`user_id = 'all'`) 與群發推播 (`user_id LIKE 'bc_%'`)。針對 `bc_` 指標記錄，自動查詢 `Global_var` 取得受眾清單並進行記憶體快取比對（`set`），當該使用者命中群發名單時動態合併呈現為官方帳號訊息，精準呈現在對話時間軸中。
+  - `get_users_list` (`/api/users`): 在 SQL 中限定 `user_id LIKE 'U%' AND length(user_id) = 33`，徹底杜絕 `bc_` 群發識別碼或系統標記出現在聊天室列表。
+  - 前端 `MessageCenter.jsx`: 在 `fetchUsers` 中增加過濾護欄，並在切換用戶時於背景補齊發送 `fetchHistory`，確保收到群發訊息的用戶對話室能即時呈現最新的推播訊息。
 
-## [2026-08-21] CRM 來源跳轉與自動旅程跨旅程切換 (Cross-Journey Navigation Fixes)
-- **自動旅程跨旅程來源前往設定修復 (frontend/src/pages/Projects.jsx & backend/app.py, richmenu.py)**:
-  - 修正當自動旅程來源為另一自動旅程時，點擊「前往設定」因留在同個 URL 導致無反應的問題。
-  - 後端 `get_project_join_sources` 與 `get_richmenu_apply_sources` 自動在 `setting_url` 中注入目標旅程參數 `f"/projects?projectId={s_pid}"`。
-  - 前端 `Projects.jsx` 實作 `handleNavigateToSetting` 與 `location.search` 監聽，點擊後自動切換當前選取的旅程 ID (`setSelectedProjectId`) 並切換至 `schedules` 排程設定頁籤，精準呈現來源旅程的排程訊息與設定步驟。
-- **前往設定路由正則表達式重複疊加修復 (CustomerCenter.jsx, Projects.jsx, RichMenu.jsx)**:
-  - 修復前端 `replace(/^\/rules/, 'ruledesigner')` 遇到 `/ruledesigner` 時誤替換為 `ruledesignerdesigner` 的路由錯誤，改用嚴格正規化邏輯，保證跳轉 100% 成功。
-- **圖文選單關鍵字歸因覆蓋與計數修復 (backend/endpoints/richmenu.py)**:
-  - 在使用者歸因掃描時，針對舊有 `manual` 殘留狀態強制進行關鍵字與 Message 發話歷程重新檢驗，精準歸因至關鍵字規則（套用人數 1 人），並自動過濾 0 人的手動操作列。
+## [2026-09-02] 修復對話問卷起訖時間時區轉換問題 (UTC+8)
+- **問卷管理 (`backend/endpoints/questionnaire.py`)**:
+  - 修復 `_parse_time` 與 `_parse_time_bounds` 函式在轉換時間戳記時未指定時區的問題。
+  - 明確綁定台灣時區 `UTC+8` (`timezone(timedelta(hours=8))`)，防止伺服器在 UTC 環境下將本地時間解析為 UTC 時間而產生 8 小時（28,800 秒）偏差，確保 LINE Bot 的 `sys.now()` 能在正確時間觸發問卷。
 
-## [2026-08-20] CRM 共用來源透明化 MVP v1.2 (Source Transparency System)
-- **圖文選單套用來源精準探測與 500 錯誤修復 (backend/endpoints/richmenu.py & RichMenu.jsx)**:
-  - 修正前端 `RichMenu.jsx` 於選單為 `ui_uuid` 時未發送來源查詢 API 的問題，全面補齊 `ui_uuid` 識別支援。
-  - 修正後端端點使用 `get_tenant_conn()` 連線至正確租戶資料庫，並修復 `len(total_uids)` 變數名稱導致之 500 錯誤。
-  - 將圖文選單探測集合中之數值 `id` 剔除，嚴格鎖定 `rich_menu_id` 與 `ui_uuid`（長度 >= 6），杜絕數值 ID 誤配無關關鍵字規則或自動旅程排程的問題，精準呈現單一來源。
-- **主動設定表探測與來源地圖架構 (backend/app.py & backend/endpoints/richmenu.py)**:
-  - 將自動旅程加入來源與圖文選單套用來源升級為「設定表主動探測 + 成員歸因統計」架構。
-  - 主動掃描 `Q_bank`（關鍵字法則表）、`QA_bank`（問答庫）、`project_schedules`（其他自動旅程排程表）與 `rich_menu_metadata`（圖文選單按鈕），即使尚未有用戶觸發，也能完整列出所有指向該旅程/選單的有效觸發點與跳轉設定。
-  - 實作 `clean_rule_title`，去除 `|UPDATED:...` 與前綴後綴，來源名稱乾淨呈現前端設定的實際標題（如 `test`）。
-  - 修復跨旅程加入歸因邏輯：歷史查詢精準過濾旅程 ID，並優先匹配 `project_schedules` 訊息按鈕，確保從其他旅程加入的用戶正確歸屬至來源旅程名稱與步驟，而非誤判為關鍵字或人工操作。
-  - 同步結合 `user_project_status`、`cron_table`、`Private_var` 與全域預設選單進行即時在席人數統計與歷史歷程回溯。
-- **6 段式 sys_bind 來源協定擴充 (FlexMessageEditor.jsx & 各模組)**: Flex 訊息按鈕與圖片點擊產生的 Postback 動作格式全面升級為 `sys_bind|<標籤列表>|<自動旅程ID>|<圖文選單ID>|<觸發關鍵字/回傳文字>|<來源變數名稱>|<來源資訊>`，並於 Projects、RuleDesigner、Broadcast、WelcomeMessage 等模組自動注入所屬來源 Context 與 JSON 資訊，供 Line-Bot-Main 直接解析與寫入來源中繼資料。
-- **進階訊息編輯器選單解鎖 (FlexMessageEditor.jsx)**: 移除切換圖文選單 dropdown 中對非 Superpages 產生選單的 `disabled={!m.ui_uuid}` 限制與禁用提示，使自動旅程、排程與關鍵字回覆中的所有有效圖文選單皆可正常被選擇與切換。
-- **側邊欄圖文選單即時同步 (backend/endpoints/customers.py & CustomerCenter.jsx)**: 修正 `get_customer_details` 於 LINE API 404 時誤刪 Private_var 選單紀錄的問題，加入資料庫與預設選單備援查詢，並於側邊欄中支援列表資料即時同步，確保關鍵字更換選單後側邊欄能 100% 正確呈現選單與關鍵字來源 Tooltip。
-- **手動標籤來源寫入完善 (CustomerCenter.jsx & backend/app.py)**: 將側邊欄與多選加標籤流程全面改為標準 batch 標籤 API 寫入 `tag_meta`，並在 `/api/trigger` 接收 `set_tag` 時即時同步 `Private_var` 與 `tag_meta`，徹底解決手動打標籤後 Tooltip 誤顯「歷史資料」問題。
-- **自動旅程繁中提示 (backend/app.py & Projects.jsx)**: 將參與用戶分頁加入用戶時的後端回傳與前端 Toast 訊息改為統一繁體中文（「已成功將 X 名用戶加入自動旅程」）。
-- **客戶中心主表格 Tooltip 全面支援 (CustomerCenter.jsx & backend/endpoints/customers.py)**: 在客戶中心主列表表格中（客戶資訊一覽表），於「標籤」、「自動旅程」與「圖文選單」Chip/欄位旁全面渲染 ⓘ 圖示與 MUI Tooltip，hover 可直接檢視 4 行來源詳細資訊；同時於 `get_customers` 後端進行 Private_var 批量 Meta 查詢與組裝。
-- **黑畫面與 Tooltip 渲染修復 (CustomerCenter.jsx)**: 補齊未定義之 `renderSourceTooltip` 渲染函式，解除側邊欄開啟時發生的 React `ReferenceError: renderSourceTooltip is not defined` 崩潰黑畫面 Bug，並展現 4 行資訊 Tooltip。
-- **客戶中心優化 (CustomerCenter.jsx)**: 補齊 `setSidebarDetails` 之 `tags` 狀態儲存與預設值，加入自動旅程 `displayProjects` 備援渲染，並為 Lucide `<Info />` 圖示加上 DOM `<span>` 容器封裝，徹底修復 MUI Tooltip 無法懸浮觸發與自動旅程不呈現的 Bug。
-- **語法修復 (backend/endpoints/customers.py)**: 修復 `apply_richmenu` 批次操作判斷中多餘重複的 `else:` 區塊導致之 Python `SyntaxError: invalid syntax` 語法錯誤。
-- **雙軌混合解構架構 (backend/endpoints/customers.py, richmenu.py, app.py, liff_questionnaire.py)**: 實現 `Private_var:<app_id>` JSON 寫入軌 (`tag_meta`, `rich_menu_meta`, `journey_meta`)、動態垃圾清理軌與 Live `ht_view:<app_id>` 解構讀取軌，實現 100% 來源透明無死角。
-- **客戶中心 Tooltip 提示 (frontend/src/pages/CustomerCenter.jsx)**: 於客戶詳情側邊欄中，為標籤、自動旅程、圖文選單 Chip 加入 MUI Tooltip 與 ⓘ 資訊圖示， hover 可展現 4 行詳細來源資訊（來源類型/名稱、Trigger 觸發時機、動作發生時間、前往設定按鈕）。
-- **自動旅程加入來源總覽 (backend/app.py & Projects.jsx)**: 新增 `GET /api/projects/<id>/join-sources` 端點與 Projects.jsx 頁面中的 `加入來源` 頁籤，提供 6 欄位來源統計表格與「合計 XX 人」統計列。
-- **圖文選單套用來源總覽 (backend/endpoints/richmenu.py & RichMenu.jsx)**: 新增 `GET /api/richmenu/<rich_menu_id>/apply-sources` 端點與 RichMenu.jsx 中的 `套用來源總覽` 卡片，精準呈現各來源類別之當前套用人數與跳轉按鈕。
+## [2026-09-01] 訊息中心 JSON 通用解析與問卷管理完成動作 Function 語法修復
+- **問卷管理 (`backend/endpoints/questionnaire.py`)**:
+  - 修復 `_build_finish_function` 在組裝 `tag_meta`、`journey_meta` 與 `rich_menu_meta` 之 `occurred_at` 時間戳記時產生的未封閉引號語法錯誤（`+ '}"` 修正為 `+ '"}'`），排除填寫完成時觸發之 `SyntaxError: unterminated string literal`。
+- **訊息中心 (`frontend/src/pages/MessageCenter.jsx`)**:
+  - 重構 `renderMessageContent`、`renderParsedItem`、`formatSidebarMessage` 與 `getSearchableText`：不再僅限定 `sys_reply` 類別才進行 JSON 解析，擴展至所有訊息分類（如 `Message`、`Response` 等）。
+  - 當系統或旅程存入之 `content` 為包含 `type: "flex"` 或 `type: "text"` 的 JSON 格式（物件或陣列）時，前端自動解析並完整呈現為富文本文字與 Flex 預覽卡片，徹底消除直接顯示生硬 JSON 字串的問題。
 
->>>>>>> main
-## [2026-08-05] 修復圖文選單 400 錯誤與放著不動 503 爆發問題
-- **OAConfig 快取修復與權限 context 補完 (backend/app.py)**: 引入 `CachedOAConfig` 封裝快取資料，確保在 `load_oa_context` 快取命中時持續正確設定 `g.current_oa_config`，徹底修復圖文選單 API 因找不到 Token 回傳 400 (`Line token not configured`) 的重大 Bug。
-- **訊息中心輪購背景防護與頻率降低 (frontend/src/pages/MessageCenter.jsx)**: 為 `setInterval` 加入 `document.hidden` 判定（視窗於背景/隱藏時自動掛起所有 API 發送），並將歷史訊息輪詢週期改為 3 秒、側邊欄用戶列表改為 15 秒，消滅無人操作時佔滿 Heroku 連線池導致 503 的瓶頸。
-- **SQLAlchemy 連線池優化 (backend/app.py)**: 調整 `SQLALCHEMY_ENGINE_OPTIONS` 設定，將 `pool_size` 提升至 10、`max_overflow` 設為 10、`pool_timeout` 設為 10 秒，並開啟 `pool_pre_ping=True` 確保自動健康檢查與死連線復原。
-- **GET /api/users 查詢效能重構 (backend/app.py)**: 引進 `WITH target_users AS (...)` 共通資料表表達式 (CTE)，將 `LIMIT 200` 與排序前置至用戶 ID 篩選階段，將過往對全表無差別執行的子查詢（包含 `last_message`、`recent_messages` 等 8 個相關關聯子查詢）限縮至僅計算前 200 筆目標用戶，查詢回應時間縮短 95% 以上，徹底解除切換帳號時多重重型 `/api/users` 查詢擠爆 PostgreSQL 與引發 Heroku 503 的危機。
-- **預載流程併發保護 (frontend/src/App.jsx, api.js)**: 修正網頁啟動時對全體 OA 無差別並行發起數十個重型 API 的問題。`App.jsx` 改為僅對當前選擇的單一 OA 進行畫面預載，且 `api.js` 中 `preloadPagesData` 移除重型 `/customers` 端點的預載，消除啟動與登入瞬間擠爆 Heroku Gunicorn Worker 引發的 503 錯誤。
-- **GET /api/customers 防禦性分頁 (backend/endpoints/customers.py)**: 在未帶入 `limit` 參數時強制加入預設 `LIMIT 200` 限制，防止無界全表掃描全表數據與計算歷史交互，保障伺服器併發穩定性。
+## [2026-08-31] cron_table 排程任務全面函式化與排程群發單一任務升級
+- **自動旅程 (`backend/app.py`)**:
+  - `batch_enroll_journey_users_internal` (批次加入旅程) 與 `restart_project_user` (重啟旅程步驟) 寫入 `cron_table` 時，將原本的 `QA|<tag>` 標籤字串改寫為合法的 Python 函式呼叫 `get_out(qa('<tag>'))`。
+  - 優化 `get_schedules` 與 `get_rule_sources` 訊息解析邏輯，同時相容 `get_out(qa('<tag>'))` 與 `QA|<tag>` 格式以提取 QA 內容並正確預覽。
+- **排程群發訊息 (`backend/endpoints/broadcast.py`)**:
+  - 重構 `execute_broadcast` 排程發送邏輯：不再對每位受眾個別插入 `cron_table`，改為插入單筆 `user_id = 'yzuadmin'` 的系統排程任務，`message_content` 填入 `sys.bmcast(m, qa('<tag>'), ...)`（結合 `dboperation.g_opr` 動態篩選名單）。
+  - 將標籤與群組之 `g_opr` 篩選條件升級為帶單引號邊界的防呆版本（`[('name', 'tag', 'like'), ('value', "%'標籤名'%", 'like')]`），徹底防範 `VIP` 與 `SUPER_VIP` 等母子標籤被誤判命中的風險。
+  - 同步更新 `delete_broadcast` 與 `get_broadcasts` (狀態對齊) 的查詢與刪除條件。
+- **LIFF 問卷標籤寫入 (`backend/endpoints/liff_questionnaire.py`)**:
+  - 統一標籤寫入格式為標準 Python List 字串 `str(merged)`（單引號格式），確保全系統標籤寫入引號格式一致。
+- **資料庫遷移腳本 (`backend/scratch/migrate_cron_table_to_functions.py`)**:
+  - 新增自動遷移腳本，可批次掃描所有 OA 資料庫並將 `cron_table` 中未執行的舊版 `QA|<tag>` 任務無損升級為函式格式。
+- **前端 (`frontend/src/components/FlexMessageEditor.jsx`)**:
+  - 重構 `sys_bind` payload 為獨立欄位架構：
+    `sys_bind|tags|journey|menu|val|tag_key|journey_key|menu_key|meta_json`
+    - `c_cut(5)`: 標籤 Meta Key（`tag_meta:<tag>`）
+    - `c_cut(6)`: 旅程 Meta Key（`journey_meta:<id>`）
+    - `c_cut(7)`: 圖文選單 Meta Key（`rich_menu_meta`）
+    - `c_cut(8)`: 來源資訊 JSON（`{"source_type":"journey",...}`）
+  - 避免重複 JSON 導致超過 LINE 300 字元上限，並解決 Python 列表推導式引發之 `NameError: pri_set is not defined`。
+- **Q_bank 支援規範**:
+  - 支援以標準單行語法執行：
+    `pri_set(c_cut(5), c_cut(8)) if c_cut(5) else "", pri_set(c_cut(6), c_cut(8)) if c_cut(6) else "", pri_set(c_cut(7), c_cut(8)) if c_cut(7) else ""`。
 
-## [2026-08-03] 關鍵字排行統計與未命中訊息排行 (MVP v1.1)
-- **新功能 (backend/app.py)**: 升級 `GET /api/statistics/keywords` API，採用動態比對演算機制，零 DB Schema 變動且零影響 `Line-Bot-Main`。計算整體命中率、命中總次數、未命中總次數，並回傳「規則命中排行」與「未命中訊息排行」。
-- **名稱淨化與去重 (backend/app.py)**: 規則命中排行之規則名稱自動去除 `|UPDATED:XXXX` 時間戳記，並自動過濾雙軌機制下重複出現的成對 Sensor 法則與重複簽章規則，確保每個規則於列表中獨一無二呈現一次。
-- **無效訊息過濾與標準化 (backend/app.py)**: 實作文字標準化 (小寫、全/半形轉置、去空白) 與無效訊息排除 (過濾系統事件、標點、純 Emoji、純 URL、yzuadmin/system 等)。
-- **前端 UI 重構 (frontend/src/pages/Statistics.jsx)**: 於數據統計頁面新增頂部三大整體指標卡片 (整體命中率、命中總次數、未命中總次數) 與雙頁籤 (規則命中排行 vs 未命中訊息排行)，標題簡化為「關鍵字統計與排行」。
-- **操作連線與快速建立規則 (frontend/src/pages/Statistics.jsx, RuleDesigner.jsx)**: 規則命中列點擊規則名稱可跳轉至法則設定；未命中列點擊「建立規則」按鈕可帶入未命中文字跳轉至 RuleDesigner 並自動預填建立新規則。
-- **全方位報表匯出 (frontend/src/pages/Statistics.jsx)**: 點擊「下載排名報表」按鈕即可一次下載包含【規則命中排行】與【未命中訊息排行】完整數據之雙區塊 CSV 報表。
 
-## [2026-07-31] 群發數據統計與 CRM 後續轉換紀錄 (MVP v1.3)
-- **UI 調整 (frontend/src/components/BroadcastStatsModal.jsx)**: 移除所有 17 個指標標題前方的數字編號 (如將 `1. 預估送出人數` 簡化為 `預估送出人數`)。
-- **UI 調整 (frontend/src/components/BroadcastStatsModal.jsx)**: 移除 Modal 標題對應 API 種類之 `Request ID API (廣播)` Chip 標籤。
-- **UI 調整 (frontend/src/components/BroadcastStatsModal.jsx)**: 移除區塊標題中的 `(11 項)` 與 `(6 項)` 數量標記字樣。
-- **UX 提示 (frontend/src/components/BroadcastStatsModal.jsx)**: 加入 LINE 官方 Server 洞察數據 (送達/開啟/點擊) 1~2 小時統計時間差之提醒提示，並將無數據狀態顯示為「資料處理中」。
-- **404 路由修復 (frontend/src/components/BroadcastStatsModal.jsx)**: 修正 API URL 拼寫錯誤 (將 `/api/broadcasts/<id>/stats` 修正為對應後端藍圖 Prefix 之 `/api/broadcast/<id>/stats`)，解決前端讀取統計跳出 404 及讀取失敗錯誤。
-- **Bug 修正 (backend/endpoints/broadcast.py)**: 修正 `ht_view` 欄位名稱 (`content`) 與 SQL 語法例外處理防呆，防止因舊廣播或無受眾資料導致 500 讀取失敗。
-- **UI 優化 (frontend/src/components/BroadcastStatsModal.jsx)**: 移除時間切換按鈕 `7天 (預設)` 中的 `(預設)` 字樣。
-- **UI 優化 (frontend/src/components/BroadcastStatsModal.jsx, Broadcast.jsx)**: 立即發送之廣播強制呈現確切建立與發送時間點 (Date & Time String)，不再顯示純文字「立即發送」。
-- **新功能 (backend/endpoints/broadcast.py)**: 新增 `GET /api/broadcasts/<id>/stats` 成效統計 API，涵蓋 LINE 官方互動 11 個指標與 CRM 後續關聯行為 6 個指標。
-- **資料表擴充 (backend/endpoints/broadcast.py)**: 在 RDS 中新增受眾快照表 `broadcast_recipients:<app_name>` 與 LINE Insights 15 分鐘 TTL 快照表 `broadcast_line_stats:<app_name>`。
-- **資料庫查詢優化**: 採用 `ht_view:<app_id>` 視圖進行即時動態 live 查詢，計算受眾在指定時間區間內的新增標籤、旅程加入與聯集去重後續行為人數及行為率。
-- **前端 UI (frontend/src/components/BroadcastStatsModal.jsx)**: 新增 `BroadcastStatsModal` 儀表板，支援 1天/3天/7天/30天 統計區間切換，並完整呈現 11 項 LINE 指標與 6 項 CRM 指標。
-- **前端整合 (frontend/src/pages/Broadcast.jsx)**: 於已發送的廣播卡片上新增「成效」統計按鈕以展開彈窗儀表板。
+## [2026-08-21] 圖文選單權限切換 switch_rm 雙向相容與 IndexError 防呆優化
+- **Q_bank 工程用法則 (`switch_rm|*`)**:
+  - 全面升級 `switch_rm|*` (Postback/Sensor) 法則語法，同時支援以原生 `richmenu-...` (LINE ID) 與系統自訂 `ui_uuid` 作為切換目標。
+  - 將原本寫死之 `[0]` 下標索引用 Lambda 結構封裝 `(lambda res: ... if res else "")`，當查無圖文選單記錄時安全略過，徹底杜絕 `IndexError: list index out of range` 錯誤。
+  - 加入 `eval(pri('tag') or '[]')` 空標籤字串安全防護。
+  - 已同步將 `Q_bank:5013` 與 `Q_bank:yzulabuse` 的 `switch_rm|*` 規則更新完畢。
 
-## [2026-07-31] 加入好友設定 Q_bank history 欄位預設與自動修復
-- **修正 (backend/endpoints/rule_designer.py)**: 在 `create_rule` 與 `update_rule` 中確保當規則類型為 `Follow` (加入好友設定) 時，寫入 `Q_bank` 的 `history` 欄位強制設為 `True` (TRUE)。
-- **自動修復 (backend/endpoints/rule_designer.py)**: 在 `get_follow_rules` 載入設定時，自動對 DB 中舊有 `history IS NULL` 或 `FALSE` 的 `Follow` 規則執行 `UPDATE SET history = TRUE` 診斷修復。
-- **資料庫修復**: 已對現有 DB `Q_bank:*` 資料表中 `Follow` 規則之 `history` 欄位進行全面修復與驗證。
+## [2026-08-21] 關鍵字回覆 Message 事件注入 Private_var 來源 Metadata (含 sys.now 動態時間)
+- **前端 (`frontend/src/pages/RuleDesigner.jsx`)**:
+  - 擴充 `stringifyFunction`，當使用者設定動作時，自動為 Message 規則產生對應動作之 `pri_set` 來源 metadata（包含 `tag_meta:<tag_name>`、`rich_menu_meta`、`journey_meta:<project_id>`）。
+  - 在 `pri_set` 中利用 Line-Bot-Main 內建的 `sys.now('%Y-%m-%d %H:%M:%S')` 於用戶傳訊命中當下即時寫入精準的 `occurred_at` 發生時間。
+  - 在 `handleSaveRow` 儲存時自動結合最新 `note` 與 `content` 重新組裝 `function`。
+- **後端 (`backend/endpoints/rule_designer.py`, `backend/endpoints/customers.py`)**:
+  - `rule_designer.py`: 新增 `strip_pri_set_meta` 解析輔助函數，在 `create_rule` 與 `update_rule` 建立/更新成對的 `Sensor` 規則時，自動過濾移除 `pri_set` 來源語法，確保 Sensor 規則僅保留執行動作。
+  - `customers.py`: 為客戶列表與客戶詳情 API 增加 `occurred_at` 的 fallback 補齊機制，若舊有 metadata 未帶時間，自動自用戶互動歷程與最後訊息時間關聯補上。
+- **客戶中心聯動 (`CustomerCenter.jsx`)**:
+  - 用戶透過關鍵字觸發動作後，客戶中心標籤、圖文選單、自動旅程的 Tooltip 能正確讀取並顯示關鍵字規則名稱、觸發關鍵字與觸發時間。
+- **後端 (`backend/endpoints/rule_designer.py`)**: 修正 `get_follow_rules` (預設法則建立/更新)、`create_follow_rule` (新增法則) 與 `update_follow_rule` (更新法則) 寫入 `Q_bank` 資料表時，將 `state_out` 欄位固定寫入 `'00000'`，並明確帶入 `history` 欄位寫入 `TRUE` (`True`)。
+
+## [2026-07-31] 預設加入好友法則條件式圖文選單切換優化
+- **後端 (`backend/endpoints/rule_designer.py`)**: 將 `DEFAULT_FOLLOW_FUNCTION` 中的圖文選單切換升級為條件式列表推導語法 `[update(f"switch_rm|{x['ui_uuid']}") for x in getTable(...)[:1]]`。當存在預設圖文選單時成功套用；若無預設選單則完全不執行 `update` 函數，徹底解開並杜絕 `IndexError: list index out of range` 錯誤。
+
+## [2026-07-31] 加入好友設定 (Follow Rules) 專屬 Pages 與 Q_bank 整合
+- **後端 (`backend/endpoints/rule_designer.py`)**: 
+  - 新增 `/api/rule-designer/follow-rules` 專屬 API (GET, POST, PUT, TOGGLE)。
+  - 實作「單一啟用限制檔護」：當已有被啟用的 Follow 法則時，嘗試啟用其他設定會被擋掉並提示錯誤訊息。
+  - 強制於法則 `function` 欄位包含 `pri_set("name",sys.name(m)),pri_set("pic",sys.picture(m))`。
+  - 強制於法則 `note` 欄位包含 `加入好友訊息` 標記。
+  - 當全站無啟用的 Follow 法則時，自動初始化預設加入好友訊息法則與圖文選單套用語法。
+- **前端 (`frontend/src/pages/WelcomeMessage.jsx`, `frontend/src/App.jsx`)**:
+  - 新增獨立 Pages「加入好友設定」(`WelcomeMessage.jsx`)。
+  - 承襲關鍵字回覆之 UI 操作邏輯，提供 1~5 則歡迎訊息編輯與標籤、圖文選單、自動旅程初始化動作設定。
+  - 實作單一啟用限制檔護與提示 alert。
+  - 在側邊欄與 Routes 註冊「加入好友設定」選單與路由。
+
 
 ## [2026-07-29] Heroku 503 錯誤優化與 Gunicorn 多執行緒佈署
-- **佈署設定 (Procfile)**: 將 Gunicorn 啟動參數升級為 `--workers 1 --threads 8 -k gthread --timeout 60`，啟用 gthread 異步線程模式，避免單一線程阻塞引發 Heroku 30 秒 Timeout (503 Error)。
-- **後端快取 (backend/app.py)**: 在 `/api/my_oas` 中為 LINE Bot Profile (`https://api.line.me/v2/bot/info`) 新增 TTL 600s 的記憶體快取，徹底消除切換頁面時因大量同步 HTTP 連線鎖死 Worker 的瓶頸。
+- **佈署設定 (Procfile)**: 將 Gunicorn 啟動參數升級為 --workers 1 --threads 8 -k gthread --timeout 60，啟用 gthread 異步線程模式，避免單一線程阻塞引發 Heroku 30 秒 Timeout (503 Error)。
+- **後端快取 (backend/app.py)**: 在 /api/my_oas 中為 LINE Bot Profile (https://api.line.me/v2/bot/info) 新增 TTL 600s 的記憶體快取，徹底消除切換頁面時因大量同步 HTTP 連線鎖死 Worker 的瓶頸。
 
-## [2026-07-28] WebSocket Namespace 動態改為權限設定 app_name
-- **重構 (backend/utils/socket_utils.py)**: `send_socket_event` 與 `send_socket_events_batch` 全面改為從權限設定 (`OAConfig.other_settings`) 優先提取 `app_name` 作為連線 Namespace (`/{app_name}`) 與訊息事件名稱。
-- **重構 (backend/endpoints/rule_designer.py, questionnaire.py)**: 移除硬編碼 `namespace='/websoc'`，改由 `socket_utils` 動態注入 `/{app_name}`。
-- **重構 (backend/utils/scheduler.py)**: `cron_table_checker` 調整為依據各 OA 獨立的 `socket_url` 與 `app_name` 發送 WebSocket 事件。
-- **重構 (backend/endpoints/customers.py)**: 批次更新標籤之 WebSocket 通知改為優先使用權限設定之 `app_name`。
-- **功能擴充 (backend/utils/socket_utils.py)**: `send_socket_event` 與 `send_socket_events_batch` 自動為所有 WebSocket 發送 Payload 注入 `"is_test": False` 預設屬性。
+## [2026-07-21] 問卷管理 note 欄位前綴格式變更
+- **後端/前端 (`frontend/src/pages/RuleDesigner.jsx`, `frontend/src/pages/Questionnaire.jsx`, `backend/endpoints/questionnaire.py`)**: 變更問卷管理頁面寫入 DB 時 `note` 欄位的格式，將後綴 ` - 問卷管理` 更改為前綴 `問卷管理 - `。
 
-## [2026-07-28] Admin Alert Fix & Main DB Strict Isolation
-- Fix (frontend/src/pages/AdminPage.jsx): Remove blocking alert popup on user fetch error.
-- Refactor (backend/endpoints/broadcast.py): Update get_rds_connection to use tenant db connection get_db_connection, enforcing primary DB strict isolation (only users, pages, permission_settings).
+## [2026-07-01] 圖文選單 Badge 顯示統一
+- **前端 (`frontend/src/pages/RichMenu.jsx`)**: 根據 Issue #24，將圖文選單列表的狀態標記統一拆分為三個獨立 Badge 顯示：LINE 資源狀態、套用狀態、切換權限。
 
-## [2026-07-28] 主資料庫變更與資料表初始化
-- **主資料庫位址變更**: 將系統預設 Primary DB (RDS_URL / default_rds_url) 從舊有 AWS RDS 變更為 140.138.176.197:5432/superpages (postgresql://postgres:0000@140.138.176.197:5432/superpages)。
-- **資料表初始化 (init_main_db.py)**: 於連線之主資料庫自動創建核心表格 users、pages 與 permission_settings。
-- **變更模組 (backend)**: 更新 ackend/app.py, ackend/db_utils.py, ackend/endpoints/broadcast.py, ackend/endpoints/admin.py, ackend/insert_test_data.py, ackend/test_db.py, check_db.py。
-- **文件更新 (docs/ARCHITECTURE.md)**: 同步更新系統架構文件中主資料庫連線設定說明。
+## [2026-06-04] - 遘ｻ髯､邉ｻ邨ｱ貂ｬ隧ｦ蜉溯�闊�ｸ�炊豁ｻ遒ｼ
+### Removed
+- `frontend/src/pages/TestRunner.jsx`: 遘ｻ髯､邉ｻ邨ｱ貂ｬ隧ｦ蜑咲ｫｯ鬆�擇縲ょ次蝗��夐城℃ Superpages 霍ｨ Heroku App 貂ｬ隧ｦ Line-Bot-Main 譫ｶ讒倶ｸ咲文�郡ocket.IO 蟒ｶ驕ｲ闊� DB Polling 蟆手�荳咲ｩｩ螳夲ｼ悟ｰ�隼轤ｺ蝨ｨ Line-Bot-Main 遶ｯ迯ｨ遶区ｸｬ隧ｦ縲�
+- `backend/endpoints/test_runner.py`: 遘ｻ髯､邉ｻ邨ｱ貂ｬ隧ｦ蠕檎ｫｯ endpoint�亥桁蜷ｫ Socket.IO 逋ｼ騾∬� DB 霈ｪ隧｢驍剰ｼｯ�峨�
+- `frontend/src/App.jsx`: 貂�勁 TestRunner 逧� import縲∬ｷｯ逕ｱ險ｭ螳壹（con 譏�蟆�》ooltip 闊�ｰ手ｦｽ蛻鈴｡ｯ遉ｺ蜷咲ｨｱ縲ＡPlay` icon 荳榊�菴ｿ逕ｨ�御ｸ菴ｵ蠕� lucide-react import 荳ｭ遘ｻ髯､縲�
+- `backend/app.py`: 遘ｻ髯､ test_runner_bp Blueprint 險ｻ蜀翫�
+- `scratch_replace.py`, `test_query.py`, `scratch_history.py`, `backend/scratch_history.py`: 貂�勁荳崎｢ｫ莉ｻ菴慕ｨ句ｼ丞ｼ慕畑逧�ｸ谺｡諤ｧ髯､骭ｯ閻ｳ譛ｬ縲�
 
-## [2026-07-16] 效能優化：圖文選單排程與伺服器負載
-- **優化 (backend/endpoints/richmenu.py)**: 在 `check_and_apply_scheduled_rich_menus` 中加入 `_LAST_ACTIVE_RESTRICTED_MENUS` 快取機制，只在「有排程選單生效或過期」時才觸發耗時的 `bulk_check_and_update_rich_menu` 全體比對，以解決每 60 秒頻繁掃描全體用戶導致資料庫連線過載與 Error 503 的問題。
+## [2026-06-17] - 蜑咲ｫｯ蟐帝ｫ比ｸ雁さ螳ｹ驥城剞蛻ｶ闊�ｩ苓ｭ�
+- **蜑咲ｫｯ (frontend/src/pages/Projects.jsx, Broadcast.jsx, RuleDesigner.jsx, RichMenu.jsx, LiffQuestionnaire.jsx, FlexMessageEditor.jsx)**:
+  - 蟇ｦ菴懷燕遶ｯ荳雁さ讙疲｡域凾逧�ｮｹ驥城剞蛻ｶ闊�険隱､謠千､ｺ�碁∩蜈榊､ｧ讙疲｡井ｸ雁さ閾ｳ GitHub 騾�謌� Repo 閧･螟ｧ謌門屏 GitHub API 髯仙宛閠悟､ｱ謨励�
+  - 蜷�｡槫梛蟐帝ｫ秘剞蛻ｶ�壼恂迚� (5 MB)縲∝ｽｱ迚� (50 MB)縲�浹讙� (30 MB)縲��占ｦｽ蝨� (1 MB)縲∝恂譁�∈蝟ｮ蝨也援 (1 MB)縲∝撫蜊ｷ閭梧勹蝨� (1 MB)縲�
 
-## [2026-07-16] 法則編輯器 Bug 修復
-- **修正 (backend/endpoints/rule_designer.py)**: 修正建立法則時發生雙重建立的問題。
-- **修正 (backend/endpoints/rule_designer.py)**: 修正取得法則列表時因 dictionary key 未字串化導致 Unhashable type 的問題。
+## [2026-06-17] - 蝨匁枚驕ｸ蝟ｮ蜷梧ｭ･闊� Link 謖蛾�蛻�屬
+- **蜑咲ｫｯ (frontend/src/pages/RichMenu.jsx)**:
+  - 譁ｼ險ｭ險亥恂譁�∈蝟ｮ譎ゑｼ悟ｰ�次蜈育噪縲悟酔豁･閾ｳ LINE縲肴潔驤墓究蛻�ぜ縲悟酔豁･閾ｳ LINE縲崎�縲悟酔豁･荳ｦ Link縲榊�蛟矩∈鬆�ｼ御ｻ･謗ｧ蛻ｶ逋ｼ菴域凾譏ｯ蜷ｦ隕∫ｫ句叉隗ｸ逋ｼ闊�ｨ咏ｱ､謌門�鬮皮畑謌ｶ逧�ｶ∝ｮ壹�
 
-## [2026-07-15] 雙軌法則機制 Bug 修復 (Issue #31)
-- **修正 (backend/endpoints/rule_designer.py)**: 修正建立、刪除法則時，無法正確同步 Sensor 法則的問題 (原本誤用 category 與 msg_in 欄位，現已修正為 type 與 content 欄位)。
-- **修正 (frontend/src/components/FlexMessageEditor.jsx)**: 修正當按鈕未綁定標籤時產生的 sys_bind 格式會導致 Webhook 解析發生 SyntaxError 的問題，將空的標籤字串改為 []。
+## [2026-06-17] - 蝨匁枚驕ｸ蝟ｮ讓咏ｱ､闊��蜍慕ｶ∝ｮ壽峩譁ｰ
+- **蠕檎ｫｯ (backend/endpoints/richmenu.py, backend/endpoints/customers.py)**:
+  - 蟇ｦ菴懷渕譁ｼ讓咏ｱ､逧��蜍募喧蝨匁枚驕ｸ蝟ｮ邯∝ｮ壽ｩ溷宛 (`bulk_check_and_update_rich_menu`)縲�
+  - 譁ｰ蠅� `/api/customers/count-by-tags` 逕ｨ譁ｼ險育ｮ礼ｬｦ蜷域ｨ咏ｱ､逧�畑謌ｶ莠ｺ謨ｸ縲�
+  - 蠕樔ｽｿ逕ｨ閠�ｨｭ螳夊ｮ頑峩 (譁ｰ蠅�/蛻ｪ髯､讓咏ｱ､) 謌也匸菴亥恂譁�∈蝟ｮ譎ゑｼ瑚�蜍墓名閭梧勹隗ｸ逋ｼ菴ｿ逕ｨ閠�噪蝨匁枚驕ｸ蝟ｮ蛻�鋤縲�
+- **蜑咲ｫｯ (frontend/src/pages/RichMenu.jsx)**:
+  - 遘ｻ髯､闊顔沿縲梧ｬ企剞謗ｧ邂｡縲肴焔蜍戊ｨｭ螳壻ｻ矩擇縲�
+  - 邱ｨ霈ｯ蝨匁枚驕ｸ蝟ｮ譁ｰ蠅槭悟�髢九崎�縲碁剞螳� (謖�ｮ壽ｨ咏ｱ､)縲埼幕謾ｾ迢諷九�
+  - 謾ｯ謠ｴ蜍墓�隍�∈讓咏ｱ､�御ｸｦ蜊ｳ譎る�占ｦｽ鬆占ｨ亥･礼畑莠ｺ謨ｸ縲�
+  - 蛻苓｡ｨ莉矩擇譖ｴ譁ｰ讓咏ｱ､闊�匸菴育朽諷矩｡ｯ遉ｺ縲�
 
-## [2026-07-15] 圖文訊息預覽與按鈕觸發機制修正 (Issue #31)
-- **修正 (frontend/src/components/FlexMessageEditor.jsx)**: 修正圖文訊息標題無法換行 (wrap: true) 與標題/說明文字間距過小的排版問題。
-- **修改 (frontend/src/components/FlexMessageEditor.jsx)**: 統一所有訊息按鈕的 Postback 格式為 sys_bind|...|實際文字，讓後端能有一致的解析格式。
-- **修改 (backend/endpoints/rule_designer.py)**: 在建立、更新、刪除關鍵字回覆 (Message) 法則時，同步處理對應的 Sensor 法則 (雙軌法則機制)，以解決圖文訊息隱藏按鈕無法觸發關鍵字的問題。
+## 2026-06-16
 
-## [2026-07-07] 詨桅航炊靽桀儔 (Issue #19) - Part 3
-- **敺蝡 (ackend/endpoints/richmenu.py)**: 靽格迤 /richmenu  /richmenu/all API 芸 end_time 憿嚗撠游蝡 FlexMessageEditor (憒芸蝔閮剖) 典閰阡瞈曉歇蝯詨格蝻箏鞈憭望曉 API 撌脫甇亙 end_time
+### 譁ｰ蠅櫁�蜆ｪ蛹�
+- **讙疲｡井ｸ雁さ髦ｲ蜻��謠千､ｺ (Request)**�夂ぜ邉ｻ邨ｱ荳ｭ謇譛我ｸ雁さ蝨也援縲∝ｽｱ迚��髻ｳ險顔噪蜉溯� (`Broadcast.jsx`, `Projects.jsx`, `RuleDesigner.jsx`) 邨ｱ荳蜉�蜈･縲御ｸ雁さ荳ｭ...縲咲噪霈牙�蜍慕吻謠千､ｺ (CircularProgress)�御ｸｦ蝨ｨ髱槫酔豁･荳雁さ譛滄俣閾ｪ蜍慕ｦ∫畑 (Disable) File Input 謖蛾��碁亟豁｢蝗�邯ｲ霍ｯ蟒ｶ驕ｲ蟆手�菴ｿ逕ｨ閠�ｪ､莉･轤ｺ邉ｻ邨ｱ蜊｡豁ｻ閠碁㍾隍�ｻ樊投縲�
+- **螳｢謌ｶ荳ｭ蠢�峩謗･鬘ｯ遉ｺ譌�ｨ玖�蝨匁枚驕ｸ蝟ｮ (Request)**��
+  - **蠕檎ｫｯ譫ｶ讒区峩譁ｰ (雉�侭蠎ｫ蠢ｫ蜿�)**�壼惠 `backend/endpoints/richmenu.py` 荳ｭ�悟ｰ� `bulk_link_all_users`縲～bulk_unlink_all_users`縲～set_default_rich_menu` 遲� API 謫堺ｽ懷酔豁･蟇ｫ蜈･閾ｳ譛ｬ蝨ｰ雉�侭蠎ｫ逧� `Private_var` (蛟句挨驕ｸ蝟ｮ) 闊� `Global_var` (鬆占ｨｭ驕ｸ蝟ｮ)�悟ｯｦ迴ｾ縲瑚ｳ�侭蠎ｫ蠢ｫ蜿匁ｩ溷宛縲搾ｼ碁∩蜈埼�ｻ郢∝髄 LINE 譟･隧｢蟆手�謨郁�逑ｶ鬆ｸ闊�｢ｫ Rate Limit縲�
+  - **蠕檎ｫｯ譟･隧｢蜆ｪ蛹�**�夐㍾讒� `backend/endpoints/customers.py` 逧� `/customers` 蛻苓｡ｨ譟･隧｢�檎峩謗･蛻ｩ逕ｨ `LEFT JOIN` 譛ｬ蝨ｰ `user_project_status` 蜿門ｾ鈴ｲ陦御ｸｭ逧��蜍墓羅遞具ｼ御ｸｦ邨仙粋 `rich_menu` 蠢ｫ蜿厄ｼ檎┌蟒ｶ驕ｲ蝗槫さ蛹�性譌�ｨ玖�驕ｸ蝟ｮ雉�ｨ顔噪邨先棡縲�
+  - **蜑咲ｫｯ蛻苓｡ｨ謫ｴ蜈�**�壼惠 `frontend/src/pages/CustomerCenter.jsx` 螳｢謌ｶ蛻苓｡ｨ荳ｭ譁ｰ蠅槭瑚�蜍墓羅遞九崎�縲悟恂譁�∈蝟ｮ縲肴ｬ�ｽ搾ｼ檎ｮ｡逅�藤迴ｾ蝨ｨ荳埼怙鮟樣幕蛛ｴ驍頑ｬ�叉蜿ｯ荳隕ｽ謇譛臥畑謌ｶ逶ｮ蜑咲噪譌�ｨ矩ｲ蠎ｦ闊�･礼畑逧�∈蝟ｮ迢諷九�
+- **邯懷粋謨ｸ謫壽凾髢鍋ｯ�恪髯仙宛 (Request)**�壻ｿｮ謾ｹ `frontend/src/pages/Statistics.jsx`�檎ぜ邯懷粋謨ｸ謫壼�譫千噪譌･譛滄∈謫�勣蜉�荳� `min` 闊� `max` 螻ｬ諤ｧ�碁剞蛻ｶ縲碁幕蟋区凾髢謎ｸ榊庄譎壽名邨先據譎る俣縲阪√檎ｵ先據譎る俣荳榊庄譌ｩ譁ｼ髢句ｧ区凾髢薙搾ｼ御ｸ皮ｵ先據譎る俣譛螟ｧ蛟ｼ髯仙宛轤ｺ莉雁､ｩ縲�
 
-## [2026-07-07] 詨桅航炊靽桀儔 (Issue #19) - Part 2
-- **蝡 (rontend/src/components/FlexMessageEditor.jsx)**:  Flex 閮舐楊頛臬函暺暺銝詨桐葉嚗銝瞈曉歇詨桃頛胯
-- **敺蝡 (ackend/endpoints/richmenu.py)**: 靽格迤 ulk_check_and_update_rich_menu 典瑼Ｘ交嚗撘瑕嗉圾扎喲詨柴冽嗥摰 Bug嚗望撠冽嗥嗅 
-ich_menu 靘頝喲閮剖冽嗚
+## [2026-06-12] UI闊�ｩｩ螳壽ｧ菫ｮ蠕ｩ (莉矩擇縲∝�陦ｨ謗貞ｺ上´INE螳俶婿蟶ｳ陌溷錐遞ｱ鬘ｯ遉ｺ)
+- **蟾ｦ蛛ｴ驍頑ｬ�｡ｯ遉ｺ LINE 螳俶婿蟶ｳ陌溷錐遞ｱ (Request 1)**�壼惠 `backend/app.py` 逧� `/api/my_oas` 遶ｯ鮟樔ｸｭ蜉�蜈･蜻ｼ蜿ｫ LINE Messaging API (`/v2/bot/info`)�悟虚諷句叙蠕嶺ｸｦ鬘ｯ遉ｺ逵溷ｯｦ逧�ｮ俶婿蟶ｳ陌滄｡ｯ遉ｺ蜷咲ｨｱ (displayName)�梧崛謠帶脂蜴滓悽蜒�｡ｯ遉ｺ雉�侭蠎ｫ蜈ｧ驛ｨ險ｭ螳夂噪蜷咲ｨｱ縲�
+- **閾ｪ蜍墓羅遞区賜遞句�陦ｨ UI 蜆ｪ蛹� (Request 2)**�壻ｿｮ謾ｹ `frontend/src/pages/Projects.jsx`�檎ぜ謗堤ｨ句�陦ｨ縲∝ｰ域｡亥�陦ｨ闊�畑謌ｶ蛻苓｡ｨ蜉�蜈･蝗ｺ螳夂噪譛螟ｧ鬮伜ｺｦ (`max-height: calc(100vh - 280px)`) 闊�桙逶ｴ謐ｲ霆ｸ (`overflow-y: auto`)�瑚ｧ｣豎ｺ謗堤ｨ区丙驥城℃螟壽凾鬆�擇辟｡髯仙ｻｶ莨ｸ逧�撫鬘鯉ｼ御ｽｿ蜈ｶ謗堤沿陦檎ぜ闊�ｮ｢謌ｶ荳ｭ蠢�ｸ閾ｴ縲�
+- **險頑�荳ｭ蠢�♀螟ｩ螳､鬆�ｺ剰ｷｳ蜍穂ｿｮ蠕ｩ (Request 3)**�壻ｿｮ蠕ｩ `frontend/src/pages/MessageCenter.jsx` 荳ｭ�梧ｯ� 5 遘定ｼｪ隧｢譖ｴ譁ｰ逕ｨ謌ｶ蛻苓｡ｨ譎ゑｼ悟屏螟壼狗畑謌ｶ蜈ｷ譛臥嶌蜷檎噪 `last_time` (譛蠕瑚ｨ頑�譎る俣) 蟆手� React 謗貞ｺ丈ｸ咲ｩｩ螳� (Unstable Sort) 閠檎匸逕溷�陦ｨ髫ｨ讖溯ｷｳ蜍慕噪蝠城｡後ら樟蟾ｲ蜉�蜈･ `user_id` 菴懃ぜ谺｡隕∵賜蠎丈ｾ晄答 (Tie-breaker)�檎｢ｺ菫晏惠譎る俣逶ｸ蜷梧凾鬆�ｺ丞崋螳壻ｸ崎ｷｳ蜍輔�
+- **髣憺嵯蟄怜屓隕�ｦ冶ｦｺ蛹也ｷｨ霈ｯ蝎ｨ邵ｮ蟆� (Request 4)**�壻ｿｮ謾ｹ `frontend/src/pages/RuleDesigner.jsx` 荳ｭ逧� `FlexMessageEditor` 螟門ｱ､ Modal 讓｣蠑上ょｰ��蟇ｬ蠎ｦ蠕樔ｽ疲ｻｿ蜈ｨ陞｢蟷戊ｪｿ謨ｴ轤ｺ 55% 邯ｲ鬆∝ｯｬ蠎ｦ (闊�ｾ､逋ｼ險頑�邱ｨ霈ｯ蝎ｨ螟ｧ蟆冗嶌莉ｿ)�御ｸｦ蟆�ｽ咲ｽｮ鄂ｮ荳ｭ�梧隼蝟�惠螟ｧ陞｢蟷穂ｸ顔ｷｨ霈ｯ譎りｦ冶ｦｺ驕取名逋ｼ謨｣逧�撫鬘後�
+## [2026-05-25] 邉ｻ邨ｱ遨ｩ螳壽ｧ菫ｮ蠕ｩ (險頑�蟒｣謦ｭ縲∝恂譁�∈蝟ｮ縲∵賜遞区凾蜊)
+- **險頑�荳ｭ蠢�ｻ｣謦ｭ菫ｮ蠕ｩ (Issue 1)**�壻ｿｮ蠕ｩ `app.py` 荳ｭ蝗�驕ｺ貍丞険蜈･ `send_socket_event` 蟆手�逧�匸騾∬ｨ頑�縲∵眠蠅櫁�蛻ｪ髯､讓咏ｱ､譎ら匸逕溽噪 500 Socket.IO Trigger Error縲�
+- **蝨匁枚驕ｸ蝟ｮ菫ｮ蠕ｩ (Issue 2)**��
+  - **闕臥ｨｿ蝨也援驕ｺ螟ｱ**�壻ｿｮ蠕ｩ蝨ｨ `RichMenu.jsx` 荳ｭ蜆ｲ蟄倩拷遞ｿ譎る⊆螟ｱ蜴溷ｧ句恂迚�噪骭ｯ隱､縲ら樟蝨ｨ蝨也援譛��蜍戊ｽ画鋤轤ｺ Base64 譬ｼ蠑丈ｸｦ闊�拷遞ｿ雉�侭荳蜷悟┫蟄假ｼ碁㍾譁ｰ邱ｨ霈ｯ譎り�豁｣遒ｺ驍�次蜃ｺ `File` 迚ｩ莉ｶ縲�
+  - **蛻�鋤驕ｸ蝟ｮ 400 骭ｯ隱､**�壻ｿｮ蠕ｩ蜑咲ｫｯ蝨ｨ險ｭ螳壹悟�謠幃∈蝟ｮ縲�(richmenuswitch) 蜍穂ｽ懈凾�悟屏譛ｪ謾懷ｸｶ LINE API 謇髴荵� `richMenuAliasId` 谺�ｽ崎檎匸蟶�､ｱ謨礼噪蝠城｡鯉ｼ御ｸｦ蟆� action.data 霓画鋤轤ｺ蜷域ｳ慕噪 switch 蜑咲ｶｴ譬ｼ蠑上�
+- **閾ｪ蜍墓賜遞区凾蜊霓画鋤菫ｮ蠕ｩ (Issue 3)**��
+  - 菫ｮ蠕ｩ `endpoints/broadcast.py` 荳ｭ蟇ｫ蜈･ `cron_table` 逧� `push_time` 譎ょ項骭ｯ隱､縲ょ�蜑咲峩謗･蟆�燕遶ｯ蛯ｳ蜈･逧�床轣｣譎る俣 (UTC+8) 菴懃ぜ Naive Time 蟄伜��悟ｰ手�雉�侭蠎ｫ蛻､螳壽凾髢楢誠蠕� 8 蟆乗凾閠檎┌豕墓潔譎りｧｸ逋ｼ謗堤ｨ九ら樟蟾ｲ謾ｹ轤ｺ蠑ｷ蛻ｶ蟆�磁謾ｶ逧�凾髢楢ｽ臥ぜ UTC 蠕悟�蟄伜�雉�侭蠎ｫ縲�
+### [2026-05-21] 菫ｮ豁｣ LIFF ID 骭ｯ隱､蟆手�逧��蟋句喧螟ｱ謨苓�謇区ｩ溽ｧ帝蝠城｡�
+- **菫ｮ豁｣ LIFF 蝠丞差 ID**�壼ｰ� `superpages` 蜑咲ｫｯ逧� `LiffQuestionnaire.jsx` 莉･蜿顔昏遶矩Κ鄂ｲ逧� `liff_questionnaire/index.html` 荳ｭ隱､讀咲噪闊� LIFF ID `2009851813-AgTeSa4r` 譖ｴ謠帷ぜ豁｣遒ｺ逧�ｰ亥ｱｬ LIFF ID `2009851813-eNpc9OUb`縲る呵ｧ｣豎ｺ莠�屏 LIFF ID 荳咲ｬｦ蜷亥ｰ手� Endpoint URL 鬩苓ｭ牙､ｱ謨暦ｼ碁ｲ閠碁�謌先焔讖溽沿 LINE 遘帝闊�崕閻ｦ迚亥今蝨ｨ霈牙�逡ｫ髱｢逧�撫鬘後ゑｼ亥恂譁�∈蝟ｮ闊� Flex 邱ｨ霈ｯ蝎ｨ逕ｨ譁ｼ霍ｳ霓芽ｿｽ雹､逧�粥閭ｽ蜑�ｿ晉蕗菴ｿ逕ｨ蜴� LIFF ID�峨�
+- **蠑ｷ蛹也ｶｲ蝮蜿�丙隗｣譫先ｩ溷宛**�壼惠 `liff_questionnaire/index.html` 荳ｭ蜉�蜈･蟆� `liff.state` 讖溷宛逧�髪謠ｴ縲ら文 LINE 螳｢謌ｶ遶ｯ驥榊ｰ主髄譎ょｰ�衍隧｢蜿�丙髫ｱ阯乗名 `liff.state` 蜈ｧ譎ゑｼ瑚�豁｣遒ｺ隗｣譫蝉ｸｦ蜷井ｽｵ蜃ｺ `oaId` 闊� `surveyId`�悟ｾｹ蠎戊ｧ｣豎ｺ騾ｲ蜈･蝠丞差蜊ｻ鬘ｯ遉ｺ縲檎ｶｲ蝮郛ｺ蟆大ｿ�ｦ∝純謨ｸ縲咲噪蝠城｡後�
+- **菫ｮ蠕ｩ蠕檎ｫｯ CORS 霍ｨ蝓滄仆謫句撫鬘�**�壻ｿｮ豁｣ `backend/app.py` 荳ｭ `flask_cors` 髣懈名 GitHub Pages 邯ｲ蝓溽噪逋ｽ蜷榊粍險ｭ螳夲ｼ悟ｰ�┌謨育噪蟄嶺ｸｲ豈泌ｰ� `"https://*.github.io"` 譖ｿ謠帷ぜ豁｣隕剰｡ｨ遉ｺ蠑� `re.compile(r"^https://.*\.github\.io$")`縲る呵ｧ｣豎ｺ莠�ｾ檎ｫｯ譏取�蝗槫さ 200 OK�悟燕遶ｯ蜊ｻ蝗� CORS 霍ｨ蝓滄仆謫玖悟ｼ慕匸縲檎┌豕募叙蠕怜撫蜊ｷ雉�侭縲咲噪 Network Error 蝠城｡後�
+- **菫ｮ蠕ｩ蜑咲ｫｯ霈ｸ蜈･譯�悴貂ｲ譟鍋噪蝠城｡�**�壻ｿｮ豁｣ `liff_questionnaire/index.html` 荳ｭ蛻､譁ｷ鬘檎岼蝙区� (answer_type) 逧�錐遞ｱ蟆肴㊨骭ｯ隱､縲ょｰ� `select` 譖ｴ豁｣轤ｺ `single_choice`縲∝ｰ� `multi` 譖ｴ豁｣轤ｺ `multiple_choice`�御ｸｦ陬應ｸ顔ｼｺ蟆醍噪 `number` 鬘槫梛霈ｸ蜈･譯�ｼ檎｢ｺ菫晄園譛蛾｡悟梛逧��豁｣蟶ｸ鬘ｯ遉ｺ闊�ｽ懃ｭ斐�
 
-## [2026-07-07] 詨桅航炊靽桀儔 (Issue #19)
-- **蝡 (rontend/src/pages/RichMenu.jsx)**: 靽格迤蝔詨桅閮剝獢拚＊蝷箇憿嚗刻孛澆雿銝詨桐葉瞈曉歇詨柴
-- **蝡 (rontend/src/pages/RuleDesigner.jsx)**: 瞈曉歇詨殷蝣箔閬蝺刻摩⊥豢撌脤詨桐箄孛潛格
-- **敺蝡 (ackend/endpoints/richmenu.py)**: 靽格迤摰瑟圈閮剖詨格嚗雿輻 ulk_link_all_users 撠渲鈭箄身摰 Bug
+### [2026-05-21] LIFF 蝠丞差UI騾夂衍謠宣�縲∫ｧｻ蝨ｰ髢狗匸闊�焔讖溷叉譎る梨髢牙撫鬘梧賜菫ｮ
+- **蜑咲ｫｯ蝠丞差邂｡逅�ｼ�iffQuestionnaire.jsx��**�壼刈蜈･霈牙�蝠丞差隧ｳ諠��蜆ｲ蟄倅ｿｮ謾ｹ譎ら噪 Toast 迢諷矩夂衍謠宣��悟━蛹紋ｽｿ逕ｨ閠�桃菴憺ｫ秘ｩ暦ｼ帛酔譎ょ惠蜆ｲ蟄倅ｿｮ謾ｹ謌門ｻｺ遶句撫蜊ｷ譛滄俣�碁剞蛻ｶ縲悟叙豸育ｷｨ霈ｯ縲肴潔驤慕ぜ disabled�碁亟遽�ｫｶ諷玖｡晉ｪ∬�髱樣�先悄驥崎ｨｭ縲�
+- **閾ｪ蜍募ｸｶ蜈･ API Origin 蜿�丙**�壽名蜑咲ｫｯ逕滓�隍�｣ｽ騾｣邨先凾�瑚�蜍戊ｧ｣譫千文蜑� Axios `api.defaults.baseURL` 謌也剰ｦｽ蝎ｨ location 騾｣邱� Origin�瑚�蜍暮刋蜉� `backend` 蜿�丙閾ｳ LIFF URL�瑚ｮ� LINE 螳｢謌ｶ遶ｯ閭ｽ蜍墓�遏･驕楢ｦ�｣邱夂噪蠕檎ｫｯ API 菴咲ｽｮ縲�
+- **LIFF 蝪ｫ蟇ｫ鬆∝━蛹厄ｼ�iff_questionnaire/index.html��**��
+  - 蟆� `liff.init()` 蛻晏ｧ句喧豁･鬩溷━蜈域署蛻ｰ譛蜑咲ｫｯ�碁亟遽� LINE App 蜈ｧ鄂ｮ轢剰ｦｽ蝎ｨ蝗�驕取掠蝓ｷ陦瑚玲凾逧�ｾ檎ｫｯ API 隲区ｱり碁ｾ譎り�蜍暮梨髢会ｼ育ｧ帝蝠城｡鯉ｼ峨�
+  - 驥肴ｧ句�蟋句喧闊�険隱､謐墓拷讖溷宛�瑚凶譁ｼ LINE 蜈ｧ霈牙�謌門�蟋句喧螟ｱ謨暦ｼ悟髄荳頑給蜃ｺ骭ｯ隱､荳ｦ鬘ｯ遉ｺ髦ｲ遖ｦ諤ｧ逧�ｴ�初骭ｯ隱､謠千､ｺ逡ｫ髱｢�悟ｼ募ｰ惹ｽｿ逕ｨ閠�賜譟･�梧署蜊� App 蛛･蜈ｨ蠎ｦ縲�
+  - 鬆占ｨｭ蠕檎ｫｯ菴榊捩 `DEFAULT_BACKEND_ORIGIN` 隱ｿ謨ｴ轤ｺ豁｣蠑冗腸蠅� `https://irl-svr.ee.yzu.edu.tw:5017`縲�
+- **貂�炊闊頑ｪ疲｡郁�遘ｻ蝨ｰ髢狗匸**��
+  - 迚ｩ逅�穐髯､蜴溷�菴肴名 `superpages/liff-questionnaire/` 逧��蜑咲ｫｯ蝪ｫ蟇ｫ遶ｯ莉｣遒ｼ�悟ｮ悟�驕ｷ遘ｻ閾ｳ迯ｨ遶狗噪蜆ｲ蟄伜ｺｫ逶ｮ骭� `c:\Users\70640\Documents\GitHub\liff_questionnaire\` 荳具ｼ碁∩蜈埼㍾隍��迚域悽豺ｷ莠ゅ�
 
-## [2026-06-30] 詨桅閮剜閮憿舐內靽桀儔鞈摨怠甇乩耨甇
-- **蝡 (`frontend/src/pages/RichMenu.jsx`)**: 靽格迤啣 hidden 蝑亦詨桀嚗剜憭折隢瘙撠游翰湔啁啣虜 LINE API 急芸喲閮剔嚗閮剝詨桅脫閮瘨憭梁憿撠鞈摨 metadata 銝剔 `default` ( `public`) 詨 ID 銋銝雿萇 `defaultMenuIds` 文嚗蝣箔閮剜閮蝛拙憿舐內
-- **敺蝡 (`backend/endpoints/richmenu.py`)**: 靽格迤鈭暺銵函閮剔箏典閮剝詨柴嚗 `oa_id` 霈豢芸蝢拙渲摨 (`Global_var`  `rich_menu_metadata`) ⊥甇蝣箸湔圈閮剔 Bug
-- **敺蝡 (`backend/endpoints/richmenu.py`)**: 靽格迤鈭典詨桃楊頛舫Ｙ澆銝澆蝑亦箝default嚗芣湔唬 `rich_menu_metadata` 餅湔 `Global_var` 蝝憿曉其隢臬銵券嚗臬蝺刻摩澆粹閮哨甇交湔 `Global_var`  `default_rich_menu` 潦
+### [2026-05-21] LIFF 蝠丞差蜉溯�谺�ｽ崎ｪｿ謨ｴ闊�凾髢� Bug 菫ｮ蠕ｩ
+- **菫ｮ豁｣髢句ｧ玖�邨先據譎る俣 Bug**�壻ｿｮ蠕ｩ `_parse_time` 隗｣譫� datetime-local 譎る聞蠎ｦ險育ｮ鈴険隱､�亥屏 `len(fmt)` 蝗槫さ譬ｼ蠑丈ｻ｣遒ｼ蟄怜�謨ｸ閠碁撼譬ｼ蠑丞喧蟄嶺ｸｲ逧�ｭ怜�謨ｸ�牙ｰ手�譎る俣隗｣譫千ぜ None 逧� Bug縲よ隼逕ｨ蜍墓�髟ｷ蠎ｦ謫ｷ蜿冶ｧ｣譫舌�
+- **遘ｻ髯､ `liff_id` 谺�ｽ�**�壼ｻ｢髯､荳ｦ遘ｻ髯､ `liff_questionnaires` 荳ｭ辟｡蟇ｦ雉ｪ菴懃畑逧� `liff_id` 谺�ｽ阪よ峩譁ｰ蠕檎ｫｯ DDL縲∝ｻｺ遶玖�蜍募濤陦� `DROP COLUMN` 驕ｷ遘ｻ縲∫ｧｻ髯､ `create_survey` 闊� `_survey_payload` 荳ｭ隧ｲ谺�ｽ榊ｭ伜叙�御ｸｦ譖ｴ譁ｰ蝪ｫ遲秘��擇 [index.html](file:///c:/Users/70640/Documents/GitHub/superpages/liff-questionnaire/index.html) 逶ｴ謗･菴ｿ逕ｨ鬆占ｨｭ ID縲�
+- **蟒ｺ遶句ｹｳ髱｢蛹紋ｽ懃ｭ� VIEW**�壼惠雉�侭蠎ｫ蟒ｺ遶区ｪ｢隕冶｡ｨ `v_liff_questionnaire_results:{app_id}`�梧紛蜷亥撫蜊ｷ縲∝撫鬘後∽ｽ懃ｭ比ｸｻ讙碑�譏守ｴｰ�梧婿萓ｿ邂｡逅�藤莉･蝟ｮ荳蟷ｳ髱｢陦ｨ譟･髢ｱ縲瑚ｪｰ蝨ｨ菴墓凾蝪ｫ莠�ｻ鮗ｼ遲疲｡医搾ｼ御ｸ咲�ｴ螢樊里譛臥噪荳蟆榊､壽ｭ｣隕丞喧邨先ｧ九�
 
-## [2026-06-30] 詨格孵 ui_uuid 閮剔憿舐內芸
-- **敺蝡 (`backend/endpoints/richmenu.py`)**:  `/` (list_rich_menus)  `/all` (list_all_rich_menus) 頝舐曹葉嚗亥岷 `rich_menu_metadata` 鞈銵其誑脣 `ui_uuid`嚗銝血園澆喟 JSON 銝哨隞交舀游蝡臭詨桃湔乩蝙具
-- **蝡 (`frontend/src/components/FlexMessageEditor.jsx`)**: 撠 Flex 閮舀詨柴銝撘詨桅賊 value 寧 `ui_uuid`嚗亦 `ui_uuid`  fallback  `richMenuId`嚗啣 `getMenuSelectValue` 頛拙賣賂函摰詨潭芸撠嚗蝣箔 `richMenuId` 澆詨捆
-- **蝡 (`frontend/src/pages/RichMenu.jsx`)**: 靽格 `isDefault` 閮剝詨格蝐斤文頛荔寧箸撠詨 ID 臬血冽 LINE 嗅撖衣閮剝詨 ID 銝哨閫瘙箄摨 status  `'published'` 餅 LINE 閮剝詨格⊥憿舐內璅蝡憿
-- **甈雿潭湔**嚗撠鞈摨 `rich_menu_metadata` 銝凋誨銵典典閮剝詨桃 `status` 潛 `'public'` 霈渡 `'default'`嚗蝡臭漲甇交湔啣文嚗銝虫撠 `'public'` 詨捆扼
+### [2026-05-21] LIFF 蝠丞差邂｡逅�粥閭ｽ蜆ｪ蛹冶�邱ｨ霈ｯ蜉溯�蟇ｦ菴�
+- **LIFF蝠丞差邱ｨ霈ｯ蜉溯� (Edit Questionnaire)**��
+  - **蠕檎ｫｯ**�壼ｯｦ菴� `PUT /api/liff-questionnaires/<survey_key>` API縲る亟遖ｦ諤ｧ豈泌ｰ榊燕遶ｯ蛯ｳ蜈･逧�撫鬘檎ｵ先ｧ具ｼ御ｽｿ逕ｨ `UPDATE` / `INSERT` / `DELETE` 豺ｷ蜷亥酔豁･讖溷宛�檎｢ｺ菫晄里譛蛾琉鬚倡噪雉�侭蠎ｫ驕槫｢� `id` 荳崎ｮ奇ｼ御ｿ晁ｭｷ豁ｷ蜿ｲ菴懃ｭ皮ｴ骭�噪螳梧紛諤ｧ闊�庄隶諤ｧ縲�
+  - **蜑咲ｫｯ**�壼惠蝠丞差蛻苓｡ｨ蜊｡迚�ｸ頑眠蠅槭檎ｷｨ霈ｯ蝠丞差縲肴潔驤包ｼ幃ｻ樊投譎る城℃ API 霈牙�蝠丞差鬘檎岼隧ｳ諠�ｸｦ蝪ｫ蜈･蟾ｦ蛛ｴ陦ｨ蝟ｮ�碁ｻ樊投縲悟┫蟄倅ｿｮ謾ｹ縲榊他蜿ｫ蠕檎ｫｯ API 蜆ｲ蟄假ｼ御ｸｦ謾ｯ謠ｴ縲悟叙豸育ｷｨ霈ｯ縲埼㍾險ｭ陦ｨ蝟ｮ縲よｭ､螟厄ｼ悟惠蛻�鋤 OA 譎ゑｼ瑚�蜍墓ｸ�ｩｺ荳ｦ驥崎ｨｭ邱ｨ霈ｯ迢諷九�
+  - **謖蛾�髦ｲ隴ｷ**�夂文鮟樊投縲悟┫蟄倅ｿｮ謾ｹ縲肴�縲悟ｻｺ遶九堺ｸ碑剳譁ｼ蜆ｲ蟄倅ｸｭ��saving` 迢諷具ｼ画凾�碁剞蛻ｶ縲悟叙豸育ｷｨ霈ｯ縲肴潔驤戊ｮ顔ぜ蛛懃畑��isabled�会ｼ碁亟豁｢遶ｶ諷玖｡晉ｪ√�
+- **TagInput 驕ｸ鬆��隶諤ｧ蜆ｪ蛹� (Tag Select UI)**��
+  - 菫ｮ蠕ｩ `TagInput.jsx` 荳ｭ蜿ｯ逕ｨ讓咏ｱ､荳区級驕ｸ蝟ｮ譁�ｭ鈴｡剰牡譛ｪ譏守｢ｺ謖�ｮ夲ｼ悟惠譟蝉ｺ帷腸蠅�ｸ句争鮟題牡閠瑚�轣ｰ濶ｲ閭梧勹��#333`�芽｡晉ｪ√∝ｰ手�逵倶ｸ肴ｸ�噪蝠城｡鯉ｼ梧�遒ｺ謖�ｮ夂ぜ逋ｽ濶ｲ (`#fff`)縲�
+- **髫ｱ阯� appName 闊� surveyId (Remove helper texts & keys)**��
+  - 遘ｻ髯､蟒ｺ遶� LIFF 蝠丞差陦ｨ蝟ｮ譎る｡ｯ遉ｺ逧� `appName: XXX` 霈泌勧隱ｪ譏取枚蟄暦ｼ御ｸｦ遘ｻ髯､蝠丞差蜊｡迚�ｸ顔噪 `surveyId: XXX` 邉ｻ邨ｱ隴伜挨譁�ｭ暦ｼ梧署蜊�ｻ矩擇謨ｴ貎泌ｺｦ闊�ｮ牙�諤ｧ縲�
+- **謠蝉ｾ� GitHub Pages 蝟ｮ鬆∝燕遶ｯ蝪ｫ蟇ｫ遶ｯ (GitHub Pages Frontend)**��
+  - 譁ｰ蠅� `liff-questionnaire/index.html` 髱懈�蝪ｫ蟇ｫ邯ｲ鬆√よ髪謠ｴ LINE LIFF 蛻晏ｧ句喧縲∬ｺｫ蛻�ｩ苓ｭ峨∝虚諷矩｡檎岼霈牙�闊�燕遶ｯ霈ｸ蜈･譬｡豁｣�御ｸｦ謠蝉ｾ帷腸蠅� API 菴榊捩險ｭ螳夐ｽ定ｼｪ�梧婿萓ｿ逶ｴ謗･逋ｼ蟶�名 GitHub Pages 險礼ｮ｡縲�
+- **菫ｮ蠕ｩ隍�｣ｽ騾｣邨仙､ｱ謨怜ｰ手�蟒ｺ遶句､ｱ謨� (Clipboard Copy Fix)**��
+  - 蟆�､�｣ｽ騾｣邨先ｩ溷宛莉･ try-catch 蛹�｣ｹ�御ｸｦ蜉�蜈･蛯ｳ邨ｱ input textarea fallback `document.execCommand` 髮咎亟陦帶ｩ溷宛�碁亟豁｢ clipboard writeText 蝗�辟｡辟ｦ鮟樊�髱� HTTPS 谺企剞諡堤ｵ戊悟ｰ手�謨ｴ蛟句撫蜊ｷ蟒ｺ遶� Promise 荳ｭ譁ｷ闊�｡ｯ遉ｺ骭ｯ隱､縲�
 
-## [2026-06-30] Rich Menu 閮剔憟其犖訾耨甇
-- **蝡 (`frontend/src/pages/RichMenu.jsx`)**: 亦撌脩澆詨格銝啣澆 `/customers/count-by-tags`嚗寥＊蝷箇澆/蝯嗡撖怠 metadata  `targetUserCount`  `totalUserCount`嚗蝔輯蝯瘚蝔銝雿萎摮蝮賢末詻
-- **敺蝡 (`backend/endpoints/richmenu.py`)**: 脣閮剔箏典閮剜嚗撠銝 OA 嗡 `public` 詨格孵 `published`嚗踹擐箇曉閮剝詨柴
-- **敺蝡 (`backend/endpoints/richmenu.py`)**: 閫文典閮剜甇交 metadata  `public` 嚗撌脩澆詨桐蝳甇Ｗ啗蝔選雿閮梢蝯/閮剔湔啣神 metadata
+## [2026-05-21] 螟壼ｰ域｡郁� OA 蛻�鋤迢諷区ｮ倡蕗 Bug 菫ｮ蠕ｩ
+- **(驥崎ｦ�) 菫ｮ蠕ｩ霍ｨ蟆域｡磯�占ｼ牙ｿｫ蜿匁ｱ｡譟� Bug**�壻ｿｮ蠕ｩ `api.js` 荳ｭ Axios request 謾疲穐蝎ｨ譛�┌譴昜ｻｶ莉･逡ｶ蜑咲ｶｲ蝮霍ｯ蠕題ｦ�搭謇句虚蟶ｶ蜈･荵� `X-OA-ID` 讓咎�ｭ逧�撫鬘後る吝ｰ手�閭梧勹鬆占ｼ牙�莉門ｰ域｡育噪雉�侭譎ら匸騾∽ｺ�険隱､逧� `X-OA-ID` 讓咎�ｭ�碁ｲ閠梧ｱ｡譟謎ｺ�ｿｫ蜿冶ｳ�侭騾�謌仙ｰ域｡磯俣雉�侭謳樊ｷｷ縲ら樟蟾ｲ謾ｹ轤ｺ蜒�惠譛ｪ謇句虚險ｭ螳壽凾謇榊ｾ樒ｶｲ蝓溷源驟肴ｳｨ蜈･縲�
+- **螳｢謌ｶ荳ｭ蠢�朽諷矩㍾險ｭ**�壻ｿｮ蠕ｩ `CustomerCenter.jsx` 蝨ｨ蛻�鋤 OA (`oaId` 隶頑峩) 譎ゑｼ梧悴閭ｽ蜊ｳ譎よ峩譁ｰ謌匁ｸ�ｩｺ闊雁ｮ｢謌ｶ雉�侭闊��鬆∫朽諷具ｼ檎樟蟾ｲ蜉�蜈･萓晁ｳｴ鬆�屮閨ｽ荳ｦ貂�ｩｺ state 逧�ｮ牙�驥崎ｼ蛾ｏ霈ｯ縲�
+- **蝠丞差邂｡逅�朽諷矩㍾險ｭ**�壻ｿｮ蠕ｩ `Questionnaire.jsx` 蛻�鋤 OA 譎よｮ倡蕗荳贋ｸ蛟句ｰ域｡亥撫蜊ｷ逧� Bug�檎樟蟾ｲ譁ｼ逶｣閨ｽ `oaId` 逧� effect 荳ｭ蜈域ｸ�ｩｺ蝠丞差鄒､邨�∝�陦ｨ�御ｸｦ驥崎ｨｭ陦ｨ蝟ｮ迢諷九�
+- **險頑�荳ｭ蠢�庄逕ｨ讓咏ｱ､蛻�鋤**�壻ｿｮ蠕ｩ `MessageCenter.jsx` 蠕樔ｸ榊酔 OA 蛻�鋤譎ゑｼ梧ｨ咏ｱ､遽ｩ驕ｸ貂�粍莉肴ｮ倡蕗荳雁� OA 逧�ｨ咏ｱ､逧� Bug縲ら樟蟾ｲ蝨ｨ `location.pathname` 隶頑峩逧� effect 荳ｭ蜈域ｸ�ｩｺ蜿ｯ逕ｨ讓咏ｱ､荳ｦ驥肴眠 fetch縲�
 
-## [2026-06-29] 蝟餌絞UI - 芷斗芸 (蝔梢＊蝷)
-- **蝡 (frontend/src/pages/Projects.jsx, RichMenu.jsx, Broadcast.jsx, RuleDesigner.jsx)**:
-  - 蝔詨殷典芷斤Ⅱ隤芷斗蝷箔葉嚗憿舐內琿蝔晞撌脣芷扎
-  - 蝢斤潸荔芷支遙嚗蝷箄舀寧粹＊蝷箄府隞餃蝔晞
-  - 萄閬閬嚗芷斤Ⅱ隤蝷箄臭誑撱箇/脣嚗銝憿舐內蝖祉閬 {ID}嚗寧粹＊蝷箔蝙刻閮剖蝔/璅憿/萄
+## [2026-05-21] 雉�侭蠎ｫ騾｣邱壼､匁ｴｩ螳牙�菫ｮ蠕ｩ
+- **蠕檎ｫｯ騾｣邱壼､匁ｴｩ蜈ｨ髱｢菫ｮ蠕ｩ**�夂ｳｻ邨ｱ諤ｧ菫ｮ蠕ｩ `app.py` 荳ｭ邏� 20 蛟� Route Handler 逧�些髫ｪ騾｣邱壽ｨ｡蠑擾ｼ檎ｵｱ荳謾ｹ轤ｺ `conn = None` 蛻晏ｧ句喧 + `try/except/finally`�檎｢ｺ菫� Exception 逋ｼ逕滓凾騾｣邱� 100% 豁ｸ驍�� `ThreadedConnectionPool`縲�
+- **菫ｮ蠕ｩ髮咎㍾騾｣邱� Bug**�壻ｿｮ蠕ｩ `delete_project`縲～delete_schedule` 驥崎､�他蜿ｫ `get_db_connection()` 蟆手�隨ｬ荳譴晞｣邱壽ｰｸ荵�ｴｩ貍擾ｼ梧隼轤ｺ隍�畑蜷御ｸ譴晞｣邱壹�
+- **菫ｮ蠕ｩ `import_project_schedules` 騾｣邱夊ｦ�搭 Bug**�壼�謨ｸ荳ｭ谿ｵ蜀肴ｬ｡雉ｦ蛟ｼ `conn = get_db_connection()` 譛�ｴｩ貍丞燕荳譴晞｣邱夲ｼ梧隼轤ｺ謨ｴ蛟句�謨ｸ蜈ｱ逕ｨ蜷御ｸ譴晞｣邱壻ｸｦ邨ｱ荳蝨ｨ `finally` 豁ｸ驍��
+- **菫ｮ蠕ｩ `customers.py` 蛻晏ｧ句喧鬆�ｺ�**�壼､壼句�謨ｸ蝨ｨ `try` 螟夜Κ蜿夜｣邱夲ｼ形cur` 譛ｪ螳夂ｾｩ譎� `finally` 螟ｱ謨苓ｷｳ驕� `conn.close()`�悟�驛ｨ謾ｹ逕ｨ `if cur:` / `if conn:` 髦ｲ陦帛ｼ� close縲�
+- **貂ｬ隧ｦ鬩苓ｭ�**�壽眠蠅� `backend/test_conn_leak.py` 貂ｬ隧ｦ閻ｳ譛ｬ�瑚ｦ�搭豁｣蟶ｸ菴ｿ逕ｨ縲・xception 逋ｼ逕溘￣ool 閠礼孱菫晁ｭｷ遲� 5 鬆��ｴ譎ｯ�悟�謨ｸ騾夐℃縲�
 
-## [2026-06-24] 賊思漱
-- ** (frontend/src/pages/AdminPage.jsx)**:
-  - 瓦思漱剔隞輻Ｗ輯號皜∠啣
+## [2026-05-21] 蜈ｨ蝓溯ｼ牙�蜍慕吻闊�ｳ�侭蠎ｫ騾｣邱壽ｱ�蜆ｪ蛹�
+- **蜑咲ｫｯ蜈ｨ蝓溯ｼ牙�蜍慕吻闊��占ｼ牙━蛹�**�壽眠蠅� `GlobalLoading` 蜈�ｻｶ�檎匳蜈･蠕瑚�蜍戊レ譎ｯ鬆占ｼ画園譛� OA 鬆�擇雉�侭縲�
+- **蠕檎ｫｯ雉�侭蠎ｫ騾｣邱壽ｱ�蜆ｪ蛹�**�壼合邏夊� `psycopg2.pool.ThreadedConnectionPool`�形maxconn=10`縲�
+- **(Hotfix) 菫ｮ蠕ｩ鬆占ｼ牙ｿｫ蜿冶�讓咏ｱ､蛻�鋤蝠城｡�**�壻ｿｮ蠕ｩ `api.js` 蠢ｫ蜿匁ｸ�ｩｺ蝠城｡瑚� `MessageCenter.jsx` 讓咏ｱ､遽ｩ驕ｸ譛ｪ髫ｨ OA 蛻�鋤逧�撫鬘後�
 
-## [2026-06-24] 芸喳思漱
-- ** (frontend/src/pages/AdminPage.jsx)**:
-  - 曇踵撖抒芸
-  - 思漱蝞詨剝思漱
+## [2026-05-20] 隶頑峩荳ｻ雉�侭蠎ｫ騾｣邱� URL
+- **譖ｴ譁ｰ RDS_URL 騾｣邱夊ｨｭ螳�**��
+  - 譖ｴ譁ｰ蠕檎ｫｯ `app.py`縲～db_utils.py`縲～endpoints/broadcast.py` 闊� `insert_test_data.py` 荳ｭ逧�ｸｻ雉�侭蠎ｫ騾｣邱壼ｭ嶺ｸｲ (`RDS_URL`)�梧隼轤ｺ譁ｰ謠蝉ｾ帷噪 Heroku PostgreSQL 雉�侭蠎ｫ縲�
+  - **菫ｮ蠕ｩ SQLAlchemy 騾｣邱壼鵠螳夂嶌螳ｹ諤ｧ**�壼ｰ� `RDS_URL` 逧�｣邱壼鵠螳夐�ｭ逕ｱ `postgres://` 菫ｮ豁｣轤ｺ `postgresql://`縲りｧ｣豎ｺ SQLAlchemy 1.4+ 諡句� `NoSuchModuleError: Can't load plugin: sqlalchemy.dialects:postgres` 逧�福蜍募ｴｩ貎ｰ骭ｯ隱､縲�
 
-## [2026-06-24] 賣冽乩漸
-- **箄 (backend/app.py)**:
-  - 賣 `project_stats_processor` 賜亦鈭日啗 `Global_var` 萄 PostgreSQL 擗嚗 `relation already exists` (42P07)  log 瑕單踹祐蝞潘撓鈭仿萄質祈銋拇桀賜 `CREATE TABLE`
-- **箄 (backend/endpoints/questionnaire.py, backend/endpoints/liff_questionnaire.py)**:
-  - 舀孵貊 `CREATE TABLE IF NOT EXISTS`  `SET LOCAL client_min_messages = warning;`鈭文鞈萄賊∴撕 PostgreSQL  (`relation already exists, skipping`)
+## [2026-05-20] 蝨匁枚驕ｸ蝟ｮ metadata 螟夂ｧ滓宛驕ｷ遘ｻ闊�ｮ壽凾謗堤ｨ� Bug 菫ｮ蠕ｩ
+- **螟夂ｧ滓宛雉�侭陦ｨ驕ｷ遘ｻ (`rich_menu_metadata:{appname}`)**��
+  - 蟆�次譛� SQLAlchemy 髱懈�雉�侭陦ｨ `rich_menu_metadata` 諡��轤ｺ螟夂ｧ滓宛蜍墓�蜻ｽ蜷咲噪蜴溽函 SQL 陦ｨ譬ｼ `rich_menu_metadata:{appname}`�瑚�邉ｻ邨ｱ荳ｭ蜈ｶ莉匁･ｭ蜍呵｡ｨ�亥ｦ� `projects:{appname}`�牙多蜷崎ｦ冗ｯ�ｸ閾ｴ縲�
+  - 蝨ｨ `endpoints/broadcast.py` 逧� `ensure_rds_tables(app_name)` 荳ｭ蜉�蜈･閾ｪ蜍募ｻｺ遶� `rich_menu_metadata:{appname}` 逧� SQL 螳夂ｾｩ�檎ｳｻ邨ｱ鬥匁ｬ｡蟄伜叙譎ょ叉閾ｪ蜍募ｮ梧�蟒ｺ陦ｨ縲�
+  - 譁ｼ `models.py` 荳ｭ蟆� `RichMenuMetadata` SQLAlchemy Model 謨ｴ鬮碑ｨｻ隗｣�悟●豁｢菴ｿ逕ｨ蝟ｮ荳髱懈�雉�侭陦ｨ縲�
+- **`richmenu.py` API 蜈ｨ髱｢驥肴ｧ�**��
+  - 譁ｰ蠅� `get_t(base)` 蜃ｽ謨ｸ�瑚ｲ�雋ｬ隗｣譫� `g.current_app_name` 荳ｦ霑泌屓蟶ｶ譛� `appname` 蠕檎ｶｴ逧�尸蠑戊辧蛹�｣ｹ雉�侭陦ｨ蜷咲ｨｱ�悟酔譎りｧｸ逋ｼ `ensure_rds_tables` 閾ｪ蜍募ｻｺ陦ｨ縲�
+  - 蟆� `GET/POST /metadata` 闊� `DELETE /metadata/<id>` 荳牙狗ｫｯ鮟橸ｼ悟ｾ� SQLAlchemy ORM 蜈ｨ髱｢謾ｹ蟇ｫ轤ｺ蝓ｺ譁ｼ `psycopg2` 逧�次逕� SQL 譟･隧｢�瑚ｮ蟇ｫ逶ｮ讓呎隼轤ｺ蜷� App 蟆亥ｱｬ逧�ｾ檎ｶｴ雉�侭陦ｨ縲�
+  - 菫ｮ豁｣ `parse_local_naive` 譎ょ項隗｣譫� Bug�夊�迚域悽菴ｿ逕ｨ `.replace('Z', '')` 邊玲垓陬∝�譎ょ項�悟ｰ手� UTC 譎る俣陲ｫ逡ｶ謌仙床轣｣譎る俣蟄伜��碁�謌� 8 蟆乗凾譎ょｷｮ縲よ眠迚域悽豁｣遒ｺ蟆� UTC 譎る俣霓画鋤轤ｺ蜿ｰ轣｣譎る俣��TC+8�牙ｾ悟�莉･ naive datetime 蟄伜��梧�ｹ譛ｬ隗｣豎ｺ謗堤ｨ区凾髢灘￥蟾ｮ蝠城｡後�
+- **`app.py` 閭梧勹謗堤ｨ倶ｻｻ蜍� `rich_menu_scheduler_processor` 驥肴ｧ�**��
+  - 闊顔沿�夐″豁ｷ謇譛� `RichMenuMetadata` 邏骭�ｼ悟ｰ埼℃譛滄∈蝟ｮ逋ｼ騾∝�蝓� `DELETE` 謖�ｻ､�悟ｰ手�縲碁∈蝟ｮ A 驕取悄隗｣髯､縲咲噪蜷梧凾骭ｯ隱､貂�勁縲碁∈蝟ｮ B 豁｣蝨ｨ豢ｻ蜍穂ｸｭ縲咲噪鬆占ｨｭ驕ｸ蝟ｮ�育ｫｶ諷玖｡晉ｪ� Bug�峨�
+  - 譁ｰ迚茨ｼ壻ｻ･ **OAConfig 轤ｺ蝟ｮ菴�**騾蝉ｸ陌慕炊�悟ｰ肴ｯ丞� App 蝓ｷ陦御ｻ･荳矩ｏ霈ｯ��
+    1. 譟･隧｢ `rich_menu_metadata:{appname}` 蜿門ｾ玲園譛� published 荳疲怏譎る俣險ｭ螳夂噪驕ｸ蝟ｮ縲�
+    2. 謇ｾ蜃ｺ縲梧㊨逕滓譜縲咲噪蜚ｯ荳驕ｸ蝟ｮ��start_time <= now_tw < end_time`�会ｼ瑚凶譛牙､壼狗ｬｦ蜷亥援蜿匁怙霑大福蜍慕噪��start_time` 譛螟ｧ閠�ｼ峨�
+    3. 蠕� LINE API 蜿門ｾ礼岼蜑榊ｯｦ髫帷噪鬆占ｨｭ驕ｸ蝟ｮ ID縲�
+    4. **髦ｲ遖ｦ諤ｧ豈泌ｰ�**�壽怏諛臥函謨磯∈蝟ｮ菴� LINE 鬆占ｨｭ ID 荳咲ｬｦ 竊� 蜻ｼ蜿ｫ POST 險ｭ螳夲ｼ帷┌諛臥函謨磯∈蝟ｮ荳� LINE 鬆占ｨｭ ID 螻ｬ譁ｼ譛ｬ邉ｻ邨ｱ邂｡逅�噪蟾ｲ遏･驕ｸ蝟ｮ 竊� 謇榊他蜿ｫ DELETE 蜊ｸ霈会ｼ碁亟豁｢隱､蛻ｪ螟夜Κ驕ｸ蝟ｮ縲�
 
-## [2026-06-23] 閰冽瞉鈭亦桀舀
-- ** (frontend/src/pages/RichMenu.jsx)**:
-  - 擏舀 (蟡/)瞏 Modal撖抒捂皜豢銋鞊Ｘ
-  - 頛舀質 `publishStrategy` `hidden` (⊥輯)`default` (∪曇澈蝞賊)  `restricted` (啗祆唳芣)
-  - 單葡頨急堆撓頛貊賜賣蝞貊頨急啁桀瞉銋桀桀輯嚗豢祆鬲
-  - 桀蟡祈都擗喳單葡頨急啁憳
-  - 皝桀Ｙ文祆蔬餈典芬芷輯撒豢
-  - 瞏 LINE 擗蝯皝銋抵頛航澈啗隞輯圈輻其漲 `default` 豢 API 桀蝞賊桀閰冽
+## [2026-05-20] 螳｢謌ｶ荳ｭ蠢�ｷｨ霈ｯ螳｢謌ｶ蝓ｺ譛ｬ雉�侭蜉溯�
+- **蠕檎ｫｯ譁ｰ蠅槫ｮ｢謌ｶ邱ｨ霈ｯ API**�壼惠 `backend/endpoints/customers.py` 荳ｭ譁ｰ蠅� `PUT /api/customers/<user_id>` 霍ｯ逕ｱ�悟庄謗･謾ｶ `name`縲～phone`縲～email`�御ｸｦ蛻ｩ逕ｨ螳牙� upsert 讖溷宛譖ｴ譁ｰ蛻ｰ `Private_var:{app_id}` 荳ｭ縲�
+- **蜑咲ｫｯ蟇ｦ菴懃ｷｨ霈ｯ謖蛾�闊�ｰ剰ｦ也ｪ�**��
+  - 蟆�ｮ｢謌ｶ蛻苓｡ｨ謫堺ｽ懈ｬ�ｽ堺ｸｭ逧�ｸ牙矩ｻ樊峩螟夐∈鬆�潔驤墓崛謠帷ぜ縲檎ｷｨ霈ｯ縲肴潔驤輔�
+  - 譁ｰ蠅樒ｷｨ霈ｯ Modal 迢諷具ｼ碁ｻ樊投縲檎ｷｨ霈ｯ縲榊ｾ悟ｽ亥�蟆剰ｦ也ｪ暦ｼ悟｡ｫ蜈･隧ｲ螳｢謌ｶ逶ｮ蜑咲噪雉�侭縲�
+  - 謠蝉ｾ帛錐遞ｱ縲∵焔讖溘�崕蟄蝉ｿ｡邂ｱ逧�ｷｨ霈ｯ霈ｸ蜈･譯�ｼ御ｻ･蜿翫悟┫蟄倥崎�縲悟叙豸医肴桃菴懶ｼ御ｸｦ蝨ｨ蜆ｲ蟄俶�蜉溷ｾ瑚�蜍墓峩譁ｰ蛻苓｡ｨ縲∵署遉ｺ謌仙粥險頑�縲�
 
-## [2026-06-23] 堆撓∟寥嚗瑁詨桃鈭蟡
-- ** (frontend/src/pages/CustomerCenter.jsx)**:
-  - 擏舀堆撓∟寥萄質箏餅拙箏餅抵都皜詨喳單葡摨格鳩
-  - 豢鳩擗賤喃漲璆祈瑞飭箄皝銋航璆 (Inline Edit)銵祈
-  - 豢鳩粹擗嚗瑟寞皝抒詨箸銵皜貉皝抒賊嗆╰頦
-  - 桃鈭文豢鳩璆祈/擗摨/Email/瑟蝞貉急閰冽嚗嗆堆撓萄餃桃鈭斗踹單腹嚗
+## [2026-05-19] 邉ｻ邨ｱ逋ｻ蜈･鬮秘ｩ怜━蛹�
+- **逋ｻ蜈･遲牙ｾ�虚逡ｫ闊�亟隴ｷ**�壼惠 `Login.jsx` 荳ｭ譁ｰ蠅樔ｺ� `isLoggingIn` 迢諷玖� `CircularProgress` 霈牙�蜍慕吻縲ら文菴ｿ逕ｨ閠�ｻ樊投 Google 逋ｻ蜈･荳ｦ騾ｲ蜈･鬩苓ｭ画ｵ∫ｨ区凾�梧怎髫ｱ阯冗匳蜈･謖蛾�荳ｦ鬘ｯ遉ｺ縲檎匳蜈･荳ｭ�瑚ｫ狗ｨ榊�...縲咲噪謠千､ｺ蜍慕吻�碁亟豁｢菴ｿ逕ｨ閠�屏逡ｫ髱｢譛ｪ蜊ｳ譎りｷｳ霓芽碁㍾隍�ｻ樊投騾�謌宣撼鬆先悄陦檎ぜ縲�
+- **莉矩擇郢�ｫ比ｸｭ譁�惠蝨ｰ蛹�**�壼ｰ�匳蜈･鬆�擇逧�恭譁�署遉ｺ譁�ｭ暦ｼ亥ｦ� "Login", "Sign in with your Google account" 遲会ｼ牙�髱｢鄙ｻ隴ｯ荳ｦ譖ｴ譁ｰ轤ｺ郢�ｫ比ｸｭ譁�ｼ御ｻ･隨ｦ蜷域紛鬮皮ｳｻ邨ｱ隱樒ｳｻ縲�
 
-## [2026-06-23] 祇怨瞉踵虜 Bug 賣
-- ** (frontend/src/pages/RuleDesigner.jsx)**:
-  - 皜貉祆梁怨瞉踹皜賊輻 (隞)
-  - 賊閰冽澆祐蝞詨 `<TagInput singleSelect={true}>` 憛閰冽箇ＹＹ桅祇祉銵獢鞈
-  - 祈 note 輸- 祆箄祆銵賣嚗嗉豢０蝞芬亦芷瘀瑞捂祇桅鈭衣芷嚗瑞詨
-  - 鈭亥貉航岳湧閰冽鞈閰冽箄賂撕 `update("iup|<id>")`  `update("switch_rm|<uuid>")`
-  - 賣潸縣祇嚗嗉箏餅 `Line` 蟡寥祇株 URL 餈方蝞豢斗
-  - 賣祈箏餅拙嗉單箄祈閰其漱詨格蝞 URL  (怎 React state closure )
-  - 賣潸縣航岳渲瞏蝞蝞隤 `ui_uuid`  `rich_menu_id` 鈭行陬箄∟
-    - 閰冽 API ∟ `/richmenu/` ( LINE 芷) 賣潸縣 `/richmenu/metadata` ( `ui_uuid` 冽典)箏音怎蝞 `ui_uuid` ⊥桀蟡隞輯岳獢璇 Bug
-- ** (frontend/src/pages/Questionnaire.jsx)**:
-  -  note 輸- 箄祆葛隤萄怎萄賂撕賣瞏桃璈瘀瑞捂- 桅嚗嗥豢０祆虜
-- **箄 (backend/app.py)**:
-  - 賣潸縣 `/api/statistics` 鈭亙眺 `get_events_count_by_category_and_tag` 喃漲輯銋踹蝞鞈餈方蝞詨萄質悻
-- **箄 (backend/endpoints/questionnaire.py)**:
-  - 賣潸縣寧 `update("set_tag|")` 瞉皝斗 `")`  Bug蝞∟伐瑞捂餈斗閰
-  - 貊/瞉芰瑞飭芰瑞喲輯賊桃抵賢祐蝞豢賣唳函拇冽蔭
-  - 梁鈭文株剜璇 ID瘀瑞甇梁銋拚嚗寥
-  - 擏舫∠ `note` 箄祆虜- 鈭血賡賜輯撒- 
-  - 賣潸縣剔踵踵Ｚ都踵航輸輯嚗瑞- 桅箄祆腹踹蝞蝑輯撒餌輯孵曄賤芣
-  - 賣潸縣賊憛鈭交冽鞈Ｘ `pri_push('tag', '')` 撖 `update("set_tag|")` 鈭行陬瞏
-- **箄 (backend/migrate_rule_notes.py)**:
-  - 蟡銵交冽摰桃忽貉擗蝯箄祆腹賊- 祆箄祆蝞賡芷剜
+## [2026-05-18] Flex 邱ｨ霈ｯ蝎ｨ闊�恂譁�∈蝟ｮ菫ｮ豁｣
+- **蝨匁枚驕ｸ蝟ｮ髮吝ｿｫ蜿冶ｼ牙�蜆ｪ蛹�**�夂ぜ莠�ｧ｣豎ｺ蜷�恂譁�∈蝟ｮ蝨也援閾ｪ LINE 螳俶婿莨ｺ譛榊勣荳玖ｼ画･ｵ蜈ｶ邱ｩ諷｢逧�撫鬘鯉ｼ悟ｯｦ菴應ｺ�燕遶ｯ闊�ｾ檎ｫｯ逧�碁尸險俶�鬮泌ｿｫ蜿厄ｼ�ouble Memory Caching�峨肴ｩ溷宛��
+  - **蜑咲ｫｯ蠢ｫ蜿�**�壼惠 `RichMenu.jsx` 讓｡邨��蟒ｺ遶句�蝓� `frontendImageCache`縲ゆｸ譌ｦ蝨也援荳玖ｼ画�蜉溷叉霓画鋤轤ｺ豌ｸ郤� Blob URL 荳ｦ莠井ｻ･蜆ｲ蟄假ｼ悟惠菴ｿ逕ｨ閠��謠幄ｦ門恂縲∵頗蟆区�驥崎｣晉ｵ�ｻｶ譎�**迸ｬ髢楢ｼ牙� (0ms 蟒ｶ驕ｲ)**�悟ｮ悟�荳埼㍾隍�髄蠕檎ｫｯ逋ｼ騾� HTTP 隲区ｱゅ�
+  - **蠕檎ｫｯ蠢ｫ蜿�**�壼惠 `endpoints/richmenu.py` 蜈ｧ蟒ｺ遶句�蝓� `_IMAGE_CACHE` 險俶�鬮泌ｭ怜�縲ら文隨ｬ荳谺｡蜷� LINE 莨ｺ譛榊勣謌仙粥迯ｲ蜿門恂迚�ｽ榊�邨�凾�悟ｰ��螳ｹ闊� mimetype 蠢ｫ蜿冶�險俶�鬮費ｼ悟ｾ檎ｺ瑚ｫ区ｱら峩謗･逕ｱ蠢ｫ蜿門屓蛯ｳ�御ｽｿ霈牙�閠玲凾逕ｱ謨ｸ遘堤ｸｮ遏ｭ閾ｳ謨ｸ豈ｫ遘抵ｼ御ｸｦ閭ｽ蜷梧ｭ･譁ｼ蛻ｪ髯､驕ｸ蝟ｮ譎り�蜍墓ｸ�炊蠢ｫ蜿悶�
+- **Flex 邱ｨ霈ｯ蝎ｨ遶ｶ諷玖�蝗樊ｺｯ菫ｮ蠕ｩ**�夊ｧ｣豎ｺ Flex 邱ｨ霈ｯ蝎ｨ蝨ｨ荳雁さ蝨也援譎ゑｼ瑚凶菴ｿ逕ｨ閠�酔譎るｲ陦悟�莉冶ｼｸ蜈･�亥ｦよ遠蟄暦ｼ会ｼ梧怎蝨ｨ蝨也援荳雁さ螳梧�荳ｦ逕｢逕� URL 蠕悟屓貅ｯ��ollback�我ｸｦ貂�ｩｺ蜈亥燕謇灘ｭ苓�荳雁さ邯ｲ蝮逧�ｫｶ諷句撫鬘後る城℃蠑募� `lastSavedJsonRef` 蠢ｫ蜿匁悽讖滓怙蠕悟┫蟄倡朽諷具ｼ悟ｮ檎ｾ朱仆譁ｷ辷ｶ蜈�ｻｶ髱槫酔豁･迢諷句屓豬∵園隗ｸ逋ｼ逧�険隱､譛ｬ讖滄㍾險ｭ縲�
+- **蝨也援荳雁さ鬮秘ｩ苓ｦ冶ｦｺ蛹冶�髦ｲ隴ｷ**�壽名蝨也援荳雁さ譎ょｼ募� `isUploading` 迢諷玖�蠕ｮ蝙区雷霓牙虚逡ｫ��pinner�会ｼ御ｸｦ遖∫畑邯ｲ蝮谺�ｽ崎�荳雁さ謖蛾��碁亟豁｢菴ｿ逕ｨ閠�惠荳雁さ譛滄俣騾ｲ陦碁㍾隍�ｻ樊投謌冶ｼｸ蜈･�檎｢ｺ菫晉ｳｻ邨ｱ迢諷倶ｸ閾ｴ諤ｧ縲�
+- **Flex 邱ｨ霈ｯ蝎ｨ讓咏ｱ､蜷梧ｭ･菫ｮ豁｣**�壻ｿｮ豁｣蝨ｨ鄒､逋ｼ險頑�菴ｿ逕ｨ Flex 邱ｨ霈ｯ蝎ｨ譎ゑｼ梧ｨ呵ｨｻ蟾ｲ譛画ｨ咏ｱ､蝨ｨ蜆ｲ蟄伜ｾ碁㍾譁ｰ髢句福譎よｶ亥､ｱ逧�撫鬘鯉ｼ井ｿｮ豁｣ `extractTags` 闊� `cleanPayload` 陌慕炊 LIFF URLs 邱ｨ遒ｼ逧�ｏ霈ｯ�峨�
+- **Flex 邱ｨ霈ｯ蝎ｨ蝨也援鬆占ｦｽ**�壻ｿｮ豁｣蝨也援鬆占ｦｽ螟ｱ謨怜撫鬘鯉ｼ悟ｰ�ｽ比ｽ榊恂迚�峩謠帷ぜ謠蝉ｾ� `.png` 蜑ｯ讙泌錐荳皮┌豺ｷ蜥悟�螳ｹ髦ｻ謫狗噪 `dummyimage.com`縲�
+- **蝨匁枚驕ｸ蝟ｮ霈牙�蜆ｪ蛹�**�壽眠蠅樣��擇蜈ｨ蝓溯ｼ牙�蜍慕吻 (`LoadingSpinner`)�碁∩蜈崎ｼ牙�譎ら吻髱｢蜊｡鬆薙�
+- **蝨匁枚驕ｸ蝟ｮ蜿肴㊨蜆ｪ蛹�**�夊ｪｿ謨ｴ `handleEditMenu` 逧�撼蜷梧ｭ･陌慕炊驍剰ｼｯ�碁ｻ樊投縲梧衍逵九榊ｾ悟庄迸ｬ髢灘�謠幄ｦ門恂�御ｸ榊�陲ｫ蝨也援荳玖ｼ蛾仆蝪槭�
+- **蝨匁枚驕ｸ蝟ｮ蟠ｩ貎ｰ菫ｮ蠕ｩ**�壻ｿｮ蠕ｩ鮟樊投縲梧眠蠅樣∈蝟ｮ縲肴凾�悟屏譛ｪ貂�ｩｺ蜈亥燕驕ｸ謫�ｹ句項蝪� (`selectedAreaIndex`) 蟆手�逧�ｶｲ鬆∝ｴｩ貎ｰ縲�
+- **蝨匁枚驕ｸ蝟ｮ隗ｸ遒ｰ遽�恪險ｭ螳�**�夂ぜ蝨匁枚驕ｸ蝟ｮ邱ｨ霈ｯ鬆�擇陬憺ｽ� X 蠎ｧ讓吶〆 蠎ｧ讓吶∝ｯｬ蠎ｦ闊�ｫ伜ｺｦ逧�峩謗･霈ｸ蜈･譯�ｼ梧婿萓ｿ邊ｾ遒ｺ險ｭ螳夊ｧｸ遒ｰ遽�恪縲�
+- **邯ｲ遶呎ｨ咎｡梧峩譁ｰ**�壼ｰ� `index.html` 荳ｭ逧� `<title>` 蠕� `frontend` 譖ｴ謾ｹ轤ｺ `superpages`縲�
+- **蝨匁枚驕ｸ蝟ｮ霈牙�蜍慕吻蜆ｪ蛹�**�壼ｰ�次譛ｬ隕�搭謨ｴ蛟玖椶蟷慕噪霈牙�蜍慕吻邵ｮ蟆冗ｯ�恪閾ｳ驕ｸ蝟ｮ蛻苓｡ｨ蜊蝓滂ｼ瑚ｮ謎ｽｿ逕ｨ閠�惠雉�侭霈牙�譎ゆｻ榊庄謫堺ｽ憺�るΚ蟆手ｦｽ蛻苓�蟶ｳ陌溷�謠帙�
+- **蝨匁枚驕ｸ蝟ｮ蜊蝪頑許諡牙粥閭ｽ**�壽眠蠅樊許譖ｳ闊�ｸｮ謾ｾ謾ｯ謠ｴ�御ｽｿ逕ｨ閠�樟蝨ｨ蜿ｯ莉･逶ｴ謗･蝨ｨ邱ｨ霈ｯ蜊蝪贋ｸ頑許諡臥ｧｻ蜍穂ｽ咲ｽｮ�梧�騾城℃蜿ｳ荳玖ｧ堤噪謗ｧ蛻ｶ鮟樊許諡芽ｪｿ謨ｴ蟇ｬ鬮假ｼ檎┌髴蜒��騾城℃霈ｸ蜈･譯�ｿｮ謾ｹ縲�
+- **蝨匁枚驕ｸ蝟ｮ騾｣邨先ｨ咏ｱ､謾ｯ謠ｴ**�壼惠蝨匁枚驕ｸ蝟ｮ逧�碁幕蝠滄｣邨�(URI)縲榊虚菴應ｸｭ蜉�蜈･讓咏ｱ､驕ｸ謫�粥閭ｽ縲ょ惠蜷梧ｭ･閾ｳ LINE API 譎ゑｼ檎ｳｻ邨ｱ譛��蜍墓胴蜿� OA 險ｭ螳夂噪 App Name 荳ｦ蟆�ｶｲ蝮霓画鋤轤ｺ髯�ｸｶ讓咏ｱ､逧� LIFF 霍ｳ霓蛾｣邨� (`https://liff.line.me/...`)�悟ｯｦ迴ｾ蝨匁枚驕ｸ蝟ｮ鮟樊投霑ｽ雹､縲�
+- **髣憺嵯蟄怜屓隕� (豕募援陦ｨ) 莉矩擇蜈ｨ髱｢鄙ｻ譁ｰ**�壼ｰ�ｷ･遞句ｰ主髄逧�梧ｳ募援陦ｨ險ｭ險医榊�髱｢驥肴眠險ｭ險育ぜ髱｢蜷題｡碁換闊��驕倶ｺｺ蜩｡逧� CRM 鬚ｨ譬ｼ縲碁梨骰ｵ蟄怜屓隕�榊粥閭ｽ縲ょｼ募�蜈ｩ螻､蠑剰ｳ�ｨ頑楔讒� (蛻苓｡ｨ轢剰ｦｽ闊�粍鬆∫ｷｨ霈ｯ)�碁坡阯丞ｺ募ｱ､謚陦灘錐隧� (螯ゆｻｻ蜍� ID縲＿_bank縲∬ｦ丞援隱樊ｳ慕ｭ�)�御ｸｦ蟆�ｰ｡譏捺ｨ｡蠑冗ｰ｡蛹也ぜ蜒�剞邂｡逅��ｸ蠢�ｧｸ逋ｼ隕丞援�悟､ｧ蟷�剄菴惹ｽｿ逕ｨ閠�桃菴憺摩讙ｻ縲�
+- **鄒､逋ｼ險頑�鬆占ｦｽ蜆ｪ蛹�**�壻ｿｮ謾ｹ鄒､逋ｼ險頑�蛻苓｡ｨ荳ｭ逧�瑚ｨ頑�蜈ｧ螳ｹ鬆占ｦｽ縲榊項蝪奇ｼ檎ぜ髦ｲ豁｢驕朱聞逧�枚蟄苓ｨ頑�遐ｴ螢樒沿髱｢邨先ｧ具ｼ檎樟蝨ｨ蜒�怎邨ｱ荳鬘ｯ遉ｺ險頑�鬘槫梛 (萓句ｦゑｼ壽枚蟄苓ｨ頑�縲∝恂迚�ｨ頑�縲∝恂譁�ｨ頑�)縲�
+- **鄒､逋ｼ險頑�隶蜿冶�譁ｰ蠅樊譜閭ｽ螟ｧ蟷�署蜊�**��
+  - **雉�侭蠎ｫ邏｢蠑募━蛹�**�壼惠蠕檎ｫｯ螟壼ｰ域｡郁ｳ�侭蠎ｫ逧� `history:{app_id}` 荳雁ｻｺ遶� `(user_id, category, timestamp DESC)` 闊� `(user_id, timestamp DESC)` 邏｢蠑包ｼ帛惠 `Private_var:{app_id}` 荳雁ｻｺ遶� `(name)` 闊� `(user_id, name)` 邏｢蠑包ｼ帛惠 `QA_bank:{app_id}` 荳雁ｻｺ遶� `(tag)` 邏｢蠑輔る吝ｰ�次譛ｬ O(N * H) 隍�屆蠎ｦ逧�檎ｯｩ驕ｸ豢ｻ霄榊･ｽ蜿玖�蜊ｳ譎�/謗堤ｨ句ｻ｣謦ｭ蜿礼慇縲堺ｹ区�ｸ蠢�衍隧｢閠玲凾�悟ｾ槫香蟷ｾ遘堤椪髢鍋ｸｮ遏ｭ閾ｳ豈ｫ遘堤ｴ夲ｼ瑚ｧ｣豎ｺ莠�ｻ｣謦ｭ蛻苓｡ｨ闊�眠蠅樒ｾ､逋ｼ蜆ｲ蟄倬℃諷｢逧�譜閭ｽ逑ｶ鬆ｸ縲�
+  - **遘ｻ髯､蜀鈴､倩ｳ�侭蠎ｫ騾｣邱�**�夐㍾讒� `/api/broadcast/` (GET) 蟒｣謦ｭ蛻苓｡ｨ迢諷区�ｸ蟆� (Status Reconciliation) 遞句ｼ擾ｼ檎ｧｻ髯､驕守ｨ倶ｸｭ譛ｪ菴ｿ逕ｨ菴�ｫ伜ｺｦ閠玲凾逧� `conn_oa` 霈泌勧雉�侭蠎ｫ騾｣邱壼ｻｺ遶句虚菴懶ｼ碁｡ｯ闡礼ｸｮ遏ｭ莠�ｻ｣謦ｭ蛻苓｡ｨ逧� API 蝗槫さ譎る俣縲�
+  - **鄒､逋ｼ逋ｼ騾�撼蜷梧ｭ･闊�朽諷句叉譎ょ屓鬣句━蛹�**�夐㍾讒句燕遶ｯ逋ｼ騾∫ｾ､逋ｼ險頑�逧�朽諷玖ｽ画鋤闊���擇霍ｳ霓蛾ｏ霈ｯ縲�
+    1. 逡ｶ菴ｿ逕ｨ閠�ｻ樊投縲悟┫蟄倅ｸｦ逋ｼ騾√榊ｾ鯉ｼ檎ｫ句叉蟆��迢諷句ｭ倡ぜ `sending` (逋ｼ騾∽ｸｭ)�御ｽｿ蜈ｶ蜊ｳ萓ｿ蝨ｨ閭梧勹蝓ｷ陦御ｸｭ荵溯�遶句綾蝨ｨ蛻苓｡ｨ陲ｫ逵句芦縲�
+    2. 逋ｼ騾∵欠莉､ `/execute` 謾ｹ轤ｺ髱槫酔豁･閭梧勹蝓ｷ陦鯉ｼ御ｸ�**蠕ｹ蠎慕ｧｻ髯､蜈ｨ陞｢蟷募濠騾乗�驕ｮ鄂ｩ (Overlay) 隕�搭螻､**�碁ｻ樊投蠕碁��擇譛�**遘定ｷｳ霓�**蝗樒ｾ､逋ｼ蛻苓｡ｨ�檎ｵｦ莠井ｽｿ逕ｨ閠�怙霈暮㍼縲∵ｵ∵圓逧�ｫ秘ｩ励�
+    3. 辟｡隲匁怙蠕梧弍縲檎ｫ句叉逋ｼ騾√阪√檎｢ｺ隱埼�千ｴ�賜遞九埼ｄ譏ｯ縲御ｸｭ騾泌┫蟄倩拷遞ｿ縲搾ｼ檎ｳｻ邨ｱ逧�怎**閾ｪ蜍戊ｷｳ霓牙屓鄒､逋ｼ險頑�蛻苓｡ｨ�御ｸｦ驥崎ｨｭ蛻��∬�縲悟�驛ｨ蟒｣謦ｭ (All)縲榊�鬆�**�檎｢ｺ菫晄眠逋ｼ襍ｷ謌匁眠蠅槫芦荳蜊顔噪莉ｻ蜍� 100% 迸ｬ髢灘争迴ｾ蝨ｨ貂�粍荳ｭ縲�
+    4. **謖蛾�蜈ｧ蠏悟ｾｮ蝙玖ｼ牙�蜍慕吻 (Button Micro-Interactions)**�夂ぜ謇譛峨悟┫蟄倩拷遞ｿ縲崎�縲檎匸騾�/謗堤ｨ九肴潔驤募�蠏悟ｾｮ蝙� `CircularProgress` 譌玖ｽ芽ｼ牙�蜍慕吻�悟惠鮟樊投蠕梧潔驤墓怎隶顔ぜ縲悟┫蟄倅ｸｭ...縲�/縲瑚剳逅�ｸｭ...縲堺ｸｦ鬘ｯ遉ｺ譌玖ｽ臥音謨茨ｼ梧署萓帷ｲｾ邱ｻ逧�ｲ蠎ｦ蝗樣･具ｼ悟ｾｹ蠎暮∩蜈堺ｽｿ逕ｨ閠�ｪ､莉･轤ｺ逡ｶ讖溘�
+    5. **辟｡諢滓匱諷ｧ蜊ｳ譎りｼｪ隧｢ (Zero-Resource Live Polling)**�壼惠蜑咲ｫｯ蜉�蜈･縲檎匸騾∽ｸｭ縲咲朽諷句�貂ｬ縲�**蜒�文**蛻苓｡ｨ荳ｭ蟄伜惠迢諷狗ぜ縲檎匸騾∽ｸｭ...縲咲噪莉ｻ蜍呎凾�梧燕譛�福逕ｨ豈� 3 遘剃ｸ谺｡逧�･ｵ霈暮㍼蠕檎ｫｯ迢諷玖ｼｪ隧｢�御ｸ譌ｦ迢諷句�驛ｨ隶顔ぜ縲悟ｷｲ逋ｼ騾√搾ｼ瑚ｼｪ隧｢譛�**閾ｪ蜍募ｮ悟�髣憺哩**縲る咎�蜷井ｺ� `fetchIdRef` 隲区ｱらｫｶ諷句ｮ郁｡幢ｼ御ｿ晞囿莠�ｮ悟�蜊ｳ譎ゆｸ皮┌螟夐､倬幕驫ｷ逧�朽諷区峩譁ｰ�悟ｾｹ蠎戊ｧ｣豎ｺ雉�侭蠎ｫ蟾ｲ謾ｹ菴�ｶｲ鬆∝ｾ井ｹ�燕隶顔噪蝠城｡後�
+    6. 鄒､逋ｼ蜊｡迚�朽諷区ｨ咏ｱ､譛ｬ蝨ｰ蛹匁隼轤ｺ郢�ｫ比ｸｭ譁�ｼ磯｡ｯ遉ｺ�壼ｷｲ逋ｼ騾√∫匸騾∽ｸｭ...縲∝ｷｲ謗堤ｨ九∬拷遞ｿ�会ｼ梧署萓帶･ｵ閾ｴ鬆�圓荳泌ｮ悟�蜈咲ｭ牙ｾ�噪 CRM 陦碁換鬮秘ｩ励�
 
-## [2026-06-22] 閰冽嚗箄
-- ** (frontend/src/pages/RichMenu.jsx)**:
-  - 閰冽璆恬撰桀擗璆砍 (輯撒賢)輯撒餃餉澈唳嚗瑕唾砍塚撩桀
-  - 閰冽輸閰冽貊寡豢(獢賣閰)頦寥桀豢曇豢輸皜
+## [2026-05-18] 菫ｮ豁｣逋ｻ蜈･髴隕∝�谺｡逧�撼蜷梧ｭ･霍ｯ逕ｱ霓牙髄蝠城｡�
+- **遘ｻ髯､貂�炊**:
+  - 遘ｻ髯､荳榊�菴ｿ逕ｨ逧� `web-dashboard` 雉�侭螟ｾ (蜴溷�逕ｨ菴懃匳蜈･邉ｻ邨ｱ逧�純閠�)縲�
+- **蜑咲ｫｯ迢諷玖�霍ｯ逕ｱ驍剰ｼｯ菫ｮ豁｣ (Authentication Flow Fix)**:
+  - 菫ｮ豁｣ `AuthContext.jsx` 荳ｭ `fetchMyOAs` 譛ｪ陲ｫ `await` 逧�撼蜷梧ｭ･蝠城｡後る呵ｧ｣豎ｺ莠�ｽｿ逕ｨ閠��蜉滄城℃ Google 逋ｻ蜈･蠕鯉ｼ悟屏諛臥畑遞句ｼ丞ｰ壽悴蜿門ｾ怜ｰ域｡� (OA) 蛻苓｡ｨ�瑚悟惠霍ｳ霓牙芦 Dashboard 譎ょ処陲ｫ `App.jsx` 骭ｯ隱､蟆主髄蝗� `/login` 逧�撫鬘後�
+  - 菫ｮ豁｣ `App.jsx` 逧�ｷｯ逕ｱ驍剰ｼｯ�夂文蟾ｲ逋ｻ蜈･ (`isAuthenticated=true`) 菴�ｰ域｡亥�陦ｨ轤ｺ遨ｺ譎ゑｼ御ｸ榊�蟆�ｽｿ逕ｨ閠�㍾譁ｰ蟆主髄蝗樒匳蜈･鬆�擇騾�謌千┌髯占ｿｴ蝨茨ｼ瑚梧弍鬘ｯ遉ｺ縲梧ｲ呈怏蜿ｯ逕ｨ逧�ｰ域｡域�谺企剞�瑚ｫ玖�郢ｫ邂｡逅�藤縲ゅ咲噪謠千､ｺ逡ｫ髱｢縲�
 
-## [2026-06-18] 祈悻賣
-- **箄 (backend/app.py)**:
-  - 賣潸縣 /api/statistics 鞈Ｚ鞈Ｚ蝞舀０銵 U 瞍 33  LINE User ID
-- ** (RDS & 5014)**:
-  - 鈭斗 get_events_count_by_category_and_tag Function閰 LINE User ID 寥∟賡∟祇萄餉﹦
+## [2026-05-12] 雉�侭蠎ｫ騾｣邱夂ｩｩ螳壽ｧ闊�譜閭ｽ蜆ｪ蛹�
+- **雉�侭蠎ｫ騾｣邱壽ｱ� (Connection Pooling) 蜆ｪ蛹�**:
+  - 蟇ｦ菴憺寔荳ｭ蠑� ThreadedConnectionPool 邂｡逅�ｼ悟､ｧ蟷�剄菴手ｳ�侭蠎ｫ髢句福闊�梨髢蛾｣邱夂噪髢矩換縲�
+  - 髯仙宛蝟ｮ荳蟷ｳ蜿ｰ (OA) 譛螟ｧ騾｣邱壽丙轤ｺ 10�檎ｸｽ RDS 騾｣邱壽丙逕ｱ 50 隱ｿ髯崎� 20�碁∩蜈崎ｶ�℃ AWS RDS 蟇ｦ鬮秘剞蛻ｶ縲�
+  - 遘ｻ髯､縲碁｣邱壼､ｱ謨怜ｾ梧隼逕ｨ逶ｴ謗･騾｣邱壹咲噪蜊ｱ髫ｪ讖溷宛�梧隼轤ｺ諡句�蜿句埋骭ｯ隱､�碁亟豁｢雉�侭蠎ｫ髮ｪ蟠ｩ縲�
+- **RDS 陦ｨ譬ｼ讙｢譟･蠢ｫ蜿匁ｩ溷宛**:
+  - 蟇ｦ菴� `_ENSURED_TABLES` 蜈ｨ蝓溷ｿｫ蜿厄ｼ碁∩蜈肴ｯ丞� API 隲区ｱる㍾隍�衍隧｢ `information_schema.tables`縲�
+- **雉�侭蠎ｫ遨ｩ螳壽ｧ闊�｣邱夂ｮ｡逅�**:
+  - 蟒ｺ遶� `backend/db_utils.py` 髮�ｸｭ邂｡逅�ｳ�侭蠎ｫ騾｣邱壽ｱ��瑚ｧ｣豎ｺ讓｡邨�俣逧�ｾｪ迺ｰ蠑慕畑 (Circular Import) 蝠城｡後�
+  - 蜈ｨ髱｢遘ｻ髯､蜷� Blueprint 荳ｭ逧�ｧ∵怏 `get_db_connection` 蟇ｦ菴懶ｼ檎ｵｱ荳菴ｿ逕ｨ騾｣邱壽ｱ�邂｡逅��
+  - 蠑ｷ蛻ｶ謇譛芽ｳ�侭蠎ｫ謫堺ｽ憺ｲ蜈･ `try...finally` 蜊蝪奇ｼ檎｢ｺ菫晞｣邱壼惠莉ｻ菴墓ュ豕∽ｸ具ｼ亥桁諡ｬ萓句､也匸逕滓凾�蛾�閭ｽ豁｣遒ｺ豁ｸ驍��豎�荳ｭ�梧撩邨暮｣邱壼､匁ｴｩ (Connection Leak)縲�
+  - 險ｭ螳� RDS 騾｣邱壽ｱ�荳企剞轤ｺ 2�悟推遘滓宛 (OA) 騾｣邱壽ｱ�荳企剞轤ｺ 2�御ｸｦ邵ｮ貂� SQLAlchemy 豎�螟ｧ蟆上よｭ､隱ｿ謨ｴ菫る�蟆� Heroku Postgres 20 蛟矩｣邱夂噪遑ｬ鬮秘剞蛻ｶ騾ｲ陦悟━蛹厄ｼ御ｻ･遒ｺ菫晁�蜈ｶ莉� 14 蛟句�莠ｫ蟆域｡亥柱蟷ｳ蜈ｱ蟄假ｼ碁亟豁｢ Superpages 菴皮畑驕主､夊ｳ�ｺ仙ｰ手�邉ｻ邨ｱ蟠ｩ貎ｰ縲�
+- **菴ｿ逕ｨ閠�ｫ秘ｩ怜━蛹�**:
+  - 蟆�橿陦捺ｧ逧�瑚ｳ�侭蠎ｫ騾｣邱夐℃螟壹肴�縲訓ool is full縲榊�ｱ骭ｯ險頑�譖ｴ謾ｹ轤ｺ譖ｴ騾壻ｿ礼噪縲檎ｳｻ邨ｱ郢∝ｿ呻ｼ瑚ｫ狗ｨ榊ｾ悟�隧ｦ縲搾ｼ梧署蜊�撼謚陦謎ｺｺ蜩｡逧�務隶鬮秘ｩ励�
+- **蜉溯�遘ｻ髯､**:
+  - 遘ｻ髯､縲梧歓迯守ｮ｡逅�埼��擇闊�嶌髣懷粥閭ｽ�悟桁蜷ｫ蜑咲ｫｯ `PrizeStatus.jsx` 鬆�擇縲∬ｷｯ逕ｱ險ｭ螳壼所蠕檎ｫｯ閾ｪ蜍募�蟋句喧雉�侭縲�
 
-## [2026-06-18] 潛ａ喃蟡芰株摮
-- **箄 (backend/endpoints/upload.py)**:
-  -  GitHub 潛ａ喃 1MB  5MB
-  - ａ 5MB 株蝞 JSON 芰株 413 瞏
-- ** (frontend/src/pages/*.jsx)**:
-  - 摮萇潛ａ瞏芰 413 (Payload Too Large) 瞏剖舀寡瑞飭潛Ｘ剜寥 5MB
-  - 頦寡∟祆輯批賡喃皜航領仿
+## [2026-05-08] 閾ｪ蜍墓羅遞区賜遞句━蛹冶� UX 謠仙合
+- **謗堤ｨ矩俣髫疲髪謠ｴ蟷ｴ闊�怦**:
+  - 蝨ｨ譁ｰ蠅樊�邱ｨ霈ｯ閾ｪ蜍墓羅遞区賜遞区凾�碁俣髫疲凾髢楢ｨｭ螳壽眠蠅槭悟ｹｴ縲崎�縲梧怦縲崎ｼｸ蜈･鬆�ｼ井ｻ･ 1 蟷ｴ = 365 螟ｩ, 1 譛� = 30 螟ｩ險育ｮ暦ｼ会ｼ梧署萓帶峩髟ｷ譛溽噪謗ｨ謦ｭ隕丞潟閭ｽ蜉帙�
+- **邱ｨ霈ｯ謗堤ｨ� UX 蜆ｪ蛹�**:
+  - 蝨ｨ邱ｨ霈ｯ閾ｪ蜍墓羅遞区賜遞区凾�梧潔荳狗｢ｺ隱榊ｾ梧怎鬘ｯ遉ｺ縲悟┫蟄倅ｸｭ...縲崎ｼ牙�迢諷具ｼ御ｸｦ骼門ｮ壽桃菴懈潔驤穂ｻ･髦ｲ豁｢驥崎､�署莠､縲�
+- **鬆占ｦｽ譌･譛滄｡ｯ遉ｺ蜆ｪ蛹�**:
+  - 閾ｪ蜍墓羅遞矩�占ｦｽ荳ｭ逧��占ｨ育匸騾∵凾髢鍋樟蝨ｨ蛹�性縲悟ｹｴ莉ｽ縲埼｡ｯ遉ｺ�梧婿萓ｿ譟･逵矩聞譛滓賜遞九�
 
-## [2026-06-18] 閰冽 Fallback 株芾澈
-- ** (backend/endpoints/broadcast.py)**:
-  - `rich_menu_metadata` 萄賣虜 `permission_tags``fallback_message``alias_id` 輸鈭方皝
-- **箄 (backend/endpoints/richmenu.py)**:
-  - 閰冽芾皜舫砍喲
-- ** (frontend/src/pages/RichMenu.jsx)**:
-  - 梁閰冽澆桀皜脰彿桀亥瑞 (Fallback)
-  - 券閰其閰冽鈭撖抒貉頦菜璇舀０賂撕
-  - 粹蹂漲蝞閰冽游撖抒閰冽鞊Ｘ拇閰冽
-  - 瞏 LINE 豢閰冽湧輸 Postback 瞉剜 `menuID`啗方岳獢 `permission_tags` (Python list 桅急) 鈭 `fallback_message`箄∟怨啁潘撓閰
-  - 閰冽萄颱漲嚗嗉 Fallback 株祈閉
+## [2026-05-08] Standardizing Flex Redirect Architecture
+- **Flex Message Editor Refactor**:
+  - Implemented dynamic `app_name` and `oaId` injection for all generated outbound links.
+  - Standardized LIFF-based redirection for links with tag assignment.
+  - Unified all redirection logic to route through the centralized `/api/redirect` endpoint.
+  - Removed legacy `<%m.user_id%>` placeholders to leverage LIFF-native userId retrieval.
 
-## [2026-06-18] 祇株舀輯
-- ** (frontend/src/pages/RuleDesigner.jsx)**:
-  - 擏鈭
-  - 方葭皜荔撕蝞單鈭餅鈭斗輯扯祈輯號貉嚗園皝皜⊥葡甇駁踵
-
-## [2026-06-17] ∟祆單賡
-- ** (frontend/src/pages/Projects.jsx, Broadcast.jsx, RuleDesigner.jsx, RichMenu.jsx, LiffQuestionnaire.jsx, FlexMessageEditor.jsx)**:
-  - 怨∟剖桃Ｘ啣砲芰瑞飭頦寞剜喟ａ GitHub  Repo 鈭銋 GitHub API 剜
-  - 踵行憛 (5 MB)嗆 (50 MB) (30 MB)祈郭 (1 MB)閰冽 (1 MB) (1 MB)
-
-## [2026-06-17] 閰冽鈭 Link 
-- ** (frontend/src/pages/RichMenu.jsx)**:
-  - 瞏貉澈株岳澆鈭 LINE蝞鈭 LINE銋抵 Link鞈鈭斗孵交祈正∪曉瞏貊詨賢亥祆
-
-## [2026-06-17] 閰冽潸寡貉祆唳
-- **箄 (backend/endpoints/richmenu.py, backend/endpoints/customers.py)**:
-  - 怎捂瞏剛方貉岳獢啁 (`bulk_check_and_update_rich_menu`)
-  -  `/api/customers/count-by-tags` 賣螂銵文賢∠閰
-  - 粹輯撒駁桀 (/瑟) 瞏閰冽澆豢螂芸瞏餉岳獢
-- ** (frontend/src/pages/RichMenu.jsx)**:
-  - 擏寧桀嚗
-  - 箏餅抵岳澆蟡 (啁)
-  - 皜賊渲悻甇寥銵桅祈部格嗥閰
-  - 萄塚撓皝唾寞輯
-
-## [2026-06-16] Flex 祆啁皝
-- ** (frontend/src/components/FlexMessageEditor.jsx)**:
-  - 皜詨賊萇桀鈭亥貉閰冽
-  -  payload 怎憛 `sys_bind|{tag}|{journey}|{menu}|{displayText}` 舀寞
-
-## [2026-06-16] 璇Ｚ芰株皝
-- **箄 (backend/endpoints/questionnaire.py)**:
-  - 梁鈭璇ａ游芰瑞急０輯抒
-
-## [2026-06-12] superpages UI/UX Improvements
-- **∟砍 (App.jsx)**:
-  - 銵皝抒 OA啣音賢鞈
-- **貉 (Projects.jsx)**:
-  - 嗆株璆嗆祈郭賜蝞 `preview_image_url` 輯抒嚗 (poster)
-  - 文曇璆璇舀剜 duration 瞍脫輯批撖抒賊箄∟芸急祉
-- ** (RuleDesigner.jsx)**:
-  - 賣潸縣芬亦芷瑟亥算芸賢鞈璆恬撕踹貉瑟賊曇萄
-  - 賡芣梁祈瑟亥鈭日株璆蝞銵鈭日 (Loading Spinner) 喳賢賊輯撒餅
-- **Ｘ斗螂 (Broadcast.jsx)**:
-  - 賣潸縣嗆株祈部嚗瑞飭貉寧蝎對瑞捂桀祈郭 (poster)
-
-## [2026-06-10] superpages dev-and-deploy-docker Update
-  - 日株璆砍賢文曇芾貉怎瞍脰⊥圈閰其漱
-  - 日株璆砍賢嗆喳桅祈郭鞈
-  -  unfollow 賢交輯批 ctive 賢桃臬賢瞍
-- **Ｘ斗螂 (Broadcast.jsx)**:
-  - 嗆株曉桅祈郭鞈
-  - 株思漱鈭斗唳鈭寞喟株
-- **株剛 (MessageCenter.jsx)**:
-  - 怎蝞璊唳鳩/ UI Bug
-  - 賢摮 unfollow 剝賊株芣鈭日∴瑞獢賢甇 follow 箄賊急
-- **箄 (backend/app.py)**:
-  - 皝 get_users_list  get_project_users API 鈭 is_following ∟祆賢剝拇
-
-
-
-### 2026-06-10
-- **Feature**: 梁\
-ote\ 輯豢箄 \- 鈭血穀
-- **Feature**: ∟ (\Questionnaire.jsx\) 璇 \鈭血穀 格璈輯扯航怨
-- **Feature**: \RuleDesigner.jsx\ 芬亦芣貉豢０ \鈭血穀 
-
-### 2026-06-10 Customer Center Updates
-- **Feature**: 堆撓∟孵單斗 (/)貉輯折航岳獢輯折急斗
-- **Feature**: 箄 customers.py  /api/customers/<user_id>/details  DELETE /api/customers/<user_id>/richmenu
-
-- **BugFix**: 賣潸縣堆撓∟孵單貉 SQL 輯璇Ｚ芰 (projects 萄 project_id  project_name)
-
-- **Feature**: 擗蝯剜日擗祈郭格潭孵祆鳩鈭斗銋擗璆菟
-
-## [2026-06-22] Ｘ方岳芾貉
+## [2026-04-30]
 ### Added
-- 萄賜賢 ui_uuid  group_id 輸鈭方皜貉岳獢Ｘ
-- ∟祉輯岳獢暺 UI皜航頛
-- 急鞊ａ桀閰冽渲閉
-- 怠賊萄賜賣
+- **豕募援陦ｨ莉ｻ蜍吝喧蜆陦ｨ譚ｿ**: 轤ｺ縲梧ｳ募援陦ｨ險ｭ險医咲噪邁｡譏捺ｨ｡蠑丞ｯｦ菴懷�譁ｰ逧�ｻｻ蜍吝今迚� UI�梧髪謠ｴ譌･譛溷項髢薙∵ｯ乗律譎よｮｵ闊�ｨ咏ｱ､閾ｪ蜍募喧險ｭ螳壹�
+- **蝨匁枚驕ｸ蝟ｮ LIFF 讓咏ｱ､霑ｽ雹､**: 謾ｯ謠ｴ蝨ｨ蝨匁枚驕ｸ蝟ｮ逧�｣邨仙虚菴應ｸｭ逶ｴ謗･險ｭ螳壽ｨ咏ｱ､�檎ｳｻ邨ｱ閾ｪ蜍慕函謌� LIFF 莉｣逅�｣邨舌�
+- 蜷梧ｭ･ `deploy-heroku` 蛻�髪荳顔噪蜍墓�迺ｰ蠅�ｮ頑丙譫ｶ讒句屓 `main` 蛻�髪縲�
+- 譁ｼ `docker-compose.yml` 蠑募� `.env` 隶頑丙謗幄ｼ会ｼ瑚ｮ捺悽蝨ｰ Docker 迺ｰ蠅�庄螳檎ｾ主ｰ肴磁髮ｲ遶ｯ譫ｶ讒玖御ｸ堺ｾ晁ｳｴ遑ｬ邱ｨ遒ｼ縲�
+- 譁ｰ蠅� `example.env` 謠蝉ｾ帶悽蝨ｰ驛ｨ鄂ｲ闊�ｮ頑丙險ｭ螳夂ｯ�悽縲�
+- 蟆� `.env` 蛻怜� `.gitignore` 莉･髦ｲ豁｢謨乗─雉�ｨ雁､匁ｴｩ縲�
 
- # #   [ U n r e l e a s e d ]   -   R i c h   M e n u   U I / U X   U p d a t e s 
- -   * * M o d i f i e d * *    a c k e n d / e n d p o i n t s / c u s t o m e r s . p y :   U p d a t e d   / c o u n t - b y - t a g s   e n d p o i n t   t o   r e t u r n   	 o t a l C o u n t   a l o n g   w i t h   m a t c h e d   u s e r   c o u n t . 
- -   * * M o d i f i e d * *    r o n t e n d / s r c / p a g e s / R i c h M e n u . j s x :   A d d e d   U I   e l e m e n t s   t o   d i s p l a y   t h e   p e r c e n t a g e   o f   t o t a l   f o l l o w e r s   f o r   t a r g e t e d   a n d   d e f a u l t   r i c h   m e n u s .   A d d e d   a   d e d i c a t e d   L i n k M o d a l   c o m p o n e n t   f o r   s e l e c t i n g   t h e   l i n k a g e   s t r a t e g y   f r o m   t h e   L i s t   V i e w .   A d d e d   i n l i n e   t a r g e t   m e n u   p r e v i e w   f u n c t i o n a l i t y   f o r   
- i c h m e n u s w i t c h   a r e a   a c t i o n s . 
- 
- 
- # #   [ U n r e l e a s e d ]   -   R i c h   M e n u   M i n o r   F i x e s 
- -   * * M o d i f i e d * *    r o n t e n d / s r c / p a g e s / R i c h M e n u . j s x :   A d d e d   d r a f t   d e l e t i o n   b u t t o n   i n s i d e   g r o u p   t a b s ,   i m p l e m e n t e d   c r e a t e _ a n d _ s w i t c h   q u i c k   a c t i o n   i n   a r e a   s w i t c h   d r o p d o w n ,   s t a c k e d   s c h e d u l e   t i m e   i n p u t s   v e r t i c a l l y ,   a n d   f i x e d   t a r g e t   m e n u   i m a g e   p r e v i e w   b y   f e t c h i n g   f r o m   b l o b   c a c h e . 
- 
- 
-- **Bug Fix (2026-06-23)**: 賣剖貉岳湔銋典啗祆唳芣琿 targetTags 蝞敺皜⊥嚗瑟渡砂交輯扯質斗
+### Changed
+- **蝨匁枚驕ｸ蝟ｮ莉矩擇蜆ｪ蛹�**: 遘ｻ髯､ Postback 蜍穂ｽ憺｡槫梛�御ｸｦ蟆�瑚ｷｳ霓臥ｶｲ鬆√肴峩蜷咲ぜ縲碁幕蝠滄｣邨舌堺ｻ･隨ｦ蜷井ｽｿ逕ｨ閠�ｿ呈�縲�
+- **豕募援陦ｨ邁｡譏捺ｨ｡蠑城㍾讒�**: 蟆�次譛ｬ逧�｡ｨ譬ｼ隕門恂謾ｹ轤ｺ蜊｡迚�ｼ丈ｻｻ蜍咏ｮ｡逅�ｼ梧署蜊�撼謚陦謎ｺｺ蜩｡逧�ｷｨ霈ｯ謨育紫縲�
 
-*   **customers API**: 賣閰 /count-by-tags 舀０剝皜豢踹撖抒祈悻閰冽銵冽鞈 ()輻剔捂鞎蝞
+## [2026-01-29]
 
-## 2026-06-25
-- [蝔  WebSocket  SIGNATURE_KEY 芾賡鈭西岳 Line-Bot-Main 啣餉
-## [2026-06-25] - Syslog Integration
+### Changed - UI/UX Improvements
+- **蟆域｡郁�謗堤ｨ狗ｮ｡逅� (Project & Schedule Management)**:
+    - **蟆手ｦｽ蜆ｪ蛹�**: 鮟樊投蟆域｡亥�陦ｨ荳ｭ逧�ｰ域｡亥錐遞ｱ蜿ｯ逶ｴ謗･霍ｳ霓芽�謗堤ｨ矩��擇荳ｦ閾ｪ蜍暮℃豼ｾ隧ｲ蟆域｡医�
+    - **謗堤ｨ句�陦ｨ**: 譁ｰ蠅樊賜遞狗ｸｽ謨ｸ邨ｱ險磯｡ｯ遉ｺ縲�
+    - **霈ｸ蜈･莉矩擇隱ｿ謨ｴ**: 
+        - 菫ｮ豁｣荳ｦ蜉�螟ｧ縲碁俣髫疲凾髢薙崎ｼｸ蜈･譯�ｯｬ蠎ｦ�檎｢ｺ菫晄丙蛟ｼ貂�匆蜿ｯ隕具ｼ亥桁蜷ｫ譁ｰ蠅櫁�邱ｨ霈ｯ讓｡蠑擾ｼ峨�
+        - 菫ｮ豁｣縲悟�髏倥咲┌豕戊ｪｿ謨ｴ逧�撫鬘後�
+        - 蜉�螟ｧ縲悟┫蟄�/蜿匁ｶ医肴潔驤募ｯｬ蠎ｦ莉･蛻ｩ鮟樊投縲�
+    - **隕冶ｦｺ邁｡蛹�**: 
+        - 髫ｱ阯剰｡ｨ譬ｼ荳ｭ逧� Database ID 谺�ｽ阪�
+        - 髫ｱ阯� Rich Message 逧� `QA|` 蜑咲ｶｴ讓咏ｱ､�御ｸｦ遘ｻ髯､邱ｨ霈ｯ蝎ｨ荳ｭ逧�橿陦鍋畑隱� (`QA_bank`)縲�
+    - **Bug Fix**: 
+        - 菫ｮ豁｣縲梧眠蠅樊賜遞九肴凾�碁俣髫疲凾髢捺ｬ�ｽ榊屏蟇ｬ蠎ｦ荳崎ｶｳ蟆手�辟｡豕墓ｭ｣蟶ｸ鬘ｯ遉ｺ闊�ｼｸ蜈･逧�撫鬘後�
+        - 菫ｮ豁｣蟆域｡亥錐遞ｱ蜿ｯ轤ｺ遨ｺ逧�険隱､�梧眠蠅槫ｿ�｡ｫ鬩苓ｭ峨�
+        - 菫ｮ豁｣譁ｰ蠅樊賜遞区凾�檎峩謗･霈ｸ蜈･逧�枚蟄苓ｨ頑�譛ｪ閭ｽ豁｣遒ｺ蛯ｳ驕櫁�騾ｲ髫守ｷｨ霈ｯ蝎ｨ逧�撫鬘後�
+        - **險頑�譬ｼ蠑冗ｵｱ荳**: 蝨ｨ縲梧眠蠅�/邱ｨ霈ｯ謗堤ｨ九肴凾�瑚凶逶ｴ謗･霈ｸ蜈･邏疲枚蟄苓ｨ頑��檎ｳｻ邨ｱ譛�名蜆ｲ蟄俶凾閾ｪ蜍募ｰ��霓画鋤轤ｺ Rich Message (QA Bank 鬆�岼)�御ｸｦ逕｢逕溷ｰ肴㊨讓咏ｱ､ (`QA|cron_{蜊ｳ譎�D}`)�檎｢ｺ菫晁ｨ頑�譬ｼ蠑冗噪荳閾ｴ諤ｧ縲�
+
+## [2026-01-27]
+
+### Changed
+- **謗堤ｨ玖ｨｭ螳� (Schedule Settings)**:
+    - **UI 謾ｹ濶ｯ**: 蝨ｨ譁ｰ蠅櫁�邱ｨ霈ｯ謗堤ｨ区凾�後碁俣髫疲凾髢薙肴ｬ�ｽ咲罰蜴滓悽逧�粍荳霈ｸ蜈･譯�隼轤ｺ縲悟､ｩ縲阪√梧凾縲阪√悟�縲堺ｸ牙狗昏遶狗噪謨ｴ謨ｸ霈ｸ蜈･譯��
+    - **鬘ｯ遉ｺ蜆ｪ蛹�**: 謗堤ｨ句�陦ｨ荳ｭ逧�俣髫疲凾髢馴｡ｯ遉ｺ譬ｼ蠑乗隼轤ｺ "X螟ｩ Y蟆乗凾 Z蛻�"縲�
+    - 豁､隶頑峩菫晄戟蠕檎ｫｯ雉�侭譬ｼ蠑� (Total Hours) 荳崎ｮ奇ｼ悟ュ蝨ｨ蜑咲ｫｯ騾ｲ陦瑚ｽ画鋤�檎｢ｺ菫晁�闊頑怏雉�侭逧�嶌螳ｹ諤ｧ縲�
+
+## [2026-01-23]
+
+### Changed
+- **蟆域｡郁�謗堤ｨ狗ｮ｡逅� (Projects)**:
+    - **迢諷矩ｏ霈ｯ譖ｴ譁ｰ**: 蟆域｡育朽諷狗ｴｰ蛻�ぜ 邱ｨ霈ｯ荳ｭ縲∝ｷｲ謗堤ｨ九�ｲ陦御ｸｭ縲∝ｷｲ證ｫ蛛懊∝ｷｲ螳梧�縲∝ｷｲ邨よｭ｢�御ｸｦ逕ｱ蠕檎ｫｯ萓晄答譎る俣闊�福逕ｨ迢諷玖�蜍戊ｨ育ｮ励�
+    - **譁ｰ蠅樣肩鮟櫁ｨｭ螳� (Anchor Setting)**: 謾ｯ謠ｴ縲檎ｫ句叉隗ｸ逋ｼ縲崎�縲梧ｯ城ｱ迚ｹ螳壽凾髢� (螯るｱ蜈ｭ 18:00)縲崎ｧｸ逋ｼ縲�
+    - **譁ｰ蠅樔ｼ醍悛譎る俣 (Dormancy Time)**: 蜿ｯ險ｭ螳壽ｯ乗律荳咲匸騾∬ｨ頑�逧�凾谿ｵ (螯� 23:00~08:00)縲�
+    - **雉�侭蠎ｫ隶頑峩**: `projects` 雉�侭陦ｨ譁ｰ蠅� `anchor_config` 闊� `dormancy_config` 谺�ｽ� (JSONB)縲�
+
+
+## [2026-01-07]
+
 ### Added
-- 游 NAS Syslog嚗賢閮閬敺蝡舀雿銵 (啣詨柴靽格孵獢閮剖臬交蝔蝑)
-- 啣 utils/syslogger.py  ReconnectingSSLSysLogHandler嚗撠 Syslog 曄蔭臬瑁蝺嚗蝣箔蝺銝蝛拇 API 銝敶梢踴
-- 舀渡啣霈 NAS_SYSLOG_APPNAME  Docker  Heroku 函蔡啣
+- 蟒ｺ遶� `docs` 雉�侭螟ｾ荳ｦ蟆� `ARCHITECTURE.md` 遘ｻ蜈･縲�
+- 蟒ｺ遶� `CHANGELOG.md` 逕ｨ譁ｼ邏骭�ｰ域｡郁ｮ頑峩縲�
+- **蟆域｡亥純闊�畑謌ｶ**:
+    - 蠕檎ｫｯ譁ｰ蠅� `/api/projects/<id>/users` 謗･蜿｣�悟ｾ� `cron_table` 蜿門ｾ怜純闊�畑謌ｶ縲�
+    - 蜑咲ｫｯ `Projects.jsx` 譁ｰ蠅槭悟純闊�畑謌ｶ縲榊�鬆�ｼ悟庄譟･逵句推蟆域｡育噪菴ｿ逕ｨ閠��
+    - 譁ｰ蠅槭梧焔蜍募刈蜈･逕ｨ謌ｶ縲肴潔驤包ｼ瑚ｧｸ逋ｼ `iup|{project_id}` 謖�ｻ､縲�
+- **螳壽凾隗ｸ逋ｼ莠倶ｻｶ**:
+    - 雉�侭蠎ｫ譁ｰ蠅� `scheduled_events` 雉�侭陦ｨ�域髪謠ｴ `interval_hours` 闊� `last_executed_at`�峨�
+    - 蠕檎ｫｯ蟇ｦ菴懆レ譎ｯ蝓ｷ陦檎ｷ抵ｼ梧�ｹ謫夊ｨｭ螳壻ｹ九碁囈螟壻ｹ�ｧｸ逋ｼ荳谺｡ (蟆乗凾)縲崎�蜍戊ｨ育ｮ嶺ｸｦ蝓ｷ陦後�
+    - 蜑咲ｫｯ譁ｰ蠅槭悟ｮ壽凾隗ｸ逋ｼ縲埼��擇�梧髪謠ｴ險ｭ螳夐俣髫疲凾髢楢�譟･逵区怙蠕悟濤陦檎ｴ骭��
+- **迯主刀譟･隧｢鬆�擇**:
+    - 蠕檎ｫｯ譁ｰ蠅� `/api/tickets` 謗･蜿｣�悟ｾ� `ticket_table` 蜿門ｾ礼克蜩∽ｸｭ迯守朽豕√�
+    - 蜑咲ｫｯ譁ｰ蠅� `PrizeStatus.jsx` 鬆�擇�碁｡ｯ遉ｺ迯主刀闊�ｸｭ迯手� ID縲�
+    - 謠蝉ｾ幃♀謌ｲ謗ｧ蛻ｶ謖蛾��亥福蜍輔∵歓螟ｧ迯弱�梨髢峨∵告蜃ｺ縲∵眠蠅橸ｼ会ｼ御ｸｦ謨ｴ蜷� Socket.io 隗ｸ逋ｼ謖�ｻ､縲�
 
+### Documentation
+- 驥肴紛譁�ｻｶ譫ｶ讒九�
 
-## [2026-06-25] - Keyword Reply Duplicate Validation
+## [2026-05-22] - Support Heroku Unified Deployment
+- 譁ｰ蠅樊�ｹ逶ｮ骭� `Procfile`縲～package.json` 闊� `requirements.txt` 莉･謾ｯ謠ｴ Heroku Multi-Buildpack 驛ｨ鄂ｲ縲�
+- 菫ｮ謾ｹ `backend/app.py`�悟刈蜈･莨ｺ譛� `frontend/dist` 髱懈�讙疲｡育噪蜉溯�闊� Catch-all 霍ｯ逕ｱ縲�
+
+## [2026-05-22] - Refactor Hardcoded URLs to Config Vars
+- 遘ｻ髯､ `backend/app.py` 闊� `backend/utils/socket_utils.py` 荳ｭ謇譛牙ｯｫ豁ｻ逧�ｼｺ譛榊勣菴榊捩闊�ｳ�侭蠎ｫ蟇�｢ｼ縲�
+- 蟆主�迺ｰ蠅�ｮ頑丙 (Config Vars) 謗ｧ蛻ｶ讖溷ｯ��迺ｰ蠅�嶌萓晁ｨｭ螳夲ｼ啻DATABASE_URL`, `LEGACY_DB_URL`, `WS_URL`, `CORS_ORIGINS`縲�
+
+## [2026-06-04] - 邉ｻ邨ｱ貂ｬ隧ｦ鬆�擇闊� GitHub 險ｭ螳夐㍾讒�
 ### Added
-- 萄閬 (RuleDesigner 蝪⊥璅∪): 脣芸瑼Ｘ交臬西嗡萄璅憿銴嚗仿銴頝喳箸蝷箏遣霅圈踹嚗嫣噶敺啁恣
+- backend/endpoints/test_runner.py: 譁ｰ蠅樣�占ｨｭ貂ｬ隧ｦ譯井ｾ� DEFAULT_TEST_CASES�悟桁蜷ｫ蠕� Q_bank:dreammmbot 謠仙叙荵� 24 遲�ｳ�侭闊� Sensor 荳ｲ謗･逧�屓隕��螳ｹ縲�
+- backend/endpoints/test_runner.py: 蟇ｦ菴� expected_content 豈泌ｰ埼ｏ霈ｯ�梧髪謠ｴ蜍墓�譁�ｭ玲ｪ｢鬩励�
+- frontend/src/pages/TestRunner.jsx: 蝨ｨ貂ｬ隧ｦ譯井ｾ狗ｷｨ霈ｯ蜊譁ｰ蠅槭碁�先悄譁�ｭ怜�螳ｹ縲肴ｬ�ｽ阪�
+### Changed
+- backend/endpoints/upload.py: 蟆� GitHub 蝨也援荳雁さ蜿�丙逶ｴ謗･謾ｹ轤ｺ隶蜿也腸蠅�ｮ頑丙 (GITHUB_TOKEN, GITHUB_REPO, GITHUB_BRANCH, GITHUB_PATH)縲�
+- frontend/src/pages/AdminPage.jsx: 遘ｻ髯､ GitHub 蝨也援荳雁さ逧� UI 險ｭ螳壼項蝪願�迢諷九�
 
-## [Unreleased] - 2026-06-25
-### Added
-- 詨桃恣嚗啣唬喋賬
-- 詨桃恣嚗撱箇畾萄乩/銝剔頛亙恍脣
-- 詨桃恣嚗撠摰蝬摰撠鞊∪憟(閮)蝑伐亙券憟賢憟(ALL_USERS)摰璅蝐斤豢璈嗚
+## [2026-06-04] - 邉ｻ邨ｱ貂ｬ隧ｦ Timeout 菫ｮ豁｣
+### Changed
+- `frontend/src/pages/TestRunner.jsx`: 蟆�千ｭ�ｸｬ隧ｦ蝓ｷ陦檎噪 API timeout 蠕� 30 遘呈署鬮倩� 90 遘抵ｼ碁∩蜈肴ｶ牙所險域凾蝎ｨ謌夜聞譎る俣陌慕炊逧�ｸｬ隧ｦ譯井ｾ具ｼ亥ｦ� `timer貂ｬ隧ｦ`�牙屏蠕檎ｫｯ Socket 騾｣邱� + 讖溷勣莠ｺ陌慕炊 + 雉�侭蠎ｫ霈ｪ隧｢逧�ｸｽ譎る俣雜�℃蜑咲ｫｯ timeout 閠瑚ｪ､蝣ｱ螟ｱ謨励�
+
+## [Unreleased] - 2026-06-08
+### 譁ｰ蠅�
+- 蟆�ｶｲ鬆∫剰ｦｽ蝎ｨ蛻��∝恂遉ｺ (favicon) 譖ｴ譁ｰ轤ｺ謖�ｮ夂噪閾ｪ險ょ恂遉ｺ縲�
+- 譁ｼ蟾ｦ蛛ｴ蜉溯�蛻玲眠蠅槭檎ｶｲ霍ｯ閨ｲ驥城峭驕斐�(SocialRadar) 闊�窟I 豢槫ｯ溷勧逅��(AiInsight) 蜈ｩ蛟矩��擇縲�
+- 鬆�擇逶ｮ蜑咲ぜ縲梧命蟾･荳ｭ縲咲朽諷具ｼ梧悴萓�ｦ丞潟螳梧�蠕悟ｰ�ｯｦ菴懷粥閭ｽ縲�
+- 譖ｴ譁ｰ蠕檎ｫｯ雉�侭蠎ｫ逧� pages 闊� permission_settings (OAConfigs)�檎ぜ謇譛牙ｰ域｡亥刈蜈･騾吝�蛟区眠鬆�擇逧�ｬ企剞縲�
+- 譁ｼ LIFF 蝠丞差邂｡逅���擇荳ｭ譁ｰ蠅槭御ｸ玖ｼ我ｽ懃ｭ皮ｵ先棡 (CSV)縲榊粥閭ｽ�碁城℃ `v_liff_questionnaire_results` 隕門恂逶ｴ謗･蛹ｯ蜃ｺ蜷�ｽｿ逕ｨ閠�噪菴懃ｭ皮ｴ骭��
+
+## [2026-06-09] - 邯懷粋謨ｸ謫壽律譛溯ｨ育ｮ嶺ｿｮ豁｣
 ### Fixed
-- 詨桃恣嚗靽格迤豢芸遣蝡趺ine銝箇暹蝔閮剖UI頛胯
-- 詨桃恣嚗靽桀儔銝嗅亦⊥憿舐內憿嚗寧典典 useEffect 芸瑼Ｘ亙敶勗
-- 萄閮臭葉敹嚗瞈暹冽芾身摰 fallback message Ｙ [text] 摮銝莎踹嗅僕曇臭葉敹梢萄蝯梯
+- backend/app.py: 菫ｮ豁｣蝨ｨ `/api/statistics/keywords` 遶ｯ鮟樔ｸｭ�檎文蜑咲ｫｯ蛯ｳ蜈･ `YYYY-MM-DD` 譬ｼ蠑冗噪邨先據譌･譛滓凾�梧悴豸ｵ闢句芦逡ｶ螟ｩ 23:59:59 逧�撫鬘後ら樟蟾ｲ閾ｪ蜍慕ぜ `end_time` 陬應ｸ� ` 23:59:59`縲�
+- 譁ｼ `models.py` 荳ｭ蟆 `RichMenuMetadata` SQLAlchemy Model 謨ｴ鬮碑ｨｻ隗｣悟●豁｢菴ｿ逕ｨ蝟ｮ荳€髱懈雉侭陦ｨ縲
+- **`richmenu.py` API 蜈ｨ髱｢驥肴ｧ**
+  - 譁ｰ蠅 `get_t(base)` 蜃ｽ謨ｸ瑚ｲ雋ｬ隗｣譫 `g.current_app_name` 荳ｦ霑泌屓蟶ｶ譛 `appname` 蠕檎ｶｴ逧尸蠑戊辧蛹｣ｹ雉侭陦ｨ蜷咲ｨｱ悟酔譎りｧｸ逋ｼ `ensure_rds_tables` 閾ｪ蜍募ｻｺ陦ｨ縲
+  - 蟆 `GET/POST /metadata` 闊 `DELETE /metadata/<id>` 荳牙€狗ｫｯ鮟橸ｼ悟ｾ SQLAlchemy ORM 蜈ｨ髱｢謾ｹ蟇ｫ轤ｺ蝓ｺ譁ｼ `psycopg2` 逧次逕 SQL 譟･隧｢瑚ｮ€蟇ｫ逶ｮ讓呎隼轤ｺ蜷 App 蟆亥ｱｬ逧ｾ檎ｶｴ雉侭陦ｨ縲
+  - 菫ｮ豁｣ `parse_local_naive` 譎ょ項隗｣譫 Bug夊迚域悽菴ｿ逕ｨ `.replace('Z', '')` 邊玲垓陬∝譎ょ項悟ｰ手 UTC 譎る俣陲ｫ逡ｶ謌仙床轣｣譎る俣蟄伜碁€謌 8 蟆乗凾譎ょｷｮ縲よ眠迚域悽豁｣遒ｺ蟆 UTC 譎る俣霓画鋤轤ｺ蜿ｰ轣｣譎る俣TC+8牙ｾ悟莉･ naive datetime 蟄伜梧ｹ譛ｬ隗｣豎ｺ謗堤ｨ区凾髢灘￥蟾ｮ蝠城｡後€
+- **`app.py` 閭梧勹謗堤ｨ倶ｻｻ蜍 `rich_menu_scheduler_processor` 驥肴ｧ**
+  - 闊顔沿夐″豁ｷ謇€譛 `RichMenuMetadata` 邏€骭ｼ悟ｰ埼℃譛滄∈蝟ｮ逋ｼ騾∝蝓 `DELETE` 謖ｻ､悟ｰ手縲碁∈蝟ｮ A 驕取悄隗｣髯､縲咲噪蜷梧凾骭ｯ隱､貂勁縲碁∈蝟ｮ B 豁｣蝨ｨ豢ｻ蜍穂ｸｭ縲咲鬆占ｨｭ驕ｸ蝟ｮ育ｫｶ諷玖｡晉ｪ Bug峨€
+  - 譁ｰ迚茨ｼ壻ｻ･ **OAConfig 轤ｺ蝟ｮ菴**騾蝉ｸ€陌慕炊悟ｰ肴ｯ丞€ App 蝓ｷ陦御ｻ･荳矩ｏ霈ｯ
+    1. 譟･隧｢ `rich_menu_metadata:{appname}` 蜿門ｾ玲園譛 published 荳疲怏譎る俣險ｭ螳夂噪驕ｸ蝟ｮ縲
+    2. 謇ｾ蜃ｺ縲梧㊨逕滓譜縲咲噪蜚ｯ荳 कहेंｸｮstart_time <= now_tw < end_time`会ｼ瑚凶譛牙､壼€狗ｬｦ蜷亥援蜿匁怙霑大福蜍慕噪start_time` 譛€螟ｧ閠ｼ峨€
+    3. 蠕 LINE API 蜿門ｾ礼岼蜑榊ｯｦ髫帷噪鬆占ｨｭ驕ｸ蝟ｮ ID縲
+    4. **髦ｲ遖ｦ諤ｧ豈泌ｰ**壽怏諛臥函謨磯∈蝟ｮ菴 LINE 鬆占ｨｭ ID 荳咲ｬｦ 竊 蜻ｼ蜿ｫ POST 險ｭ螳夲ｼ帷┌諛臥函謨磯∈蝟ｮ荳 LINE 鬆占ｨｭ ID 螻ｬ譁ｼ譛ｬ邉ｻ邨ｱ邂｡逅噪蟾ｲ遏･驕ｸ蝟ｮ 竊 謇榊他蜿ｫ DELETE 蜊ｸ霈会ｼ碁亟豁｢隱､蛻ｪ螟夜Κ驕ｸ蝟ｮ縲
+
+## [2026-05-20] 螳｢謌ｶ荳ｭ蠢ｷｨ霈ｯ螳｢謌ｶ蝓ｺ譛ｬ雉侭蜉溯
+- **蠕檎ｫｯ譁ｰ蠅槫ｮ｢謌ｶ邱ｨ霈ｯ API**壼惠 `backend/endpoints/customers.py` 荳ｭ譁ｰ蠅 `PUT /api/customers/<user_id>` 霍ｯ逕ｱ悟庄謗･謾ｶ `name`縲～phone`縲～email`御ｸｦ蛻ｩ逕ｨ螳牙 upsert 讖溷宛譖ｴ譁ｰ蛻ｰ `Private_var:{app_id}` 荳ｭ縲
+- **蜑咲ｫｯ蟇ｦ菴懃ｷｨ霈ｯ謖蛾闊ｰ剰ｦ也ｪ**
+  - 蟆ｮ｢謌ｶ蛻苓｡ｨ謫堺ｽ懈ｬｽ堺ｸｭ逧ｸ牙€矩ｻ樊峩螟夐∈鬆潔驤墓崛謠帷ぜ縲檎ｷｨ霈ｯ縲肴潔驤輔€
+  - 譁ｰ蠅樒ｷｨ霈ｯ Modal 迢€諷具ｼ碁ｻ樊投縲檎ｷｨ霈ｯ縲榊ｾ悟ｽ亥蟆剰ｦ也ｪ暦ｼ悟｡ｫ蜈･隧ｲ螳｢謌ｶ逶ｮ蜑咲噪雉侭縲
+  - 謠蝉ｾ帛錐遞ｱ縲∵焔讖溘€崕蟄蝉ｿ｡邂ｱ逧ｷｨ霈ｯ霈ｸ蜈･譯ｼ御ｻ･蜿翫€悟┫蟄倥€崎縲悟叙豸医€肴桃菴懶ｼ御ｸｦ蝨ｨ蜆ｲ蟄俶蜉溷ｾ瑚蜍墓峩譁ｰ蛻苓｡ｨ縲∵署遉ｺ謌仙粥險頑縲
+
+## [2026-05-19] 邉ｻ邨ｱ逋ｻ蜈･鬮秘ｩ怜━蛹
+- **逋ｻ蜈･遲牙ｾ虚逡ｫ闊亟隴ｷ**壼惠 `Login.jsx` 荳ｭ譁ｰ蠅樔ｺ `isLoggingIn` 迢€諷玖 `CircularProgress` 霈牙蜍慕吻縲ら文菴ｿ逕ｨ閠ｻ樊投 Google 逋ｻ蜈･荳ｦ騾ｲ蜈･鬩苓ｭ画ｵ∫ｨ区凾梧怎髫ｱ阯冗匳蜈･謖蛾荳ｦ鬘ｯ遉ｺ縲檎匳蜈･荳ｭ瑚ｫ狗ｨ榊€...縲咲謠千､ｺ蜍慕吻碁亟豁｢菴ｿ逕ｨ閠屏逡ｫ髱｢譛ｪ蜊ｳ譎りｷｳ霓芽€碁㍾隍ｻ樊投騾謌宣撼鬆先悄고ぜ縲
+- **莉矩擇郢ｫ比ｸｭ譁惠蝨ｰ蛹**壼ｰ匳蜈･鬆擇逧恭譁署遉ｺ譁ｭ暦ｼ亥ｦ "Login", "Sign in with your Google account" 遲会ｼ牙髱鄙ｻ隴ｯ荳ｦ譖ｴ譁ｰ轤ｺ郢ｫ比ｸｭ譁ｼ御ｻ･隨ｦ蜷域紛鬮皮ｳｻ邨ｱ隱樒ｳｻ縲
+
+## [2026-05-18] Flex 邱ｨ霈ｯ蝎ｨ闊恂譁∈蝟ｮ菫ｮ豁｣
+- **蝨匁枚驕ｸ蝟ｮ髮吝ｿｫ蜿冶ｼ牙蜆ｪ蛹**夂ぜ莠ｧ｣豎ｺ蜷恂譁∈蝟ｮ蝨也援閾ｪ LINE 螳俶婿莨ｺ譛榊勣荳玖ｼ画･ｵ蜈ｶ邱ｩ諷｢逧撫鬘鯉ｼ悟ｯｦ菴應ｺ燕遶ｯ闊ｾ檎ｫｯ逧€碁尸險俶鬮泌ｿｫ蜿厄ｼouble Memory Caching峨€肴ｩ溷宛
+  - **蜑咲ｫｯ蠢ｫ蜿**壼惠 `RichMenu.jsx` 讓｡邨蟒ｺ遶句蝓 `frontendImageCache`縲ゆｸ€譌ｦ蝨也援荳玖ｼ画蜉溷叉霓画鋤轤ｺ豌ｸ郤 Blob URL 荳ｦ莠井ｻ･蜆ｲ蟄假ｼ御惠菴ｿ逕ｨ閠謠幄ｦ門恂縲∵頗蟆区驥崎｣晉ｵｻｶ譎**迸ｬ髢楢ｼ牙 (0ms 蟒ｶ驕ｲ)**悟ｮ悟荳埼㍾隍髄蠕檎ｫｯ逋ｼ騾 HTTP 隲区ｱゅ€
+  - **蠕檎ｫｯ蠢ｫ蜿**壼惠 `endpoints/richmenu.py` 蜈ｧ蟒ｺ遶句蝓 `_IMAGE_CACHE` 險俶鬮泌ｭ怜縲ら文隨ｬ荳€谺｡蜷 LINE 莨ｺ譛榊勣謌仙粥迯ｲ蜿門恂迚ｽ榊邨凾悟ｰ螳ｹ闊 mimetype 蠢ｫ蜿冶險俶鬮費ｼ御ｾ檎ｺ瑚ｫ区ｱら峩謗･逕ｱ蠢ｫ蜿門屓蛯ｳ御ｽｿ霈牙閠玲凾逕ｱ謨ｸ遘堤ｸｮ遏ｭ閾ｳ謨ｸ豈ｫ遘抵ｼ御ｸｦ閭ｽ蜷梧ｭ･譁ｼ蛻ｪ髯､驕ｸ蝟ｮ譎り蜍墓ｸ炊蠢ｫ蜿悶€
+- **Flex 邱ｨ霈ｯ蝎ｨ遶ｶ諷玖蝗樊ｺｯ菫ｮ蠕ｩ**夊ｧ｣豎ｺ Flex 邱ｨ霈ｯ蝎ｨ蝨ｨ荳雁さ蝨也援譎ゑｼ瑚凶菴ｿ逕ｨ閠酔譎る€ｲ陦悟莉冶ｼｸ蜈･亥ｦよ遠蟄暦ｼ会ｼ梧怎蝨ｨ蝨也援荳雁さ螳梧荳ｦ逕｢逕 URL 蠕悟屓貅ｯollback我ｸｦ貂ｩｺ蜈亥燕謇灘ｭ苓荳雁さ邯ｲ蝮€逧ｫｶ諷句撫鬘後€る€城℃蠑募 `lastSavedJsonRef` 蠢ｫ蜿匁悽讖滓怙蠕悟┫蟄倡朽諷具ｼ悟ｮ檎ｾ朱仆譁ｷ辷ｶ蜈ｻｶ髱槫酔豁･迢€諷句屓豬∵園隗ｸ逋ｼ逧険隱､譛ｬ讖滄㍾險ｭ縲
+- **蝨也援荳雁さ鬮秘ｩ苓ｦ冶ｦｺ蛹冶髦ｲ隴ｷ**壽名蝨也援荳雁さ譎ょｼ募 `isUploading` 迢€諷玖蠕ｮ蝙区雷霓牙虚逡ｫpinner会ｼ御ｸｦ遖∫畑邯ｲ蝮€谺ｽ崎荳雁さ謖蛾碁亟豁｢菴ｿ逕ｨ閠惠荳雁さ譛滄俣騾ｲ陦碁㍾隍ｻ樊投謌冶ｼｸ蜈･檎｢ｺ菫晉ｳｻ邨ｱ迢€諷倶ｸ€閾ｴ諤ｧ縲
+- **Flex 邱ｨ霈ｯ蝎ｨ讓咏ｱ､蜷梧ｭ･菫ｮ豁｣**壻ｿｮ豁｣蝨ｨ鄒､逋ｼ險頑菴ｿ逕ｨ Flex 邱ｨ霈ｯ蝎ｨ譎ゑｼ梧ｨ呵ｨｻ蟾ｲ譛画ｨ咏ｱ､蝨ｨ蜆ｲ蟄伜ｾ碁㍾譁ｰ髢句福譎よｶ亥､ｱ逧撫鬘鯉ｼ井ｿｮ豁｣ `extractTags` 闊 `cleanPayload` 陌慕炊 LIFF URLs 邱ｨ遒ｼ逧ｏ霈ｯ峨€
+- **Flex 邱ｨ霈ｯ蝎ｨ蝨也援鬆占ｦｽ**壻ｿｮ豁｣蝨也援鬆占ｦｽ螟ｱ謨怜撫鬘鯉ｼ悟ｰｽ比ｽ榊恂迚峩謠帷ぜ謠蝉ｾ `.png` 蜑ｯ讙泌錐荳皮┌豺ｷ蜥悟螳ｹ髦ｻ謫狗噪 `dummyimage.com`縲
+- **蝨匁枚驕ｸ蝟ｮ霈牙蜆ｪ蛹**壽眠蠅樣擇蜈ｨ蝓溯ｼ牙蜍慕吻 (`LoadingSpinner`)碁∩蜈崎ｼ牙譎ら吻髱｢蜊｡鬆薙€
+- **蝨匁枚驕ｸ蝟ｮ蜿肴㊨蜆ｪ蛹**夊ｪｿ謨ｴ `handleEditMenu` 逧撼蜷梧ｭ･陌慕炊驍剰ｼｯ碁ｻ樊投縲梧衍逵九€榊ｾ悟庄迸ｬ髢灘謠幄ｦ門恂御榊陲ｫ蝨也援荳玖ｼ蛾仆蝪槭€
+- **蝨匁枚驕ｸ蝟ｮ蟠ｩ貎ｰ菫ｮ蠕ｩ**壻ｿｮ蠕ｩ鮟樊投縲梧眠蠅樣∈蝟ｮ縲肴凾悟屏譛ｪ貂ｩｺ蜈亥燕驕ｸ謫ｹ句項蝪 (`selectedAreaIndex`) 蟆手逧ｶｲ鬆∝ｴｩ貎ｰ縲
+- **蝨匁枚驕ｸ蝟ｮ隗ｸ遒ｰ遽恪險ｭ螳**夂ぜ蝨匁枚驕ｸ蝟ｮ邱ｨ霈ｯ鬆擇陬憺ｽ X 蠎ｧ讓吶€〆 蠎ｧ讓吶€∝ｯｬ蠎ｦ闊ｫ伜ｺｦ逧峩謗･霈ｸ蜈･譯ｼ梧婿萓ｿ邊ｾ遒ｺ險ｭ螳夊ｧｸ遒ｰ遽恪縲
+- **邯ｲ遶呎ｨ咎｡梧峩譁ｰ**壼ｰ `index.html` 荳ｭ逧 `<title>` 蠕 `frontend` 譖ｴ謾ｹ轤ｺ `superpages`縲
+- **蝨匁枚驕ｸ蝟ｮ霈牙蜍慕吻蜆ｪ蛹**壼ｰ次譛ｬ隕搭謨ｴ蛟玖椶蟷慕噪霈牙蜍慕吻邵ｮ蟆冗ｯ恪閾ｳ驕ｸ蝟ｮ蛻苓｡ｨ蜊€蝓滂ｼ瑚ｮ謎ｽｿ逕ｨ閠惠雉侭霈牙譎ゆｻ榊庄謫堺ｽ憺るΚ蟆手ｦｽ蛻苓蟶ｳ陌溷謠帙€
+- **蝨匁枚驕ｸ蝟ｮ蜊€蝪頑許諡牙粥閭ｽ**壽眠蠅樊許譖ｳ闊ｸｮ謾ｾ謾ｯ謠ｴ御ｽｿ逕ｨ閠樟蝨ｨ蜿ｯ莉･逶ｴ謗･蝨ｨ邱ｨ霈ｯ蜊€蝪贋ｸ頑許諡臥ｧｻ蜍穂ｽ咲ｽｮ梧騾城℃蜿ｳ荳玖ｧ堤噪謗ｧ蛻ｶ鮟樊許諡芽ｪｿ謨ｴ蟇ｬ鬮假ｼ檎┌髴€蜒騾城℃霈ｸ蜈･譯ｿｮ謾ｹ縲
+- **蝨匁枚驕ｸ蝟ｮ騾｣邨先ｨ咏ｱ､謾ｯ謠ｴ**壼惠蝨匁枚驕ｸ蝟ｮ逧€碁幕蝠滄€｣邨(URI)縲榊虚菴應ｸｭ蜉蜈･讓咏ｱ､驕ｸ謫粥閭ｽ縲ょ惠蜷梧ｭ･閾ｳ LINE API 譎ゑｼ檎ｳｻ邨ｱ譛蜍墓胴蜿 OA 險ｭ螳夂噪 App Name 荳ｦ蟆ｶｲ蝮€霓画鋤轤ｺ髯ｸｶ讓咏ｱ､逧 LIFF 霍ｳ霓蛾€｣邨 (`https://liff.line.me/...`)悟ｯｦ迴ｾ蝨匁枚驕ｸ蝟ｮ鮟樊投霑ｽ雹､縲
+- **髣憺嵯蟄怜屓隕 (豕募援陦ｨ) 莉矩擇蜈ｨ髱｢鄙ｻ譁ｰ**壼ｰｷ･遞句ｰ主髄逧€梧ｳ募援陦ｨ險ｭ險医€榊髱｢驥肴眠險ｭ險育ぜ髱｢蜷題｡碁換闊驕倶ｺｺ蜩｡逧 CRM 鬚ｨ譬ｼ縲碁梨骰ｵ蟄怜屓隕€榊粥閭ｽ縲ょｼ募蜈ｩ螻､蠑剰ｳｨ頑楔讒 (蛻苓｡ｨ轢剰ｦｽ闊粍鬆∫ｷｨ霈ｯ)碁坡阯丞ｺ募ｱ､謚€陦灘錐隧 (螯ゆｻｻ蜍 ID縲＿_bank縲∬ｦ丞援隱樊ｳ慕ｭ)御ｸｦ蟆ｰ｡譏捺ｨ｡蠑冗ｰ｡蛹也ぜ蜒剞邂｡逅ｸ蠢ｧｸ逋ｼ隕丞援悟､ｧ蟷剄菴惹ｽｿ逕ｨ閠桃菴憺摩讙ｻ縲
+- **鄒､逋ｼ險頑鬆占ｦｽ蜆ｪ蛹**壻ｿｮ謾ｹ鄒､逋ｼ險頑蛻苓｡ｨ荳ｭ逧€瑚ｨ頑蜈ｧ螳ｹ鬆占ｦｽ縲榊項蝪奇ｼ檎ぜ髦ｲ豁｢驕朱聞逧枚蟄苓ｨ頑遐ｴ螢樒沿髱｢邨先ｧ具ｼ檎樟蝨ｨ蜒怎邨ｱ荳€鬘ｯ遉ｺ險頑鬘槫梛 (萓句ｦゑｼ壽枚蟄苓ｨ頑縲∝恂迚ｨ頑縲∝恂譁ｨ頑)縲
+- **鄒､逋ｼ險頑隶€蜿冶譁ｰ蠅樊譜閭ｽ螟ｧ蟷署蜊**
+  - **雉侭蠎ｫ邏｢蠑募━蛹**壼惠蠕檎ｫｯ螟壼ｰ域｡郁ｳ侭蠎ｫ逧 `history:{app_id}` 荳雁ｻｺ遶 `(user_id, category, timestamp DESC)` 闊 `(user_id, timestamp DESC)` 邏｢蠑包ｼ帛惠 `Private_var:{app_id}` 荳雁ｻｺ遶 `(name)` 闊 `(user_id, name)` 邏｢蠑包ｼ帛惠 `QA_bank:{app_id}` 荳雁ｻｺ遶 `(tag)` 邏｢蠑輔€る€吝ｰ次譛ｬ O(N * H) 隍屆蠎ｦ逧€檎ｯｩ驕ｸ豢ｻ霄榊･ｽ蜿玖蜊ｳ譎/謗堤ｨ句ｻ｣謦ｭ蜿礼慇縲堺ｹ区ｸ蠢衍隧/**',
+  - **遘ｻ髯､蜀鈴､倩ｳ侭蠎ｫ騾｣邱**夐㍾讒 `/api/broadcast/` (GET) 蟒｣謦ｭ蛻苓｡ｨ迢€諷区ｸ蟆 (Status Reconciliation) 遞句ｼ擾ｼ檎ｧｻ髯､驕守ｨ倶ｸｭ譛ｪ菴ｿ逕ｨ菴ｫ伜ｺｦ閠玲凾逧 `conn_oa` 霈泌勧雉侭蠎ｫ騾｣邱壼ｻｺ遶句虚菴懶ｼ碁｡ｯ闡礼ｸｮ遏ｭ莠ｻ｣謦ｭ蛻苓｡ｨ逧 API 蝗槫さ譎る俣縲
+  - **鄒､逋ｼ逋ｼ騾撼蜷梧ｭ･闊朽諷句叉譎ょ屓鬣句━蛹**夐㍾讒句燕遶ｯ逋ｼ騾∫ｾ､逋ｼ險頑逧朽諷玖ｽ画鋤闊擇霍ｳ霓蛾ｏ霈ｯ縲
+    1. 逡ｶ菴ｿ逕ｨ閠ｻ樊投縲悟┫蟄倅ｸｦ逋ｼ騾√€榊ｾ鯉ｼ檎ｫ句叉蟆迢€諷句ｭ倡ぜ `sending` (逋ｼ騾∽ｸｭ)御ｽｿ蜈ｶ蜊ｳ萓ｿ蝨ｨ閭梧勹蝓ｷ陦御ｸｭ荵溯遶句綾蝨ｨ蛻苓｡ｨ陲ｫ逵句芦縲
+    2. 逋ｼ騾∵欠莉､ `/execute` 謾ｹ轤ｺ髱槫酔豁･閭梧勹蝓ｷ陦鯉ｼ御ｸ**蠕ｹ蠎慕ｧｻ髯､蜈ｨ陞｢蟷募濠騾乗驕ｮ鄂ｩ (Overlay) 隕搭螻､**碁ｻ樊投蠕碁擇譛**遘定ｷｳ霓**蝗樒ｾ､逋ｼ蛻苓｡ｨ檎ｵｦ莠井ｽｿ逕ｨ閠怙霈暮	､｣､縲∵ｵ∵圓逧ｫ秘ｩ励€
+    3. 辟｡隲匁怙蠕梧弍縲檎ｫ句叉逋ｼ騾√€阪€√€檎｢ｺ隱埼千ｴ賜遞九€埼ｄ譏ｯ縲御ｸｭ騾泌┫蟄倩拷遞ｿ縲搾ｼ檎ｳｻ邨ｱ逧怎**閾ｪ蜍募ｷｳ霓牙屓鄒､逋ｼ險頑蛻苓｡ｨ御ｸｦ驥崎ｨｭ蛻∬縲悟驛ｨ蟒｣謦ｭ (All)縲榊鬆**檎｢ｺ菫晄眠逋ｼ襍ｷ謌匁眠蠅槫芦荳€蜊顔噪莉ｻ蜍 100% 迸ｬ髢灘争迴ｾ蝨ｨ貂粍荳ｭ縲
+    4. **謖蛾蜈ｧ蠏悟ｾｮ蝙玖ｼ牙蜍慕吻 (Button Micro-Interactions)**夂ぜ謇€譛峨€悟┫蟄倩拷遞ｿ縲崎縲檎匸騾/謗堤ｨ九€肴潔驤募蠏悟ｾｮ蝙 `CircularProgress` 譌玖ｽ芽ｼ牙蜍慕吻悟惠鮟樊投蠕梧潔驤墓怎隶顔ぜ縲悟┫蟄倅ｸｭ...縲/縲瑚剳逅ｸｭ...縲堺ｸｦ鬘ｯ遉ｺ譌玖ｽ臥音謨茨ｼ梧署萓帷ｲｾ邱ｻ逧€ｲ蠎ｦ蝗樣･具ｼ梧ｾｹ蠎暮∩蜈堺ｽｿ逕ｨ閠ｪ､莉･轤ｺ逡ｶ讖溘€
+    5. **辟｡諢滓匱諷ｧ蜊ｳ譎りｼｪ隧｢ (Zero-Resource Live Polling)**壼惠蜑咲ｫｯ蜉蜈･縲檎匸騾∽ｸｭ縲咲朽諷句貂ｬ縲**蜒文**蛻苓｡ｨ荳ｭ蟄伜惠迢€諷狗ぜ縲檎匸騾∽ｸｭ...縲咲ｻｻ蜍呎凾梧燕譛福逕ｨ豈 3 遘剃ｸ€谺｡逧･ｵ霈暮	､｣蠕檎ｫｯ迢€諷玖ｼｪ隧｢御ｸ€譌ｦ迢€諷句驛ｨ隶顔ぜ縲悟ｷｲ逋ｼ騾√€搾ｼ瑚ｼｪ隧｢譛**閾ｪ蜍募ｮ悟髣憺哩**縲る€咎蜷井ｺ `fetchIdRef` 隲区ｱらｫｶ諷句ｮ郁｡幢ｼ御ｿ晞囿莠ｮ悟蜊ｳ譎ゆｸ皮┌螟夐､倬幕驫ｷ逧朽諷区峩譁ｰ悟ｾｹ蠎戊ｧ｣豎ｺ雉侭蠎ｫ蟾ｲ謾ｹ菴ｶｲ鬆∝ｾ井ｹ燕隶顔噪蝠城｡後€
+    6. 鄒､逋ｼ蜊｡迚朽諷区ｨ咏ｱ､譛ｬ蝨ｰ蛹匁隼轤ｺ郢ｫ比ｸｭ譁ｼ磯｡ｯ遉ｺ壼ｷｲ逋ｼ騾√€∫匸騾∽ｸｭ...縲∝ｷｲ謗堤ｨ九€∬拷遞ｿ会ｼ梧署萓帶･ｵ閾ｴ鬆圓荳泌ｮ悟蜈咲ｭ牙ｾ噪 CRM 陦碁換鬮秘ｩ励€
+
+## [2026-05-18] 菫ｮ豁｣逋ｻ蜈･髴€隕∝谺｡逧撼蜷梧ｭ･霍ｯ逕ｱ霓牙髄蝠城｡
+- **遘ｻ髯､貂炊**:
+  - 遘ｻ髯､荳榊菴ｿ逕ｨ逧 `web-dashboard` 雉侭螟ｾ (蜴溷逕ｨ菴懃匳蜈･邉ｻ邨ｱ逧純閠)縲
+- **蜑咲ｫｯ迢€諷玖霍ｯ逕ｱ驍剰ｼｯ菫ｮ豁｣ (Authentication Flow Fix)**:
+  - 菫ｮ豁｣ `AuthContext.jsx` 荳ｭ `fetchMyOAs` 譛ｪ陲ｫ `await` 逧撼蜷梧ｭ･蝠城｡後€る€呵ｧ｣豎ｺ莠ｽｿ逕ｨ閠蜉滄€城℃ Google 逋ｻ蜈･蠕鯉ｼ悟屏諛臥畑遞句ｼ丞ｰ壽悴蜿門ｾ怜ｰ域｡ (OA) 蛻苓｡ｨ瑚€悟惠霍ｳ霓ག་芦 Dashboard 譎ょ処陲ｫ `App.jsx` 骭ｯ隱､蟆主髄蝗 `/login` 逧撫鬘後€
+  - 菫ｮ豁｣ `App.jsx` 逧ｷｯ逕ｱ驍剰ｼｯ夂文蟾ｲ逋ｻ蜈･ (`isAuthenticated=true`) 菴ｰ域｡亥陦ｨ轤ｺ遨ｺ譎ゑｼ御ｸ榊蟆ｽｿ逕ｨ閠㍾譁ｰ蟆主髄蝗樒匳蜈･鬆擇騾謌千┌髯占ｿｴ蝨茨ｼ瑚€梧弍鬘ｯ遉ｺ縲梧ｲ呈怏蜿ｯ逕ｨ逧ｰ域｡域谺企剞瑚ｫ玖郢ｫ邂｡逅藤縲ゅ€咲謠千､ｺ逡ｫ髱｢縲
+
+## [2026-05-12] 雉侭蠎ｫ騾｣邱夂ｩｩ螳壽€ｧ闊譜閭ｽ蜆ｪ蛹
+- **雉侭蠎ｫ騾｣邱壽ｱ (Connection Pooling) 蜆ｪ蛹**:
+  - 蟇ｦ菴憺寔荳ｭ蠑 ThreadedConnectionPool 邂｡逅ｼ梧崷蟷ｳ菴手ｳ侭蠎ｫ髢句福闊梨髢蛾€｣邱夂噪髢矩換縲
+  - 髯仙宛蝟ｮ荳€蟷ｳ蜿ｰ (OA) 譛€螟ｧ騾｣邱壽丙轤ｺ 10檎ｸｽ RDS 騾｣邱壽丙逕ｱ 50 隱ｿ髯崎 20檎∩蜈崎ｶ℃ AWS RDS 蟇ｦ鬮秘剞蛻ｶ縲
+  - 遘ｻ髯､縲碁｣邱壼､ｱ謨怜ｾ梧隼逕ｨ逶ｴ謗･騾｣邱壹€咲蜊ｱ髫ｪ讖溷宛梧隼轤ｺ諡句蜿句埋骭ｯ隱､碁亟豁｢雉侭蠎ｫ髮ｪ蟠ｩ縲
+- **RDS 陦ｨ譬ｼ讙｢譟･蠢ｫ蜿匁ｩ溷宛**:
+  - 蟇ｦ菴 `_ENSURED_TABLES` 蜈ｨ蝓溷ｿｫ蜿厄ｼ碁∩蜈肴ｯ丞€ API 隲区ｱる㍾隍衍隧｢ `information_schema.tables`縲
+- **雉侭蠎ｫ遨ｩ螳壽€ｧ闊€｣邱夂ｮ｡逅**:
+  - 蟒ｺ遶 `backend/db_utils.py` 髮ｸｭ邂｡逅ｳ侭蠎ｫ騾｣邱壽ｱ瑚ｧ｣豎ｺ讓｡邨俣逧ｾｪ迺ｰ蠑慕畑 (Circular Import) 蝠城｡後€
+  - 蜈ｨ髱｢遘ｻ髯､蜷 Blueprint 荳ｭ逧ｧ∵怏 `get_db_connection` 蟇ｦ菴懶ｼ檎ｵｱ荳€菴ｿ逕ｨ騾｣邱壽ｱ邂｡逅€
+  - 蠑ｷ蛻ｶ€譛芽ｳ侭蠎ｫ謫堺ｽ憺€ｲ蜈･ `try...finally` 蜊€蝪奇ｼ檎｢ｺ菫晞€｣邱壼惠莉ｻ菴墓ュ豕∽ｸ具ｼ亥桁諡ｬ萓句､也匸逕滓凾蛾閭ｽ豁｣遒ｺ豁ｸ驍豎荳ｭ梧撩邨暮€｣邱壼､匁ｴｩ (Connection Leak)縲
+  - 險ｭ螳 RDS 騾｣邱壽ｱ荳企剞轤ｺ 2悟推遘滓宛 (OA) 騾｣邱壽ｱ荳企剞轤ｺ 2御ｸｦ邵ｮ貂 SQLAlchemy 豎螟ｧ蟆上€よｭ､隱ｿ謨ｴ菫る蟆 Heroku Postgres 20 蛟矩€｣邱夂騒遑ｬ鬮秘剞蛻ｶ騾ｲ陦悟━蛹厄ｼ御ｻ･遒ｺ菫晁蜈ｶ莉 14 蛟句莠ｫ蟆域｡亥柱蟷ｳ蜈ｱ蟄假ｼ碁亟豁｢ Superpages 菴皮畑驕主､夊ｳｺ仙ｰ手邉ｻ邨ｱ蟠ｩ貎ｰ縲
+- **菴ｿ逕ｨ閠ｫ秘ｩ怜━蛹**:
+  - 蟆橿陦捺€ｧ逧€瑚ｳ侭蠎ｫ騾｣邱夐℃螟壹€肴縲訓ool is full縲榊ｱ骭ｯ險頑譖ｴ謾ｹ轤ｺ譖ｴ騾壻ｿ礼噪縲檎ｳｻ邨ｱ郢∝ｿ呻ｼ瑚ｫ狗ｨ榊ｾ悟隧ｦ縲搾ｼ梧署蜊撼謚€陦謎ｺｺ蜩｡逧務隶€鬮秘ｩ励€
+- **蜉溯遘ｻ髯､**:
+  - 遘ｻ髯､縲梧歓迯守ｮ｡逅€埼擇闊嶌髣懷粥閭ｽ悟桁蜷ｫ蜑咲ｫｯ `PrizeStatus.jsx` 鬆擇縲∬ｷｯ逕ｱ險ｭ螳壼所蠕檎ｫｯ閾ｪ蜍募蟋句喧雉侭縲
+
+## [2026-05-08] 閾ｪ蜍墓羅遞区賜遞句━蛹冶 UX 謠仙合
+- **謗堤ｨ矩俣髫疲髪謠ｴ蟷ｴ闊怦**:
+  - 蝨ｨ譁ｰ蠅樊邱ｨ霈ｯ閾ｪ蜍墓羅遞区賜遞区凾碁俣髫疲凾髢楢ｨｭ螳壽眠蠅槭€悟ｹｴ縲崎縲梧怦縲崎ｼｸ蜈･鬆ｼ井ｻ･ 1 蟷ｴ = 365 螟ｩ, 1 譛 = 30 螟ｩ險育ｮ暦ｼ会ｼ梧署萓帶峩髟ｷ譛溽噪謗ｨ謦ｭ隕丞潟閭ｽ蜉帙€
+- **邱ｨ霈ｯ謗堤ｨ UX 蜆ｪ蛹**:
+  - 蝨ｨ邱ｨ霈ｯ閾ｪ蜍墓羅遞区賜遞区凾梧潔荳狗｢ｺ隱榊ｾ梧怎鬘ｯ遉ｺ縲悟┫蟄倅ｸｭ...縲崎ｼ牙迢€諷具ｼ御ｸｦ骼門ｮ壽桃菴懈潔驤穂ｻ･髦ｲ豁｢驥崎､署莠､縲
+- **鬆占ｦｽ譌･譛滄｡ｯ遉ｺ蜆ｪ蛹**:
+  - 閾ｪ蜍墓羅遞矩占ｦｽ荳ｭ逧占ｨ育匸騾∵凾髢鍋樟蝨ｨ蛹性縲悟ｹｴ莉ｽ縲埼｡ｯ遉ｺ梧婿萓ｿ譟･逵矩聞譛滓賜遞九€
+
+## [2026-05-08] Standardizing Flex Redirect Architecture
+- **Flex Message Editor Refactor**:
+  - Implemented dynamic `app_name` and `oaId` injection for all generated outbound links.
+  - Standardized LIFF-based redirection for links with tag assignment.
+  - Unified all redirection logic to route through the centralized `/api/redirect` endpoint.
+  - Removed legacy `<%m.user_id%>` placeholders to leverage LIFF-native userId retrieval.
+
+## [2026-04-30]
+### Added
+- **豕募援陦ｨ莉ｻ蜍吝喧€陦ｨ譚ｿ**: 轤ｺ縲梧ｳ募援陦ｨ險ｭ險医€咲邁｡譏捺ｨ｡蠑丞ｯｦ菴懷譁ｰ逧ｻｻ蜍吝今迚 UI梧髪謠ｴ譌･譛溷項髢薙€∵ｯ乗律譎よｮｵ闊ｨ咏ｱ､閾ｪ蜍募喧險ｭ螳壹€
+- **蝨匁枚驕ｸ蝟ｮ LIFF 讓咏ｱ､霑ｽ雹､**: 謾ｯ謠ｴ蝨ｨ蝨匁枚驕ｸ蝟ｮ逧€｣邨仙虚菴應ｸｭ逶ｴ謗･險ｭ螳壽ｨ咏ｱ､檎ｳｻ邨ｱ閾ｪ蜍慕函謌 LIFF 莉｣逅€｣邨舌€
+- 蜷梧ｭ･ `deploy-heroku` 蛻髪荳顔噪蜍墓迺ｰ蠅ｮ頑丙譫ｶ讒句屓 `main` 蛻髪縲
+- 譁ｼ `docker-compose.yml` 蠑募 `.env` 隶頑丙謗幄ｼ会ｼ有機悽蝨ｰ Docker 迺ｰ蠅庄螳檎ｾ主ｰ肴磁髮ｲ遶ｯ譫ｶ讒玖€御ｸ堺ｾ晁ｳｴ遑ｬ邱ｨ遒ｼ縲
+- 譁ｰ蠅 `example.env` 謠蝉ｾ帶悽蝨ｰ驛ｨ鄂ｲ闊ｮ頑丙險ｭ螳夂ｯ悽縲
+- 蟆 `.env` 蛻怜 `.gitignore` 莉･髦ｲ豁｢謨乗─雉ｨ雁､匁ｴｩ縲
+
+### Changed
+- **蝨匁枚驕ｸ蝟ｮ莉矩擇蜆ｪ蛹**: 遘ｻ髯､ Postback 蜍穂ｽ憺｡槫梛御ｸｦ蟆€瑚ｷｳ霓臥ｶｲ鬆√€肴峩蜷咲ぜ縲碁幕蝠滄€｣邨舌€堺ｻ･隨ｦ蜷井ｽｿ逕ｨ閠ｿ呈縲
+- **豕募援陦ｨ邁｡譏捺ｨ｡蠑城㍾讒**: 蟆次譛ｬ逧｡ｨ譬ｼ隕門恂謾ｹ轤ｺ蜊｡迚ｼ丈ｻｻ蜍咏ｮ｡逅ｼ梧署蜊撼謚€陦謎ｺｺ蜩｡逧ｷｨ霈ｯ謨育紫縲
+
+## [2026-01-29]
+
+### Changed - UI/UX Improvements
+- **蟆域｡郁謗堤ｨ狗 ওঠ (Project & Schedule Management)**:
+    - **蟆手ｦｽ蜆ｪ蛹**: 鮟樊投蟆域｡亥陦ｨ荳ｭ逧ｰ域｡亥錐遞ｱ蜿ｯ逶ｴ謗･霍ｳ霓芽謗堤ｨ矩擇荳ｦ閾ｪ蜍暮℃豼ｾ隧ｲ蟆域｡医€
+    - **謗堤ｨ句陦ｨ**: 譁ｰ蠅樊賜遞狗ｸｽ謨ｸ邨ｱ險磯｡ｯ遉ｺ縲
+    - **霈ｸ蜈･莉矩擇隱ｿ謨ｴ**: 
+        - 菫ｮ豁｣荳ｦ蜉螟ｧ縲碁俣髫疲凾髢薙€崎ｼｸ蜈･譯ｯｬ蠎ｦ檎｢ｺ菫晄丙蛟ｼ貂匆蜿ｯ隕具ｼ亥桁蜷ｫ譁ｰ蠅櫁邱ｨ霈ｯ讓｡蠑擾ｼ峨€
+        - 菫ｮ豁｣縲悟髏倥€咲┌豕戊ｪｿ謨ｴ逧撫鬘後€
+        - 蜉螟ｧ縲悟┫蟄/蜿匁ｶ医€肴潔驤募ｯｬ蠎ｦ莉･蛻ｩ蜆樊投縲
+    - **隕冶ｦｺ邁｡蛹**: 
+        - 髫ｱ阯剰｡ｨ譬ｼ荳ｭ逧 Database ID 谺ｽ阪€
+        - 髫ｱ阯 Rich Message 逧 `QA|` 蜑咲ｶｴ讓咏ｱ､御ｸｦ遘ｻ髯､邱ｨ霈ｯ蝎ｨ荳ｭ逧橿陦鍋畑隱 (`QA_bank`)縲
+    - **Bug Fix**: 
+        - 菫ｮ豁｣縲梧眠蠅樊賜遞九€肴凾碁俣髫疲凾髢捺ｬｽ榊屏蟇ｬ蠎ｦ荳崎ｶｳ蟆手辟ｸ豕墓ｭ｣蟶ｸ鬘ｯ遉ｺ闊ｼｸ蜈･逧撫鬘後€
+        - 菫ｮ豁｣蟆域｡亥錐遞ｱ蜿ｯ轤ｺ遨ｺ逧険隱､梧眠蠅槫ｿ｡ｫ鬩苓ｭ峨€
+        - 菫ｮ豁｣譁ｰ蠅樊賜遞区凾檎峩謗･霈ｸ蜈･逧枚蟄苓ｨ頑譛ｪ閭ｽ豁｣遒ｺ蛯ｳ驕櫁騾ｲ髫守ｷｨ霈ｯ蝎ｨ逧撫鬘後€
+        - **險頑譬ｼ蠑冗ｵｱ荳€**: 蝨ｨ縲梧眠蠅/邱ｨ霈ｯ謗堤ｨ九€肴凾瑚凶逶ｴ謗･霈ｸ蜈･邏疲枚蟄苓ｨ頑檎ｳｻ邨ｱ譛名蜆ｲ蟄俶凾閾ｪ蜍募ｰ霓画鋤轤ｺ Rich Message (QA Bank 鬆岼)御ｸｦ逕｢逕溷ｰ肴㊨讓咏ｱ､ (`QA|cron_{蜊ｳ譎D}`)檎｢ｺ菫晁ｨ頑譬ｼ蠑冗噪荳€閾ｴ諤ｧ縲
+
+## [2026-01-27]
+
+### Changed
+- **謗堤ｨ玖ｨｭ螳 (Schedule Settings)**:
+    - **UI 謾ｹ濶ｯ**: 蝨ｨ譁ｰ蠅櫁邱ｨ霈ｯ謗堤ｨ区凾後€碁俣髫疲凾髢薙€肴ｬｽ咲罰蜴滓悽逧粍荳€霈ｸ蜈･譯隼轤ｺ縲悟､ｩ縲阪€√€梧凾縲阪€√€悟縲堺ｸ牙€狗昏遶狗噪謨ｴ謨ｸ霈ｸ蜈･譯€
+    - **鬘ｯ遉ｺ蜆ｪ蛹**: 謗堤ｨ句陦ｨ荳ｭ逧俣髫疲凾髢馴｡ｯ遉ｺ譬ｼ蠑乗隼轤ｺ "X螟ｩ Y蟆乗凾 Z蛻"縲
+    - 豁､隶頑峩菫晄戟蠕檎ｫｯ雉侭譬ｼ蠑 (Total Hours) 荳崎ｮ奇ｼ悟ュ蝨ｨ蜑咲ｫｯ騾ｲ髫瑚ｽ画鋤檎｢ｺ菫晁闊頑怏雉侭逧嶌螳ｹ諤ｧ縲
+
+## [2026-01-23]
+
+### Changed
+- **蟆域｡郁謗堤ｨ狗ｮ｡逅 (Projects)**:
+    - **迢€諷矩ｏ霈ｯ譖ｴ譁ｰ**: 蟆域｡育朽諷狗ｴｰ蛻ぜ 邱ｨ霈ｯ荳ｭ縲∝ｷｲ謗堤ｨ九€€ｲ陦御ｸｭ縲∝ｷｲ證ｫ蛛懊€∝ｷｲ螳梧縲∝ｷｲ邨よｭ｢御ｸｦ逕ｱ蠕檎ｫｯ萓晄答譎る俣闊福逕ｨ迢€諷玖蜍戊ｨ育ｮ励€
+    - **譁ｰ蠅樣肩鮟櫁ｨｭ螳 (Anchor Setting)**: 謾ｯ謠ｴ縲檎ｫ句叉隗ｸ逋ｼ縲崎縲梧ｯ城€ｱ迚ｹ螳壽凾髢 (螯る€ｱ蜈ｭ 18:00)縲崎ｧｸ逋ｼ縲
+    - **譁ｰ蠅樔ｼ醍悛譎る俣 (Dormancy Time)**: 蜿ｯ險ｭ螳壽ｯ乗律荳咲匸騾∬ｨ頑逧凾谿ｵ (螯 23:00~08:00)縲
+    - **雉侭蠎ｫ隶頑峩**: `projects` 雉侭陦ｨ譁ｰ蠅 `anchor_config` 闊 `dormancy_config` 谺ｽ (JSONB)縲
 
 
-## 2026-06-29
-- **Feature**: 撖虫詨株芸蝔芷日脣璈塚芷文芸瑼Ｘ仿舐摰銝西歲箸蝷綽敺皜蝛箇賊鞈 (Cascade Clear)
-- 貉瑟憛獢啣寞瑞唳蝞豢嗆╰頛豢(: 株狷XX)
+## [2026-01-07]
 
+### Added
+- 蟒ｺ遶 `docs` 雉侭螟ｾ荳ｦ蟆 `ARCHITECTURE.md` 遘ｻ蜈･縲
+- 蟒ｺ遶 `CHANGELOG.md` 逕ｨ譁ｼ邏€骭ｰ域｡郁ｮ頑峩縲
+- **蟆域｡亥純闊畑謌ｶ**:
+    - 蠕檎ｫｯ譁ｰ蠅 `/api/projects/<id>/users` 謗･蜿｣悟ｾ `cron_table` 蜿門ｾ怜純闊畑謌ｶ縲
+    - 蜑咲ｫｯ `Projects.jsx` 譁ｰ蠅槭€悟純闊畑謌ｶ縲榊鬆ｼ悟庄譟･逵句推蟆域｡育噪菴ｿ逕ｨ閠€
+    - 譁ｰ蠅槭€梧焔蜍募刈蜈･逕ｨ謌ｶ縲肴潔驤包ｼ]}/${
+    - 蟻ｸ逋ｼ `iup|{project_id}` 謖ｻ､縲
+- **螳壽凾隗ｸ逋ｼ莠倶ｻｶ**:
+    - 雉侭蠎ｫ譁ｰ蠅 `scheduled_events` 雉侭陦ｨ域髪謠ｴ `interval_hours` 闊 `last_executed_at`峨€
+    - 蠕檎ｫｯ蟇ｦ菴懆レ譎ｯ蝓ｷ陦檎ｷ抵ｼ梧ｹ謫夊ｨｭ螳壻ｹ圭€碁囈螟壻ｹｧｸ逋ｼ荳€谺｡ (蟆乗凾)縲崎蜍戊ｨ育ｮ嶺ｸｦ蝓ｷ陦後€
+    - 蜑咲ｫｯ譁ｰ蠅槭€悟ｮ壽凾隗ｸ逋ｼ縲埼擇梧髪謠ｴ險ｭ螳夐俣髫疲凾髢楢譟･逵区怙蠕悟濤陦檎ｴ€骭€
+- **迯主刀譟･隧｢鬆擇**:
+    - 蠕檎ｫｯ譁ｰ蠅 `/api/tickets` 謗･蜿｣悟ｾ `ticket_table` 蜿門ｾ礼克蜩∽ｸｭ迯守朽豕√€
+    - 蜑咲ｫｯ譁ｰ蠅 `PrizeStatus.jsx` 鬆擇碁｡ｯ遉ｺ迯主刀闊ｸｭ迯手€ ID縲
+    - 謠蝉ｾ幃♀謌ｲ謗ｧ蛻ｶ謖蛾亥福蜍輔€∵歓螟ｧ迯弱€梨髢峨€∵告蜃ｺ縲∵眠蠅橸ｼ会ｼ御ｸｦ謨ｴ蜷 Socket.io 隗ｸ逋ｼ謖ｻ､縲
 
-## [2026-06-30] 蝟餌絞 UI 撠 BUG 芸
-- **蝡 (frontend/src/pages/Projects.jsx, RichMenu.jsx, Broadcast.jsx, RuleDesigner.jsx, components/JourneyPreview.jsx, index.css)**:
-  - 1. Projects.jsx: 蝔銵函征 LayoutDashboard 蝷箸蝷綽隞亙 alidateProjectForm 啣蝔梢銴⊿頛胯
-  - 2. RichMenu.jsx: 冽雿 flex 銵靽格迤 whiteSpace: 'nowrap' 隞亙摮銵嚗isDefault 憓 status === 'public' 舀湛隞交迤蝣箸葡閮剔璅閮
-  - 3. RuleDesigner.jsx: 閫貊潮萄蝝 KeywordTagInput 隞塚雿輻券撽嚗靽格迤 .card list item  onMouseLeave 舫脤蝵桅頛胯
-  - 4. Broadcast.jsx: 潮撠鞊⊥蝐斤祟豢踵 TagInput 隞塚靽 singleSelect={true}
-  - 5. index.css: 隤踵游典 utton 箇璅撘嚗 paddingmin-width  flex 雿撅 gap
-  - 6. JourneyPreview.jsx: 摮瘞瘜⊥見撘餈賢 whiteSpace: 'pre-wrap'嚗蝣箔閮舀銵甇蝣粹閬賬
+### Documentation
+- 驥肴紛譁ｻｶ譫ｶ讒九€
 
-- **蝡 (frontend/src/pages/RichMenu.jsx, Projects.jsx, RuleDesigner.jsx, MessageCenter.jsx)**:
-  - RichMenu.jsx: 靽格迤 loading 桃蔗 LoadingSpinner 雿輻冽孵
-  - Projects.jsx: 交蝔蝔勗歇摮剁蝎暹憿舐內撠航炊嚗銝憿舐內隢鋆朣敹憛急雿
-  - RuleDesigner.jsx: 萄隞 KeywordTagInput 憓瞈曄征潸嚗脣脩征賬
-  - MessageCenter.jsx: 刻憭拙恕璅蝐文芷斗 style 銝剖撥嗉 minWidth: 'auto' 踹嗥匱踹典 button 憭批
+## [2026-05-22] - Support Heroku Unified Deployment
+- 譁ｰ蠅樊ｹ逶ｮ骭 `Procfile`縲～package.json` 闊 `requirements.txt` 莉･謾ｯ謠ｴ Heroku Multi-Buildpack 驛ｨ鄂ｲ縲
+- 菫ｮ謾ｹ `backend/app.py`悟刈蜈･莨ｺ譛 `frontend/dist` 髱懈讙疲｡育噪蜉溯闊 Catch-all 霍ｯ逕ｱ縲
 
+## [2026-05-22] - Refactor Hardcoded URLs to Config Vars
+- 遘ｻ髯､ `backend/app.py` 闊 `backend/utils/socket_utils.py` 荳ｭ謇€譛牙ｯｫ豁ｻ逧ｼｺ譛榊勣菴榊捩闊ｳ侭蠎ｫ蟇｢ｼ縲
+- 蟆主迺ｰ蠅ｮ頑丙 (Config Vars) 謗ｧ蛻ｶ讖溷ｯ迺ｰ蠅嶌萓晁ｨｭ螳夲ｼ啻DATABASE_URL`, `LEGACY_DB_URL`, `WS_URL`, `CORS_ORIGINS`縲
 
-## [2026-06-30] 蝎暹鈭隞園剛票甇亥芰璈
-- **蝡 (components/UserAvatar.jsx, pages/CustomerCenter.jsx, pages/MessageCenter.jsx)**:
-  - 啣 UserAvatar.jsx 蝯隞塚隞亙祕曉頛憭望舫甇亙瑟圈剛票憿舐內啗 Icon  Placeholder
-  - 踵摰Ｘ嗡葉敹嚗CustomerCenter.jsx嚗銵刻湧甈剛票
-  - 踵閮臭葉敹嚗MessageCenter.jsx嚗憭拙銵刻憭 Header 冽園剛票
-- **敺蝡 (backend/endpoints/customers.py)**:
-  - 啣 
-efresh-profile API 蝡舫嚗 LINE Profile 亙啗銝虫蜓湔 DB 銝剔 
-ame  pic
+## [2026-06-04] - 邉ｻ邨ｱ貂ｬ隧ｦ鬆擇闊 GitHub 險ｭ螳夐㍾讒
+### Added
+- backend/endpoints/test_runner.py: 譁ｰ蠅樣占ｨｭ貂ｬ隧ｦ譯井ｾ DEFAULT_TEST_CASES悟桁蜷ｫ蠕 Q_bank:dreammmbot 謠仙叙荵 24 遲ｳ侭闊 Sensor 荳ｲ謗･逧屓隕螳ｹ縲
+- backend/endpoints/test_runner.py: 蟇ｦ菴 expected_content 豈泌ｰ埼ｏ霈ｯ梧髪謠ｴ蜍墓譁ｭ玲ｪ｢鬩励€
+- frontend/src/pages/TestRunner.jsx: 蝨ｨ貂ｬ隧ｦ譯井ｾ狗ｷｨ霈ｯ蜊€譁ｰ蠅槭€碁先悄譁ｭ怜螳ｹ縲肴ｬｽ阪€
+### Changed
+- backend/endpoints/upload.py: 蟆 GitHub 蝨也援荳雁さ蜿丙逶ｴ謗･謾ｹراط隶€蜿也腸蠅ｮ頑丙 (GITHUB_TOKEN, GITHUB_REPO, GITHUB_BRANCH, GITHUB_PATH)縲
+- frontend/src/pages/AdminPage.jsx: 遘ｻ髯､ GitHub 蝨也援荳雁さ逧 UI 險ｭ螳壼項蝪願迢€諷九€
 
-  - UserAvatar.jsx: 靽格迤 display: none 撠湧典閬賢其閫貊 img onLoad 鈭隞嗥瞏冽葡 bug嚗嫣誑 opacity  position absolute 頛乓
+## [2026-06-04] - 邉ｻ邨ｱ貂ｬ隧ｦ Timeout 菫ｮ豁｣
+### Changed
+- `frontend/src/pages/TestRunner.jsx`: 蟆€千ｭｸｬ隧ｦ蝓ｷ陦檎噪 API timeout 蠕 30 遘呈署鬮倩 90 遘抵ｼ⠿∩蜈肴ｶ牙所險域凾蝎ｨ謌夜聞譎る俣陌慕炊逧ｸｬ隧ｦ譯井ｾ具ｼ亥ｦ `timer貂ｬ隧ｦ`牙屏蠕檎ｫｯ Socket 騾｣邱 + 讖溷勣莠ｺ陌慕炊 + 雉侭蠎ｫ霈ｪ隧｢逧ｸｽ譎る俣雜℃蜑咲ｫｯ timeout 閠瑚ｪ､蝣ｱ螟ｱ謨励€
 
-  - backend/endpoints/customers.py: 芸 refresh-profile 亙撠 LINE API 404 Not Found (撠憟賢) 嚗餈 200 蝛箏潘脤餃蝡 Console 霅血晞
+## [Unreleased] - 2026-06-08
+### 譁ｰ蠅
+- 蟆ｶｲ鬆∫€剰ｦｽ蝎ｨ蛻∝恂遉ｺ (favicon) 譖ｴ譁ｰ轤ｺ謖ｮ夂噪閾ｪ險ょ恂遉ｺ縲
+- 譁ｼ蟾ｦ蛛ｴ蜉溯蛻玲眠蠅槭€檎ｶｲ霍ｯ閨ｲ驥城峭驕斐€(SocialRadar) 闊€窟I 豢槫ｯ溷勧逅€(AiInsight) 蜈ｩ蛟矩擇縲
+- 鬆擇逶ｮ蜑咲ぜ縲梧命蟾･荳ｭ縲咲朽諷具ｼ梧悴萓ｦ丞潟螳梧蠕悟ｰｯｦ菴懷粥閭ｽ縲
+- 譖ｴ譁ｰ蠕檎ｫｯ雉侭蠎ｫ逧 pages 闊 permission_settings (OAConfigs)檎ぜ謇€譛牙ｰ域｡亥刈蜈･騾吝蛟区眠鬆擇逧ｬ企剞縲
+- 譁ｼ LIFF 蝠丞差邂｡逅擇荳ｭ譁ｰ蠅槭€御ｸ玖ｼ我ｽ懃ｭ皮ｵ先棡 (CSV)縲榊粥閭ｽ碁€城℃ `v_liff_questionnaire_results` 隕門恂逶ｴ謗･蛹ｯ蜃ｺ蜷ｽｿ逕ｨ閠噪菴懃ｭ皮ｴ€骭€
 
-  - backend/endpoints/customers.py: 靽格迤脣 LINE Profile  API 蝡舫頝臬 /v2/bot/profile/{userId}
+## [2026-06-09] - 邯懷粋謨ｸ謫壽律譛溯ｨ育ｮ嶺ｿｮ豁｣
+### Fixed
+- backend/app.py: 菫ｮ豁岼蝨ｨ `/api/statistics/keywords` 遶ｯ鮟樔ｸｭ檎文蜑咲ｫｯ蛯ｳ蜈･ `YYYY-MM-DD` 譬ｼ蠑冗噪邨先據譌･譛滓凾梧悴豸ｵ闢句芦逡ｶ螟ｩ 23:59:59 逧撫鬘後€ら樟蟾ｲ閾ｪ蜍慕ぜ `end_time` 陬應ｸ ` 23:59:59`縲
+## [2026-06-23] - 客戶端標籤計數與 Rich Menu 路由修復
+### Fixed
+- `backend/endpoints/customers.py`：修復 `count-by-tags` 端點在 PostgreSQL 執行子查詢時因 LIKE 'U%' 值型別不匹配導致 500 錯誤。
+- `frontend/src/pages/RichMenu.jsx`：修復前端呼叫 `/richmenu/drafts` API 報 405 Method Not Allowed 錯誤，並調整 `/richmenu/metadata` 請求 Payload 結構。
 
-  - frontend/src/components/UserAvatar.jsx: 啣 loading_refreshed 隞仿脫迫剖頛亙仃⊿芰隤輻刻艘
-  - backend/endpoints/customers.py: 芸 refresh_customer_profile 啣虜蝺塚踹 Connection Leak
+## [2026-09-17] - 全方位資安漏洞防禦、多租戶隔離與前端健壯性優化
+### Security (安全性防護)
+- **全面補齊 40 個未鑑權 API 端點 (A01: Broken Access Control)**：
+  - `backend/endpoints/rule_designer.py`：所有規則設計師端點（獲取、新增、修改、刪除規則等 9 個端點）全面掛載 `@token_required` 裝飾器。
+  - `backend/endpoints/questionnaire.py`：文字問卷管理（清單、細節、建立、更新、刪除、預覽等 8 個端點）全面掛載 `@token_required`。
+  - `backend/endpoints/liff_questionnaire.py`：LIFF 問卷後台管理 7 個端點全面掛載 `@token_required`；嚴格保留 `/public/*` 路由供一般使用者正常作答。
+  - `backend/endpoints/db_viewer.py`：`/tables` 與 `/data` 掛載 `@token_required` 與 `@admin_required`，阻絕非管理者探測底層資料表。
+  - `backend/app.py`：`/api/projects/stats`、`/api/statistics*`、`/api/history/<user_id>`、`/api/tags`、`/api/users*`、`/api/qa*`、`/api/read*` 掛載 `@token_required`；系統除錯觸發器 `/api/trigger` 與 `/sys-debug` 掛載 `@admin_required`。
+- **跨租戶 (Cross-Tenant) 越權漏洞修復**：
+  - 在 `backend/auth.py` 中修復原本若傳入不存在 OA ID 會略過驗證的隱患，改為強制檢驗 HTTP 標頭 `X-OA-ID`，非 Admin 角色嚴格比對用戶允許的 OA 清單，全面防堵多租戶越權存取。
+- **機敏資訊洩漏與除錯標頭防護 (A05: Security Misconfiguration / CWE-209)**：
+  - `backend/app.py` 的 `add_debug_headers` 徹底移除洩漏底層連線字串的 `X-Debug-DB` 標頭。
+  - `handle_exception` 在非除錯環境下遮蔽伺服器 Python Traceback 堆疊，避免攻擊者刺探伺服器內部結構。
 
- 
- 
- 
- -   2 0 2 6 - 0 7 - 0 1 :   U p d a t e   F l e x M e s s a g e E d i t o r   t o   p r i o r i t i z e   u i _ u u i d   o v e r   r i c h M e n u I d   w h e n   c o n f i g u r i n g   r i c h   m e n u s w i t c h   f o r   f l e x   m e s s a g e   b u t t o n s   t o   e n s u r e   w e b h o o k   r e c e i v e s   t h e   c o r r e c t   U U I D   f o r m a t . 
- 
- -   2 0 2 6 - 0 7 - 0 1   ( H o t f i x ) :   F i x   R e a c t   o p t i o n   r e n d e r i n g   i n   F l e x M e s s a g e E d i t o r   a n d   R u l e D e s i g n e r   b y   s e t t i n g   f a l l b a c k   \  a l u e = { m . u i _ u u i d   | |   ' ' } \   t o   p r e v e n t   t h e   b r o w s e r   f r o m   d e f a u l t i n g   t o   t h e   r i c h   m e n u   n a m e   w h e n   \ u i _ u u i d \   i s   n u l l / u n d e f i n e d . 
- 
- 
-## [2026-07-06] 詨桅閮剔蝔頛舫瑽
-- 靽格迤: \ackend/endpoints/richmenu.py\ 蝘駁支 \save_rich_menu_metadata\  \set_default_rich_menu\ 脣撘瑕嗅嗡閮剝詨桅蝝 \published\ 頛胯
-- 啣: \save_rich_menu_metadata\  \set_default_rich_menu\ 銝剖交脣瑼Ｘ伐嗉身摰蝔閮剜交嗡閮剜蝔嚗撠 400 航炊
-- 霈: \check_and_apply_scheduled_rich_menus\ 乩芸蝝璈塚閮剝詨格芸湔啁 \published\
-- 霈: \rontend/src/pages/RichMenu.jsx\ 斗 UI 銝芯撘菟詨格閰脰◤璅蝷箇箝閮准曉冽瘥撠蝔桀嚗芸圈憿舐內箝蝔敺
-
-## [2026-07-07] Customer Center UI Fixes & LIFF Tag Format
-- 蚰 CustomerCenter.jsx kT氶A]珧}CQ~]臟r蚞伬Pe搧eY (繕e) DC
--  CustomerCenter.jsx 上C@ onScroll ⑤A洏峈抮u囧鴝傖自凰牽J挩lW (Infinite Scroll)C
-- 蚰 liff_questionnaire.py gJ搢狾 Private_var ⑩氶A~洏 str() 伬PDt庰Lk json.loads T悛R BugFw麍匿一洏 json.dumps(..., ensure_ascii=False) ixsC
-
-## [2026-07-07] Customer Center Background Loading Fix
-- 蚰GN CustomerCenter.jsx  Infinite Scroll ^**IJ (Chunked Background Fetch)**C]e揧jMOwgJbO擗弓CApGO搨nUu吨~J]Infinite Scroll^A|伬P|J洏峈怞bjM伂LkQC{b|b鴞綑J犰菾吨J狾⑩鴔農TOjM\iH峇C
-
- # #   [ 2 0 2 6 - 0 7 - 1 5 ]   -N﹃t_鴮BfhV送X  c r o n _ t a b l e _ c h e c k e r 
- -   送X  b a c k e n d / u t i l s / s c h e d u l e r . p y -N﹃tofczhV0
- -   ,dy  p r o j e c t _ s t a t s _ p r o c e s s o r     r i c h _ m e n u _ s c h e d u l e r _ p r o c e s s o r   _  a p p . p y     s c h e d u l e r . p y 0
- -   送X  c r o n _ t a b l e _ c h e c k e r   氠R[BfT@b	gwQ
-kP:O
-ghV|v  c h e c k _ c r o n _ t a b l e   w e b s o c k e t   N譸0
- -   yd  a p p . p y   -N
-	gcz/魯!|;Nz_0
- 
- 
- # #   [ 2 0 2 6 - 0 7 - 1 5 ]   薂ck瓠rTA I m絿命tbU I 
- -   yd0*gOR[b_Mb汦悐嬁
-0eW[0
- -   \Hrb9e歉  f i x e d   [MO漩嵊澕tPkTBf
-Ng b;NgQ鉀@SJXOPy0
- 
- 
- # #   [ 2 0 2 6 - 0 7 - 1 5 ]   薂ck  c r o n _ t a b l e _ c h e c k e r   |vOUL
- -   薂ck(WwQ	gYP  O A   qQ(u黲T  s o c k e t _ u r l   :O
-ghVv鰥翼Ng|v  W e b S o c k e t   N譸vOUL9e墣  s e t ( )    }&N
-\氠Phs芏:O
-ghV闢|v N!k0
- 
- 
- # #   [ 2 0 2 6 - 0 7 - 1 5 ]   薂ck  G u n i c o r n   Y  W o r k e r   讄L  S c h e d u l e r   OUL
- -   N  U D P   S o c k e t   }[,g0W  P o r t   ( 4 7 2 0 0 )   潩\OLz  ( C r o s s - p r o c e s s   L o c k ) 0
- -   漩嵊!q  G u n i c o r n   _U悐Y\P  W o r k e r T N盬_jhV
-N熽	g NP  W o r k e r   g讄LofczMQ癇BfgQ|vQ  t i m e r   Bl0
- 
- 
-
-## [2026-07-15] �湔鰵�餃枂��𩑈
-- 撠��蝡航䌊�閧蒈�箸��嗥眏�垍蔭 30 ����寧� 1 憭� (24撠𤩺�)
-# #   [ 2 0 2 6 - 0 7 - 1 6 ] 
- # # #   F i x e d 
- -   薂ck𠸍zW囻x𨯿U( R i c h   M e n u ) ��of讄L��/���zl  A P I   'Y��Bl\�:O
-ghV  5 0 3   N�	�vOUL�0
- -   薂ck舸P�W囻x𨯿U0Rg𪊺!q掞ck漩N週�OUL�0
- -   薂ck�u㜁[滍�  ( R u l e   D e s i g n e r )   𢔓芏Bfg��"uu  S e n s o r   �  M e s s a g e   𨶙譸�OUL��鏓d鍈藮�滝R�/�0
- -   薂ck*Rd鉷嬫㜁[滍�Bf豤  t u p l e   p a r s i n g    �b�  5 0 0   /㨩�0
- 
- -   OckczWexUV!q  \ u s e r s : { a p p _ n a m e } \   ǌeh\!qlckxS@b	g(u6b
-TUvOUL  ( f a l l b a c k   t o   P r i v a t e _ v a r ) 
- 
- 
- # #   2 0 2 6 - 0 7 - 1 7 :   WexUcz/Ock
- -   O_   u l k _ c h e c k _ a n d _ u p d a t e _ r i c h _ m e n u SmN
-\eKbR}[^czxUvOw_j6Ryd  i f   c u r r   i n   a l l _ e x i s t i n g _ m e n u _ i d s 	xO	gczvWexU Y!qhN˄!qczxU&NN(WczP}_g_ck8^㉁}&N V-xU0
- -   (W  s a v e _ r i c h _ m e n u _ m e t a d a t a   -Nݑ
-\|v^2QX[I?zBfv  p u b l i s h S t r a t e g y   = =   ' r e s t r i c t e d ' 	gczxU	eXBf͑uWI	g]z\;dd\O0
- 
- 
-ghV|v   c h e c k _ c r o n _ t a b l e   w e b s o c k e t   N譸 0
- -   yd  a p p . p y   -N
-	gc z/魯!|;N z _ 0
- 
- 
- # #   [ 2 0 2 6 - 0 7 - 1 5 ]   薂ck瓠rT A I  m絿命 t bU I 
- -   yd0*gOR[ b_Mb汦悐嬁
-0eW[ 0
- -    \Hrb9e歉  f i x e d   [MO漩嵊澕tP k TBf
-N g  b;NgQ鉀@SJXOPy 0
- 
- 
- # #   [ 2 0 2 6 - 0 7 - 1 5 ]   薂ck  c r o n _ t a b l e _ c h e c k e r    |v OUL
- -   薂ck(WwQ	g Y P  O A   qQ(u黲T  s o c k e t _ u r l   :O
-ghVv鰥翼 N g |v   W e b S o c k e t   N譸vOUL9e墣  s e t ( )    } &N
-\氠 Phs芏:O
-ghV闢|v  N!k 0
- 
- 
- # #   [ 2 0 2 6 - 0 7 - 1 5 ]   薂ck  G u n i c o r n    Y  W o r k e r    讄L  S c h e d u l e r   OUL
- -    N  U D P   S o c k e t   }[,g0W  P o r t   ( 4 7 2 0 0 )   潩\OL z  ( C r o s s - p r o c e s s   L o c k )  0
- -   漩嵊!q  G u n i c o r n   _U悐 Y \ P  W o r k e r T N盬_jhV
-N熽	g N P  W o r k e r    g讄Lofc z MQ癇BfgQ |vQ  t i m e r   Bl 0
- 
- 
-
-## [2026-07-15] 湔鰵餃枂𩑈
-- 撠蝡航䌊閧蒈箸嗥眏垍蔭 30 寧 1 憭 (24撠𤩺)
-# #   [ 2 0 2 6 - 0 7 - 1 6 ] 
- # # #   F i x e d 
- -   薂ck𠸍 z W囻x𨯿U( R i c h   M e n u ) of讄L/zl  A P I   'YBl \:O
-ghV  5 0 3   N	vOUL 0
- -   薂ck舸P W囻x𨯿U0R g𪊺!q掞ck漩 N週OUL 0
- -   薂cku㜁[滍  ( R u l e   D e s i g n e r )   𢔓芏Bf g "u u  S e n s o r      M e s s a g e   𨶙譸OUL鏓d鍈藮滝R/ 0
- -   薂ck*Rd鉷嬫㜁[滍Bf豤  t u p l e   p a r s i n g     b  5 0 0   /㨩 0
- 
- -   Ockc z WexUV!q  \ u s e r s : { a p p _ n a m e } \   ǌeh \!qlckxS@b	g(u6b
-TUvOUL  ( f a l l b a c k   t o   P r i v a t e _ v a r ) 
- 
- 
- # #   2 0 2 6 - 0 7 - 1 7 :    WexUc z/Ock
- -   O_    u l k _ c h e c k _ a n d _ u p d a t e _ r i c h _ m e n u  SmN
-\eKbR}[^c zxUvOw_j6R yd  i f   c u r r   i n   a l l _ e x i s t i n g _ m e n u _ i d s 	xO	gc zv WexU Y!qhN˄!qc zxU&N N(Wc zP}_g_ck8^㉁}&N V -xU 0
- -   (W  s a v e _ r i c h _ m e n u _ m e t a d a t a   -Nݑ
-\|v ^ 2QX[I?zBfv  p u b l i s h S t r a t e g y   = =   ' r e s t r i c t e d '  	gc zxU	eXBf͑uWI	g]z \;dd\O 0
- 
- 
-
-## [2026-07-17] UX / BUG 修正 (Issue #35)
-- **RichMenu**: 修正儲存草稿時未能顯示詳細錯誤訊息的問題。
-- **RichMenu**: 修正載入發送人數時，會短暫顯示 0 人的狀況，改為顯示「計算中...」提示與動畫。
-- **App**: 修正使用者在建立功能項目(如新增選單)過程中，若切換 OA 帳號，不會回到列表頁的問題。
-- **Auth/API**: 設 30 分鐘(後改為無)靜置登出機制，並於自動登入失敗 (401) 時自動清除登入資訊並顯示提示訊息。
-
-## [2026-08-10] 客戶群批量操作強化 MVP v1.2 (Customer Group Batch Operations)
-- **CustomerCenter**: 整合選取客戶的批量操作選單（新增/移除標籤、套用/解除圖文選單、加入/停止自動旅程與訊息發送跳轉）。
-- **CustomerCenter**: 實現「處理中載入動畫 Modal」與「執行結果明細 Modal」的視覺過渡，避免使用者無反饋重複點擊，並提供略過/失敗原因點擊查看功能。
-- **Backend API**: 新增 `POST /customers/batch-operation` 極簡批次介面，無須新增任何資料庫表格，於記憶體即時運算並傳回完整執行統計與明細。
-
-## [2026-08-10] 客戶群作為目標對象 MVP v1.0 (Customer Group Target Audience)
-- **Broadcast**: 發送對象新增「客戶群受眾」，支援即時群發與排程群發。排程發送支援 `(●) 送出時重新計算` 與 `( ) 鎖定目前名單` 模式選擇。
-- **RichMenu**: 連結圖文選單 Modal 支援選擇指定「客戶群」，一次性套用至客群當前全體成員。
-- **Projects**: 手動加入專案用戶 Modal 新增「選擇整批客戶群」切換模式，一次性將選定客群成員納入自動旅程。
-- **Customers API**: 新增 `GET /customers/groups/<group_name>/users` 取得成員 ID 清單，並擴充 `/customers/count-by-tags` 支援客群預估人數查詢。
-- **Hotfix**: 修正 Broadcast.jsx 中的 Tag 圖示匯入，於 RichMenu.jsx 編輯發布策略中補齊「指定客戶群」選項與套用發布邏輯。
-
-
+### Fixed & Stability (正確性與例外狀況防護)
+- **PostgreSQL 陣列與純量型別動態相容性**：
+  - 修復 `backend/endpoints/rule_designer.py` 在商案資料庫（如 `Q_bank:5013`）中將字串寫入陣列型別欄位 (`content`、`state_in`、`check`) 時引發之 `malformed array literal` 500 錯誤。改為動態查詢 `information_schema.columns`，依型別自動包裝為 Python list 序列化或純量字串。
+- **前端防止誤觸重整與未儲存防呆**：
+  - `frontend/src/pages/RuleDesigner.jsx` 新增 `window.onbeforeunload` 監聽，在編輯中或開啟彈窗時阻止誤觸 F5、重新整理或關閉視窗造成草稿遺失。
+- **網路異常與斷線全域處理**：
+  - `frontend/src/api.js` 新增網路斷線與 502/503 伺服器異常事件派發，提升系統在極端網路狀況下的健壯性。

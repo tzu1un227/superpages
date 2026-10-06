@@ -1020,13 +1020,14 @@ def public_submit_response(survey_key):
         conn.commit()
         cur.close()
 
-        # 4. 透過 WebSocket 向官方帳號伺服器發送問卷完成 Sensor 事件 (Liffquestionnaire|<存在資料庫的id>|<答案1>|<答案2>|.....)
+        # 4. 透過 WebSocket 向官方帳號伺服器發送問卷完成 Sensor 事件 (Liffquestionnaire|<survey_key>|<存在資料庫的id>|<答案1>|<答案2>|.....)
         try:
             from utils.socket_utils import send_socket_event
             target_bot = request.args.get("botAppName") or data.get("bot_app_name") or survey.get("bot_app_name") or app_id
 
             clean_answers = [str(val if val is not None else "").replace("|", "/") for _, val in validated]
-            socket_msg = "|".join(["Liffquestionnaire", str(response["id"])] + clean_answers)
+            survey_key = str(survey.get("survey_key") or "").replace("|", "/")
+            socket_msg = "|".join(["Liffquestionnaire", survey_key, str(response["id"])] + clean_answers)
 
             send_socket_event({
                 "type": "Sensor",

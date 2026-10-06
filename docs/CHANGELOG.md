@@ -1,9 +1,52 @@
 # CHANGELOG
 
+## [2026-10-06] LIFF 問卷完成 Sensor 事件擴充 survey_key 格式
+- **LIFF 問卷提交完成事件 (`backend/endpoints/liff_questionnaire.py`)**:
+  - 依「方案 A」規範將 WebSocket 發送之 `Sensor` 事件訊息格式擴充為：`Liffquestionnaire|<survey_key>|<存在資料庫的id>|<答案1>|<答案2>|.....`。
+  - 將 `<survey_key>`（問卷唯一鍵值）作為事件訊息的第 1 個參數注入，並防呆過濾特殊字元 `|` 為 `/`。
+  - 使 Line Bot 核心或 Q_bank 法則能依據單一問卷識別碼進行精準匹配與條件分流（如 `Liffquestionnaire|<survey_key>|*`），大幅提升問卷與機器人自動化互動的彈性。
+
 ## [2026-10-05] 合併 main 分支至 deploy-heroku 並保留 Heroku 效能配置
 - **分支合併**: 安全將 main 最新功能（包含問卷 Sensor 通知、全域資安防護、40 端點鑑權、來源透明化等）合併至 deploy-heroku。
 - **衝突排除**: 成功排除 6 個衝突檔案（backend/app.py, FlexMessageEditor.jsx, RuleDesigner.jsx, docs/ARCHITECTURE.md, CHANGELOG.md）。
 - **Heroku 專屬效能保留**: 嚴格保留 Procfile 之 gthread 多執行緒配置 (--workers 1 --threads 8 -k gthread --timeout 60) 與 backend/app.py 的 bot_info_cache 快取機制，杜絕 Heroku 503 錯誤。
+
+## [2026-10-02] LIFF 問卷完成後自動發送 Sensor 事件通知官方帳號
+- **LIFF 問卷提交完成事件 (`backend/endpoints/liff_questionnaire.py`)**:
+  - 於 `public_submit_response` 端點中，在資料庫事務 `conn.commit()` 正式提交後，新增透過 WebSocket 發送 `Sensor` 事件邏輯。
+  - 事件字串格式：`Liffquestionnaire|<存在資料庫的id>|<答案1>|<答案2>|.....`。
+    - `<存在資料庫的id>`：直接提取 `liff_questionnaire_responses` 表中本次提交的主鍵流水號 `response["id"]`。
+    - `<答案1>|<答案2>|...`：嚴格依照問卷題目題號順序提取作答內容，非必填未作答欄位自動保留空字串，並防呆替換使用者答案內的管道符號（`|` 替換為 `/`），防止官方帳號伺服器以 `split('|')` 解析時長度錯位。
+  - 使用 `utils.socket_utils.send_socket_event` 發送，支援根據 `botAppName` / `OAConfig` 動態定址與 HMAC-SHA256 安全簽章。
+
+## [2026-09-21] 資安 CIA 與 OWASP Top 10: 2025 全面性弱點修復與防禦強化
+- **身分鑑權與金鑰安全 (`backend/auth.py`, `backend/config.py`, `backend/app.py`)**:
+  - 徹底停用廢棄且寫死固定帳密 `admin/admin` 之 `/api/login` 路由（回應 HTTP 410 Gone），強制全站後台身分驗證統一收斂至 Google OAuth 2.0 (OWASP A07:2025 / A02:2025)。
+  - 升級 `SECRET_KEY` 回退機制，當環境變數未提供時，不再使用靜態可預測之 `'dev_secret_key'`，改由 `secrets.token_urlsafe(32)` 生成高熵動態運行密鑰，防禦 JWT 偽造提權 (OWASP A04:2025)。
+  - 敏感鑑權例外資訊脫敏，解密失敗不回傳內部例外細節。
+- **存取控制與開放重定向防護 (`backend/app.py`)**:
+  - 強化 `/api/redirect` 轉址驗證，採用 `urllib.parse.urlsplit` 檢驗 Scheme 僅限 `http/https`，阻擋 `javascript:` 等偽協定；阻擋 `//` 開頭之協議相對跳轉；檢測並阻擋 `\r` 與 `\n`，杜絕 CRLF 注入與開放重定向攻擊 (CWE-601, OWASP A01:2025)。
+  - 全域注入安全性 HTTP 標頭 (`X-Content-Type-Options: nosniff`, `X-XSS-Protection: 1; mode=block`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: SAMEORIGIN`)，強化瀏覽器端防護 (OWASP A02:2025)。
+  - 掛載全域 500 與例外處理器，非預期錯誤由內部詳細記錄，向客戶端回傳標準脫敏 JSON 訊息，避免暴露 Traceback (OWASP A10:2025)。
+- **檔案上傳完整性防偽 (`backend/endpoints/upload.py`)**:
+  - 引入 `werkzeug.utils.secure_filename` 消除檔名路徑穿越 (`../`) 威脅。
+  - 強制副檔名白名單驗證（僅允許 `.png, .jpg, .jpeg, .gif, .webp`）。
+  - 新增前導 Magic Bytes 檔案特徵檢查，嚴防攻擊者將惡意腳本改名偽裝為圖檔上傳至 CDN (OWASP A05:2025 / A08:2025)。
+  - 例外捕獲脫敏，保護系統內部錯誤訊息。
+- **權限防呆與管理員可用性保護 (`backend/endpoints/admin.py`)**:
+  - 管理者刪除防呆：嚴格禁止管理員於後台刪除當前登入之自身帳號。
+  - 系統可用性鎖死防護：當系統僅存最後一位管理員時，嚴格禁止刪除或降權，維護系統核心管理能力之連續可用性 (OWASP A06:2025)。
+
+## [2026-09-14] 關鍵字回覆圖文訊息防呆強化與儲存按鈕機制 (Issue #38)
+- **前端圖文訊息編輯器 (`frontend/src/components/FlexMessageEditor.jsx`)**:
+  - 新增 `showFooter` 與 `onConfirm` 屬性支援手動確認模式。手動模式下抑制背景 auto-save 即時向父層同步未驗證內容。
+  - 於彈窗底部固定新增操作列（「取消」與「完成並儲存」按鈕），並在左側即時呈現驗證錯誤提示橫幅 (`AlertCircle`)。
+  - 啟用並增強 `validateCards()` 防呆機制：嚴格檢查卡片圖片網址、選項型標題/說明文字、按鈕名稱、傳送訊息回傳文字、連結網址不得為空；若有任何欄位未填妥，即時報錯並阻擋關閉與儲存。
+- **關鍵字回覆頁面 (`frontend/src/pages/RuleDesigner.jsx`)**:
+  - 圖文訊息彈窗啟用手動確認模式 (`showFooter={true}`)，點擊「取消」或右上角 `X` 時不保留未確認的暫存修改，點擊「完成並儲存」通過防呆後才正式寫入訊息列表。
+  - 於外層回應訊息列表的 `handleSaveMsgModal` 中補齊 `FlexSendMessage` 的資料結構防呆檢驗，避免不完整 Flex 訊息被儲存至規則。
+- **後端規則驗證 (`backend/endpoints/rule_designer.py`)**:
+  - 在 `validate_rule` 函式中擴充對 `msg_rpy` 陣列內所有 `FlexSendMessage` 的深層檢驗，防止空的按鈕動作、連結或回傳文字寫入資料庫，徹底杜絕 LINE 送出空訊息錯誤。
 
 ## [2026-09-03] 訊息中心支援動態合併廣播與 Global_var 群發訊息 (bc_ 指標)
 - **訊息中心 (`backend/app.py` & `frontend/src/pages/MessageCenter.jsx`)**:
