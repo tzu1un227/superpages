@@ -274,7 +274,7 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
     1. **標籤寫入**：合併完成標籤與各題標籤至 `Private_var`，並寫入 `tag_meta`（來源標記為 `LIFF問卷完成`）。
     2. **自動加入旅程**：直接呼叫 `batch_enroll_journey_users_internal` 將用戶加入旅程排程，並寫入 `journey_meta`。
     3. **切換圖文選單**：寫入 `rich_menu_meta` 並發送 WebSocket 事件 `switch_rm|{finish_menu}` 觸發 Bot 即時切換用戶選單。
-    4. **官方帳號 Sensor 事件通知 (2026-10-02 新增)**：在資料庫事務 `conn.commit()` 提交後，自動組裝 `Liffquestionnaire|<存在資料庫的id>|<答案1>|<答案2>|.....`（提取自 `response["id"]` 與依序作答內容，並自動將答案中的 `|` 轉為 `/` 進行防呆），透過 `send_socket_event` 發送 `Sensor` 事件通知官方帳號伺服器。
+    4. **官方帳號 Sensor 事件通知 (2026-10-02 新增，2026-10-06 擴充 survey_key)**：在資料庫事務 `conn.commit()` 提交後，自動組裝 `Liffquestionnaire|<survey_key>|<存在資料庫的id>|<答案1>|<答案2>|.....`（提取自 `survey["survey_key"]`、`response["id"]` 與依序作答內容，並自動將答案與 survey_key 中的 `|` 轉為 `/` 進行防呆），透過 `send_socket_event` 發送 `Sensor` 事件通知官方帳號伺服器。使 Line Bot 於 Q_bank（法則表）能依據特定問卷識別碼直觀進行條件匹配與客製化回覆分流。
 - **來源透明化與主動探測升級 (backend/app.py & backend/endpoints/richmenu.py)**:
   - 自動旅程來源端點 `get_project_join_sources` 與圖文選單套用來源端點 `get_richmenu_apply_sources` 全面升級：
     - 主動探測文字問卷（`Q_bank` / `QA_bank`）中帶有旅程加入或選單切換的規則，歸類為 `form`（問卷管理）來源。

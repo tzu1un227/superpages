@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## [2026-10-06] LIFF 問卷完成 Sensor 事件擴充 survey_key 格式
+- **LIFF 問卷提交完成事件 (`backend/endpoints/liff_questionnaire.py`)**:
+  - 依「方案 A」規範將 WebSocket 發送之 `Sensor` 事件訊息格式擴充為：`Liffquestionnaire|<survey_key>|<存在資料庫的id>|<答案1>|<答案2>|.....`。
+  - 將 `<survey_key>`（問卷唯一鍵值）作為事件訊息的第 1 個參數注入，並防呆過濾特殊字元 `|` 為 `/`。
+  - 使 Line Bot 核心或 Q_bank 法則能依據單一問卷識別碼進行精準匹配與條件分流（如 `Liffquestionnaire|<survey_key>|*`），大幅提升問卷與機器人自動化互動的彈性。
+
 ## [2026-10-02] LIFF 問卷完成後自動發送 Sensor 事件通知官方帳號
 - **LIFF 問卷提交完成事件 (`backend/endpoints/liff_questionnaire.py`)**:
   - 於 `public_submit_response` 端點中，在資料庫事務 `conn.commit()` 正式提交後，新增透過 WebSocket 發送 `Sensor` 事件邏輯。
