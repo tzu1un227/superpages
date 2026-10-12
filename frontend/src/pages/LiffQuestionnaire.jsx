@@ -67,6 +67,7 @@ const answerTypes = [
   { value: 'phone', label: '手機' },
   { value: 'email', label: 'Email' },
   { value: 'date', label: '日期' },
+  { value: 'time', label: '時間' },
 ];
 
 const emptyQuestion = () => ({
@@ -310,7 +311,7 @@ export default function Questionnaire() {
           content: q.content,
           answer_type: q.answer_type,
           required: q.required,
-          condition_type: q.answer_type === 'number' ? '2' : q.answer_type === 'phone' ? '5' : q.answer_type === 'email' ? '6' : q.answer_type === 'date' ? '7' : q.answer_type.includes('choice') ? '3' : (q.condition_type === '4' ? '4' : '1'),
+          condition_type: q.answer_type === 'number' ? '2' : q.answer_type === 'phone' ? '5' : q.answer_type === 'email' ? '6' : q.answer_type === 'date' ? '7' : q.answer_type === 'time' ? '8' : q.answer_type.includes('choice') ? '3' : (q.condition_type === '4' ? '4' : '1'),
           condition_detail: q.condition_detail,
           options: q.optionsText,
           tags: q.tags,
@@ -712,7 +713,7 @@ export default function Questionnaire() {
                       {row.answers.map(answer => (
                         <Box key={answer.question_id} sx={{ mb: 1 }}>
                           <Typography sx={{ color: '#aaa', fontSize: '0.78rem' }}>Q{answer.question_no}. {answer.question}</Typography>
-                          <Typography sx={{ color: '#fff' }}>{answer.answer || '-'}</Typography>
+                          <Typography sx={{ color: '#fff', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{answer.answer || '-'}</Typography>
                         </Box>
                       ))}
                     </TableCell>

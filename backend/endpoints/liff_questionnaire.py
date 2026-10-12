@@ -266,6 +266,9 @@ def _validate_answer(question, value):
     if answer_type == "date" or (answer_type != "text" and condition_type == "7"):
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
             return False, "日期格式需為 YYYY-MM-DD"
+    if answer_type == "time" or (answer_type != "text" and condition_type == "8"):
+        if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?", text):
+            return False, "時間格式需為 HH:MM"
     return True, text
 
 

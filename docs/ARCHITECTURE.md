@@ -356,5 +356,19 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 ### 16.3 前端填寫端錯誤可視化與自動定位 (`liff_questionnaire/index.html`)
 - **欄位級錯誤解析**：當問卷提交端點回傳 HTTP 400 且附帶 `fields` 錯誤明細時，前端解析題目 ID 並取得對應題號與標題，組裝為可讀性高的錯誤清單，同時在該題目卡片下方顯示紅色錯誤提示並平滑滾動至出錯位置，提升填寫者之除錯體驗。
 
+## 17. LIFF 問卷支援換行文字與擴充時間題型架構 (2026-10-12 新增)
+
+### 17.1 後端答案格式驗證與時間格式校驗 (`backend/endpoints/liff_questionnaire.py`)
+- **擴充「時間」題型驗證**：新增 `answer_type == 'time'` 或 `condition_type == '8'` 之正規表達式驗證（`r"([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?"`），強制驗證填寫內容需符合 24 小時制 `HH:MM` 格式，與既有之「日期」題型（`YYYY-MM-DD`）共同構成時序欄位防護網。
+- **純文字多行答案保護**：延續解耦架構，自由文字輸入（`answer_type == 'text'`）在包含換行符號（`\n`）時能無損存入資料庫明細表 `liff_questionnaire_answers`，CSV 匯出亦遵循 RFC 4180 標準以雙引號封裝多行資料。
+
+### 17.2 後台問卷管理與作答呈現優化 (`frontend/src/pages/LiffQuestionnaire.jsx`)
+- **答案類型擴充**：於 `answerTypes` 新增 `{ value: 'time', label: '時間' }` 選項，並在問卷題目設定儲存時將 `time` 自動映射為 `condition_type: '8'`。
+- **作答明細多行排版優化**：於作答紀錄檢視對話框（Responses Dialog）之答案欄位加入 `whiteSpace: 'pre-wrap'` 與 `wordBreak: 'break-word'`，完整呈現填寫者於多行文字框中輸入的換行與段落結構。
+
+### 17.3 獨立填寫端體驗升級 (`liff_questionnaire/index.html`)
+- **文字題型多行化 (Textarea)**：將純文字題目渲染元素由單行 `<input type="text">` 升級為多行 `<textarea class="input-text" rows="3">`，搭配 `resize: vertical`，提供友善之長文填寫與換行體驗。
+- **原生時間選擇器 (Time Input)**：新增時間題目分支渲染 `<input type="time" class="input-date input-time">`，在行動裝置上自動喚起原生輪播滾輪時間選擇器，並於前端表單提交時進行即時正則校驗。
+
 
 
