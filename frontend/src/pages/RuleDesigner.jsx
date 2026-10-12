@@ -186,8 +186,7 @@ const isRuleEnabled = (rule) => {
     if (!rule) return false;
     const checks = Array.isArray(rule.check) ? rule.check : (typeof rule.check === 'string' ? [rule.check] : []);
     const hasFalse = checks.some(c => c && String(c).trim().toLowerCase() === 'false');
-    if (hasFalse) return false;
-    return rule.history !== false;
+    return !hasFalse;
 };
 
 const parseCheck = (checkArray) => {
@@ -640,7 +639,6 @@ function RuleDesigner() {
             const finalChecks = cleanChecks.length > 0 ? cleanChecks : [''];
             updatedRule = {
                 ...rule,
-                history: nextEnabled,
                 check: finalChecks,
                 _isDirty: true
             };
@@ -857,9 +855,6 @@ function RuleDesigner() {
             curChecks = curChecks.filter(c => c && String(c).trim().toLowerCase() !== 'false');
             if (!isEnabled) {
                 curChecks.push('False');
-                ruleToSave.history = false;
-            } else {
-                ruleToSave.history = true;
             }
             ruleToSave.check = curChecks.length > 0 ? curChecks : [''];
 

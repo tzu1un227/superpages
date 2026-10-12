@@ -1,3 +1,13 @@
+## [2026-10-12] 關鍵字回覆啟用狀態與 history 欄位徹底解耦 (修復非關鍵字指令被誤標 False)
+- **問題根因排除與侵入性自癒全面移除 (`backend/endpoints/rule_designer.py`)**:
+  - **根本原因排除**：修復先前在 `list_rules` 中因誤將 `history = False` 當作停用規則而對資料表動態執行 `UPDATE check = ['False']` 的邏輯。在 Line-Bot-Main 系統規範中，`history` 僅代表「是否將對話紀錄寫入對話歷史紀錄表」，系統內建大量除錯/測試指令（如 `gid`, `gpush`, `timer`, `cache`, `iter`, `DB`, `getTable`, `delTable` 等共 33 筆指令）原生即為 `history = False`。此錯誤邏輯導致管理者開啟 9014 bot1 後台時，所有 `history == False` 的系統指令之 `check` 欄位被全域覆寫為 `['False']` 而遭阻斷。
+  - **純讀取冪等性與解耦**：徹底移除 `list_rules` 中的遍歷覆寫更新，確保讀取 API 具備純讀取冪等性；移除 `create_rule` 與 `update_rule` 中依據 `history` 強制複寫 `check` 陣列的代碼，雙欄位完全解耦。
+- **前端啟用狀態單一判定依據與操作隔離 (`frontend/src/pages/RuleDesigner.jsx`)**:
+  - **解耦 isRuleEnabled**：修改 `isRuleEnabled(rule)` 函式，判定規則是否啟用 100% 依據 `!checks.some(c => String(c).trim().toLowerCase() === 'false')`，不再核對 `rule.history !== false`。
+  - **操作隔離**：在 `handleToggleRuleEnabled` 與 `handleSaveRow` 中切換啟用/停用時，僅針對 `check` 陣列追加或移除 `'False'`，保留並尊重規則原本的 `history` 設定。
+- **線上受影響指令精準還原與快取重載**:
+  - 連線至 5014 資料庫 `"Q_bank:bot1"`，比對標準題庫對 33 筆受影響的系統指令精確剔除誤標的 `'False'`（包括精準還原 `id=2` 的 `['m.api_index<0']`、`id=42` 的 `["check_in('test_qa_01')"]`、`id=43` 的 `["check_in('NonExistTAG')==False"]` 等原生條件），並透過 WebSocket 發送 `SQL|True` 即時熱重載完成修復。
+
 ## [2026-10-12] 關鍵字回覆主鍵序列同步自癒防禦 (Q_bank:pkey 重複鍵修復) 與 LIFF 問卷日期題型深色排版優化
 - **關鍵字回覆主鍵序列自癒防禦與 UniqueViolation 重試機制 (`backend/endpoints/rule_designer.py`)**:
   - **根本原因排除**：修復當資料表（如 `Q_bank:bot1`）曾有手動指定 id 插入（如歡迎訊息建立、歷史資料匯入）時，PostgreSQL 序列 (`Q_bank:bot1_id_seq`) 未同步推進，導致透過 `create_rule` 新增關鍵字規則時 `nextval` 產出已存在的 id，拋出 `duplicate key value violates unique constraint "Q_bank:bot1_pkey"` (Key id=6 already exists) 儲存失敗之問題。
