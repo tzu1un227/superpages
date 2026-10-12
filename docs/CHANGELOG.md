@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## [2026-10-12] 關鍵字回覆儲存設定 PostgreSQL 陣列型別修復與 LIFF 時間題型手機友善 UI 升級
+- **關鍵字回覆儲存設定陣列型別修復與錯誤透明化 (`backend/endpoints/rule_designer.py`, `frontend/src/pages/RuleDesigner.jsx`)**:
+  - **根本原因排除**：修復關鍵字回覆儲存時，因 `information_schema` 探測未納入 `udt_name`（`_text`）導致 `check` 陣列被錯誤降階為純純量字串，引發 PostgreSQL `malformed array literal: "False"`（HTTP 500）導致儲存失敗之異常。
+  - **強制陣列防禦**：引入 `is_array_column`，強制將已知陣列欄位（`check`, `content`, `state_in`, `msg_rpy`, `ans`）與底線開頭的陣列型態一律正規化為 Python `list`，交由 psycopg2 原生序列化為 PostgreSQL Array。
+  - **Sensor 規則同步防禦**：修正成對之 `Sensor` 規則比對條件（`content`, `state_in`）型態，確保雙軌更新原子性與成功率。
+  - **前端提示透明化**：前端 `RuleDesigner.jsx` 於非 400 例外時完整顯示後端回傳之錯誤訊息，並優化 `handleToggleRuleEnabled` 即時儲存之狀態傳遞，杜絕非同步競爭。
+- **LIFF 問卷時間題型行動端 UI 體驗升級 (`YZUIRL/liff_questionnaire/index.html`)**:
+  - **徹底消除鍵盤輸入**：針對行動裝置（iOS/Android/LINE WebView）最佳化時間選取元件，捨棄可能喚起數字鍵盤手動輸入的手機相容性問題。
+  - **原生雙選單滾輪 UI**：設計小時（00~23）與分鐘（00~59）雙下拉選取器，在手機上自動喚起原生滑動滾輪（Wheel Picker），手指一滑即可輕鬆選定時間。
+  - **智慧快捷操作**：新增「⏱️ 填入現在時間」一鍵代入按鈕與即時已選時間高亮預覽，100% 防呆且維持標準 24 小時制 `HH:MM` 答案結構。
+
 ## [2026-10-12] 圖文選單文字框擴展為多行與修復關鍵字回覆啟用狀態判定
 - **圖文選單傳送文字動作文字欄擴展為多行文字框 (Issue #40, `frontend/src/pages/RichMenu.jsx`, `frontend/src/index.css`)**:
   - 將動作類型為「傳送文字」(`message`) 的單行文字輸入框 (`<input type="text">`) 升級為多行文字框 (`<textarea rows={4}>`)。
