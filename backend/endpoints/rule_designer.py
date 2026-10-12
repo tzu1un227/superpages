@@ -89,6 +89,24 @@ def strip_pri_set_meta(func_str):
         
     return ','.join(filtered)
 
+def is_array_column(col_name, col_meta=None):
+    """
+    Check if a column is a PostgreSQL array column.
+    Guarantees known array columns (content, state_in, check, msg_rpy, ans) are always treated as arrays.
+    """
+    if col_name in ('content', 'state_in', 'check', 'msg_rpy', 'ans'):
+        return True
+    if not col_meta:
+        return False
+    data_type = ''
+    udt_name = ''
+    if isinstance(col_meta, dict):
+        data_type = (col_meta.get('data_type') or '').upper()
+        udt_name = col_meta.get('udt_name') or ''
+    elif isinstance(col_meta, str):
+        data_type = col_meta.upper()
+    return ('ARRAY' in data_type) or udt_name.startswith('_')
+
 def validate_python_syntax(code_str, field_name):
     """
     Validate a Python expression/statement string using ast.parse.
@@ -366,9 +384,9 @@ def create_rule():
             table_name = f"QA_bank:{app_id}"
         
         # Get actual columns and types to filter out invalid fields and adapt types
-        cur.execute("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = %s", (table_name,))
+        cur.execute("SELECT column_name, data_type, udt_name FROM information_schema.columns WHERE table_name = %s", (table_name,))
         col_rows = cur.fetchall()
-        col_info = {r['column_name']: (r.get('data_type') or '') for r in col_rows}
+        col_info = {r['column_name']: r for r in col_rows}
         existing_cols = set(col_info.keys())
         
         fields = []
@@ -383,11 +401,10 @@ def create_rule():
                 continue
             
             fields.append(f"\"{key}\"")
-            col_type = col_info.get(key, '')
-            is_array_col = ('ARRAY' in col_type.upper() or col_type == 'ARRAY')
+            is_array_col = is_array_column(key, col_info.get(key))
             
             if is_array_col and not isinstance(value, list):
-                value = [value] if value is not None else []
+                value = [value] if (value is not None and value != '') else []
             elif not is_array_col and isinstance(value, list):
                 value = value[0] if len(value) > 0 else ''
             
@@ -416,10 +433,9 @@ def create_rule():
                 if key == 'id': continue
                 if key not in existing_cols: continue
                 sensor_fields.append(f"\"{key}\"")
-                col_type = col_info.get(key, '')
-                is_array_col = ('ARRAY' in col_type.upper() or col_type == 'ARRAY')
+                is_array_col = is_array_column(key, col_info.get(key))
                 if is_array_col and not isinstance(value, list):
-                    value = [value] if value is not None else []
+                    value = [value] if (value is not None and value != '') else []
                 elif not is_array_col and isinstance(value, list):
                     value = value[0] if len(value) > 0 else ''
                 
@@ -479,7 +495,8 @@ def update_rule(rule_id):
             rule_data['check'] = clean_checks if clean_checks else ['']
     
     # Validate fields before saving
-    validation_errors = validate_rule_fields(rule_data, bank_type)
+    design_mode = data.get('design_mode', 'engineering')
+    validation_errors = validate_rule_fields(rule_data, bank_type, design_mode)
     if validation_errors:
         return jsonify({'status': 'validation_error', 'errors': validation_errors}), 400
         
@@ -496,9 +513,9 @@ def update_rule(rule_id):
             table_name = f"QA_bank:{app_id}"
         
         # Get actual columns and types
-        cur.execute("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = %s", (table_name,))
+        cur.execute("SELECT column_name, data_type, udt_name FROM information_schema.columns WHERE table_name = %s", (table_name,))
         col_rows = cur.fetchall()
-        col_info = {r['column_name']: (r.get('data_type') or '') for r in col_rows}
+        col_info = {r['column_name']: r for r in col_rows}
         existing_cols = set(col_info.keys())
         
         updates = []
@@ -510,10 +527,9 @@ def update_rule(rule_id):
                 print(f"[RULE_DESIGNER] Skipping non-existent column: {key}")
                 continue
             
-            col_type = col_info.get(key, '')
-            is_array_col = ('ARRAY' in col_type.upper() or col_type == 'ARRAY')
+            is_array_col = is_array_column(key, col_info.get(key))
             if is_array_col and not isinstance(value, list):
-                value = [value] if value is not None else []
+                value = [value] if (value is not None and value != '') else []
             elif not is_array_col and isinstance(value, list):
                 value = value[0] if len(value) > 0 else ''
                 
@@ -545,10 +561,9 @@ def update_rule(rule_id):
                 if key == 'function' and isinstance(value, str):
                     sensor_val = strip_pri_set_meta(value)
                 
-                col_type = col_info.get(key, '')
-                is_array_col = ('ARRAY' in col_type.upper() or col_type == 'ARRAY')
+                is_array_col = is_array_column(key, col_info.get(key))
                 if is_array_col and not isinstance(sensor_val, list):
-                    sensor_val = [sensor_val] if sensor_val is not None else []
+                    sensor_val = [sensor_val] if (sensor_val is not None and sensor_val != '') else []
                 elif not is_array_col and isinstance(sensor_val, list):
                     sensor_val = sensor_val[0] if len(sensor_val) > 0 else ''
                 
@@ -560,8 +575,14 @@ def update_rule(rule_id):
                     sensor_values.append(sensor_val)
                     
             sensor_values.append('Sensor')
-            sensor_values.append(old_rule['content'])
-            sensor_values.append(old_rule['state_in'])
+            s_content = old_rule['content']
+            s_state_in = old_rule['state_in']
+            if not isinstance(s_content, list):
+                s_content = [s_content] if s_content is not None else []
+            if not isinstance(s_state_in, list):
+                s_state_in = [s_state_in] if s_state_in is not None else []
+            sensor_values.append(s_content)
+            sensor_values.append(s_state_in)
             
             sensor_sql = f"UPDATE \"{table_name}\" SET {', '.join(sensor_updates)} WHERE type = %s AND content = %s AND state_in = %s"
             cur.execute(sensor_sql, sensor_values)

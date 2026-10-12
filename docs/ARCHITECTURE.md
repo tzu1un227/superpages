@@ -396,6 +396,19 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
   - 在 `create_rule` 與 `update_rule` 端點中，針對文字訊息規則 (`type == 'Message'`) 進行伺服器端雙重防護：當 `history is False` 時強制將 `'False'` 寫入 `check` 欄位；當 `history is True` 時安全剔除 `'False'`。同時自動將該條件同步至雙軌成對之 `Sensor` 規則。
   - 在 `list_rules` 載入 Q_bank 規則清單時，實作自癒檢測（Self-Healing）：自動識別歷史資料庫中 `history = FALSE` 但 `check` 未含 `'False'` 之舊有停用規則，即時更新資料庫之 `check` 欄位並自動觸發 WebSocket `trigger_sql_reload()`，徹底根除線上舊資料庫停用關鍵字依然回覆之異常。
 
+### 18.3 關鍵字回覆陣列欄位 (check) 型別防禦與 LIFF 時間題型原生雙選單 UI 架構 (2026-10-12 新增)
+- **關鍵字回覆陣列欄位型別防禦 (`backend/endpoints/rule_designer.py`)**：
+  - **儲存失敗根因分析**：PostgreSQL 資料庫中 `check`、`content`、`state_in`、`msg_rpy`、`ans` 等欄位在 schema 中定義為陣列型別（`text[]` 或 `varchar[]`）。原先程式在探測 `information_schema.columns` 時僅核對 `data_type == 'ARRAY'`，當探測結果未完全覆蓋 `udt_name`（例如 `_text`）時，系統將陣列型別誤判為純量欄位，導致在執行解包時將 `['False']` 轉為純字串 `'False'`。在送交 psycopg2 執行 SQL `UPDATE` 時引發 PostgreSQL 拋出 `malformed array literal: "False"`（HTTP 500）。
+  - **白名單與 UDT 型別雙重防護**：新增 `is_array_column(col_name, col_meta)` 判斷機制，強制將已知規則核心陣列欄位（`check`, `content`, `state_in`, `msg_rpy`, `ans`）與所有以底線開頭之 `udt_name`（如 `_text`, `_varchar`）判定為陣列欄位。在 `create_rule` 與 `update_rule` 中確保送入 SQL 佔位符 `%s` 的值 100% 為 Python `list`，徹底杜絕陣列型別破裂。
+  - **關聯規則比對與模式參數傳遞修復**：修正成對之 `Sensor` 規則更新時的型態比對防呆，並在 `update_rule` 調用 `validate_rule_fields` 時正確傳入 `design_mode`。
+- **關鍵字回覆前端錯誤回顯與狀態競態防禦 (`frontend/src/pages/RuleDesigner.jsx`)**：
+  - 於 `handleSaveRow` 與 `handleToggleRuleEnabled` 引入 `overrideRule` 傳參機制，避免 React 閉包中的非同步 state 產生競爭問題。
+  - 於錯誤攔截 (catch) 區塊完整解析並彈出 `err.response?.data?.error || err.message`，提供開發者與管理者透明之錯誤資訊。
+- **LIFF 問卷時間題型原生雙選單 UI 架構 (`YZUIRL/liff_questionnaire/index.html`)**：
+  - **免鍵盤原生雙選單**：為避免行動裝置或 LINE 內嵌瀏覽器彈出虛擬鍵盤干擾作答，將時間題型升級為小時 (00~23) 與分鐘 (00~59) 雙原生 `<select>` 下拉滾輪元件。點擊時自動在 iOS/Android 喚起原生滾動選擇器 (Wheel Picker)，徹底免除手動鍵盤輸入。
+  - **即時回饋與快速填寫**：整合「⏱️ 填入現在時間」一鍵填入按鍵，並即時渲染時間標籤（如 `14:30`）。未完整選取時提示「請完整選取時間 (小時與分鐘)」，達到最高等級之行動端操作友善度與防呆性。
+
+
 
 
 

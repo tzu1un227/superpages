@@ -627,6 +627,7 @@ function RuleDesigner() {
     };
 
     const handleToggleRuleEnabled = (index, nextEnabled, autoSave = false) => {
+        let updatedRule = null;
         setDraftRules(prevRules => {
             const nextRules = [...prevRules];
             const rule = nextRules[index];
@@ -637,12 +638,13 @@ function RuleDesigner() {
                 cleanChecks.push('False');
             }
             const finalChecks = cleanChecks.length > 0 ? cleanChecks : [''];
-            nextRules[index] = {
+            updatedRule = {
                 ...rule,
                 history: nextEnabled,
                 check: finalChecks,
                 _isDirty: true
             };
+            nextRules[index] = updatedRule;
             return nextRules;
         });
         if (rowErrors[index]) {
@@ -651,7 +653,7 @@ function RuleDesigner() {
             setRowErrors(newErrors);
         }
         if (autoSave) {
-            setTimeout(() => handleSaveRow(index), 0);
+            setTimeout(() => handleSaveRow(index, updatedRule), 0);
         }
     };
 
@@ -796,13 +798,13 @@ function RuleDesigner() {
     };
     // ------------------------------------
 
-    const handleSaveRow = async (index) => {
+    const handleSaveRow = async (index, overrideRule = null) => {
         // Clear previous errors for this row
         const newErrors = { ...rowErrors };
         delete newErrors[index];
         setRowErrors(newErrors);
 
-        const ruleToSave = { ...draftRules[index] };
+        const ruleToSave = overrideRule ? { ...overrideRule } : { ...draftRules[index] };
 
         // 檢查關鍵字標題是否重複
         if (designMode === 'simple') {
@@ -905,7 +907,8 @@ function RuleDesigner() {
                 const errorDetails = err.response.data.errors.join('\n');
                 showToast(`偵錯發現 ${err.response.data.errors.length} 個問題:\n${errorDetails}`, 'error');
             } else {
-                showToast('儲存失敗', 'error');
+                const backendMsg = err.response?.data?.error || err.message || '';
+                showToast(`儲存失敗${backendMsg ? ': ' + backendMsg : ''}`, 'error');
             }
         } finally {
             setLoading(false);
