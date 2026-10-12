@@ -408,6 +408,21 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
   - **免鍵盤原生雙選單**：為避免行動裝置或 LINE 內嵌瀏覽器彈出虛擬鍵盤干擾作答，將時間題型升級為小時 (00~23) 與分鐘 (00~59) 雙原生 `<select>` 下拉滾輪元件。點擊時自動在 iOS/Android 喚起原生滾動選擇器 (Wheel Picker)，徹底免除手動鍵盤輸入。
   - **即時回饋與快速填寫**：整合「⏱️ 填入現在時間」一鍵填入按鍵，並即時渲染時間標籤（如 `14:30`）。未完整選取時提示「請完整選取時間 (小時與分鐘)」，達到最高等級之行動端操作友善度與防呆性。
 
+### 18.4 關鍵字回覆主鍵序列同步自癒架構與 LIFF 日期題型深色防溢出排版 (2026-10-12 新增)
+- **關鍵字回覆主鍵序列自動同步與衝突自癒機制 (`backend/endpoints/rule_designer.py`)**：
+  - **儲存失敗 (UniqueViolation) 根因分析**：在 PostgreSQL 中，若曾有操作（如匯入題庫、建立預設歡迎規則）手動指定 `id` 插入資料表，序列計數器（Sequence，如 `Q_bank:bot1_id_seq`）未隨之推進。當使用者於管理介面新增規則時，PostgreSQL 預設的 `nextval` 產生出已存在於表中的 `id`（例如 id=6），觸發 `duplicate key value violates unique constraint "Q_bank:bot1_pkey"` (Key id=6 already exists) 儲存失敗。
+  - **三重序列探測與自癒校正 (`sync_table_sequence`)**：
+    1. 透過 `pg_get_serial_sequence` 內省反射欄位序列；
+    2. 若未取得，解析 `information_schema.columns` 中 `id` 欄位之 `column_default` 提取 `nextval('...')`；
+    3. 若仍未取得，依循常用命名慣例（`"{table_name}_id_seq"`）動態校正。
+    4. 執行 `SELECT setval(seq, max(max_id, 1), is_called)` 將序列安全推進至最新 `MAX(id)`。
+  - **主動防禦與例外容錯重試**：在 `list_rules` 載入時背景靜默自癒；在 `create_rule` 執行前強制同步；若依然遭遇 UniqueViolation 例外，自動 rollback 並動態以 `forced_id = MAX(id) + 1` 強制指定 id 插入成功後再度二次同步序列，搭配 `create_follow_rule` 插入後即時校正，達成全鏈路零衝撞保障。
+- **LIFF 問卷日期題型深色原生適配與 Flexbox 防溢出架構 (`YZUIRL/liff_questionnaire/index.html`)**：
+  - **原生深色模式適配**：針對行動端瀏覽器（iOS Safari、Android Chrome、LINE WebView）原生 `<input type="date">` 常因未宣告深色主題而渲染出刺眼白色背景或按鈕之問題，引入 `color-scheme: dark;`、`-webkit-appearance: none;` 與圖示反轉濾鏡 (`filter: invert(1)`)，徹底根除白底問題。
+  - **Flexbox 寬度收縮與防溢出重設**：在 `.question-card` 與外層容器加入 `min-width: 0; max-width: 100%; box-sizing: border-box; overflow: hidden;`，解決 Flexbox 子元素因 intrinsic minimum width 無法收縮導致衝出卡片邊界的經典排版溢出缺陷。
+  - **快捷操作與動態預覽**：封裝 `.date-picker-wrapper`，提供「📅 填入今天日期」一鍵填寫按鍵與即時星期換算反饋標籤。
+
+
 
 
 
