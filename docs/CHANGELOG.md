@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## [2026-10-12] 關鍵字回覆主鍵序列同步自癒防禦 (Q_bank:pkey 重複鍵修復) 與 LIFF 問卷日期題型深色排版優化
+- **關鍵字回覆主鍵序列自癒防禦與 UniqueViolation 重試機制 (`backend/endpoints/rule_designer.py`)**:
+  - **根本原因排除**：修復當資料表（如 `Q_bank:bot1`）曾有手動指定 id 插入（如歡迎訊息建立、歷史資料匯入）時，PostgreSQL 序列 (`Q_bank:bot1_id_seq`) 未同步推進，導致透過 `create_rule` 新增關鍵字規則時 `nextval` 產出已存在的 id，拋出 `duplicate key value violates unique constraint "Q_bank:bot1_pkey"` (Key id=6 already exists) 儲存失敗之問題。
+  - **自癒序列校正機制**：新增 `sync_table_sequence(cur, table_name)` 函式，整合 `pg_get_serial_sequence` 反射與 `information_schema.columns` 的 `column_default` 解析，確保將序列值校正至大於等於 `MAX(id)`。
+  - **全鏈路序列校正與衝突自動重試**：於 `list_rules` 載入時自動無感校正、`create_rule` 插入前強制校正，並在捕捉到 `IntegrityError` (UniqueViolation) 時動態以 `forced_id = MAX(id) + 1` 強制指定 id 插入並重試，搭配 `create_follow_rule` 與歡迎訊息插入後同步校正，徹底終結主鍵衝撞問題。
+- **LIFF 問卷日期題型深色模式適配與防溢出排版優化 (`YZUIRL/liff_questionnaire/index.html`)**:
+  - **徹底消除白色日期控制項與容器溢出**：針對行動裝置（iOS/Android/LINE In-App Browser），為原生 `<input type="date">` 加入 `color-scheme: dark;` 與 `-webkit-appearance: none;`，將日曆小圖示反轉為亮色，防止瀏覽器渲染淺色白色控制項；為 `.question-card` 與外層容器加入 `min-width: 0; max-width: 100%; box-sizing: border-box; overflow: hidden;`，根除 Flexbox 內部 intrinsic width 撐爆題目框框之排版缺陷。
+  - **快捷操作與即時反饋**：封裝 `.date-picker-wrapper` 元件，加入「📅 填入今天日期」快捷按鈕與即時已選日期徽章（含星期幾換算），打造極致行動端填寫體驗。
+
 ## [2026-10-12] 關鍵字回覆儲存設定 PostgreSQL 陣列型別修復與 LIFF 時間題型手機友善 UI 升級
 - **關鍵字回覆儲存設定陣列型別修復與錯誤透明化 (`backend/endpoints/rule_designer.py`, `frontend/src/pages/RuleDesigner.jsx`)**:
   - **根本原因排除**：修復關鍵字回覆儲存時，因 `information_schema` 探測未納入 `udt_name`（`_text`）導致 `check` 陣列被錯誤降階為純純量字串，引發 PostgreSQL `malformed array literal: "False"`（HTTP 500）導致儲存失敗之異常。

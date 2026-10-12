@@ -107,6 +107,51 @@ def is_array_column(col_name, col_meta=None):
         data_type = col_meta.upper()
     return ('ARRAY' in data_type) or udt_name.startswith('_')
 
+def sync_table_sequence(cur, table_name):
+    """
+    Synchronize the auto-increment primary key sequence for table_name
+    to match or exceed the current MAX(id). Prevents duplicate key violation errors.
+    """
+    try:
+        cur.execute(f'SELECT COALESCE(MAX(id), 0) AS max_id FROM "{table_name}"')
+        max_id = cur.fetchone()['max_id']
+        
+        # 1. Try pg_get_serial_sequence introspection
+        cur.execute(f"SELECT pg_get_serial_sequence('\"{table_name}\"', 'id') AS seq")
+        res = cur.fetchone()
+        seq = res['seq'] if res else None
+        
+        # 2. Try extracting from information_schema column_default
+        if not seq:
+            cur.execute("""
+                SELECT column_default 
+                FROM information_schema.columns 
+                WHERE table_name = %s AND column_name = 'id'
+            """, (table_name,))
+            def_row = cur.fetchone()
+            if def_row and def_row.get('column_default'):
+                match = re.search(r"nextval\('([^']+)'::regclass\)", def_row['column_default'])
+                if match:
+                    seq = match.group(1)
+        
+        # 3. Fallback candidates
+        candidates = [seq] if seq else [f'"{table_name}_id_seq"', f'{table_name}_id_seq']
+        
+        for candidate in candidates:
+            if not candidate:
+                continue
+            try:
+                target_val = max(max_id, 1)
+                is_called = (max_id > 0)
+                cur.execute("SELECT setval(%s, %s, %s)", (candidate, target_val, is_called))
+                print(f"[RULE_DESIGNER] Sequence {candidate} synchronized for {table_name} to {target_val} (is_called={is_called})")
+                return True
+            except Exception:
+                continue
+    except Exception as e:
+        print(f"[RULE_DESIGNER] sync_table_sequence warning for {table_name}: {e}")
+    return False
+
 def validate_python_syntax(code_str, field_name):
     """
     Validate a Python expression/statement string using ast.parse.
@@ -320,6 +365,9 @@ def list_rules():
                 conn.commit()
                 trigger_sql_reload()
 
+        # Auto-heal sequence if out of sync
+        sync_table_sequence(cur, table_name)
+
         # Filter out paired Sensor rules for the frontend
         def get_key(r):
             return f"{r.get('content')}|{r.get('state_in')}"
@@ -382,6 +430,9 @@ def create_rule():
             table_name = f"AD_bank:{app_id}"
         else:
             table_name = f"QA_bank:{app_id}"
+        
+        # Ensure sequence is synchronized before insertion to prevent duplicate key violations
+        sync_table_sequence(cur, table_name)
         
         # Get actual columns and types to filter out invalid fields and adapt types
         cur.execute("SELECT column_name, data_type, udt_name FROM information_schema.columns WHERE table_name = %s", (table_name,))
@@ -456,6 +507,37 @@ def create_rule():
 
         return jsonify({'status': 'success', 'id': new_id})
     except Exception as e:
+        err_msg = str(e)
+        if 'duplicate key value violates unique constraint' in err_msg and 'pkey' in err_msg:
+            print(f"[RULE_DESIGNER] Unique key collision detected during create_rule, attempting auto-resync and forced retry...")
+            try:
+                if conn:
+                    conn.rollback()
+                    cur = conn.cursor(cursor_factory=RealDictCursor)
+                    cur.execute(f'SELECT COALESCE(MAX(id), 0) + 1 AS forced_id FROM "{table_name}"')
+                    forced_id = cur.fetchone()['forced_id']
+                    
+                    retry_fields = list(fields) + ['"id"']
+                    retry_placeholders = list(placeholders) + ['%s']
+                    retry_values = list(values) + [forced_id]
+                    retry_sql = f"INSERT INTO \"{table_name}\" ({', '.join(retry_fields)}) VALUES ({', '.join(retry_placeholders)}) RETURNING id"
+                    cur.execute(retry_sql, retry_values)
+                    new_id = cur.fetchone()['id']
+                    
+                    if rule_data.get('type') == 'Message':
+                        sensor_forced_id = forced_id + 1
+                        sensor_retry_fields = list(sensor_fields) + ['"id"']
+                        sensor_retry_placeholders = list(sensor_placeholders) + ['%s']
+                        sensor_retry_values = list(sensor_values) + [sensor_forced_id]
+                        cur.execute(f"INSERT INTO \"{table_name}\" ({', '.join(sensor_retry_fields)}) VALUES ({', '.join(sensor_retry_placeholders)})", sensor_retry_values)
+                    
+                    sync_table_sequence(cur, table_name)
+                    conn.commit()
+                    cur.close()
+                    trigger_sql_reload()
+                    return jsonify({'status': 'success', 'id': new_id})
+            except Exception as retry_err:
+                print(f"[RULE_DESIGNER] Retry after sequence collision failed: {retry_err}")
         print(f"[RULE_DESIGNER] Create error: {str(e)}")
         if conn: conn.rollback()
         return jsonify({'error': str(e)}), 500
@@ -822,6 +904,7 @@ def get_follow_rules():
                     default_note
                 ))
             conn.commit()
+            sync_table_sequence(cur, table_name)
             trigger_sql_reload()
 
             cur.execute(f'SELECT * FROM "{table_name}" WHERE type = %s ORDER BY id ASC', ('Follow',))
@@ -902,6 +985,7 @@ def create_follow_rule():
         ))
         new_id = cur.fetchone()['id']
         conn.commit()
+        sync_table_sequence(cur, table_name)
         cur.close()
 
         trigger_sql_reload()
