@@ -281,6 +281,27 @@ def list_rules():
         cur.execute(f'SELECT * FROM "{table_name}" ORDER BY id ASC')
         rules = cur.fetchall()
         
+        # Check and auto-fix legacy inactive rules in Q_bank where history=False but check does not contain 'False'
+        need_sql_reload = False
+        if bank_type == 'q_bank':
+            for r in rules:
+                if r.get('type') == 'Message' and r.get('history') is False:
+                    cur_checks = r.get('check') or []
+                    if isinstance(cur_checks, str):
+                        cur_checks = [cur_checks]
+                    has_false = any(str(c).strip().lower() == 'false' for c in cur_checks)
+                    if not has_false:
+                        new_checks = [c for c in cur_checks if str(c).strip() and str(c).strip().lower() != 'false']
+                        new_checks.append('False')
+                        r['check'] = new_checks
+                        cur.execute(f'UPDATE "{table_name}" SET "check" = %s WHERE id = %s', (new_checks, r['id']))
+                        cur.execute(f'UPDATE "{table_name}" SET "check" = %s WHERE type = %s AND content = %s AND state_in = %s', 
+                                    (new_checks, 'Sensor', r.get('content'), r.get('state_in')))
+                        need_sql_reload = True
+            if need_sql_reload:
+                conn.commit()
+                trigger_sql_reload()
+
         # Filter out paired Sensor rules for the frontend
         def get_key(r):
             return f"{r.get('content')}|{r.get('state_in')}"
@@ -311,6 +332,21 @@ def create_rule():
     # Ensure Follow rules always have history = True
     if rule_data.get('type') == 'Follow':
         rule_data['history'] = True
+    
+    # Ensure check and history consistency for Message rules (Issue #39: disabled keywords must have 'False' in check)
+    if rule_data.get('type') == 'Message':
+        cur_checks = rule_data.get('check') or []
+        if isinstance(cur_checks, str):
+            cur_checks = [cur_checks]
+        cur_checks = list(cur_checks)
+        if rule_data.get('history') is False:
+            if not any(str(c).strip().lower() == 'false' for c in cur_checks):
+                clean_checks = [c for c in cur_checks if str(c).strip()]
+                clean_checks.append('False')
+                rule_data['check'] = clean_checks
+        else:
+            clean_checks = [c for c in cur_checks if str(c).strip() and str(c).strip().lower() != 'false']
+            rule_data['check'] = clean_checks if clean_checks else ['']
     
     # Validate fields before saving
     validation_errors = validate_rule_fields(rule_data, bank_type, design_mode)
@@ -426,6 +462,21 @@ def update_rule(rule_id):
     # Ensure Follow rules always have history = True
     if rule_data.get('type') == 'Follow':
         rule_data['history'] = True
+    
+    # Ensure check and history consistency for Message rules (Issue #39: disabled keywords must have 'False' in check)
+    if rule_data.get('type') == 'Message':
+        cur_checks = rule_data.get('check') or []
+        if isinstance(cur_checks, str):
+            cur_checks = [cur_checks]
+        cur_checks = list(cur_checks)
+        if rule_data.get('history') is False:
+            if not any(str(c).strip().lower() == 'false' for c in cur_checks):
+                clean_checks = [c for c in cur_checks if str(c).strip()]
+                clean_checks.append('False')
+                rule_data['check'] = clean_checks
+        else:
+            clean_checks = [c for c in cur_checks if str(c).strip() and str(c).strip().lower() != 'false']
+            rule_data['check'] = clean_checks if clean_checks else ['']
     
     # Validate fields before saving
     validation_errors = validate_rule_fields(rule_data, bank_type)

@@ -1436,7 +1436,19 @@ function RichMenu() {
                                         {ACTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                                     </select>
                                     {currentMenu.areas[selectedAreaIndex].action.type === 'message' && (
-                                        <input type="text" disabled={viewOnly} value={currentMenu.areas[selectedAreaIndex].action.text || ''} onChange={e => updateAreaAction(selectedAreaIndex, { text: e.target.value })} placeholder="訊息內容" />
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <textarea 
+                                                disabled={viewOnly} 
+                                                rows={4}
+                                                value={currentMenu.areas[selectedAreaIndex].action.text || ''} 
+                                                onChange={e => updateAreaAction(selectedAreaIndex, { text: e.target.value })} 
+                                                placeholder="訊息內容 (支援換行，點擊區塊時將傳送此文字)" 
+                                                style={{ width: '100%', resize: 'vertical', minHeight: '80px', lineHeight: '1.5' }}
+                                            />
+                                            <span style={{ fontSize: '11px', color: (currentMenu.areas[selectedAreaIndex].action.text || '').length > 300 ? '#ff4d4d' : '#888', alignSelf: 'flex-end' }}>
+                                                字數: {(currentMenu.areas[selectedAreaIndex].action.text || '').length} / 300
+                                            </span>
+                                        </div>
                                     )}
                                     {currentMenu.areas[selectedAreaIndex].action.type === 'uri' && (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
