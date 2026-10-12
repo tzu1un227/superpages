@@ -1,3 +1,14 @@
+## [2026-10-12] LIFF 問卷文字題型支援換行與新增時間 (HH:MM) 答題類型
+- **後端時間題型校驗與條件支援 (`backend/endpoints/liff_questionnaire.py`)**:
+  - 於 `_validate_answer` 函式新增 `time` 題型與 `condition_type == '8'` 驗證邏輯，強制校驗格式需符合 24 小時制 `HH:MM`。
+  - 確保多行文字（含 `\n` 換行）能完整無損寫入資料庫明細表與匯出至 CSV。
+- **後台問卷題型選單與作答呈現優化 (`frontend/src/pages/LiffQuestionnaire.jsx`)**:
+  - 題目答案類型選單新增「時間」(`time`)，建立與編輯問卷時自動將條件類型映射為 `condition_type: '8'`。
+  - 作答狀況檢視對話框答案欄位加入 `whiteSpace: 'pre-wrap'` 與 `wordBreak: 'break-word'`，精準保留並呈現填寫者輸入之換行段落。
+- **填寫端網頁體驗升級 (`YZUIRL/liff_questionnaire/index.html`)**:
+  - 文字題型全面升級為 `<textarea class="input-text" rows="3">` 多行輸入框，支援自然換行輸入。
+  - 新增「時間」題型分支，渲染原生 `<input type="time" class="input-date input-time">` 輪播選取器，並於前端送出前進行即時格式驗證。
+
 ## [2026-10-06] 修復 LIFF 問卷提交答案格式驗證與題型條件解耦
 - **後端答案格式驗證防禦 (`backend/endpoints/liff_questionnaire.py`)**:
   - 修復 `_validate_answer` 函式中題型 (`answer_type`) 與條件型態 (`condition_type`) 過度耦合的問題。
