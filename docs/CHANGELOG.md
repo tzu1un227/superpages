@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## [2026-10-12] 圖文選單文字框擴展為多行與修復關鍵字回覆啟用狀態判定
+- **圖文選單傳送文字動作文字欄擴展為多行文字框 (Issue #40, `frontend/src/pages/RichMenu.jsx`, `frontend/src/index.css`)**:
+  - 將動作類型為「傳送文字」(`message`) 的單行文字輸入框 (`<input type="text">`) 升級為多行文字框 (`<textarea rows={4}>`)。
+  - 支援使用者於圖文選單點擊動作中設定多行文字或段落，具備縱向自由拉伸 (`resize: vertical`)、自然行高排版與 300 字上限即時字數計數器。
+  - 全域樣式加入 `textarea:focus` 聚焦樣式，確保外觀視覺風格與全站輸入元件維持一致。
+- **關鍵字回覆啟用狀態判定與 Line-Bot-Main 匹配邏輯修復 (Issue #39, `frontend/src/pages/RuleDesigner.jsx`, `backend/endpoints/rule_designer.py`)**:
+  - **問題根因**：簡易模式關鍵字回覆「啟用狀態」勾選原先僅綁定 `history` 欄位，而 `history` 在 Line-Bot-Main 核心架構中僅代表是否將互動寫入聊天紀錄，導致已停用的關鍵字在 LINE 上依然會被觸發並回傳訊息。
+  - **條件式阻斷架構**：依據 Line-Bot-Main 規則命中先決條件 `check_check(m, rule['check'])`，停用關鍵字時將 `'False'` 注入 `check` 條件清單，使其執行求值必然為 `False` 而完全跳過匹配；啟用關鍵字時自 `check` 清單中安全移除 `'False'`。
+  - **前端狀態雙向綁定與防護**：於 `RuleDesigner.jsx` 新增 `isRuleEnabled` 狀態判定與 `handleToggleRuleEnabled` 批次切換函式，更新列表快速切換核取方塊與編輯頁面開關，並確保修改生效日期與每日時段時不遺失停用狀態。
+  - **後端主動式資料同步與歷史數據自動修復**：於 `backend/endpoints/rule_designer.py` 的 `create_rule` 與 `update_rule` 強制同步 `check` 與 `history`（同步維護成對之 `Sensor` 規則）；於 `list_rules` 載入 Q_bank 時自動辨識歷史停用但 `check` 未含 `'False'` 之規則並動態修復與觸發 WebSocket SQL 重載。
+
 ## [2026-10-12] LIFF 問卷文字題型支援換行與新增時間 (HH:MM) 答題類型
 - **後端時間題型校驗與條件支援 (`backend/endpoints/liff_questionnaire.py`)**:
   - 於 `_validate_answer` 函式新增 `time` 題型與 `condition_type == '8'` 驗證邏輯，強制校驗格式需符合 24 小時制 `HH:MM`。

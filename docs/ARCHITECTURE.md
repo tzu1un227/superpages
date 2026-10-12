@@ -370,5 +370,32 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 - **文字題型多行化 (Textarea)**：將純文字題目渲染元素由單行 `<input type="text">` 升級為多行 `<textarea class="input-text" rows="3">`，搭配 `resize: vertical`，提供友善之長文填寫與換行體驗。
 - **原生時間選擇器 (Time Input)**：新增時間題目分支渲染 `<input type="time" class="input-date input-time">`，在行動裝置上自動喚起原生輪播滾輪時間選擇器，並於前端表單提交時進行即時正則校驗。
 
+## 18. 圖文選單多行文字與關鍵字回覆啟用狀態架構優化 (2026-10-12 新增)
+
+### 18.1 圖文選單傳送文字動作多行文字體驗升級 (Issue #40)
+- **多行編輯元件遷移 (`frontend/src/pages/RichMenu.jsx`)**：
+  - 圖文選單「動作設定」中，當管理員選取「傳送文字」動作型態時，編輯元件由原本的單行 `<input type="text">` 改造為多行 `<textarea>` 元件。
+  - 元件預設設定 `rows={4}`、最小高度 `minHeight: 80px`，並啟用垂直自訂縮放 (`resize: vertical`)，方便用戶檢視與編輯包含多段落、換行符號之文字指令或預設訊息。
+  - 介面整合字數統計輔助標籤（顯示 `目前字數 / 300`），並於全域樣式庫 (`frontend/src/index.css`) 補強 `textarea:focus` 之黃金色高亮焦點外框 (`var(--primary-yellow)`)，維持全站一致性之深色模式極簡美學。
+
+### 18.2 關鍵字回覆啟用/停用狀態條件式攔截架構 (Issue #39)
+- **問題剖析與阻斷機制**：
+  - 核心商案機器人 (`Line-Bot-Main/maingame.py`) 判斷規則命中時，先決條件包含：
+    1. `check_state(m.state, rule['state_in'])`
+    2. `check_content(m, rule['content'])`
+    3. `check_check(m, rule['check'])`
+  - 其中規則的 `history` 欄位僅作為回覆函式回傳值之一，用以指示是否寫入對話紀錄 (`return True, ..., rule['history']`)，並無阻斷比對之功能。原先 Superpages 簡易模式誤以 `rule.history` 作為啟用狀態開關，導致停用規則依然會被比對成功並觸發回覆。
+  - 解決架構：透過 `check_check` 函式之運作機制（`return True if check_rule==[''] else all([main_eval(i,m) for i in check_rule])`），當 `rule['check']` 陣列包含字串 `'False'` 時，`main_eval('False', m)` 必然求值為布林值 `False`，使得 `check_check` 必定為 `False`，進而達成絕對不命中規則之目標。
+- **前端狀態雙向聯動 (`frontend/src/pages/RuleDesigner.jsx`)**：
+  - 定義 `isRuleEnabled(rule)`：規則需滿足 `rule.check` 不包含 `'False'` 且 `rule.history !== false` 方判定為啟用狀態。
+  - 於卡片列表切換與編輯檢視中，點擊啟用狀態開關調用 `handleToggleRuleEnabled`：
+    - 停用時：自動自 `rule.check` 追加 `'False'`，並同步設定 `rule.history = false`。
+    - 啟用時：自動自 `rule.check` 剔除 `'False'`（若無其他條件則保留預設 `['']`），並同步設定 `rule.history = true`。
+  - 於修改生效期間（日期/時間）或存檔時，自動維持並寫入對應之 `check` 與 `history` 屬性。
+- **後端同步維護與歷史數據自動修復 (`backend/endpoints/rule_designer.py`)**：
+  - 在 `create_rule` 與 `update_rule` 端點中，針對文字訊息規則 (`type == 'Message'`) 進行伺服器端雙重防護：當 `history is False` 時強制將 `'False'` 寫入 `check` 欄位；當 `history is True` 時安全剔除 `'False'`。同時自動將該條件同步至雙軌成對之 `Sensor` 規則。
+  - 在 `list_rules` 載入 Q_bank 規則清單時，實作自癒檢測（Self-Healing）：自動識別歷史資料庫中 `history = FALSE` 但 `check` 未含 `'False'` 之舊有停用規則，即時更新資料庫之 `check` 欄位並自動觸發 WebSocket `trigger_sql_reload()`，徹底根除線上舊資料庫停用關鍵字依然回覆之異常。
+
+
 
 

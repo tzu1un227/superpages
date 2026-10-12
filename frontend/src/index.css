@@ -67,7 +67,8 @@ textarea {
   transition: var(--transition);
 }
 
-input:focus {
+input:focus,
+textarea:focus {
   border-color: var(--primary-yellow);
 }
 

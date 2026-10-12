@@ -182,6 +182,14 @@ const TableCellTextarea = ({ value, onChange }) => {
 };
 
 // --- Helpers for Simple Mode Logic ---
+const isRuleEnabled = (rule) => {
+    if (!rule) return false;
+    const checks = Array.isArray(rule.check) ? rule.check : (typeof rule.check === 'string' ? [rule.check] : []);
+    const hasFalse = checks.some(c => c && String(c).trim().toLowerCase() === 'false');
+    if (hasFalse) return false;
+    return rule.history !== false;
+};
+
 const parseCheck = (checkArray) => {
     const result = { startDate: '', endDate: '', startTime: '', endTime: '' };
     if (!Array.isArray(checkArray)) return result;
@@ -253,8 +261,11 @@ const parseCheck = (checkArray) => {
     return result;
 };
 
-const stringifyCheck = ({ startDate, endDate, startTime, endTime }) => {
+const stringifyCheck = ({ startDate, endDate, startTime, endTime }, isEnabled = true) => {
     const checkArray = [];
+    if (!isEnabled) {
+        checkArray.push('False');
+    }
     
     // Date Logic (使用 Unix Timestamp，因為 sys.now() 是整數)
     if (startDate && endDate) {
@@ -284,7 +295,7 @@ const stringifyCheck = ({ startDate, endDate, startTime, endTime }) => {
         }
     }
     
-    return checkArray;
+    return checkArray.length > 0 ? checkArray : [''];
 };
 
 const parseFunction = (funcStr) => {
@@ -615,6 +626,35 @@ function RuleDesigner() {
         }
     };
 
+    const handleToggleRuleEnabled = (index, nextEnabled, autoSave = false) => {
+        setDraftRules(prevRules => {
+            const nextRules = [...prevRules];
+            const rule = nextRules[index];
+            if (!rule) return prevRules;
+            const curChecks = Array.isArray(rule.check) ? [...rule.check] : (typeof rule.check === 'string' ? [rule.check] : []);
+            const cleanChecks = curChecks.filter(c => c && String(c).trim().toLowerCase() !== 'false');
+            if (!nextEnabled) {
+                cleanChecks.push('False');
+            }
+            const finalChecks = cleanChecks.length > 0 ? cleanChecks : [''];
+            nextRules[index] = {
+                ...rule,
+                history: nextEnabled,
+                check: finalChecks,
+                _isDirty: true
+            };
+            return nextRules;
+        });
+        if (rowErrors[index]) {
+            const newErrors = { ...rowErrors };
+            delete newErrors[index];
+            setRowErrors(newErrors);
+        }
+        if (autoSave) {
+            setTimeout(() => handleSaveRow(index), 0);
+        }
+    };
+
     const handleOpenMsgModal = (index) => {
         setEditingRowIndex(index);
         const rawMsg = draftRules[index].msg_rpy || [];
@@ -810,6 +850,17 @@ function RuleDesigner() {
 
         // 簡易模式下根據最新 note 與 content 重新組裝包含來源 metadata 的 function 欄位
         if (designMode === 'simple') {
+            const isEnabled = isRuleEnabled(ruleToSave);
+            let curChecks = Array.isArray(ruleToSave.check) ? [...ruleToSave.check] : (typeof ruleToSave.check === 'string' ? [ruleToSave.check] : []);
+            curChecks = curChecks.filter(c => c && String(c).trim().toLowerCase() !== 'false');
+            if (!isEnabled) {
+                curChecks.push('False');
+                ruleToSave.history = false;
+            } else {
+                ruleToSave.history = true;
+            }
+            ruleToSave.check = curChecks.length > 0 ? curChecks : [''];
+
             const funcData = parseFunction(ruleToSave.function);
             ruleToSave.function = stringifyFunction(funcData, ruleToSave.note, ruleToSave.content);
         }
@@ -1017,7 +1068,7 @@ function RuleDesigner() {
                         const checkData = parseCheck(rule.check);
                         const funcData = parseFunction(rule.function);
                         const msgCount = Array.isArray(rule.msg_rpy) ? rule.msg_rpy.length : 0;
-                        const isEnabled = !!rule.history; // Using history as enabled status
+                        const isEnabled = isRuleEnabled(rule);
                         
                         return (
                             <div 
@@ -1058,11 +1109,7 @@ function RuleDesigner() {
                                         <input 
                                             type="checkbox" 
                                             checked={isEnabled} 
-                                            onChange={e => {
-                                                handleFieldChange(idx, 'history', e.target.checked);
-                                                // Trigger auto-save immediately on toggle
-                                                setTimeout(() => handleSaveRow(idx), 0);
-                                            }} 
+                                            onChange={e => handleToggleRuleEnabled(idx, e.target.checked, true)} 
                                         />
                                         <span style={{ fontSize: '13px', color: '#ccc' }}>啟用狀態</span>
                                     </label>
@@ -1093,7 +1140,7 @@ function RuleDesigner() {
                         const checkData = parseCheck(rule.check);
                         const funcData = parseFunction(rule.function);
                         const msgCount = Array.isArray(rule.msg_rpy) ? rule.msg_rpy.length : 0;
-                        const isEnabled = !!rule.history;
+                        const isEnabled = isRuleEnabled(rule);
                         
                         return (
                             <>
@@ -1127,7 +1174,7 @@ function RuleDesigner() {
                                                     <KeywordTagInput disabled={deletingIndex === idx} value={rule.content || ''} onChange={val => handleFieldChange(idx, 'content', val)} />
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px', padding: '10px', backgroundColor: '#1a1a1a', borderRadius: '6px' }}>
-                                                    <input type="checkbox" disabled={deletingIndex === idx} id="rule-enabled" checked={isEnabled} onChange={e => handleFieldChange(idx, 'history', e.target.checked)} style={{ width: '16px', height: '16px', opacity: loading ? 0.6 : 1 }} />
+                                                    <input type="checkbox" disabled={deletingIndex === idx} id="rule-enabled" checked={isEnabled} onChange={e => handleToggleRuleEnabled(idx, e.target.checked, false)} style={{ width: '16px', height: '16px', opacity: loading ? 0.6 : 1 }} />
                                                     <label htmlFor="rule-enabled" style={{ cursor: 'pointer', color: '#ccc', flex: 1 }}>啟用此關鍵字回覆</label>
                                                 </div>
                                             </div>
@@ -1176,17 +1223,17 @@ function RuleDesigner() {
                                                 <div>
                                                     <label className="label">生效日期區間 (留空白為不限制)</label>
                                                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                                        <input type="date" disabled={deletingIndex === idx} value={checkData.startDate} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, startDate: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} />
+                                                        <input type="date" disabled={deletingIndex === idx} value={checkData.startDate} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, startDate: e.target.value }, isEnabled))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} />
                                                         <span style={{ color: '#666' }}>~</span>
-                                                        <input type="date" disabled={deletingIndex === idx} value={checkData.endDate} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, endDate: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} />
+                                                        <input type="date" disabled={deletingIndex === idx} value={checkData.endDate} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, endDate: e.target.value }, isEnabled))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} />
                                                     </div>
                                                 </div>
                                                 <div>
                                                     <label className="label">每日生效時段 (留空白為全天)</label>
                                                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                                        <input type="time" disabled={deletingIndex === idx} value={checkData.startTime} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, startTime: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} />
+                                                        <input type="time" disabled={deletingIndex === idx} value={checkData.startTime} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, startTime: e.target.value }, isEnabled))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} />
                                                         <span style={{ color: '#666' }}>~</span>
-                                                        <input type="time" disabled={deletingIndex === idx} value={checkData.endTime} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, endTime: e.target.value }))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} />
+                                                        <input type="time" disabled={deletingIndex === idx} value={checkData.endTime} onChange={e => handleFieldChange(idx, 'check', stringifyCheck({ ...checkData, endTime: e.target.value }, isEnabled))} style={{ flex: 1, padding: '10px', backgroundColor: '#222', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '13px', opacity: loading ? 0.6 : 1 }} />
                                                     </div>
                                                 </div>
                                             </div>
