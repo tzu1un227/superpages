@@ -422,6 +422,19 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
   - **Flexbox 寬度收縮與防溢出重設**：在 `.question-card` 與外層容器加入 `min-width: 0; max-width: 100%; box-sizing: border-box; overflow: hidden;`，解決 Flexbox 子元素因 intrinsic minimum width 無法收縮導致衝出卡片邊界的經典排版溢出缺陷。
   - **快捷操作與動態預覽**：封裝 `.date-picker-wrapper`，提供「📅 填入今天日期」一鍵填寫按鍵與即時星期換算反饋標籤。
 
+### 18.5 關鍵字回覆啟用狀態與 history 欄位徹底解耦架構 (2026-10-12 新增)
+- **問題根因分析**：
+  - 在先前針對 Issue #39 的實作中，曾誤將 `history = FALSE` 假設為規則已停用，並於 `list_rules` 載入時執行侵入性自癒掃描，將所有 `history == False` 規則的 `check` 欄位強行覆寫為 `['False']`。
+  - 在 Line-Bot-Main 架構規範中，`history` (BOOL) 欄位純粹代表「是否將對話紀錄寫入對話歷史表記錄」，大量系統內建除錯與測試指令（如 `gid`, `gpush`, `timer`, `cache`, `iter`, `DB`, `getTable`, `delTable` 等）原生設計即為 `history = False`。
+  - 導致管理者在後台（如 9014 bot1）操作或停用關鍵字時，掃描邏輯直接將題庫中既有的 33 筆 `history == False` 的舊指令全數誤標為停用 (`check = ['False']`)。
+- **徹底解耦與非侵入式判定架構 (`backend/endpoints/rule_designer.py`, `frontend/src/pages/RuleDesigner.jsx`)**：
+  - **後端侵入性邏輯全面剔除**：徹底移除 `list_rules` 中遍歷掃描並動態 `UPDATE` 資料表 `check` 欄位的危險程式碼，確保讀取 API 具備純讀取冪等性；移除 `create_rule` 與 `update_rule` 中依據 `history` 強制複寫 `check` 陣列的邏輯，後端對 `check` 與 `history` 保持各自獨立儲存。
+  - **前端單一數據源判定**：重構前端 `RuleDesigner.jsx` 的 `isRuleEnabled(rule)` 函式，判定規則是否啟用純粹依據 `!checks.some(c => String(c).trim().toLowerCase() === 'false')`，完全不再核對 `rule.history !== false`。
+  - **開關切換與儲存狀態隔離**：在 `handleToggleRuleEnabled` 與 `handleSaveRow` 中切換啟用/停用時，僅於 `check` 陣列中安全加入或移除 `'False'`，100% 保留規則原本的 `history` 欄位值，不再強行將 `history` 設定為 `true` 或 `false`。
+- **線上受影響指令精準還原與快取重載**：
+  - 針對多帳號商案（如 5014）資料庫 `"Q_bank:bot1"` 中被誤加上 `'False'` 的 33 筆指令，以標準題庫為基準精確剔除 `'False'`（包括精準還原 `id=2` 的 `['m.api_index<0']`、`id=42` 的 `["check_in('test_qa_01')"]`、`id=43` 的 `["check_in('NonExistTAG')==False"]` 等原生條件），並透過 WebSocket 發送 `SQL|True` 即時熱重載機器人記憶體。
+
+
 
 
 
