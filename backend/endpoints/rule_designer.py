@@ -134,8 +134,21 @@ def sync_table_sequence(cur, table_name):
                 if match:
                     seq = match.group(1)
         
-        # 3. Fallback candidates
-        candidates = [seq] if seq else [f'"{table_name}_id_seq"', f'{table_name}_id_seq']
+        # 3. Build comprehensive candidates (handles both : and _ in sequence names, with or without quotes)
+        candidates = []
+        if seq:
+            clean_s = seq.strip('"')
+            candidates.extend([seq, clean_s, f'"{clean_s}"'])
+        
+        # Add pattern candidates for table_name
+        tbl_colon = table_name
+        tbl_under = table_name.replace(':', '_')
+        candidates.extend([
+            f'"{tbl_colon}_id_seq"',
+            f'{tbl_colon}_id_seq',
+            f'"{tbl_under}_id_seq"',
+            f'{tbl_under}_id_seq',
+        ])
         
         for candidate in candidates:
             if not candidate:
@@ -366,7 +379,8 @@ def list_rules():
                 trigger_sql_reload()
 
         # Auto-heal sequence if out of sync
-        sync_table_sequence(cur, table_name)
+        if sync_table_sequence(cur, table_name):
+            conn.commit()
 
         # Filter out paired Sensor rules for the frontend
         def get_key(r):
