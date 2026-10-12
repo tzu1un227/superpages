@@ -1,3 +1,11 @@
+## [2026-10-12] GitHub 圖片上傳 EOF 讀取修復與電腦版 LIFF 問卷提示「請使用LINE開啟此連結」
+- **GitHub 圖片上傳端點串流 EOF 缺陷修復 (`backend/endpoints/upload.py`, `frontend/src/pages/LiffQuestionnaire.jsx`)**:
+  - **根本原因排除**：修復在 `POST /api/upload/github` 上傳問卷底圖或圖文訊息時遭遇 HTTP 400 錯誤之問題。原先程式碼在初步驗證 Magic Bytes 讀取檔案流後，於 `try` 區塊重複呼叫 `file_content = file.read()`，因未執行 `seek(0)` 導致讀取指針已在 EOF 而讀入空內容，觸發防偽冒型態判定失敗回傳 400。
+  - **單次讀取與前端錯誤可視化**：移除重複讀取與多餘驗證區塊，直接沿用已驗證之 `file_content` 進行 Base64 編碼上傳；前端 `LiffQuestionnaire.jsx` 上傳底圖失敗時回顯後端具體訊息。
+- **電腦版 LIFF 問卷主動環境攔截與友善畫面 (`YZUIRL/liff_questionnaire/index.html`)**:
+  - **桌面環境精準檢測**：封裝 `isDesktopBrowser()`，整合 `liff.isInClient()` 與 User-Agent 行動裝置特徵偵測，精準判定是否為桌面電腦/PC 瀏覽器（非手機 LINE App）。
+  - **專屬攔截提示**：桌面環境開啟問卷時立即中斷後續 API 請求與 LINE Web 登入導向，呈現深色主題卡片並明確提示「**請使用LINE開啟此連結**」，輔以「📋 複製問卷連結」一鍵複製功能。
+
 ## [2026-10-12] 關鍵字回覆啟用狀態與 history 欄位徹底解耦 (修復非關鍵字指令被誤標 False)
 - **問題根因排除與侵入性自癒全面移除 (`backend/endpoints/rule_designer.py`)**:
   - **根本原因排除**：修復先前在 `list_rules` 中因誤將 `history = False` 當作停用規則而對資料表動態執行 `UPDATE check = ['False']` 的邏輯。在 Line-Bot-Main 系統規範中，`history` 僅代表「是否將對話紀錄寫入對話歷史紀錄表」，系統內建大量除錯/測試指令（如 `gid`, `gpush`, `timer`, `cache`, `iter`, `DB`, `getTable`, `delTable` 等共 33 筆指令）原生即為 `history = False`。此錯誤邏輯導致管理者開啟 9014 bot1 後台時，所有 `history == False` 的系統指令之 `check` 欄位被全域覆寫為 `['False']` 而遭阻斷。

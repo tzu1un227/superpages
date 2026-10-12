@@ -434,6 +434,15 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
 - **線上受影響指令精準還原與快取重載**：
   - 針對多帳號商案（如 5014）資料庫 `"Q_bank:bot1"` 中被誤加上 `'False'` 的 33 筆指令，以標準題庫為基準精確剔除 `'False'`（包括精準還原 `id=2` 的 `['m.api_index<0']`、`id=42` 的 `["check_in('test_qa_01')"]`、`id=43` 的 `["check_in('NonExistTAG')==False"]` 等原生條件），並透過 WebSocket 發送 `SQL|True` 即時熱重載機器人記憶體。
 
+### 18.6 GitHub 圖片上傳串流讀取修復與電腦版 LIFF 問卷環境攔截架構 (2026-10-12 新增)
+- **GitHub 圖片上傳端點串流指針修復 (`backend/endpoints/upload.py`)**：
+  - **問題根因排除**：修復在 `POST /api/upload/github` 上傳問卷底圖或圖文訊息時拋出 HTTP 400 錯誤之問題。原先程式碼在完成初步 Magic Bytes 檢驗 (`file.read()`) 後，於 `try` 區塊內部重複執行了第二次 `file_content = file.read()`，但因未重新 `file.seek(0)`，讀取指針已滯留於 EOF，使得第二次讀出的 `file_content` 變為空字節串 (`b''`)，觸發偽冒檔案型別防護 (`is_valid_image == False`) 而拋出 400 錯誤。
+  - **單次讀取與資源重用**：移除 `try` 區塊內部重複的讀取與 Magic Bytes 判斷，直接沿用前端已通過檢驗之 `file_content` 進行 Base64 編碼，徹底根除上傳底圖失敗問題。
+- **電腦版 LIFF 問卷環境主動攔截與提示架構 (`YZUIRL/liff_questionnaire/index.html`)**：
+  - **桌面環境檢測**：封裝 `isDesktopBrowser()` 檢測函式，結合 `liff.isInClient()` 與 User-Agent 行動裝置特徵偵測，精準過濾桌面版環境（PC / Mac 瀏覽器，非手機 LINE App）。
+  - **友善專屬攔截畫面**：當於桌面瀏覽器開啟問卷時，立即中斷非必要的 API 請求與 LIFF 網頁登入跳轉，渲染出沉浸式深色提示卡片，文案明確標註「**請使用LINE開啟此連結**」，並提供「📋 複製問卷連結」一鍵複製與 SweetAlert2 提示按鈕，大幅優化電腦版用戶體驗。
+
+
 
 
 

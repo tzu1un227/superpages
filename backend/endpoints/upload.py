@@ -62,23 +62,7 @@ def upload_to_github():
         return jsonify({'message': 'GitHub configuration is missing (Token or Repo)'}), 500
 
     try:
-        # Read file and encode to base64
-        file_content = file.read()
-        
-        # Validate Magic Bytes to prevent file type spoofing
-        is_valid_image = False
-        if ext == '.png' and file_content.startswith(b'\x89PNG\r\n\x1a\n'):
-            is_valid_image = True
-        elif ext in ['.jpg', '.jpeg'] and file_content.startswith(b'\xff\xd8\xff'):
-            is_valid_image = True
-        elif ext == '.gif' and (file_content.startswith(b'GIF87a') or file_content.startswith(b'GIF89a')):
-            is_valid_image = True
-        elif ext == '.webp' and file_content.startswith(b'RIFF') and file_content[8:12] == b'WEBP':
-            is_valid_image = True
-            
-        if not is_valid_image:
-            return jsonify({'message': '檔案內容與副檔名不符或檔案已損毀，拒絕上傳。'}), 400
-
+        # Encode verified file content to base64
         encoded_content = base64.b64encode(file_content).decode('utf-8')
 
         # Generate unique sanitized filename
