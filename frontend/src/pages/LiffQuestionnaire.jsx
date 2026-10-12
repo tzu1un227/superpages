@@ -368,7 +368,7 @@ export default function Questionnaire() {
         showToast('圖片上傳成功', 'success');
       }
     } catch (err) {
-      showToast('圖片上傳失敗', 'error');
+      showToast(err.response?.data?.message || '圖片上傳失敗', 'error');
     } finally {
       setSaving(false);
       e.target.value = ''; // Reset input
