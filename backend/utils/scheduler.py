@@ -1,5 +1,6 @@
 import time
 import threading
+import re
 from psycopg2.extras import RealDictCursor
 
 def project_stats_processor(app):
@@ -66,7 +67,7 @@ def project_stats_processor(app):
                             cur_oa.execute(f"""
                                 SELECT * FROM "{history_table}" 
                                 WHERE timestamp > %s 
-                                AND ((category = 'Message' OR category = 'Sensor') AND content LIKE '%%QA|cron_%%')
+                                AND ((category = 'Message' OR category = 'Sensor') AND (content LIKE '%%QA|cron_%%' OR content LIKE '%%QA|project_%%'))
                                 ORDER BY timestamp ASC
                             """, (last_time,))
                             entries = cur_oa.fetchall()
@@ -77,11 +78,18 @@ def project_stats_processor(app):
                                 max_timestamp = entry['timestamp']
                                 content = entry['content']
                                 try:
-                                    parts = content.split('_')
-                                    if len(parts) >= 3:
-                                        pj_id = int(parts[1])
-                                        step_id = int(parts[2])
+                                    pj_id = None
+                                    step_id = None
+                                    m_proj = re.search(r'project_(\d+)_step_(\d+)', content)
+                                    m_cron = re.search(r'cron_(\d+)_(\d+)', content)
+                                    if m_proj:
+                                        pj_id = int(m_proj.group(1))
+                                        step_id = int(m_proj.group(2))
+                                    elif m_cron:
+                                        pj_id = int(m_cron.group(1))
+                                        step_id = int(m_cron.group(2))
                                         
+                                    if pj_id is not None and step_id is not None:
                                         increment_project_stat(pj_id, 'ms', oa_id, entry['timestamp'].strftime('%Y-%m-%d'))
                                         increment_project_stat(pj_id, 'mss', oa_id, entry['timestamp'].strftime('%Y-%m-%d'))
                                         

@@ -729,7 +729,7 @@ def execute_broadcast(id):
                     (f"%qa('{msg_tag}')%", f"QA|{msg_tag}")
                 )
                 
-                # 插入單筆 yzuadmin 排程任務
+                # 插入單筆 yzuadmin 排程任務 (由升級後的 Line-Bot-Main cronjobs 直接驅動執行)
                 sql = f"INSERT INTO {t_cron} (user_id, message_content, push_time, status) VALUES (%s, %s, %s, 'active')"
                 cur_rds.execute(sql, ('yzuadmin', func_content, push_time))
                 

@@ -1,3 +1,20 @@
+## [2026-10-19] 修復關鍵字回覆啟用狀態無法關閉 (Issue #39)、移除 Heroku 飛安帳號與 Line-Bot-Main 函式化 cronjobs 全線同步升級 (Issue #42)
+- **Heroku Superpages 飛安商案帳號移除**:
+  - 自 Heroku Superpages 主資料庫 (`permission_settings`) 安全移除 ID: 9（商案名稱：機場 / mwlarpbot），目前有效商案帳號為 3 個（`yzulabuse`, `yzuirl01`, `ikearrrbot`）。
+- **Line-Bot-Main 函式化 cronjobs 全面同步升級**:
+  - 將 `irl9014` 的「直接執行函式 (smart_eval 驅動)」cronjobs 架構全面同步至 Heroku 正式商案機器人分支（`yzulabuse`, `yzuirl01`, `ikearrrbot`, `irl9014`）並推播至 GitHub 觸發部署。
+  - `sensors/cronjobs.py`：以 `smart_eval.smartexec` 直接驅動函式，`yzuadmin` 執行系統層級廣播 `sys.bmcast`，個人用戶自動旅程執行 `get_out(qa(...))` 並自動發送與記錄對話紀錄；同時向前向下相容 `QA|` 標籤。
+  - `sensors/sys.py`：升級 `sys.bmcast` 與 `sys.nwcast`，自動安全解構字典、JSON 字串與 Line 外層包裹鍵，杜絕 KeyError。
+  - `sensors/dboperation.py`：將 `g_opr` 預設值修正為 `use_db=True`，確保群發推播於執行當下從資料庫動態撈取最新完整名單。
+- **關鍵字回覆啟用開關 React 19 非同步更新閉包競態修復 (Issue #39, `frontend/src/pages/RuleDesigner.jsx`)**:
+  - **根本原因排除**：修復關鍵字回覆列表點擊「啟用狀態」開關時，提示儲存成功但開關依然維持在啟用狀態、且無法關閉關鍵字觸發之問題。原先 `handleToggleRuleEnabled` 在 `setDraftRules` 內部非同步賦值 `updatedRule`，並透過 `setTimeout(..., 0)` 調用 `handleSaveRow`。在 React 19 批次更新機制下，`handleSaveRow` 被調用時 `updatedRule` 仍為 `null`，進而回退使用組件渲染閉包中的舊狀態（未停用狀態，`check: ['']`），造成將舊狀態覆寫回資料庫。
+  - **同步構造與實體傳遞**：改於 `handleToggleRuleEnabled` 外部直接基於當前規則資料同步構造包含 `check: ['False']` 的 `updatedRule` 物件，並將最新物件實體同步傳入 `handleSaveRow(index, updatedRule)`，徹底杜絕閉包讀取舊資料覆寫。
+- **排程群發訊息 cron_table 函式化驅動 (Issue #42, `backend/endpoints/broadcast.py`)**:
+  - 配合 Line-Bot-Main 端函式化升級，啟用 `yzuadmin` 單筆 `sys.bmcast` 動態排程寫入，達成排程推播精準動態抓名單。
+- **自動旅程重啟排程與單位相容性修復 (Issue #42, `backend/app.py`, `backend/utils/scheduler.py`)**:
+  - **時間單位與 tag 協議相容**：修復 `restart_project_user` 與 `batch_enroll_journey_users_internal`，SQL 查詢補齊 `interval_unit`（分鐘/小時/天），排程時間推算不再預設為小時。
+  - **統計處理器正規化升級**：升級 `project_stats_processor`，使查詢條件與正則解析同時相容 `QA|cron_` 與 `QA|project_` 標籤，防止以底線分割字串時拋出 `ValueError`。
+
 ## [2026-10-12] GitHub 圖片上傳 EOF 讀取修復與電腦版 LIFF 問卷提示「請使用LINE開啟此連結」
 - **GitHub 圖片上傳端點串流 EOF 缺陷修復 (`backend/endpoints/upload.py`, `frontend/src/pages/LiffQuestionnaire.jsx`)**:
   - **根本原因排除**：修復在 `POST /api/upload/github` 上傳問卷底圖或圖文訊息時遭遇 HTTP 400 錯誤之問題。原先程式碼在初步驗證 Magic Bytes 讀取檔案流後，於 `try` 區塊重複呼叫 `file_content = file.read()`，因未執行 `seek(0)` 導致讀取指針已在 EOF 而讀入空內容，觸發防偽冒型態判定失敗回傳 400。

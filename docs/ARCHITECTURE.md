@@ -442,6 +442,43 @@ Superpages 是一個全端 (Full-stack) 網頁應用程式，專門用於管理�
   - **桌面環境檢測**：封裝 `isDesktopBrowser()` 檢測函式，結合 `liff.isInClient()` 與 User-Agent 行動裝置特徵偵測，精準過濾桌面版環境（PC / Mac 瀏覽器，非手機 LINE App）。
   - **友善專屬攔截畫面**：當於桌面瀏覽器開啟問卷時，立即中斷非必要的 API 請求與 LIFF 網頁登入跳轉，渲染出沉浸式深色提示卡片，文案明確標註「**請使用LINE開啟此連結**」，並提供「📋 複製問卷連結」一鍵複製與 SweetAlert2 提示按鈕，大幅優化電腦版用戶體驗。
 
+### 18.7 關鍵字回覆啟用狀態非同步閉包修復與排程廣播/自動旅程 cron_table 協議還原架構 (2026-10-19 新增)
+- **關鍵字回覆啟用開關 React 19 狀態非同步更新與閉包覆蓋修復 (Issue #39, `frontend/src/pages/RuleDesigner.jsx`)**：
+  - **根本原因排除**：先前前端實作中，`handleToggleRuleEnabled` 使用 `let updatedRule = null; setDraftRules(prevRules => { ... updatedRule = ... }); if (autoSave) setTimeout(() => handleSaveRow(index, updatedRule), 0);`。在 React 19 的非同步批次更新下，`setTimeout` 執行時 `setDraftRules` 的 updater callback 尚未執行，導致傳入 `handleSaveRow` 的 `updatedRule` 仍為 `null`。而 `handleSaveRow` 在未收到覆蓋值時回退使用渲染閉包中的 `draftRules[index]`（尚未變更的啟用舊狀態，`check: ['']`），造成將「開」的狀態再次儲存回資料庫，隨後刷新列表，開關始終無法關閉。
+  - **同步構造與即時傳遞**：重構為先於外部基於 `draftRules[index]` 同步計算並組裝出包含 `check: ['False']` 的 `updatedRule` 物件，隨後同步呼叫 `setDraftRules` 更新介面並直接傳遞實體呼叫 `handleSaveRow(index, updatedRule)`，徹底杜絕閉包異步競態。
+- **排程群發訊息與自動旅程 cron_table 任務協議還原架構 (Issue #42, `backend/endpoints/broadcast.py`, `backend/app.py`, `backend/utils/scheduler.py`)**：
+  - **Line-Bot-Main 排程執行引擎機制相容性**：
+    - `Line-Bot-Main/sensors/cronjobs.py` 在輪詢 `cron_table` 執行排程推播時，採用 `system_setting.syshandler(user_id, f"cron|{message_content}")` 發送 Sensor 事件至機器人核心。
+    - 機器人題庫 `Q_bank` 唯一能夠匹配排程推播的規則為 `content: ['cron|QA|*']`，執行 `get_out(qa(c_cut(2)))`。
+  - **排程廣播推播失敗自動刪除根因修復 (`backend/endpoints/broadcast.py`)**：
+    - 2026-08-31 的版本中曾將排程廣播改為由 `user_id = 'yzuadmin'` 寫入單一函式 `sys.bmcast(m, qa('{tag}'))`。輪詢時組合為 `cron|sys.bmcast(...)`，因無法匹配題庫任何規則而被 Line-Bot-Main 靜默忽略，隨後被認定執行完畢自 `cron_table` 刪除，導致「推播未發送但在 cron_table 被自動刪除」。
+    - 還原為標準群發機制：排程執行時動態解析受眾名單，以 `execute_values` 將所有受眾用戶批次寫入 `cron_table`，`message_content` 統一規範為 `QA|{message_tag}`，受眾為空時提供友好提示，100% 確保訊息準確觸發與送達。
+  - **自動旅程重啟與定時單位相容修復 (`backend/app.py`)**：
+    - 修復 `restart_project_user` 與 `batch_enroll_journey_users_internal`，SQL 查詢補全 `interval_unit`（分鐘/小時/天），排程時間推算不再預設為小時。
+    - 訊息內容還原為標準 `QA|{msg_tag}`，廢除無法被解析的 `get_out(qa('{tag}'))`。
+  - **統計處理器多格式正規化解析 (`backend/utils/scheduler.py`)**：
+    - 升級 `project_stats_processor`，SQL 查詢同時相容 `QA|cron_` 與 `QA|project_` 標籤，並透過正則表達式正規化提取 `project_id` 與 `step_id`，徹底解決舊版以底線硬性 `split` 導致的字串解析崩潰問題。
+
+### 18.8 Heroku 飛安帳號移除與 Line-Bot-Main 函式化 cronjobs 全線同步升級架構 (2026-10-19 新增)
+- **Heroku Superpages 飛安商案帳號移除**：
+  - 自 Heroku Superpages 主資料庫（`permission_settings`）安全移除 ID: 9（商案名稱：機場 / mwlarpbot）。
+  - 經關聯性查核，確認無任何外鍵約束受損，亦無任何一般帳號權限綁定該 OA，移除作業達成零停機與零副作用。
+  - 目前 Heroku Superpages 運行的有效 OA 維持 3 個：`superpages` (`yzulabuse`)、`蔡森數位創意` (`yzuirl01`)、`小游測試` (`xiaoyou_test` / `ikearrrbot`)。
+- **Line-Bot-Main 多商案機器人函式化驅動 cronjobs 全面升級**：
+  - 將 `irl9014` 的「直接執行函式 (smart_eval 驅動)」cronjobs 架構全面同步至 Heroku 正式商案機器人分支：
+    - `yzulabuse` (Heroku: yzulabuse)
+    - `yzuirl01` (Heroku: yzuirl01-5f3ca717277d)
+    - `ikearrrbot` (Heroku: ikearrrbot)
+    - `irl9014` (多機器人開發主幹)
+  - 核心模組升級要點：
+    1. `sensors/cronjobs.py`：以 `smart_eval.smartexec` 直接驅動函式，`yzuadmin` 執行系統層級廣播 `sys.bmcast`，個人用戶自動旅程執行 `get_out(qa(...))` 並自動發送與記錄對話紀錄；同時向前向下相容 `QA|` 標籤。
+    2. `sensors/sys.py`：升級 `sys.bmcast` 與 `sys.nwcast`，自動安全解構字典、JSON 字串與 Line 外層包裹鍵，杜絕 KeyError。
+    3. `sensors/dboperation.py`：將 `g_opr` 預設值修正為 `use_db=True`，確保群發推播於執行當下從資料庫動態撈取最新完整名單。
+- **Superpages 排程發送端升級**：
+  - [backend/endpoints/broadcast.py](file:///c:/Users/70640/Documents/GitHub/superpages/backend/endpoints/broadcast.py) 配合機器人端函式化支援，啟用 `yzuadmin` 單筆 `sys.bmcast` 動態排程寫入，達成排程推播精準動態抓名單。
+
+
+
 
 
 

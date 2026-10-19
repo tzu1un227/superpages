@@ -1087,7 +1087,7 @@ def restart_project_user(id, user_id):
                 print(f"Anchor error in restart_project_user: {e}")
 
         # 3. Fetch All Steps
-        cur.execute(f"SELECT step_id, interval_hours, message_content FROM {t_schedules} WHERE project_id = %s ORDER BY step_id ASC", (id,))
+        cur.execute(f"SELECT step_id, interval_hours, interval_unit, message_content FROM {t_schedules} WHERE project_id = %s ORDER BY step_id ASC", (id,))
         steps = cur.fetchall()
         
         if steps:
@@ -1118,11 +1118,8 @@ def restart_project_user(id, user_id):
                     current_push_time += timedelta(hours=interval_val)
                 
                 formatted_msg = msg
-                if msg and msg.startswith('QA|'):
-                    tag = msg.split('|')[-1]
-                    formatted_msg = f"get_out(qa('{tag}'))"
-                elif msg and not msg.startswith('get_out(') and not msg.startswith('sys.') and '(' not in msg:
-                    formatted_msg = f"get_out(qa('{msg}'))"
+                if formatted_msg and not formatted_msg.startswith('QA|') and not formatted_msg.startswith('MSG|'):
+                    formatted_msg = f"QA|{formatted_msg}"
 
                 cur.execute(f"INSERT INTO {t_cron} (user_id, project_id, step_id, message_content, push_time, status) VALUES (%s, %s, %s, %s, %s, 'active')",
                             (user_id, id, s_id, formatted_msg, current_push_time))
@@ -1243,11 +1240,8 @@ def batch_enroll_journey_users_internal(project_id, user_ids, app_id):
                     current_push_time += timedelta(hours=interval_val)
                     
                 formatted_msg = msg
-                if msg and msg.startswith('QA|'):
-                    tag = msg.split('|')[-1]
-                    formatted_msg = f"get_out(qa('{tag}'))"
-                elif msg and not msg.startswith('get_out(') and not msg.startswith('sys.') and '(' not in msg:
-                    formatted_msg = f"get_out(qa('{msg}'))"
+                if formatted_msg and not formatted_msg.startswith('QA|') and not formatted_msg.startswith('MSG|'):
+                    formatted_msg = f"QA|{formatted_msg}"
 
                 cur.execute(f"INSERT INTO {t_cron} (user_id, project_id, step_id, message_content, push_time, status) VALUES (%s, %s, %s, %s, %s, 'active')",
                             (user_id, project_id, s_id, formatted_msg, current_push_time))

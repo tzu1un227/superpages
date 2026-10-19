@@ -626,32 +626,35 @@ function RuleDesigner() {
     };
 
     const handleToggleRuleEnabled = (index, nextEnabled, autoSave = false) => {
-        let updatedRule = null;
+        const rule = draftRules[index];
+        if (!rule) return;
+
+        const curChecks = Array.isArray(rule.check) ? [...rule.check] : (typeof rule.check === 'string' ? [rule.check] : []);
+        const cleanChecks = curChecks.filter(c => c && String(c).trim().toLowerCase() !== 'false');
+        if (!nextEnabled) {
+            cleanChecks.push('False');
+        }
+        const finalChecks = cleanChecks.length > 0 ? cleanChecks : [''];
+        const updatedRule = {
+            ...rule,
+            check: finalChecks,
+            _isDirty: true
+        };
+
         setDraftRules(prevRules => {
             const nextRules = [...prevRules];
-            const rule = nextRules[index];
-            if (!rule) return prevRules;
-            const curChecks = Array.isArray(rule.check) ? [...rule.check] : (typeof rule.check === 'string' ? [rule.check] : []);
-            const cleanChecks = curChecks.filter(c => c && String(c).trim().toLowerCase() !== 'false');
-            if (!nextEnabled) {
-                cleanChecks.push('False');
-            }
-            const finalChecks = cleanChecks.length > 0 ? cleanChecks : [''];
-            updatedRule = {
-                ...rule,
-                check: finalChecks,
-                _isDirty: true
-            };
             nextRules[index] = updatedRule;
             return nextRules;
         });
+
         if (rowErrors[index]) {
             const newErrors = { ...rowErrors };
             delete newErrors[index];
             setRowErrors(newErrors);
         }
+
         if (autoSave) {
-            setTimeout(() => handleSaveRow(index, updatedRule), 0);
+            handleSaveRow(index, updatedRule);
         }
     };
 
