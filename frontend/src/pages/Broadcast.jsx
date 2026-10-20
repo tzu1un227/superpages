@@ -315,7 +315,10 @@ function BroadcastContent() {
             // Normalize messages: ensure they are objects, parse if stringified JSON
             return fetchedMessages.map(m => {
                 if (typeof m === 'string') {
-                    try { return JSON.parse(m); } catch { return { OTYPE: 'TextSendMessage', text: m }; } // Fallback to text if not valid JSON
+                    try { m = JSON.parse(m); } catch { return { OTYPE: 'TextSendMessage', text: m }; } // Fallback to text if not valid JSON
+                }
+                if (m && m.Line) {
+                    return m.Line;
                 }
                 return m;
             });

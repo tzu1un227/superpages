@@ -2816,10 +2816,21 @@ def create_qa_entry():
         # Since column is json[], we pass a list of JSON strings.
         # psycopg2 will turn a Python list of strings into a Postgres text array literal ['...','...'],
         # then we cast it to json[] in SQL.
+        def wrap_line(m):
+            if isinstance(m, str):
+                try:
+                    m = json.loads(m)
+                except Exception:
+                    pass
+            if isinstance(m, dict):
+                if 'Line' not in m and 'OTYPE' in m:
+                    return {'Line': m}
+            return m
+
         if isinstance(msg_rpy, list):
-            msg_rpy_db = [json.dumps(m) for m in msg_rpy]
+            msg_rpy_db = [json.dumps(wrap_line(m), ensure_ascii=False) for m in msg_rpy]
         else:
-            msg_rpy_db = [json.dumps(msg_rpy)]
+            msg_rpy_db = [json.dumps(wrap_line(msg_rpy), ensure_ascii=False)]
         
         app_id = get_current_app_id()
         table_name = f"QA_bank:{app_id}"

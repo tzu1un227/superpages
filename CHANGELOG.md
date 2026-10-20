@@ -1,3 +1,13 @@
+## [2026-10-20] Superpages 廣播訊息 QA_bank 資料結構標準化與 Nginx 憑證路徑修復 (Issue #43)
+- **Superpages 廣播訊息存入 QA_bank 格式標準化 (杜絕 Line-Bot-Main bmcast 觸發 KeyError: 'Line')**:
+  - **根本原因排除**：在 Line-Bot-Main 原生架構中，`sys.bmcast` 取出訊息物件後會以 `[check_JSON(i[m.API_container.type], m) for i in msgs]` 進行渲染，預期每一筆訊息物件皆具有頻道外層包裹（如 `{'Line': {'OTYPE': 'TextSendMessage', ...}}`）。Superpages 過去在儲存廣播時，呼叫後端 `/api/qa-bank` 存入未包裹外層的純訊息物件，導致排程廣播執行時 `qa(tag)` 查出的物件缺乏 `'Line'` 鍵值而拋出 `KeyError: 'Line'`。
+  - **後端存儲自動標準化 (`backend/app.py`)**：在 `/api/qa-bank` 路由中，新增 `wrap_line` 轉換輔助函式。在寫入 PostgreSQL `json[]` 陣列前，自動檢測訊息字典是否已包裹 `'Line'` 鍵，若為未包裹之標準 LINE 訊息則自動包裝為 `{'Line': m}`，達成與 Line-Bot-Main 原生 `bmcast`、自動旅程及試算表同步格式 100% 相容。
+  - **前端雙向相容解包 (`frontend/src/pages/Broadcast.jsx`)**：在 `fetchMessagesByTag` 載入訊息標籤時，新增解包邏輯 `if (m && m.Line) return m.Line;`，確保前端圖文編輯器與預覽介面在載入新舊資料庫紀錄時皆能無縫顯示與編輯。
+  - **資料庫歷史廣播標籤批次遷移**：自動掃描線上商案資料庫（包含 `yzulabuse`, `yzuirl01` 等所有商案），批次將既有 116 筆未包裹之 `bc_%` 標籤正規化包裹為標準格式，包含線上排程中之 `bc_1792464365590`。
+- **140.138.176.197 伺服器 Nginx 憑證還原與服務重啟**:
+  - **憑證定位與根因排除**：釐清遠端伺服器每兩個月自動更新憑證係由 `win-acme` (`wacs.exe`) 排程維護，產出之最新憑證儲存於 `C:\nginx\test\irl-svr.ee.yzu.edu.tw.pfx`，而 `nginx.conf` 設定寫死為舊版 Certbot 預設路徑 `C:/Certbot/live/irl-svr.ee.yzu.edu.tw/fullchain.pem`。先前執行 `nginx-restart.bat` 殺掉記憶體中舊有 Nginx 行程後，因重載時找不到路徑導致行程秒退。
+  - **憑證部署與服務上線**：於 `C:\Certbot\live\irl-svr.ee.yzu.edu.tw\` 建立目錄並佈署完整憑證鏈 (`fullchain.pem`) 與 RSA 私鑰 (`privkey.pem`)，成功重啟 `nginx.exe`（PID 10784, 6536, 6820），經遠端網路測試 443 與 5001 埠號連線皆已恢復正常 (`TcpTestSucceeded: True`)。
+
 ## [2026-10-19] 修復關鍵字回覆啟用狀態無法關閉 (Issue #39)、移除 Heroku 飛安帳號與 Line-Bot-Main 函式化 cronjobs 全線同步升級 (Issue #42)
 - **Heroku Superpages 飛安商案帳號移除**:
   - 自 Heroku Superpages 主資料庫 (`permission_settings`) 安全移除 ID: 9（商案名稱：機場 / mwlarpbot），目前有效商案帳號為 3 個（`yzulabuse`, `yzuirl01`, `ikearrrbot`）。
